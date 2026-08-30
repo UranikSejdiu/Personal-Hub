@@ -1,0 +1,44 @@
+{
+  "expo": {
+  "name": "Uranik's Hub",
+  "slug": "uraniks-hub",
+  "version": "1.1.0",
+  "orientation": "portrait",
+  "icon": "./assets/icon.png",
+  "userInterfaceStyle": "automatic",
+  "splash": {
+    "image": "./assets/splash-icon.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#1a1a2e"
+  },
+  "scheme": "uranikshub",
+  "newArchEnabled": false,
+  "ios": {
+    "supportsTablet": true,
+    "bundleIdentifier": "com.uranik.offlinehub"
+  },
+  "android": {
+    "package": "com.uranik.offlinehub",
+    "versionCode": 26,
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-secure-store",
+        {
+          "iosAccessGroup": "com.uranik.offlinehub"
+        }
+      ]
+    ]
+  }
+}
