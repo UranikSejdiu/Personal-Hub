@@ -40,3 +40,4 @@ yarn-error.*
 /android/.gradle/
 /android/.cxx/
 /android/local.properties
+/android/keystore.properties
