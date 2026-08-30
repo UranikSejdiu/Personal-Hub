@@ -41,3 +41,4 @@ yarn-error.*
 /android/.cxx/
 /android/local.properties
 /android/keystore.properties
+/SECRETS.md
