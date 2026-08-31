@@ -180,3 +180,35 @@ export async function getSavingsSummary(): Promise<SavingsSummary> {
     totalSpent,
   };
 }
+
+export async function closeYear(
+  year: number,
+  closingDescription: string
+): Promise<{ net: number; created: SavingsTransaction | null }> {
+  const prefix = `${year}-`;
+  const like = `${prefix}%`;
+  const [autoRow, txRow] = await Promise.all([
+    db.get<Record<string, unknown>>(
+      "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month LIKE ?",
+      [like]
+    ),
+    db.get<Record<string, unknown>>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
+         COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
+       FROM savings_transactions WHERE date LIKE ?`,
+      [like]
+    ),
+  ]);
+  const autoTotal = Number(autoRow?.total) || 0;
+  const saved = Number(txRow?.saved) || 0;
+  const spent = Number(txRow?.spent) || 0;
+  const net = autoTotal + saved - spent;
+  if (net === 0) return { net: 0, created: null };
+  const nextYear = year + 1;
+  const date = `${nextYear}-01-01`;
+  const type: SavingsEntryType = net > 0 ? "deposit" : "purchase";
+  const amount = Math.abs(net);
+  const created = await addTransaction(type, closingDescription, amount, date);
+  return { net, created };
+}

@@ -122,6 +122,7 @@ export default function DashboardScreen() {
       return (
         <Pressable
           onPress={() => openBudgetMonth(item.month)}
+          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
           className="rounded-xl border border-border bg-card p-3"
         >
           <View className="flex-row items-center justify-between">

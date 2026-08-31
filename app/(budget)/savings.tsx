@@ -1,11 +1,9 @@
-import { useEffect, useState, useCallback, startTransition } from "react";
+import { useEffect, useState, useCallback, startTransition, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, Modal, TextInput } from "react-native";
-import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
+import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "lucide-react-native";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
-import {
-  loadSavingsGoal,
-} from "../../src/lib/budget";
+import { loadSavingsGoal } from "../../src/lib/budget";
 import {
   listAutoDeposits,
   deleteAutoDeposit,
@@ -14,7 +12,7 @@ import {
   deleteTransaction,
   updateTransaction,
   getSavingsSummary,
-  type AutoDeposit,
+  closeYear,
   type SavingsTransaction,
   type SavingsSummary,
   type SavingsEntryType,
@@ -27,8 +25,22 @@ import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 
+interface SavingsEntry {
+  id: string;
+  kind: "auto" | "tx";
+  type: SavingsEntryType;
+  description: string;
+  amount: number;
+  date: string;
+  rawMonth?: string;
+  rawTx?: SavingsTransaction;
+}
+
 interface ConfirmAction {
+  title: string;
   message: string;
+  confirmLabel?: string;
+  destructive?: boolean;
   onConfirm: () => void;
 }
 
@@ -37,9 +49,9 @@ export default function SavingsScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const [goalAmount, setGoalAmount] = useState(0);
-  const [autoDeposits, setAutoDeposits] = useState<AutoDeposit[]>([]);
-  const [transactions, setTransactions] = useState<SavingsTransaction[]>([]);
+  const [entries, setEntries] = useState<SavingsEntry[]>([]);
   const [summary, setSummary] = useState<SavingsSummary>({ balance: 0, totalSaved: 0, totalSpent: 0 });
+  const [selectedYear, setSelectedYear] = useState<number | "all">(() => new Date().getFullYear());
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -51,6 +63,7 @@ export default function SavingsScreen() {
   const [modalError, setModalError] = useState("");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [saving, setSaving] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     const [sg, ads, txs, sum] = await Promise.all([
@@ -60,10 +73,29 @@ export default function SavingsScreen() {
       getSavingsSummary(),
     ]);
     setGoalAmount(sg.goal_amount);
-    setAutoDeposits(ads);
-    setTransactions(txs);
     setSummary(sum);
-  }, []);
+
+    const autoEntries: SavingsEntry[] = ads.map((ad) => ({
+      id: `auto:${ad.month}`,
+      kind: "auto" as const,
+      type: "deposit" as const,
+      description: ad.month,
+      amount: ad.amount,
+      date: ad.month,
+      rawMonth: ad.month,
+    }));
+    const txEntries: SavingsEntry[] = txs.map((tx) => ({
+      id: `tx:${tx.id}`,
+      kind: "tx" as const,
+      type: tx.type,
+      description: tx.description || t("transaction"),
+      amount: tx.amount,
+      date: tx.date,
+      rawTx: tx,
+    }));
+    const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
+    setEntries(merged);
+  }, [t]);
 
   useEffect(() => {
     startTransition(() => {
@@ -71,12 +103,47 @@ export default function SavingsScreen() {
     });
   }, [loadData]);
 
-  const handleDeleteAutoDeposit = useCallback(
-    async (month: string) => {
-      await deleteAutoDeposit(month);
-      loadData();
+  const currentYear = new Date().getFullYear();
+  const availableYears = useMemo(() => {
+    const set = new Set<number>();
+    for (const e of entries) {
+      const y = Number(e.date.slice(0, 4));
+      if (Number.isFinite(y)) set.add(y);
+    }
+    if (set.size === 0) return [currentYear];
+    return Array.from(set).sort((a, b) => b - a);
+  }, [entries, currentYear]);
+
+  const filteredEntries = useMemo(() => {
+    if (selectedYear === "all") return entries;
+    return entries.filter((e) => Number(e.date.slice(0, 4)) === selectedYear);
+  }, [entries, selectedYear]);
+
+  const handleDeleteEntry = useCallback(
+    (entry: SavingsEntry) => {
+      setConfirmAction({
+        title: t("deleteConfirmTitle"),
+        message: t("deleteSavingsEntryConfirm"),
+        confirmLabel: t("delete"),
+        destructive: true,
+        onConfirm: () => {
+          void (async () => {
+            try {
+              if (entry.kind === "auto" && entry.rawMonth) {
+                await deleteAutoDeposit(entry.rawMonth);
+              } else if (entry.kind === "tx" && entry.rawTx) {
+                await deleteTransaction(entry.rawTx.id);
+              }
+              await loadData();
+            } catch {
+              toast.error(t("errorDeletingSavings"));
+            }
+          })();
+          setConfirmAction(null);
+        },
+      });
     },
-    [loadData]
+    [t, loadData]
   );
 
   const openCreateModal = useCallback(() => {
@@ -100,6 +167,56 @@ export default function SavingsScreen() {
     setModalError("");
     setShowModal(true);
   }, []);
+
+  const handleTapEntry = useCallback(
+    (entry: SavingsEntry) => {
+      if (entry.kind === "tx" && entry.rawTx) {
+        openEditModal(entry.rawTx);
+      }
+    },
+    [openEditModal]
+  );
+
+  const handleCloseYear = useCallback(
+    (year: number) => {
+      const yearEntries = entries.filter((e) => Number(e.date.slice(0, 4)) === year);
+      let net = 0;
+      for (const e of yearEntries) {
+        if (e.type === "deposit") net += e.amount;
+        else net -= e.amount;
+      }
+      if (net === 0) {
+        toast(t("savingsNoEntries"));
+        return;
+      }
+      const nextYear = year + 1;
+      const desc = t("closingBalance", { year }) as string;
+      setConfirmAction({
+        title: t("closeYearLabel"),
+        message: t("closeYearConfirm", {
+          year,
+          amount: formatCurrency(Math.abs(net)),
+          nextYear,
+        }) as string,
+        confirmLabel: t("closeYearLabel"),
+        onConfirm: () => {
+          void (async () => {
+            try {
+              await closeYear(year, desc);
+              await loadData();
+              setSelectedYear(nextYear);
+              void haptics.success();
+              toast.success(t("savedSuccess"));
+            } catch {
+              toast.error(t("errorAddingSavings"));
+            }
+          })();
+          setConfirmAction(null);
+        },
+      });
+    },
+    [entries, t, loadData, haptics]
+  );
 
   const handleSave = useCallback(async () => {
     const parsed = parseFloat(formAmount);
@@ -128,27 +245,19 @@ export default function SavingsScreen() {
       await loadData();
       void haptics.success();
     } catch {
-      toast.error(
-        editingId === null ? t("errorAddingSavings") : t("errorUpdatingSavings")
-      );
+      toast.error(editingId === null ? t("errorAddingSavings") : t("errorUpdatingSavings"));
     } finally {
       setSaving(false);
     }
-  }, [
-    formType,
-    formDesc,
-    formAmount,
-    formDate,
-    editingId,
-    t,
-    loadData,
-    haptics,
-  ]);
+  }, [formType, formDesc, formAmount, formDate, editingId, t, loadData, haptics]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null) return;
     setConfirmAction({
+      title: t("deleteConfirmTitle"),
       message: t("deleteSavingsEntryConfirm"),
+      confirmLabel: t("delete"),
+      destructive: true,
       onConfirm: () => {
         void (async () => {
           try {
@@ -164,145 +273,149 @@ export default function SavingsScreen() {
     });
   }, [editingId, t, loadData]);
 
-  const requestDeleteTx = useCallback(
-    (id: number) => {
-      setConfirmAction({
-        message: t("deleteSavingsEntryConfirm"),
-        onConfirm: () => {
-          void (async () => {
-            try {
-              await deleteTransaction(id);
-              await loadData();
-            } catch {
-              toast.error(t("errorDeletingSavings"));
-            }
-          })();
-          setConfirmAction(null);
-        },
-      });
-    },
-    [t, loadData]
-  );
+  const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
+  const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
 
-   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  return (
+    <View className="flex-1 bg-background">
+      <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+        <View className="w-full max-w-md self-center gap-4 p-4 pb-4">
+          <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
-   const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
-   const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
+          {goalAmount > 0 && (
+            <View className="rounded-xl border border-border bg-card p-4">
+              <View className="mb-3 flex-row items-center justify-between">
+                <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
+                {goalMet && (
+                  <View className="flex-row items-center gap-1 rounded-full bg-success/15 px-2 py-0.5">
+                    <CircleCheck size={12} color={colors.success} />
+                    <Text className="text-[11px] font-semibold text-success">{t("goalMetBadge")}</Text>
+                  </View>
+                )}
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">{t("goalColon")}</Text>
+                <Text className="text-sm font-medium text-foreground">{formatCurrency(goalAmount)}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">{t("savedLabel")}</Text>
+                <Text className={`text-sm font-medium ${goalMet ? "text-success" : "text-foreground"}`}>
+                  {formatCurrency(summary.balance)}
+                </Text>
+              </View>
+              <View className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-border">
+                <View className={`h-full rounded-full ${goalMet ? "bg-success" : "bg-primary"}`} style={{ width: `${goalProgress}%` }} />
+              </View>
+            </View>
+          )}
 
-   return (
-    <>
-      <ScrollView className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-        <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
-
-        {/* Goal progress */}
-        {goalAmount > 0 && (
           <View className="rounded-xl border border-border bg-card p-4">
             <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
-              {goalMet && (
-                <View className="flex-row items-center gap-1 rounded-full bg-success/15 px-2 py-0.5">
-                  <CircleCheck size={12} color={colors.success} />
-                  <Text className="text-[11px] font-semibold text-success">{t("goalMetBadge")}</Text>
-                </View>
-              )}
+              <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
+              <Pressable
+                onPress={openCreateModal}
+                className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+              >
+                <Plus size={14} color={colors.primaryForeground} />
+                <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
+              </Pressable>
             </View>
 
-            <View className="flex-row justify-between">
-              <Text className="text-sm text-muted-foreground">{t("goalColon")}</Text>
-              <Text className="text-sm font-medium text-foreground">{formatCurrency(goalAmount)}</Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-sm text-muted-foreground">{t("savedLabel")}</Text>
-              <Text className={`text-sm font-medium ${goalMet ? "text-success" : "text-foreground"}`}>
-                {formatCurrency(summary.balance)}
-              </Text>
-            </View>
-            <View className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-border">
-              <View
-                className={`h-full rounded-full ${goalMet ? "bg-success" : "bg-primary"}`}
-                style={{ width: `${goalProgress}%` }}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Auto-deposits */}
-        <View className="rounded-xl border border-border bg-card p-4">
-          <Text className="mb-3 text-base font-semibold text-foreground">{t("autoDepositsLabel")}</Text>
-          {autoDeposits.length === 0 ? (
-            <Text className="py-2 text-center text-sm text-muted-foreground">{t("noAutoDeposits")}</Text>
-          ) : (
-            <View className="gap-2">
-              {autoDeposits.map((dep) => (
-                <View key={dep.month} className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium text-foreground">{dep.month}</Text>
-                    <Text className="text-xs text-muted-foreground">{t("savingsMonthlyDepositDesc")}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+              {availableYears.map((y) => {
+                const isSelected = selectedYear === y;
+                const isPastYear = y < currentYear;
+                return (
+                  <View key={y} className="flex-row items-center gap-1">
+                    <Pressable
+                      onPress={() => setSelectedYear(y)}
+                      className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+                    >
+                      <Text className={`text-xs font-medium ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{y}</Text>
+                    </Pressable>
+                    {isPastYear && (
+                      <Pressable
+                        onPress={() => handleCloseYear(y)}
+                        className="rounded-full border border-border bg-card p-1.5"
+                        accessibilityLabel={t("closeYearLabel")}
+                      >
+                        <Archive size={14} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
                   </View>
-                  <Text className="text-sm font-medium text-foreground">{formatCurrency(dep.amount)}</Text>
-                  <Pressable
-                    onPress={() => handleDeleteAutoDeposit(dep.month)}
-                    className="ml-2 p-1"
-                  >
-                    <Trash2 size={18} color={colors.mutedForeground} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+                );
+              })}
+              <Pressable
+                onPress={() => setSelectedYear("all")}
+                className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+              >
+                <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>All</Text>
+              </Pressable>
+            </ScrollView>
 
-        {/* Transactions */}
-        <View className="rounded-xl border border-border bg-card p-4">
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base font-semibold text-foreground">{t("transactionsLabel")}</Text>
-            <Pressable
-              onPress={openCreateModal}
-              className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-            >
-              <Plus size={14} color={colors.primaryForeground} />
-              <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
-            </Pressable>
+            {filteredEntries.length === 0 ? (
+              <View className="py-6 items-center gap-1">
+                <Text className="text-sm text-muted-foreground">{t("savingsNoEntries")}</Text>
+                <Text className="text-xs text-muted-foreground">{t("savingsNoEntriesHint")}</Text>
+              </View>
+            ) : (
+              <View className="mt-3 gap-2">
+                {filteredEntries.map((entry) => {
+                  const isAuto = entry.kind === "auto";
+                  const isDeposit = entry.type === "deposit";
+                  const badgeBg = isAuto ? "bg-primary/15" : isDeposit ? "bg-success/15" : "bg-destructive/15";
+                  const badgeText = isAuto ? "text-primary" : isDeposit ? "text-success" : "text-destructive";
+                  const badgeLabel = isAuto ? t("savingsAutoBadge") : isDeposit ? t("savingsTypeDeposit") : t("savingsTypePurchase");
+                  const amountColor = isDeposit ? "text-success" : "text-destructive";
+                  const sign = isDeposit ? "+" : "-";
+
+                  const rowContent = (
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2">
+                        <View className={`rounded-full px-2 py-0.5 ${badgeBg}`}>
+                          <Text className={`text-[10px] font-semibold ${badgeText}`}>{badgeLabel}</Text>
+                        </View>
+                        <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
+                          {entry.description}
+                        </Text>
+                      </View>
+                      <Text className="mt-1 text-xs text-muted-foreground">{entry.date}</Text>
+                    </View>
+                  );
+
+                  return (
+                    <View key={entry.id} className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
+                      {isAuto ? (
+                        rowContent
+                      ) : (
+                        <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center">
+                          {rowContent}
+                        </Pressable>
+                      )}
+                      <Text className={`text-sm font-medium ${amountColor}`}>
+                        {sign}
+                        {formatCurrency(entry.amount)}
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          void haptics.warning();
+                          handleDeleteEntry(entry);
+                        }}
+                        className="ml-2 p-1"
+                      >
+                        <Trash2 size={18} color={colors.mutedForeground} />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
-
-          {transactions.length === 0 ? (
-            <Text className="py-2 text-center text-sm text-muted-foreground">{t("noTransactions")}</Text>
-          ) : (
-            <View className="gap-2">
-              {transactions.map((tx) => (
-                <Pressable
-                  key={tx.id}
-                  onPress={() => openEditModal(tx)}
-                  className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3"
-                >
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium text-foreground">
-                      {tx.description || t("transaction")}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground">{tx.date}</Text>
-                  </View>
-                  <Text className={`text-sm font-medium ${tx.type === "deposit" ? "text-success" : "text-destructive"}`}>
-                    {tx.type === "deposit" ? "+" : "-"}{formatCurrency(tx.amount)}
-                  </Text>
-                  <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      void haptics.warning();
-                      requestDeleteTx(tx.id);
-                    }}
-                    className="ml-2 p-1"
-                  >
-                    <Trash2 size={18} color={colors.mutedForeground} />
-                  </Pressable>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
+      </ScrollView>
 
-        {/* Totals */}
-        <View className="rounded-xl border border-border bg-card p-4 gap-1">
+      <View className="border-t border-border bg-card">
+        <View className="w-full max-w-md self-center gap-1 p-4">
           <View className="flex-row justify-between">
             <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
             <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
@@ -317,63 +430,31 @@ export default function SavingsScreen() {
           </View>
         </View>
       </View>
-    </ScrollView>
 
-      <Modal
-        visible={showModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <Pressable
-          className="flex-1 items-center justify-center bg-black/50 px-4"
-          onPress={() => setShowModal(false)}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl bg-card p-5"
-          >
+      <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
+        <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
+          <Pressable onPress={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-card p-5">
             <Text className="text-lg font-semibold text-foreground">
               {editingId === null ? t("savingsNewEntry") : t("savingsEditEntry")}
             </Text>
-
-            {modalError ? (
-              <Text className="mt-2 text-sm text-red-500">{modalError}</Text>
-            ) : null}
-
+            {modalError ? <Text className="mt-2 text-sm text-red-500">{modalError}</Text> : null}
             <View className="mt-4 gap-4">
               {!(editingId !== null && editingKind === "auto") && (
                 <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
-                    {t("savingsEntryType")}
-                  </Text>
+                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsEntryType")}</Text>
                   <View className="mt-1 flex-row gap-2">
                     {(["deposit", "purchase"] as const).map((typeOption) => {
-                      const Icon =
-                        typeOption === "deposit" ? ArrowDownLeft : ArrowUpRight;
+                      const Icon = typeOption === "deposit" ? ArrowDownLeft : ArrowUpRight;
                       const active = formType === typeOption;
                       return (
                         <Pressable
                           key={typeOption}
                           onPress={() => setFormType(typeOption)}
-                          className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-3 py-2.5 ${
-                            active
-                              ? "border-primary bg-muted"
-                              : "border-border"
-                          }`}
+                          className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-3 py-2.5 ${active ? "border-primary bg-muted" : "border-border"}`}
                         >
-                          <Icon
-                            size={16}
-                            color={typeOption === "deposit" ? "#22c55e" : "#ef4444"}
-                          />
-                          <Text
-                            className={
-                              typeOption === "deposit" ? "text-success" : "text-destructive"
-                            }
-                          >
-                            {typeOption === "deposit"
-                              ? t("savingsTypeDeposit")
-                              : t("savingsTypePurchase")}
+                          <Icon size={16} color={typeOption === "deposit" ? "#22c55e" : "#ef4444"} />
+                          <Text className={typeOption === "deposit" ? "text-success" : "text-destructive"}>
+                            {typeOption === "deposit" ? t("savingsTypeDeposit") : t("savingsTypePurchase")}
                           </Text>
                         </Pressable>
                       );
@@ -381,11 +462,8 @@ export default function SavingsScreen() {
                   </View>
                 </View>
               )}
-
               <View>
-                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
-                  {t("savingsAmountLabel")}
-                </Text>
+                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsAmountLabel")}</Text>
                 <TextInput
                   value={formAmount}
                   onChangeText={setFormAmount}
@@ -395,12 +473,9 @@ export default function SavingsScreen() {
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
-
               {!(editingId !== null && editingKind === "auto") && (
                 <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
-                    {t("savingsDescriptionLabel")}
-                  </Text>
+                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDescriptionLabel")}</Text>
                   <TextInput
                     value={formDesc}
                     onChangeText={setFormDesc}
@@ -410,48 +485,26 @@ export default function SavingsScreen() {
                   />
                 </View>
               )}
-
               {!(editingId !== null && editingKind === "auto") && (
                 <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
-                    {t("savingsDateLabel")}
-                  </Text>
-                  <Pressable
-                    onPress={() => setDatePickerVisible(true)}
-                    className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5"
-                  >
-                    <Text className="text-sm text-foreground">
-                      {formDate || t("savingsDateLabel")}
-                    </Text>
+                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
+                  <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
+                    <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
                   </Pressable>
                 </View>
               )}
             </View>
-
             <View className="mt-5 flex-row items-center justify-end gap-2">
               {editingId !== null && (
                 <Pressable onPress={requestDelete} className="px-2 py-1">
-                  <Text className="text-sm font-medium text-red-500">
-                    {t("delete")}
-                  </Text>
+                  <Text className="text-sm font-medium text-red-500">{t("delete")}</Text>
                 </Pressable>
               )}
-              <Pressable
-                onPress={() => setShowModal(false)}
-                className="px-2 py-1"
-              >
-                <Text className="text-sm font-medium text-muted-foreground">
-                  {t("cancel")}
-                </Text>
+              <Pressable onPress={() => setShowModal(false)} className="px-2 py-1">
+                <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
               </Pressable>
-              <Pressable
-                onPress={() => void handleSave()}
-                disabled={saving}
-                className="rounded-lg bg-primary px-4 py-2"
-              >
-                <Text className="text-sm font-medium text-primary-foreground">
-                  {t("save")}
-                </Text>
+              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2">
+                <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -471,14 +524,14 @@ export default function SavingsScreen() {
 
       <ConfirmDialog
         visible={confirmAction !== null}
-        title={t("deleteConfirmTitle")}
+        title={confirmAction?.title ?? t("deleteConfirmTitle")}
         message={confirmAction?.message ?? ""}
-        confirmLabel={t("confirm")}
+        confirmLabel={confirmAction?.confirmLabel ?? t("confirm")}
         cancelLabel={t("cancel")}
-        destructive
+        destructive={confirmAction?.destructive ?? true}
         onClose={() => setConfirmAction(null)}
         onConfirm={() => confirmAction?.onConfirm()}
       />
-    </>
+    </View>
   );
 }
