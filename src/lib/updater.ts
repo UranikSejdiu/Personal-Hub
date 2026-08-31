@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as Application from "expo-application";
-import { File, Paths, getContentUriAsync } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
+import { getContentUriAsync } from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -17,11 +18,6 @@ export type CheckResult =
   | { status: "no-releases"; currentVersion: string }
   | { status: "error"; currentVersion: string };
 
-interface InstallResult {
-  installed: boolean;
-  needsPermission: boolean;
-}
-
 export interface InstallOptions {
   onProgress?: (percent: number) => void;
 }
@@ -35,8 +31,7 @@ interface GitHubRelease {
 const REPO = "UranikSejdiu/Personal-Hub";
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_KEY = "update_check_cache";
-const FLAG_GRANT_READ_URI_PERMISSION = 1;
-const FLAG_ACTIVITY_NEW_TASK = 268435456;
+const FETCH_TIMEOUT_MS = 15_000;
 
 export async function getCurrentVersion(): Promise<string> {
   try {
@@ -49,14 +44,14 @@ export async function getCurrentVersion(): Promise<string> {
 function parseLatestVersionCode(tag: string): number {
   const match = /v?(\d+)\.(\d+)\.(\d+)/.exec(tag);
   if (!match) return 0;
-  return Number(match[1]) * 1000000 + Number(match[2]) * 1000 + Number(match[3]);
+  return Number(match[1]) * 1_000_000 + Number(match[2]) * 1000 + Number(match[3]);
 }
 
 function isNewer(latestVersionCode: number, current: string): boolean {
   const currentMatch = /(\d+)\.(\d+)\.(\d+)/.exec(current);
   if (!currentMatch) return true;
   const currentVersionCode =
-    Number(currentMatch[1]) * 1000000 +
+    Number(currentMatch[1]) * 1_000_000 +
     Number(currentMatch[2]) * 1000 +
     Number(currentMatch[3]);
   return latestVersionCode > currentVersionCode;
@@ -109,17 +104,22 @@ async function loadCheckCache(): Promise<CheckResult | null> {
 export async function checkForUpdate(): Promise<CheckResult> {
   const currentVersion = await getCurrentVersion();
   try {
-    const response = await fetch(RELEASES_URL, {
-      headers: {
-        Accept: "application/vnd.github.v3+json",
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(RELEASES_URL, {
+        headers: { Accept: "application/vnd.github.v3+json" },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (response.status === 403 || response.status === 429) {
       const cached = await loadCheckCache();
-      if (cached && cached.status !== "error") {
-        return cached;
-      }
+      if (cached && cached.status !== "error") return cached;
       return { status: "error", currentVersion };
     }
 
@@ -132,14 +132,10 @@ export async function checkForUpdate(): Promise<CheckResult> {
     }
 
     const release = parseReleaseData(await response.text());
-    if (!release) {
-      return { status: "error", currentVersion };
-    }
+    if (!release) return { status: "error", currentVersion };
 
     const asset = findApkAsset(release.assets ?? []);
-    if (!asset) {
-      return { status: "error", currentVersion };
-    }
+    if (!asset) return { status: "error", currentVersion };
 
     const latest: UpdateInfo = {
       versionName: release.tag_name.replace(/^v/i, ""),
@@ -156,37 +152,33 @@ export async function checkForUpdate(): Promise<CheckResult> {
 
     await saveCheckCache(result);
     return result;
-  } catch {
+  } catch (error) {
+    console.warn("[updater] checkForUpdate failed:", error);
     const cached = await loadCheckCache();
-    if (cached && cached.status !== "error") {
-      return cached;
-    }
+    if (cached && cached.status !== "error") return cached;
     return { status: "error", currentVersion };
   }
 }
 
-export async function canInstall(): Promise<boolean> {
-  return Platform.OS === "android";
-}
-
-export function openInstallSettings(): void {
-  if (Platform.OS !== "android") return;
-  const packageName = Application.applicationId;
-  IntentLauncher.startActivityAsync(
-    "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
-    { data: `package:${packageName}` }
-  );
-}
-
-export async function downloadApk(info: UpdateInfo, options?: InstallOptions): Promise<File> {
+export async function downloadApk(
+  info: UpdateInfo,
+  options?: InstallOptions
+): Promise<File> {
   if (Platform.OS !== "android") throw new Error("Auto-update is only supported on Android.");
+
   const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
   try {
     if (destination.exists) await destination.delete();
-  } catch {}
+  } catch {
+    // ignore — idempotent download will handle leftover file
+  }
+
   try {
     options?.onProgress?.(1);
-  } catch {}
+  } catch {
+    // non-critical
+  }
+
   const task = File.createDownloadTask(info.downloadUrl, destination, {
     onProgress: ({ bytesWritten, totalBytes }) => {
       if (!options?.onProgress) return;
@@ -197,29 +189,35 @@ export async function downloadApk(info: UpdateInfo, options?: InstallOptions): P
       }
     },
   });
+
   let apk: File | null = null;
   try {
     apk = await task.downloadAsync();
   } catch (e) {
     throw new Error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
   }
+
   if (!apk || !apk.exists) throw new Error("Download failed: no file written.");
   options?.onProgress?.(100);
   return apk;
 }
 
-export async function installApk(apk: File): Promise<InstallResult> {
+export async function installApk(apk: File): Promise<void> {
   if (Platform.OS !== "android") throw new Error("Auto-update is only supported on Android.");
   if (!apk.exists) throw new Error("APK not found, please re-download");
+
   let contentUri: string;
   try {
     contentUri = await getContentUriAsync(apk.uri);
-    if (!contentUri || !contentUri.startsWith("content://")) throw new Error("FileProvider returned invalid uri");
+    if (!contentUri || !contentUri.startsWith("content://")) {
+      throw new Error("FileProvider returned invalid uri");
+    }
   } catch (e) {
-    console.warn("[updater] getContentUriAsync failed, falling back to file uri", e);
-    contentUri = apk.uri;
+    console.warn("[updater] getContentUriAsync failed:", e);
+    throw new Error("Failed to get content URI for APK");
   }
-  const flags = FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION;
+
+  const flags = 0x10000000 | 0x00000001; // FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION
   try {
     await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
       data: contentUri,
@@ -228,13 +226,21 @@ export async function installApk(apk: File): Promise<InstallResult> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[updater] install intent failed", msg, "uri:", contentUri);
+    console.error("[updater] install intent failed:", msg, "uri:", contentUri);
     throw new Error(`Install intent failed: ${msg}`);
   }
-  return { installed: true, needsPermission: false };
 }
 
-export async function downloadAndInstall(info: UpdateInfo, options?: InstallOptions): Promise<InstallResult> {
-  const apk = await downloadApk(info, options);
-  return installApk(apk);
+export async function openInstallSettings(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  const packageName = Application.applicationId;
+  if (!packageName) return;
+  try {
+    await IntentLauncher.startActivityAsync(
+      "android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+      { data: `package:${packageName}` }
+    );
+  } catch (e) {
+    console.warn("[updater] openInstallSettings failed:", e);
+  }
 }

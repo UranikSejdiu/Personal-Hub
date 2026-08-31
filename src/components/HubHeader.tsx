@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppSwitcher, type AppInfo } from "./AppSwitcher";
+import { useUpdate } from "../lib/UpdateContext";
 
 const HUB_APPS: AppInfo[] = [
   { id: "budget", titleKey: "appBudget", icon: "wallet" },
@@ -15,6 +16,7 @@ interface HubHeaderProps {
 
 export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
   const insets = useSafeAreaInsets();
+  const { hasUpdate } = useUpdate();
 
   return (
     <View
@@ -27,6 +29,11 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
           activeAppId={activeAppId}
           onAppSelect={onAppSelect}
         />
+        {hasUpdate ? (
+          <View className="relative h-8 w-8 items-center justify-center">
+            <View className="h-2.5 w-2.5 rounded-full bg-destructive" />
+          </View>
+        ) : null}
       </View>
     </View>
   );

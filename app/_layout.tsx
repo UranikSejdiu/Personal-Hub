@@ -9,6 +9,7 @@ import { useFonts } from "expo-font";
 import "../global.css";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
+import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
 
 SplashScreen.preventAutoHideAsync();
@@ -92,7 +93,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <I18nProvider>
-            <RootLayoutInner />
+            <UpdateProvider>
+              <RootLayoutInner />
+            </UpdateProvider>
           </I18nProvider>
         </ThemeProvider>
       </SafeAreaProvider>
