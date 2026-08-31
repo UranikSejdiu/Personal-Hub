@@ -1,6 +1,6 @@
 {
   "name": "uraniks-hub",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/urbanist": "^0.4.2",
