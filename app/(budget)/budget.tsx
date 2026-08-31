@@ -45,6 +45,7 @@ export default function BudgetScreen() {
 
   const tRef = useRef(t);
   const budgetIdRef = useRef<number | null>(null);
+  const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedRef = useRef("");
 
@@ -65,6 +66,7 @@ export default function BudgetScreen() {
     setLoans(l);
     setHasPreviousBudget(!!pb);
     setSavingsGoal(sg.goal_amount);
+    salaryRef.current = sg.salary;
     budgetIdRef.current = b ? b.id : null;
     if (b) {
       const exps = await listExpenses(b.id);
@@ -72,18 +74,19 @@ export default function BudgetScreen() {
     } else {
       setExpenses([]);
     }
+    const seedIncome = b ? b.income : sg.salary;
     setBudget(
       b ?? {
         id: 0,
         month: m,
-        income: 0,
+        income: seedIncome,
         loan_paid: false,
         cc_paid: false,
         updated_at: "",
       }
     );
     persistedRef.current = JSON.stringify([
-      b ? b.income : 0,
+      b ? b.income : seedIncome,
       b ? b.loan_paid : false,
       b ? b.cc_paid : false,
     ]);
@@ -181,9 +184,10 @@ export default function BudgetScreen() {
 
   const ensureBudget = useCallback(async (): Promise<Budget> => {
     if (budget) return budget;
-    const b = await saveBudget(month, 0, false, false);
+    const seedIncome = salaryRef.current;
+    const b = await saveBudget(month, seedIncome, false, false);
     setBudget(b);
-    persistedRef.current = JSON.stringify([0, false, false]);
+    persistedRef.current = JSON.stringify([seedIncome, false, false]);
     budgetIdRef.current = b.id;
     return b;
   }, [month, budget]);
