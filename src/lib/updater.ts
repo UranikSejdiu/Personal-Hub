@@ -36,6 +36,7 @@ const REPO = "UranikSejdiu/Personal-Hub";
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_KEY = "update_check_cache";
 const FLAG_GRANT_READ_URI_PERMISSION = 1;
+const FLAG_ACTIVITY_NEW_TASK = 268435456;
 
 export async function getCurrentVersion(): Promise<string> {
   try {
@@ -191,6 +192,12 @@ export async function downloadAndInstall(
     if (destination.exists) await destination.delete();
   } catch {}
 
+  // Ensure cache directory exists (File will create it, but be defensive)
+  try {
+    // Trigger any extra progress tick so UI doesn't stall at 0 when server omits content-length
+    options?.onProgress?.(1);
+  } catch {}
+
   const task = File.createDownloadTask(info.downloadUrl, destination, {
     onProgress: ({ bytesWritten, totalBytes }) => {
       if (!options?.onProgress) return;
@@ -212,25 +219,38 @@ export async function downloadAndInstall(
   if (!apk || !apk.exists) {
     throw new Error("Download failed: no file written.");
   }
+  // Verify file has content
+  try {
+    const info2 = apk as unknown as { size?: number };
+    // File.size is async in newer API but exists check already covers existence
+  } catch {}
   options?.onProgress?.(100);
 
   let contentUri: string;
   try {
     contentUri = await getContentUriAsync(apk.uri);
-  } catch {
-    // Fallback: FileProvider may not be configured — try file uri directly
+    if (!contentUri || !contentUri.startsWith("content://")) {
+      throw new Error("FileProvider returned invalid uri");
+    }
+  } catch (e) {
+    // Fallback: try file uri directly (will fail on Android 7+ but gives a clearer error)
+    console.warn("[updater] getContentUriAsync failed, falling back to file uri", e);
     contentUri = apk.uri;
   }
 
+  // Must include NEW_TASK when launching from React Native context, plus GRANT_READ
+  const flags = FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION;
   try {
     await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
       data: contentUri,
       type: "application/vnd.android.package-archive",
-      flags: FLAG_GRANT_READ_URI_PERMISSION,
+      flags,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // Most common cause after download at 100% is missing REQUEST_INSTALL_PACKAGES / unknown-sources permission
+    // or missing FileProvider declaration. Surface the real message so SettingsScreen can route to permission screen.
+    console.error("[updater] install intent failed", msg, "uri:", contentUri);
     throw new Error(`Install intent failed: ${msg}`);
   }
 

@@ -156,11 +156,20 @@ export default function SettingsScreen() {
       } else {
         toast.error(t("updateCheckFailed"));
       }
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[update] failed", msg, "downloaded:", downloaded);
       if (!downloaded) {
+        // Check failure (network/API) — show detail in console but keep UX simple
         toast.error(t("updateCheckFailed"));
       } else {
-        toast(t("updatePermissionNeeded"));
+        // Download succeeded but install intent failed — most often permission,
+        // but surface the real error if it's not a permission case
+        if (msg.includes("Install intent failed")) {
+          toast(t("updatePermissionNeeded"));
+        } else {
+          toast.error(msg || t("updateCheckFailed"));
+        }
         openInstallSettings();
       }
     } finally {
