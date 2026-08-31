@@ -186,27 +186,53 @@ export async function downloadAndInstall(
   }
 
   const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
+  // Ensure any stale file is removed so download doesn't silently reuse it
+  try {
+    if (destination.exists) await destination.delete();
+  } catch {}
+
   const task = File.createDownloadTask(info.downloadUrl, destination, {
     onProgress: ({ bytesWritten, totalBytes }) => {
-      if (totalBytes > 0 && options?.onProgress) {
+      if (!options?.onProgress) return;
+      if (totalBytes > 0) {
         options.onProgress(Math.min(100, Math.round((bytesWritten / totalBytes) * 100)));
+      } else if (bytesWritten > 0) {
+        // Server didn't send content-length — still signal activity
+        options.onProgress(99);
       }
     },
   });
 
-  const apk = await task.downloadAsync();
-  if (!apk) {
+  let apk: File | null = null;
+  try {
+    apk = await task.downloadAsync();
+  } catch (e) {
+    throw new Error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
+  }
+  if (!apk || !apk.exists) {
     throw new Error("Download failed: no file written.");
   }
   options?.onProgress?.(100);
 
-  const contentUri = await getContentUriAsync(apk.uri);
+  let contentUri: string;
+  try {
+    contentUri = await getContentUriAsync(apk.uri);
+  } catch {
+    // Fallback: FileProvider may not be configured — try file uri directly
+    contentUri = apk.uri;
+  }
 
-  await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-    data: contentUri,
-    type: "application/vnd.android.package-archive",
-    flags: FLAG_GRANT_READ_URI_PERMISSION,
-  });
+  try {
+    await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+      data: contentUri,
+      type: "application/vnd.android.package-archive",
+      flags: FLAG_GRANT_READ_URI_PERMISSION,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Most common cause after download at 100% is missing REQUEST_INSTALL_PACKAGES / unknown-sources permission
+    throw new Error(`Install intent failed: ${msg}`);
+  }
 
   return { installed: true, needsPermission: false };
 }
