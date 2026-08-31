@@ -178,67 +178,47 @@ export function openInstallSettings(): void {
   );
 }
 
-export async function downloadAndInstall(
-  info: UpdateInfo,
-  options?: InstallOptions
-): Promise<InstallResult> {
-  if (Platform.OS !== "android") {
-    throw new Error("Auto-update is only supported on Android.");
-  }
-
+export async function downloadApk(info: UpdateInfo, options?: InstallOptions): Promise<File> {
+  if (Platform.OS !== "android") throw new Error("Auto-update is only supported on Android.");
   const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
-  // Ensure any stale file is removed so download doesn't silently reuse it
   try {
     if (destination.exists) await destination.delete();
   } catch {}
-
-  // Ensure cache directory exists (File will create it, but be defensive)
   try {
-    // Trigger any extra progress tick so UI doesn't stall at 0 when server omits content-length
     options?.onProgress?.(1);
   } catch {}
-
   const task = File.createDownloadTask(info.downloadUrl, destination, {
     onProgress: ({ bytesWritten, totalBytes }) => {
       if (!options?.onProgress) return;
       if (totalBytes > 0) {
         options.onProgress(Math.min(100, Math.round((bytesWritten / totalBytes) * 100)));
       } else if (bytesWritten > 0) {
-        // Server didn't send content-length — still signal activity
         options.onProgress(99);
       }
     },
   });
-
   let apk: File | null = null;
   try {
     apk = await task.downloadAsync();
   } catch (e) {
     throw new Error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
   }
-  if (!apk || !apk.exists) {
-    throw new Error("Download failed: no file written.");
-  }
-  // Verify file has content
-  try {
-    const info2 = apk as unknown as { size?: number };
-    // File.size is async in newer API but exists check already covers existence
-  } catch {}
+  if (!apk || !apk.exists) throw new Error("Download failed: no file written.");
   options?.onProgress?.(100);
+  return apk;
+}
 
+export async function installApk(apk: File): Promise<InstallResult> {
+  if (Platform.OS !== "android") throw new Error("Auto-update is only supported on Android.");
+  if (!apk.exists) throw new Error("APK not found, please re-download");
   let contentUri: string;
   try {
     contentUri = await getContentUriAsync(apk.uri);
-    if (!contentUri || !contentUri.startsWith("content://")) {
-      throw new Error("FileProvider returned invalid uri");
-    }
+    if (!contentUri || !contentUri.startsWith("content://")) throw new Error("FileProvider returned invalid uri");
   } catch (e) {
-    // Fallback: try file uri directly (will fail on Android 7+ but gives a clearer error)
     console.warn("[updater] getContentUriAsync failed, falling back to file uri", e);
     contentUri = apk.uri;
   }
-
-  // Must include NEW_TASK when launching from React Native context, plus GRANT_READ
   const flags = FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION;
   try {
     await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
@@ -248,11 +228,13 @@ export async function downloadAndInstall(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // Most common cause after download at 100% is missing REQUEST_INSTALL_PACKAGES / unknown-sources permission
-    // or missing FileProvider declaration. Surface the real message so SettingsScreen can route to permission screen.
     console.error("[updater] install intent failed", msg, "uri:", contentUri);
     throw new Error(`Install intent failed: ${msg}`);
   }
-
   return { installed: true, needsPermission: false };
+}
+
+export async function downloadAndInstall(info: UpdateInfo, options?: InstallOptions): Promise<InstallResult> {
+  const apk = await downloadApk(info, options);
+  return installApk(apk);
 }

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Switch, BackHandler } from "react-native";
+import { View, Text, ScrollView, Pressable, Switch, BackHandler, AppState } from "react-native";
 import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
 import { getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
 import { APP_VERSION } from "../constants/config";
-import { checkForUpdate, downloadAndInstall, openInstallSettings } from "../lib/updater";
+import { checkForUpdate, downloadApk, installApk, openInstallSettings } from "../lib/updater";
+import type { File } from "expo-file-system";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
 import { ensureMonthlyAutoDeposit } from "../lib/savings";
 import { exportAndShareBackup, importBackupFromJson, readJsonFromFileUri } from "../lib/backup";
@@ -59,6 +60,8 @@ export default function SettingsScreen() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [hasPendingInstall, setHasPendingInstall] = useState(false);
+  const pendingApkRef = useRef<File | null>(null);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,6 +108,27 @@ export default function SettingsScreen() {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, []);
+
+  // Auto-retry install when returning from system permission screen
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && pendingApkRef.current && hasPendingInstall) {
+        const apk = pendingApkRef.current;
+        void (async () => {
+          try {
+            await installApk(apk);
+            setHasPendingInstall(false);
+            pendingApkRef.current = null;
+            setDownloadProgress(null);
+            toast.success(t("updateInstallerOpened"));
+          } catch {
+            // Still no permission — stay pending, user can tap manual button
+          }
+        })();
+      }
+    });
+    return () => sub.remove();
+  }, [hasPendingInstall, t]);
 
   const scheduleGoalSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -154,14 +178,28 @@ export default function SettingsScreen() {
     try {
       const result = await checkForUpdate();
       if (result.status === "update") {
-        await downloadAndInstall(result.latest, {
+        const apk = await downloadApk(result.latest, {
           onProgress: (p) => {
             setDownloadProgress(p);
             if (p >= 100) downloaded = true;
           },
         });
         downloaded = true;
-        toast.success(t("updateInstallerOpened"));
+        pendingApkRef.current = apk;
+        try {
+          await installApk(apk);
+          setHasPendingInstall(false);
+          pendingApkRef.current = null;
+          toast.success(t("updateInstallerOpened"));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[update] install failed", msg);
+          setHasPendingInstall(true);
+          toast(t("updatePermissionNeeded"));
+          openInstallSettings();
+          // Keep apk for AppState retry + manual button — don't clear progress
+          return;
+        }
       } else if (result.status === "up-to-date") {
         toast.success(t("updateUpToDate"));
       } else if (result.status === "no-releases") {
@@ -173,21 +211,34 @@ export default function SettingsScreen() {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[update] failed", msg, "downloaded:", downloaded);
       if (!downloaded) {
-        // Check failure (network/API) — show detail in console but keep UX simple
         toast.error(t("updateCheckFailed"));
       } else {
-        // Download succeeded but install intent failed — most often permission,
-        // but surface the real error if it's not a permission case
+        setHasPendingInstall(true);
         if (msg.includes("Install intent failed")) {
           toast(t("updatePermissionNeeded"));
         } else {
           toast.error(msg || t("updateCheckFailed"));
         }
         openInstallSettings();
+        return;
       }
     } finally {
       setCheckingUpdate(false);
-      setDownloadProgress(null);
+      if (!pendingApkRef.current) setDownloadProgress(null);
+    }
+  }, [t]);
+
+  const handleManualInstall = useCallback(async () => {
+    const apk = pendingApkRef.current;
+    if (!apk) return;
+    try {
+      await installApk(apk);
+      setHasPendingInstall(false);
+      pendingApkRef.current = null;
+      toast.success(t("updateInstallerOpened"));
+    } catch {
+      toast(t("updatePermissionNeeded"));
+      openInstallSettings();
     }
   }, [t]);
 
@@ -475,6 +526,20 @@ export default function SettingsScreen() {
                </Text>
              </Pressable>
               <UpdateProgress progress={downloadProgress} />
+              {hasPendingInstall && (
+                <Pressable
+                  onPress={handleManualInstall}
+                  className="mt-2 flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+                >
+                  <Download size={16} color="#fff" />
+                  <Text className="text-sm font-medium text-white">Install now</Text>
+                </Pressable>
+              )}
+              {hasPendingInstall && (
+                <Text className="mt-1 text-center text-xs text-muted-foreground">
+                  If Play Protect shows “Scan app”, tap Scan → Install anyway
+                </Text>
+              )}
            </View>
          )}
        </View>
