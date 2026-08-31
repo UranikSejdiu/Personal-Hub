@@ -1,7 +1,11 @@
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Rocket } from "lucide-react-native";
+import { useRouter } from "expo-router";
 import { AppSwitcher, type AppInfo } from "./AppSwitcher";
 import { useUpdate } from "../lib/UpdateContext";
+import { useThemeColors } from "../lib/theme";
+import { useI18n } from "../lib/i18n";
 
 const HUB_APPS: AppInfo[] = [
   { id: "budget", titleKey: "appBudget", icon: "wallet" },
@@ -17,6 +21,9 @@ interface HubHeaderProps {
 export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
   const insets = useSafeAreaInsets();
   const { hasUpdate } = useUpdate();
+  const colors = useThemeColors();
+  const { t } = useI18n();
+  const router = useRouter();
 
   return (
     <View
@@ -30,9 +37,15 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
           onAppSelect={onAppSelect}
         />
         {hasUpdate ? (
-          <View className="relative h-8 w-8 items-center justify-center">
-            <View className="h-2.5 w-2.5 rounded-full bg-destructive" />
-          </View>
+          <Pressable
+            onPress={() => router.push("/(budget)/settings" as never)}
+            accessibilityRole="button"
+            accessibilityLabel={t("newUpdateAvailable")}
+            className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"
+          >
+            <Rocket size={20} color={colors.primary} />
+            <View className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive" />
+          </Pressable>
         ) : null}
       </View>
     </View>

@@ -6,7 +6,6 @@ import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
 import { getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
 import { APP_VERSION } from "../constants/config";
-import { useUpdate } from "../lib/UpdateContext";
 import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
 import { ensureMonthlyAutoDeposit } from "../lib/savings";
@@ -45,7 +44,6 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
-  const { hasUpdate } = useUpdate();
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,17 +190,6 @@ export default function SettingsScreen() {
           <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
-          {hasUpdate && (
-            <Pressable
-              onPress={() => setActiveSection("about")}
-              accessibilityRole="button"
-              accessibilityLabel={t("newUpdateAvailable")}
-              className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"
-            >
-              <Cloud size={20} color={colors.primary} />
-              <View className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive" />
-            </Pressable>
-          )}
         </View>
         <View className="gap-2">
           {MENU_ITEMS.map((item) => {
