@@ -252,6 +252,8 @@ const dict = {
     updateNoReleases: "Nuk u gjetën versione",
     newVersionReady: "Version i ri i gatshëm",
     updateInstallerOpened: "Instaluesi i përditësimit u hap",
+    newUpdateAvailable: "Përditësim i ri i disponueshëm",
+    downloadingUpdate: "Duke shkarkuar... {percent}%",
     updatePermissionNeeded: "Nevojitet leje për instalasjon",
     updateAllowInstalls: "Ju lutem lejoni instalimin e aplikacioneve të panjohur",
 
@@ -541,6 +543,8 @@ const dict = {
     updateNoReleases: "No releases found",
     newVersionReady: "New version ready",
     updateInstallerOpened: "Update installer opened",
+    newUpdateAvailable: "New update available",
+    downloadingUpdate: "Downloading... {percent}%",
     updatePermissionNeeded: "Install permission needed",
     updateAllowInstalls: "Please allow installing unknown apps",
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler } from "react-native";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud } from "lucide-react-native";
+import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
@@ -13,6 +13,18 @@ import { NumberInput } from "./NumberInput";
 import { toast } from "sonner-native";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
+
+function UpdateProgress({ progress }: { progress: number | null }) {
+  if (progress === null) return null;
+  return (
+    <View className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+      <View
+        className="h-full rounded-full bg-primary"
+        style={{ width: `${progress}%` }}
+      />
+    </View>
+  );
+}
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
   "theme-light-dark": Palette,
@@ -32,6 +44,8 @@ export default function SettingsScreen() {
   const [salary, setSalary] = useState(0);
   const [saving, setSaving] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,6 +62,23 @@ export default function SettingsScreen() {
     const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
     return () => sub.remove();
   }, [activeSection, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await checkForUpdate();
+        if (!cancelled && result.status === "update") {
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // silent background availability check
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     getHapticsEnabled().then(setHapticsOn);
@@ -105,11 +136,12 @@ export default function SettingsScreen() {
 
   const handleCheckForUpdate = useCallback(async () => {
     setCheckingUpdate(true);
+    setDownloadProgress(null);
     let downloaded = false;
     try {
       const result = await checkForUpdate();
       if (result.status === "update") {
-        await downloadAndInstall(result.latest);
+        await downloadAndInstall(result.latest, { onProgress: setDownloadProgress });
         downloaded = true;
         toast.success(t("updateInstallerOpened"));
       } else if (result.status === "up-to-date") {
@@ -128,6 +160,7 @@ export default function SettingsScreen() {
       }
     } finally {
       setCheckingUpdate(false);
+      setDownloadProgress(null);
     }
   }, [t]);
 
@@ -141,43 +174,40 @@ export default function SettingsScreen() {
   if (!activeSection) {
     return (
       <ScrollView className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+        <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
-          <View className="gap-2">
-            {MENU_ITEMS.map((item) => {
-              const Icon = ICON_MAP[item.icon] ?? Info;
-              return (
-                <Pressable
-                  key={item.section}
-                  onPress={() => setActiveSection(item.section)}
-                  className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
-                >
-                  <View className="flex-row items-center gap-3">
-                     <Icon size={20} color={colors.foreground} />
-                     <Text className="text-sm font-medium text-foreground">{t(item.labelKey)}</Text>
-                   </View>
-                   <ChevronRight size={20} color={colors.mutedForeground} />
-                </Pressable>
-              );
-            })}
-
+          {updateAvailable && (
             <Pressable
-              onPress={handleCheckForUpdate}
-              disabled={checkingUpdate}
-              className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
+              onPress={() => setActiveSection("about")}
+              accessibilityRole="button"
+              accessibilityLabel={t("newUpdateAvailable")}
+              className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"
             >
-              <View className="flex-row items-center gap-3">
-                <Cloud size={20} color={colors.primary} />
-                <Text className="text-sm font-medium text-primary">
-                  {checkingUpdate ? t("checkingForUpdates") : t("checkForUpdates")}
-                </Text>
-              </View>
-              {checkingUpdate && (
-                <ChevronRight size={20} color={colors.mutedForeground} />
-              )}
+              <Download size={20} color={colors.primary} />
+              <View className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive" />
             </Pressable>
-          </View>
+          )}
         </View>
+        <View className="gap-2">
+          {MENU_ITEMS.map((item) => {
+            const Icon = ICON_MAP[item.icon] ?? Info;
+            return (
+              <Pressable
+                key={item.section}
+                onPress={() => setActiveSection(item.section)}
+                className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
+              >
+                <View className="flex-row items-center gap-3">
+                   <Icon size={20} color={colors.foreground} />
+                   <Text className="text-sm font-medium text-foreground">{t(item.labelKey)}</Text>
+                 </View>
+                 <ChevronRight size={20} color={colors.mutedForeground} />
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
       </ScrollView>
     );
   }
@@ -311,42 +341,21 @@ export default function SettingsScreen() {
               <Text className="text-sm text-muted-foreground">{t("version")}: {APP_VERSION}</Text>
               <Text className="text-center text-sm text-muted-foreground">{t("aboutDescription")}</Text>
             </View>
- <Pressable
-              onPress={async () => {
-                setCheckingUpdate(true);
-                let downloaded = false;
-                try {
-                  const result = await checkForUpdate();
-                  if (result.status === "update") {
-                    await downloadAndInstall(result.latest);
-                    downloaded = true;
-                    toast.success(t("updateInstallerOpened"));
-                  } else if (result.status === "up-to-date") {
-                    toast.success(t("updateUpToDate"));
-                  } else if (result.status === "no-releases") {
-                    toast(t("updateNoReleases"));
-                  } else {
-                    toast.error(t("updateCheckFailed"));
-                  }
-                } catch {
-                  if (!downloaded) {
-                    toast.error(t("updateCheckFailed"));
-                  } else {
-                    toast(t("updatePermissionNeeded"));
-                    openInstallSettings();
-                  }
-                } finally {
-                  setCheckingUpdate(false);
-                }
-              }}
-              disabled={checkingUpdate}
-              className="mt-2 flex-row items-center justify-center gap-2 rounded-lg border border-border bg-primary/10 p-3"
-            >
-              <Cloud size={16} color={colors.primary} />
-              <Text className="text-sm font-medium text-primary">
-                {checkingUpdate ? t("checkingForUpdates") : t("checkForUpdates")}
-              </Text>
-            </Pressable>
+  <Pressable
+               onPress={handleCheckForUpdate}
+               disabled={checkingUpdate}
+               className="mt-2 flex-row items-center justify-center gap-2 rounded-lg border border-border bg-primary/10 p-3"
+             >
+               <Cloud size={16} color={colors.primary} />
+               <Text className="text-sm font-medium text-primary">
+                 {checkingUpdate
+                   ? downloadProgress !== null
+                     ? t("downloadingUpdate", { percent: downloadProgress })
+                     : t("checkingForUpdates")
+                   : t("checkForUpdates")}
+               </Text>
+             </Pressable>
+             <UpdateProgress progress={downloadProgress} />
           </View>
         )}
       </View>

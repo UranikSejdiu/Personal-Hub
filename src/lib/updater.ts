@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import * as Application from "expo-application";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
+import { File, Paths, getContentUriAsync } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -23,6 +22,10 @@ interface InstallResult {
   needsPermission: boolean;
 }
 
+export interface InstallOptions {
+  onProgress?: (percent: number) => void;
+}
+
 interface GitHubRelease {
   tag_name: string;
   body?: string;
@@ -32,7 +35,7 @@ interface GitHubRelease {
 const REPO = "UranikSejdiu/Personal-Hub";
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_KEY = "update_check_cache";
-const APK_FILENAME = "Personal-Hub-update.apk";
+const FLAG_GRANT_READ_URI_PERMISSION = 1;
 
 export async function getCurrentVersion(): Promise<string> {
   try {
@@ -174,22 +177,36 @@ export function openInstallSettings(): void {
   );
 }
 
-export async function downloadAndInstall(info: UpdateInfo): Promise<InstallResult> {
+export async function downloadAndInstall(
+  info: UpdateInfo,
+  options?: InstallOptions
+): Promise<InstallResult> {
   if (Platform.OS !== "android") {
     throw new Error("Auto-update is only supported on Android.");
   }
 
-  const file = new File(Paths.cache, APK_FILENAME);
-  const apk = await File.downloadFileAsync(
-    info.downloadUrl,
-    file,
-    { idempotent: true }
-  );
-
-  await Sharing.shareAsync(apk.uri, {
-    mimeType: "application/vnd.android.package-archive",
-    dialogTitle: info.versionName,
+  const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
+  const task = File.createDownloadTask(info.downloadUrl, destination, {
+    onProgress: ({ bytesWritten, totalBytes }) => {
+      if (totalBytes > 0 && options?.onProgress) {
+        options.onProgress(Math.min(100, Math.round((bytesWritten / totalBytes) * 100)));
+      }
+    },
   });
 
-  return { installed: false, needsPermission: false };
+  const apk = await task.downloadAsync();
+  if (!apk) {
+    throw new Error("Download failed: no file written.");
+  }
+  options?.onProgress?.(100);
+
+  const contentUri = await getContentUriAsync(apk.uri);
+
+  await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+    data: contentUri,
+    type: "application/vnd.android.package-archive",
+    flags: FLAG_GRANT_READ_URI_PERMISSION,
+  });
+
+  return { installed: true, needsPermission: false };
 }
