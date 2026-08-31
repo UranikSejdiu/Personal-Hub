@@ -309,7 +309,7 @@ export default function SavingsScreen() {
             </View>
           )}
 
-          <View className="rounded-xl border border-border bg-card p-4">
+          <View className="rounded-xl border border-border bg-card p-4" style={{ flexGrow: 1 }}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
               <Pressable
@@ -410,21 +410,21 @@ export default function SavingsScreen() {
                 })}
               </View>
             )}
+          </View>
 
-            <View className="mt-3 rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
-                <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
-                <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
-              </View>
-              <View className="h-px bg-border my-1" />
-              <View className="flex-row justify-between">
-                <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
-                <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
-              </View>
+          <View className="rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
+            <View className="flex-row justify-between">
+              <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
+              <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
+            </View>
+            <View className="flex-row justify-between">
+              <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
+              <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
+            </View>
+            <View className="h-px bg-border my-1" />
+            <View className="flex-row justify-between">
+              <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
+              <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
             </View>
           </View>
         </View>

@@ -142,7 +142,7 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
                   key={i}
                   onPress={blank ? undefined : () => selectDay(d as number)}
                   disabled={blank}
-                  className="h-10 flex-1 items-center justify-center rounded-lg"
+                  className="h-10 w-[14.28%] items-center justify-center rounded-lg"
                   style={blank ? { opacity: 0 } : undefined}
                 >
                   {!blank && (
