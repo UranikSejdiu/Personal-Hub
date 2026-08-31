@@ -9,10 +9,21 @@ import { APP_VERSION } from "../constants/config";
 import { checkForUpdate, downloadAndInstall, openInstallSettings } from "../lib/updater";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
 import { ensureMonthlyAutoDeposit } from "../lib/savings";
+import { exportAndShareBackup, importBackupFromJson, readJsonFromFileUri } from "../lib/backup";
 import { NumberInput } from "./NumberInput";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
+import * as DocumentPicker from "expo-document-picker";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
+
+interface ConfirmAction {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+}
 
 function UpdateProgress({ progress }: { progress: number | null }) {
   if (progress === null) return null;
@@ -46,6 +57,8 @@ export default function SettingsScreen() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,6 +191,67 @@ export default function SettingsScreen() {
     }
   }, [t]);
 
+  const handleExport = useCallback(async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      await exportAndShareBackup();
+      toast.success(t("exportSuccess"));
+    } catch {
+      toast.error(t("exportFailed"));
+    } finally {
+      setBackupBusy(false);
+    }
+  }, [backupBusy, t]);
+
+  const handleImportPick = useCallback(async () => {
+    if (backupBusy) return;
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/json"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) return;
+      const uri = res.assets[0].uri;
+      let json: string;
+      try {
+        json = await readJsonFromFileUri(uri);
+      } catch {
+        toast.error(t("importInvalidFile"));
+        return;
+      }
+      setConfirmAction({
+        title: t("importData"),
+        message: "This will replace all current data with the backup. Continue?",
+        confirmLabel: t("importData"),
+        destructive: true,
+        onConfirm: () => {
+          void (async () => {
+            setBackupBusy(true);
+            try {
+              await importBackupFromJson(json, "replace");
+              toast.success(t("importSuccess"));
+              setConfirmAction(null);
+              const sg = await loadSavingsGoal();
+              setGoalAmount(sg.goal_amount);
+              setSalary(sg.salary);
+              goalRef.current = sg.goal_amount;
+              salaryRef.current = sg.salary;
+            } catch {
+              toast.error(t("importFailed"));
+              setConfirmAction(null);
+            } finally {
+              setBackupBusy(false);
+            }
+          })();
+        },
+      });
+    } catch {
+      toast.error(t("importFailed"));
+    }
+  }, [backupBusy, t]);
+
   const MENU_ITEMS = [
     { section: "general" as const, icon: "theme-light-dark" as const, labelKey: "settingsGeneral" as const },
     { section: "budget" as const, icon: "target" as const, labelKey: "settingsBudget" as const },
@@ -187,8 +261,9 @@ export default function SettingsScreen() {
 
   if (!activeSection) {
     return (
-      <ScrollView className="flex-1 bg-background">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+      <>
+        <ScrollView className="flex-1 bg-background">
+          <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
         <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
           {updateAvailable && (
@@ -223,16 +298,28 @@ export default function SettingsScreen() {
         </View>
       </View>
       </ScrollView>
+        <ConfirmDialog
+          visible={confirmAction !== null}
+          title={confirmAction?.title ?? t("deleteConfirmTitle")}
+          message={confirmAction?.message ?? ""}
+          confirmLabel={confirmAction?.confirmLabel ?? t("confirm")}
+          cancelLabel={t("cancel")}
+          destructive={confirmAction?.destructive ?? false}
+          onClose={() => setConfirmAction(null)}
+          onConfirm={() => confirmAction?.onConfirm()}
+        />
+      </>
     );
   }
 
   return (
-    <ScrollView className="flex-1 bg-background">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-        <View className="flex-row items-center gap-2">
-          <Pressable onPress={() => setActiveSection(null)}>
-            <ArrowLeft size={24} color={colors.foreground} />
-          </Pressable>
+    <>
+      <ScrollView className="flex-1 bg-background">
+        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+          <View className="flex-row items-center gap-2">
+            <Pressable onPress={() => setActiveSection(null)}>
+              <ArrowLeft size={24} color={colors.foreground} />
+            </Pressable>
           <Text className="text-2xl font-bold text-foreground">
             {activeSection === "general"
               ? t("settingsGeneral")
@@ -337,12 +424,30 @@ export default function SettingsScreen() {
         )}
 
         {activeSection === "backup" && (
-          <View className="rounded-xl border border-border bg-card p-4">
-            <View className="items-center gap-3 py-8">
-              <Cloud size={40} color={colors.mutedForeground} />
-              <Text className="text-sm text-center text-muted-foreground">
-                {t("backupComingSoon")}
-              </Text>
+          <View className="gap-4">
+            <View className="rounded-xl border border-border bg-card p-4 gap-3">
+              <View className="flex-row items-center gap-2">
+                <Cloud size={20} color={colors.foreground} />
+                <Text className="text-sm font-semibold text-foreground">{t("settingsBackupSync")}</Text>
+              </View>
+              <Text className="text-xs text-muted-foreground">{t("backupComingSoon")}</Text>
+              <Pressable
+                onPress={handleExport}
+                disabled={backupBusy}
+                className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
+              >
+                <Download size={16} color="#fff" />
+                <Text className="text-sm font-medium text-white">{t("exportData")}</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleImportPick}
+                disabled={backupBusy}
+                className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
+              >
+                <Cloud size={16} color={colors.foreground} />
+                <Text className="text-sm font-medium text-foreground">{t("importData")}</Text>
+              </Pressable>
+              {backupBusy ? <Text className="text-center text-xs text-muted-foreground">{t("savingAuto")}</Text> : null}
             </View>
           </View>
         )}
@@ -369,10 +474,21 @@ export default function SettingsScreen() {
                    : t("checkForUpdates")}
                </Text>
              </Pressable>
-             <UpdateProgress progress={downloadProgress} />
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
+              <UpdateProgress progress={downloadProgress} />
+           </View>
+         )}
+       </View>
+     </ScrollView>
+      <ConfirmDialog
+        visible={confirmAction !== null}
+        title={confirmAction?.title ?? t("deleteConfirmTitle")}
+        message={confirmAction?.message ?? ""}
+        confirmLabel={confirmAction?.confirmLabel ?? t("confirm")}
+        cancelLabel={t("cancel")}
+        destructive={confirmAction?.destructive ?? false}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => confirmAction?.onConfirm()}
+      />
+    </>
+   );
 }
