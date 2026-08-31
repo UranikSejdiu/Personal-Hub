@@ -248,7 +248,7 @@ export default function SettingsScreen() {
                     }`}>
                       {theme === th.value && <View className="m-0.5 h-full rounded-full bg-primary" />}
                     </View>
-                    <Text className="text-sm text-foreground">{t(th.labelKey as "themeLight" | "themeDark" | "themeTawheed")}</Text>
+                    <Text className="text-sm text-foreground">{t(th.labelKey as "themeLight" | "themeDark")}</Text>
                   </Pressable>
                 ))}
               </View>

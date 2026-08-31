@@ -1,20 +1,43 @@
 import { useEffect, useState } from "react";
-import { Stack, SplashScreen } from "expo-router";
+import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Alert, BackHandler, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
 import { useFonts } from "expo-font";
 import "../global.css";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
-import { I18nProvider } from "../src/lib/i18n";
+import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { initDatabase } from "../src/lib/db";
-import { View } from "react-native";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutInner() {
   const { theme, resolvedTheme } = useTheme();
+  const { t } = useI18n();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (pathname.includes("/settings")) return false;
+        if (router.canGoBack()) return false;
+        Alert.alert(t("exitTitle"), t("exitMessage"), [
+          { text: t("cancel"), style: "cancel" },
+          {
+            text: t("exitApp"),
+            style: "destructive",
+            onPress: () => BackHandler.exitApp(),
+          },
+        ]);
+        return true;
+      }
+    );
+    return () => subscription.remove();
+  }, [router, pathname, t]);
 
   return (
     <View className={theme} style={{ flex: 1 }}>

@@ -13,7 +13,6 @@ import { COLORS, type ThemeName } from "../constants/theme";
 export const THEMES: { value: ThemeName; labelKey: string }[] = [
   { value: "light", labelKey: "themeLight" },
   { value: "dark", labelKey: "themeDark" },
-  { value: "tawheed", labelKey: "themeTawheed" },
 ];
 
 const THEME_KEY = "app_theme";
@@ -30,9 +29,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
   const [theme, setThemeState] = useState<ThemeName>(() => {
     const stored = SecureStore.getItem(THEME_KEY);
-    if (stored === "light" || stored === "dark" || stored === "tawheed") {
-      return stored;
-    }
+    if (stored === "light" || stored === "dark") return stored;
+    if (stored === "tawheed") return "dark";
     return systemScheme === "dark" ? "dark" : "light";
   });
 

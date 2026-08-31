@@ -18,7 +18,7 @@ export default function NotesListScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = useThemeColors();
-  const isDark = theme === "dark" || theme === "tawheed";
+  const isDark = theme === "dark";
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 

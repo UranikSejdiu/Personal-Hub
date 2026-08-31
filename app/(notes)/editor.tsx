@@ -26,7 +26,7 @@ export default function NotesEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { theme } = useTheme();
   const colors = useThemeColors();
-  const isDark = theme === "dark" || theme === "tawheed";
+  const isDark = theme === "dark";
 
   const [noteId, setNoteId] = useState<number | null>(id ? Number(id) : null);
   const [title, setTitle] = useState("");
