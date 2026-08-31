@@ -141,7 +141,12 @@ export default function SettingsScreen() {
     try {
       const result = await checkForUpdate();
       if (result.status === "update") {
-        await downloadAndInstall(result.latest, { onProgress: setDownloadProgress });
+        await downloadAndInstall(result.latest, {
+          onProgress: (p) => {
+            setDownloadProgress(p);
+            if (p >= 100) downloaded = true;
+          },
+        });
         downloaded = true;
         toast.success(t("updateInstallerOpened"));
       } else if (result.status === "up-to-date") {
