@@ -279,7 +279,7 @@ export default function SavingsScreen() {
   return (
     <View className="flex-1 bg-background">
       <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-4">
+        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
           {goalAmount > 0 && (
@@ -410,26 +410,25 @@ export default function SavingsScreen() {
                 })}
               </View>
             )}
+
+            <View className="mt-3 rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
+                <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
+                <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
+              </View>
+              <View className="h-px bg-border my-1" />
+              <View className="flex-row justify-between">
+                <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
+                <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>
-
-      <View className="border-t border-border bg-card">
-        <View className="w-full max-w-md self-center gap-1 p-4">
-          <View className="flex-row justify-between">
-            <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
-            <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
-            <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
-            <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
-          </View>
-        </View>
-      </View>
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
