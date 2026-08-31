@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, ScrollView, Pressable, FlatList } from "react-native";
+import { View, Text, ScrollView, Pressable } from "react-native";
 import { Landmark, CreditCard, Save, ChevronRight } from "lucide-react-native";
 import { useI18n } from "../../src/lib/i18n";
 import {
@@ -230,8 +230,8 @@ export default function LoansScreen() {
               </View>
             </View>
 
-            <View className="mt-2 overflow-hidden rounded-lg border border-border">
-              <View className="flex-row bg-muted py-2">
+            <View className="mt-2 overflow-hidden rounded-md border border-border">
+              <View className="flex-row bg-muted px-2 py-2">
                 <Text className="w-6 text-center text-xs font-semibold text-muted-foreground">#</Text>
                 <Text className="w-20 text-left text-xs font-semibold text-muted-foreground">{t("dateCol")}</Text>
                 <Text className="flex-1 text-right text-xs font-semibold text-muted-foreground">{t("paymentCol")}</Text>
@@ -239,21 +239,18 @@ export default function LoansScreen() {
                 <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("interestCol")}</Text>
                 <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("balanceCol")}</Text>
               </View>
-              <FlatList
-                data={schedule}
-                keyExtractor={(item) => String(item.index)}
-                renderItem={({ item }) => (
-                  <View className="flex-row items-center border-t border-border/40 py-1.5">
-                    <Text className="w-6 text-center text-xs text-foreground">{item.index}</Text>
-                    <Text className="w-20 text-left text-xs text-foreground">{item.paymentDate}</Text>
-                    <Text className="flex-1 text-right text-xs text-foreground">{formatCurrency(item.payment)}</Text>
-                    <Text className="w-20 text-right text-xs text-foreground">{formatCurrency(item.capital)}</Text>
-                    <Text className="w-20 text-right text-xs text-foreground">{formatCurrency(item.interest)}</Text>
-                    <Text className="w-20 text-right text-xs text-foreground">{formatCurrency(item.balance)}</Text>
+              <ScrollView style={{ maxHeight: 288 }} showsVerticalScrollIndicator={false}>
+                {schedule.map((row) => (
+                  <View key={row.index} className="flex-row items-center border-t border-border px-2 py-1.5">
+                    <Text className="w-6 text-center text-sm text-foreground">{row.index}</Text>
+                    <Text className="w-20 text-left text-sm text-foreground">{row.paymentDate}</Text>
+                    <Text className="flex-1 text-right text-sm text-foreground">{formatCurrency(row.payment)}</Text>
+                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.capital)}</Text>
+                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.interest)}</Text>
+                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.balance)}</Text>
                   </View>
-                )}
-                scrollEnabled={false}
-              />
+                ))}
+              </ScrollView>
             </View>
           </View>
         )}
