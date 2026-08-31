@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import {
   View,
   Text,
-  ScrollView,
   Pressable,
   Alert,
   StyleSheet,
@@ -225,28 +224,34 @@ export default function DhikrListScreen() {
     [colors, handleDelete, handleEdit, handleSelect, t]
   );
 
-  const renderBody =
-    dhikrs.length === 0 ? (
-      <View className="items-center gap-2 py-12">
-        <Sparkles size={40} color={colors.mutedForeground} />
-        <Text className="text-sm text-muted-foreground">
-          {t("noDhikrsAdded")}
+  const listHeader = (
+    <View className="flex-row items-center justify-between mb-3">
+      <Text className="text-xl font-bold text-foreground">
+        {t("myDhikrs")}
+      </Text>
+      <Pressable
+        onPress={handleAdd}
+        className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+      >
+        <Plus size={14} color={colors.primaryForeground} />
+        <Text className="text-sm font-medium text-primary-foreground">
+          {t("addDhikrBtn")}
         </Text>
-        <Text className="text-xs text-muted-foreground">
-          {t("tapNewToCreate")}
-        </Text>
-      </View>
-    ) : (
-      <DraggableFlatList
-        data={dhikrs}
-        keyExtractor={(item) => item.id.toString()}
-        onDragEnd={({ data }: DragEndParams<Dhikr>) => void handleDragEnd(data)}
-        renderItem={renderItem}
-        activationDistance={10}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 112, gap: 8 }}
-      />
-    );
+      </Pressable>
+    </View>
+  );
+
+  const listEmpty = (
+    <View className="items-center gap-2 py-12">
+      <Sparkles size={40} color={colors.mutedForeground} />
+      <Text className="text-sm text-muted-foreground">
+        {t("noDhikrsAdded")}
+      </Text>
+      <Text className="text-xs text-muted-foreground">
+        {t("tapNewToCreate")}
+      </Text>
+    </View>
+  );
 
   const renderModal = modal.visible ? (
     <DhikrModal
@@ -270,25 +275,21 @@ export default function DhikrListScreen() {
 
   return (
     <>
-      <ScrollView className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-3 p-4 pb-28">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-xl font-bold text-foreground">
-              {t("myDhikrs")}
-            </Text>
-            <Pressable
-              onPress={handleAdd}
-              className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-            >
-              <Plus size={14} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">
-                {t("addDhikrBtn")}
-              </Text>
-            </Pressable>
-          </View>
-          {renderBody}
+      <View className="flex-1 bg-background">
+        <View className="w-full max-w-md self-center p-4 pb-0">
+          <DraggableFlatList
+            data={dhikrs}
+            keyExtractor={(item) => item.id.toString()}
+            onDragEnd={({ data }: DragEndParams<Dhikr>) => void handleDragEnd(data)}
+            renderItem={renderItem}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={listEmpty}
+            activationDistance={10}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 112, gap: 8 }}
+          />
         </View>
-      </ScrollView>
+      </View>
       {renderModal}
     </>
   );
