@@ -92,6 +92,25 @@ export async function saveLoans(loans: Loans): Promise<void> {
   );
 }
 
+export async function incrementLoanMonthsPaid(delta: number): Promise<Loans> {
+  const loans = await loadLoans();
+  const newMonthsPaid = Math.max(
+    0,
+    Math.min(loans.loan_term, loans.loan_months_paid + delta)
+  );
+  const updated = { ...loans, loan_months_paid: newMonthsPaid };
+  await saveLoans(updated);
+  return updated;
+}
+
+export async function incrementCcMonthsPaid(delta: number): Promise<Loans> {
+  const loans = await loadLoans();
+  const newMonthsPaid = Math.max(0, loans.cc_months_paid + delta);
+  const updated = { ...loans, cc_months_paid: newMonthsPaid };
+  await saveLoans(updated);
+  return updated;
+}
+
 // ---------------------------------------------------------------------------
 // Savings goal (single global profile)
 // ---------------------------------------------------------------------------

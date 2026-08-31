@@ -8,10 +8,10 @@ import { formatCurrency, type Budget, type Loans } from "../lib/budget";
 interface Props {
   budget: Budget;
   loans: Loans;
-  onBudgetChange: (fields: Partial<Pick<Budget, "cc_paid">>) => void;
+  onToggle: () => void;
 }
 
-export function CreditCardSection({ budget, loans, onBudgetChange }: Props) {
+export function CreditCardSection({ budget, loans, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
   if (loans.cc_balance <= 0 && loans.cc_payment <= 0) return null;
@@ -57,7 +57,7 @@ export function CreditCardSection({ budget, loans, onBudgetChange }: Props) {
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
               <Pressable
-                onPress={() => onBudgetChange({ cc_paid: !budget.cc_paid })}
+                onPress={onToggle}
                 className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
                   budget.cc_paid
                     ? "border-primary bg-primary/15"

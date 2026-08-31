@@ -58,6 +58,8 @@ const dict = {
     errorAddingExpense: "Dështoi shtimi i shpenzimit.",
     errorUpdatingExpense: "Dështoi përditësimi i shpenzimit.",
     errorRemovingExpense: "Dështoi heqja e shpenzimit.",
+    errorUpdatingLoan: "Dështoi përditësimi i kredisë.",
+    errorUpdatingCc: "Dështoi përditësimi i kartelës së kreditit.",
 
     sectionLoanPayment: "1. Pagesa e Kredisë",
     progress: "Progresi",
@@ -347,6 +349,8 @@ const dict = {
     errorAddingExpense: "Failed to add expense.",
     errorUpdatingExpense: "Failed to update expense.",
     errorRemovingExpense: "Failed to remove expense.",
+    errorUpdatingLoan: "Failed to update loan.",
+    errorUpdatingCc: "Failed to update credit card.",
 
     sectionLoanPayment: "1. Loan Payment",
     progress: "Progress",

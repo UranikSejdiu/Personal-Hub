@@ -16,6 +16,8 @@ import {
   listRecurringExpenses,
   addRecurringExpense,
   removeRecurringExpense,
+  incrementLoanMonthsPaid,
+  incrementCcMonthsPaid,
   currentMonth,
   addMonths,
   type Loans,
@@ -195,14 +197,37 @@ export default function BudgetScreen() {
     [ensureBudget, scheduleSave]
   );
 
-  const handleBudgetChange = useCallback(
-    async (fields: Partial<Pick<Budget, "loan_paid" | "cc_paid">>) => {
+  const handleLoanToggle = useCallback(async () => {
+    const prev = budget;
+    if (!prev) return;
+    const newLoanPaid = !prev.loan_paid;
+    const delta = newLoanPaid ? 1 : -1;
+    try {
       await ensureBudget();
-      setBudget((prev) => (prev ? { ...prev, ...fields } : prev));
+      const updatedLoans = await incrementLoanMonthsPaid(delta);
+      setLoans(updatedLoans);
+      setBudget((b) => (b ? { ...b, loan_paid: newLoanPaid } : b));
       scheduleSave();
-    },
-    [ensureBudget, scheduleSave]
-  );
+    } catch {
+      toast.error(t("errorUpdatingLoan"));
+    }
+  }, [budget, ensureBudget, scheduleSave, t]);
+
+  const handleCcToggle = useCallback(async () => {
+    const prev = budget;
+    if (!prev) return;
+    const newCcPaid = !prev.cc_paid;
+    const delta = newCcPaid ? 1 : -1;
+    try {
+      await ensureBudget();
+      const updatedLoans = await incrementCcMonthsPaid(delta);
+      setLoans(updatedLoans);
+      setBudget((b) => (b ? { ...b, cc_paid: newCcPaid } : b));
+      scheduleSave();
+    } catch {
+      toast.error(t("errorUpdatingCc"));
+    }
+  }, [budget, ensureBudget, scheduleSave, t]);
 
   const handleAddExpense = useCallback(async () => {
     const b = await ensureBudget();
@@ -353,13 +378,13 @@ export default function BudgetScreen() {
             <LoanPaymentSection
               budget={budget}
               loans={loans}
-              onBudgetChange={handleBudgetChange}
+              onToggle={handleLoanToggle}
             />
 
             <CreditCardSection
               budget={budget}
               loans={loans}
-              onBudgetChange={handleBudgetChange}
+              onToggle={handleCcToggle}
             />
           </>
         )}

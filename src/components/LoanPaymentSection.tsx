@@ -8,10 +8,10 @@ import { formatCurrency, type Budget, type Loans } from "../lib/budget";
 interface Props {
   budget: Budget;
   loans: Loans;
-  onBudgetChange: (fields: Partial<Pick<Budget, "loan_paid">>) => void;
+  onToggle: () => void;
 }
 
-export function LoanPaymentSection({ budget, loans, onBudgetChange }: Props) {
+export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
   if (loans.loan_amount <= 0 && loans.loan_term <= 0) return null;
@@ -92,17 +92,17 @@ export function LoanPaymentSection({ budget, loans, onBudgetChange }: Props) {
 
              <View className="flex-row items-center gap-3 rounded-lg bg-muted p-3">
                <View className="flex-row items-center gap-2">
-                 <Pressable
-                   onPress={() => onBudgetChange({ loan_paid: !budget.loan_paid })}
-                   className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
-                     budget.loan_paid
-                       ? "border-primary bg-primary/15"
-                       : "border-muted-foreground/50 bg-secondary"
-                   }`}
-                   accessibilityRole="checkbox"
-                   accessibilityState={{ checked: budget.loan_paid }}
-                   accessibilityLabel={t("monthlyPayment")}
-                 >
+                  <Pressable
+                    onPress={onToggle}
+                    className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
+                      budget.loan_paid
+                        ? "border-primary bg-primary/15"
+                        : "border-muted-foreground/50 bg-secondary"
+                    }`}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: budget.loan_paid }}
+                    accessibilityLabel={t("monthlyPayment")}
+                  >
                    {budget.loan_paid && <Check size={14} color={colors.primary} />}
                  </Pressable>
                  <Text className={`text-sm ${budget.loan_paid ? "line-through text-muted-foreground" : "text-foreground"}`}>
