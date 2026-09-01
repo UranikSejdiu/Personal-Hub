@@ -101,7 +101,7 @@ export default function LoansScreen() {
   return (
     <>
       <ScrollView className="flex-1 bg-background">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+      <View className="w-full max-w-md self-center gap-3 p-4 pb-28">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
           <Pressable
@@ -205,7 +205,7 @@ export default function LoansScreen() {
 
         {schedule.length > 0 && (
           <View className="rounded-xl border border-border bg-card p-4">
-            <Text className="mb-3 text-base font-semibold text-foreground">
+            <Text className="mb-2 text-base font-semibold text-foreground">
               {t("scheduleTitle")}
             </Text>
 
@@ -230,7 +230,7 @@ export default function LoansScreen() {
               </View>
             </View>
 
-            <View className="mt-2 overflow-hidden rounded-md border border-border">
+            <View className="mt-1 overflow-hidden rounded-md border border-border">
               <View className="flex-row bg-muted px-2 py-2">
                 <Text className="w-6 text-center text-xs font-semibold text-muted-foreground">#</Text>
                 <Text className="w-20 text-left text-xs font-semibold text-muted-foreground">{t("dateCol")}</Text>
@@ -239,7 +239,7 @@ export default function LoansScreen() {
                 <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("interestCol")}</Text>
                 <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("balanceCol")}</Text>
               </View>
-              <ScrollView style={{ maxHeight: 288 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 288 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
                 {schedule.map((row) => (
                   <View key={row.index} className="flex-row items-center border-t border-border px-2 py-1.5">
                     <Text className="w-6 text-center text-sm text-foreground">{row.index}</Text>
