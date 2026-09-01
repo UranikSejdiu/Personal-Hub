@@ -89,22 +89,15 @@ const dict = {
     recurringToggle: "Përsëritëse",
 
     sectionSummary: "4. Përmbledhja Mujore",
-    spendingBreakdown: "Shpërndarja e Buxhetit",
     monthlyIncome: "Të Ardhurat Mujore (pas tatimit)",
     planned: "Planifikuar",
+    actualLabel: "Aktual",
     loanPaymentLabel: "Pagesa e Kredisë",
     ccPaymentLabel: "Pagesa e Kartelës së Kreditit",
     totalCustomExpenses: "Totali i Shpenzimeve të Personalizuara",
     totalMonthlyOutflow: "DALJA TOTALE MUJORE",
     remainingSavings: "MBETJA / KURSIMET",
-    deficitPlanned:
-      "Deficiti: Ju duhen edhe {amount} për të mbuluar të gjitha shpenzimet e planifikuara",
-    actualPaid: "Aktuale (e Paguar)",
     paidExpenses: "Shpenzimet e Paguara",
-    totalPaidOutflow: "DALJA TOTALE E PAGUAR",
-    actualRemaining: "MBETJA AKTUALE",
-    deficitActual:
-      "Deficiti: Ju duhen edhe {amount} për të mbuluar shpenzimet e paguara",
 
     loansTitle: "Kreditë dhe Kartelat",
     save: "Ruaj",
@@ -394,22 +387,15 @@ const dict = {
     recurringToggle: "Recurring",
 
     sectionSummary: "4. Monthly Summary",
-    spendingBreakdown: "Budget Distribution",
     monthlyIncome: "Monthly Income (after tax)",
     planned: "Planned",
+    actualLabel: "Actual",
     loanPaymentLabel: "Loan Payment",
     ccPaymentLabel: "Credit Card Payment",
     totalCustomExpenses: "Total Custom Expenses",
     totalMonthlyOutflow: "TOTAL MONTHLY OUTFLOW",
     remainingSavings: "REMAINDER / SAVINGS",
-    deficitPlanned:
-      "Deficit: You need {amount} more to cover all planned expenses",
-    actualPaid: "Actual (Paid)",
     paidExpenses: "Paid Expenses",
-    totalPaidOutflow: "TOTAL PAID OUTFLOW",
-    actualRemaining: "ACTUAL REMAINDER",
-    deficitActual:
-      "Deficit: You need {amount} more to cover the paid expenses",
 
     loansTitle: "Loans & Cards",
     save: "Save",
