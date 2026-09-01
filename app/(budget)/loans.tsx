@@ -231,23 +231,23 @@ export default function LoansScreen() {
             </View>
 
             <View className="mt-1 overflow-hidden rounded-md border border-border">
-              <View className="flex-row bg-muted px-2 py-2">
-                <Text className="w-6 text-center text-xs font-semibold text-muted-foreground">#</Text>
-                <Text className="w-20 text-left text-xs font-semibold text-muted-foreground">{t("dateCol")}</Text>
+              <View className="flex-row bg-muted px-1 py-1.5">
+                <Text className="w-5 text-center text-xs font-semibold text-muted-foreground">#</Text>
+                <Text className="w-[70] text-left text-xs font-semibold text-muted-foreground">{t("dateCol")}</Text>
                 <Text className="flex-1 text-right text-xs font-semibold text-muted-foreground">{t("paymentCol")}</Text>
-                <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("principalCol")}</Text>
-                <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("interestCol")}</Text>
-                <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("balanceCol")}</Text>
+                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("principalCol")}</Text>
+                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("interestCol")}</Text>
+                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("balanceCol")}</Text>
               </View>
               <ScrollView style={{ maxHeight: 288 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
                 {schedule.map((row) => (
-                  <View key={row.index} className="flex-row items-center border-t border-border px-2 py-1.5">
-                    <Text className="w-6 text-center text-sm text-foreground">{row.index}</Text>
-                    <Text className="w-20 text-left text-sm text-foreground">{row.paymentDate}</Text>
+                  <View key={row.index} className="flex-row items-center border-t border-border px-1 py-1">
+                    <Text className="w-5 text-center text-sm text-foreground">{row.index}</Text>
+                    <Text className="w-[70] text-left text-sm text-foreground">{row.paymentDate}</Text>
                     <Text className="flex-1 text-right text-sm text-foreground">{formatCurrency(row.payment)}</Text>
-                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.capital)}</Text>
-                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.interest)}</Text>
-                    <Text className="w-20 text-right text-sm text-foreground">{formatCurrency(row.balance)}</Text>
+                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.capital)}</Text>
+                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.interest)}</Text>
+                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.balance)}</Text>
                   </View>
                 ))}
               </ScrollView>
