@@ -28,7 +28,7 @@ const dict = {
     navDhikrList: "Dhikret",
     navNotes: "Shënimet",
 
-    hubTitle: "Uranik's Hub",
+    hubTitle: "Personal Hub",
 
     dashboardTitle: "Paneli Kryesor",
     recentMonths: "Muajt e Fundit",
@@ -137,7 +137,7 @@ const dict = {
     settingsBackupSync: "Rezervimi & Sinkronizimi",
     backupComingSoon: "Funksioni i rezervimit dhe sinkronizimit do të vijë shumë shpejt.",
     settingsAbout: "Rreth Aplikacionit",
-    appName: "Uranik's Hub",
+    appName: "Personal Hub",
     backToHub: "Kthehu te Paneli",
     appearanceSection: "PAMJA",
     languageSection: "GJUHA",
@@ -161,7 +161,7 @@ const dict = {
     importFailed: "Dështoi importimi.",
     importInvalidFile: "Skedari nuk është i validueshëm.",
     version: "Verzioni",
-    aboutDescription: "Uranik's Hub - Aplikacion offline për buxhet, dhikr dhe shënime.",
+    aboutDescription: "Personal Hub - Aplikacion offline për buxhet, dhikr dhe shënime.",
 
     myDhikrs: "Dhikret e mia",
     newBtn: "I ri",
@@ -341,7 +341,7 @@ const dict = {
     navDhikrList: "Dhikrs",
     navNotes: "Notes",
 
-    hubTitle: "Uranik's Hub",
+    hubTitle: "Personal Hub",
 
     dashboardTitle: "Main Dashboard",
     recentMonths: "Recent Months",
@@ -450,7 +450,7 @@ const dict = {
     settingsBackupSync: "Backup & Sync",
     backupComingSoon: "Backup & sync is coming soon.",
     settingsAbout: "About",
-    appName: "Uranik's Hub",
+    appName: "Personal Hub",
     backToHub: "Back to hub",
     appearanceSection: "APPEARANCE",
     languageSection: "LANGUAGE",
@@ -474,7 +474,7 @@ const dict = {
     importFailed: "Import failed.",
     importInvalidFile: "Invalid file.",
     version: "Version",
-    aboutDescription: "Uranik's Hub - Offline app for budget, dhikr and notes.",
+    aboutDescription: "Personal Hub - Offline app for budget, dhikr and notes.",
 
     myDhikrs: "My Dhikrs",
     newBtn: "New",

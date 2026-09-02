@@ -1,5 +1,5 @@
 AGENTS.md
-Uranik's Hub — AI Coding Agent Instructions
+Personal Hub — AI Coding Agent Instructions
 IMPORTANT: This file contains the permanent project rules for AI coding agents.
 These instructions apply to EVERY task in this repository.
 Always read and follow this file before modifying anything.
