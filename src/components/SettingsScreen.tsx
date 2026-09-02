@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Switch, BackHandler } from "react-native";
+import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
 import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useI18n } from "../lib/i18n";
@@ -387,7 +387,7 @@ export default function SettingsScreen() {
           <View className="gap-4">
             <View className="rounded-xl border border-border bg-card p-4">
               <View className="items-center gap-3 py-6">
-                <Info size={48} color={colors.foreground} />
+                <Image source={require("../../assets/icon.png")} className="h-16 w-16 rounded-xl" />
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
                 <Text className="text-sm text-muted-foreground">{t("version")}: {APP_VERSION}</Text>
                 <Text className="text-center text-sm text-muted-foreground">{t("aboutDescription")}</Text>

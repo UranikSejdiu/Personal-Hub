@@ -2,7 +2,7 @@
   "expo": {
   "name": "Uranik's Hub",
   "slug": "uraniks-hub",
-    "version": "1.4.1",
+    "version": "1.4.2",
   "orientation": "portrait",
   "icon": "./assets/icon.png",
   "userInterfaceStyle": "automatic",
@@ -19,7 +19,7 @@
   },
   "android": {
     "package": "com.uranik.offlinehub",
-      "versionCode": 45,
+      "versionCode": 46,
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/android-icon-foreground.png"
@@ -40,7 +40,8 @@
         }
       ],
       "./plugins/withFilepathsXml",
-      "./plugins/withInstallPermission"
+      "./plugins/withInstallPermission",
+      "./plugins/withDarkSplash"
     ]
   }
 }

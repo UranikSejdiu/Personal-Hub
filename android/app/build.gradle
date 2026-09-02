@@ -92,12 +92,8 @@ android {
         applicationId 'com.uranik.offlinehub'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 45
-        versionName "1.4.1"
-
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a"
-        }
+        versionCode 46
+        versionName "1.4.2"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
