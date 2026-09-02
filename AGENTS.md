@@ -425,8 +425,22 @@ src/
 ├── hub/
 ├── lib/
 └── types/
+plugins/
+└── withFilepathsXml.js    # Expo config plugin for native file persistence
 ```
 Do not move existing files around without an architectural reason.
+
+33. PREBUILD & NATIVE FILE PERSISTENCE
+`npx expo prebuild --clean` wipes the entire `android/` directory and regenerates it. This deletes any manually added native files (e.g., `filepaths.xml`, custom gradle properties).
+
+**Config plugins** are used to persist native changes across prebuild runs. They are registered in `app.json` under `expo.plugins` and run automatically during prebuild.
+
+Current config plugins:
+- `plugins/withFilepathsXml.js` — Generates `android/app/src/main/res/xml/filepaths.xml` during prebuild. Required by `expo-file-system`'s `FileProvider` to generate `content://` URIs for APK install flow.
+
+**Adding new native files:** Instead of manually adding files to `android/`, create a config plugin in `plugins/` that generates or modifies the file during prebuild. Register it in `app.json` plugins array.
+
+**Do NOT use `npx patch-project`** — it fails on Windows with EPERM errors due to Node.js `fs.rename` limitations on Windows directories.
 
 33. REFACTORING RULES
 Refactor code when it directly improves the scope of your active task.
