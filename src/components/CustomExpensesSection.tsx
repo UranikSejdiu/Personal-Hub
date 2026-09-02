@@ -3,7 +3,9 @@ import { View, Text, Pressable, TextInput } from "react-native";
 import { Plus, Trash2, Copy, Check, Repeat } from "lucide-react-native";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { formatCurrency, type Expense } from "../lib/budget";
+import { useHaptics } from "../hooks/useHaptics";
+import { type Expense } from "../lib/budget";
+import { formatCurrency } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 
 interface Props {
@@ -27,6 +29,7 @@ export function CustomExpensesSection({
 }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const haptics = useHaptics();
   const [editingId, setEditingId] = useState<number | null>(null);
   const { total, paidTotal } = useMemo(
     () => ({
@@ -46,16 +49,22 @@ export function CustomExpensesSection({
         <View className="flex-row items-center gap-2">
           {expenses.length === 0 && onCopyPrevious && previousMonthLabel && (
             <Pressable
-              onPress={onCopyPrevious}
+              onPress={() => { void haptics.light(); onCopyPrevious(); }}
               className="flex-row items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5"
+              android_ripple={{ color: colors.primary + "20" }}
+              accessibilityRole="button"
+              accessibilityLabel={t("copyFromPreviousMonth")}
             >
                <Copy size={14} color={colors.foreground} />
                <Text className="text-xs text-foreground">{t("copyFromPreviousMonth")}</Text>
              </Pressable>
           )}
           <Pressable
-            onPress={onAdd}
+            onPress={() => { void haptics.light(); onAdd(); }}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+            android_ripple={{ color: colors.primaryForeground + "30" }}
+            accessibilityRole="button"
+            accessibilityLabel={t("addRow")}
           >
             <Plus size={14} color={colors.primaryForeground} />
             <Text className="text-xs font-medium text-primary-foreground">{t("addRow")}</Text>
@@ -73,16 +82,22 @@ export function CustomExpensesSection({
           <View className="flex-row flex-wrap justify-center gap-2">
             {onCopyPrevious && previousMonthLabel && (
               <Pressable
-                onPress={onCopyPrevious}
+                onPress={() => { void haptics.light(); onCopyPrevious(); }}
                 className="flex-row items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2"
+                android_ripple={{ color: colors.primary + "20" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("copyFromPreviousMonth")}
               >
                  <Copy size={14} color={colors.foreground} />
                 <Text className="text-sm text-foreground">{t("copyFromPreviousMonth")}</Text>
               </Pressable>
             )}
             <Pressable
-              onPress={onAdd}
+              onPress={() => { void haptics.light(); onAdd(); }}
               className="flex-row items-center gap-1.5 rounded-lg bg-primary px-3 py-2"
+              android_ripple={{ color: colors.primaryForeground + "30" }}
+              accessibilityRole="button"
+              accessibilityLabel={t("addRow")}
             >
               <Plus size={14} color={colors.primaryForeground} />
               <Text className="text-sm font-medium text-primary-foreground">{t("addRow")}</Text>
@@ -98,7 +113,7 @@ export function CustomExpensesSection({
             >
               <View className="flex-row items-center gap-2">
                 <Pressable
-                  onPress={() => onUpdate(expense.id, { paid: !expense.paid })}
+                  onPress={() => { void haptics.light(); onUpdate(expense.id, { paid: !expense.paid }); }}
                   className={`h-6 w-6 items-center justify-center rounded-md border-2 shrink-0 ${
                     expense.paid
                       ? "border-primary bg-primary/15"
@@ -106,6 +121,8 @@ export function CustomExpensesSection({
                   }`}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: expense.paid }}
+                  accessibilityLabel={t("paid")}
+                  android_ripple={{ color: colors.primary + "20" }}
                 >
                   {expense.paid && <Check size={14} color={colors.primary} />}
                 </Pressable>
@@ -125,6 +142,8 @@ export function CustomExpensesSection({
                   <Pressable
                     onPress={() => setEditingId(expense.id)}
                     className="flex-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={expense.category || t("addCategoryPlaceholder")}
                   >
                     <Text
                       className={`px-1 text-left text-sm font-medium ${
@@ -138,15 +157,18 @@ export function CustomExpensesSection({
                 )}
 
                 <Pressable
-                  onPress={() => onRemove(expense.id)}
+                  onPress={() => { void haptics.warning(); onRemove(expense.id); }}
                   className="shrink-0 p-1"
                   accessibilityLabel={t("delete")}
+                  accessibilityRole="button"
+                  android_ripple={{ color: colors.destructive + "20" }}
                 >
                   <Trash2 size={18} color={colors.destructive} />
                 </Pressable>
 
                 <Pressable
                   onPress={() => {
+                    void haptics.light();
                     if (onToggleRecurring) {
                       onToggleRecurring(expense, !expense.is_recurring);
                     } else {
@@ -155,6 +177,8 @@ export function CustomExpensesSection({
                   }}
                   className="shrink-0 p-1"
                   accessibilityLabel={t("recurringToggle")}
+                  accessibilityRole="button"
+                  android_ripple={{ color: colors.primary + "20" }}
                 >
                   <Repeat size={16} color={expense.is_recurring ? colors.foreground : colors.mutedForeground} />
                 </Pressable>

@@ -4,7 +4,8 @@ import { CircleCheck } from "lucide-react-native";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { pmt } from "../lib/calculations";
-import { formatCurrency, type Budget, type Expense, type Loans } from "../lib/budget";
+import { type Budget, type Expense, type Loans } from "../lib/budget";
+import { formatCurrency } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 

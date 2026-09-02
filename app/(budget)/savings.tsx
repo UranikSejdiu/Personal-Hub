@@ -135,11 +135,12 @@ export default function SavingsScreen() {
                 await deleteTransaction(entry.rawTx.id);
               }
               await loadData();
+              setConfirmAction(null);
             } catch {
               toast.error(t("errorDeletingSavings"));
+              setConfirmAction(null);
             }
           })();
-          setConfirmAction(null);
         },
       });
     },
@@ -205,13 +206,14 @@ export default function SavingsScreen() {
               await closeYear(year, desc);
               await loadData();
               setSelectedYear(nextYear);
+              setConfirmAction(null);
               void haptics.success();
               toast.success(t("savedSuccess"));
             } catch {
               toast.error(t("errorAddingSavings"));
+              setConfirmAction(null);
             }
           })();
-          setConfirmAction(null);
         },
       });
     },
@@ -264,11 +266,12 @@ export default function SavingsScreen() {
             await deleteTransaction(editingId);
             setShowModal(false);
             await loadData();
+            setConfirmAction(null);
           } catch {
             toast.error(t("errorDeletingSavings"));
+            setConfirmAction(null);
           }
         })();
-        setConfirmAction(null);
       },
     });
   }, [editingId, t, loadData]);
@@ -309,12 +312,15 @@ export default function SavingsScreen() {
             </View>
           )}
 
-          <View className="rounded-xl border border-border bg-card p-4" style={{ flexGrow: 1 }}>
+          <View className="flex-grow rounded-xl border border-border bg-card p-4">
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
               <Pressable
-                onPress={openCreateModal}
+                onPress={() => { void haptics.light(); openCreateModal(); }}
                 className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+                android_ripple={{ color: colors.primaryForeground + "30" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("savingsNewEntry")}
               >
                 <Plus size={14} color={colors.primaryForeground} />
                 <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
@@ -328,8 +334,12 @@ export default function SavingsScreen() {
                 return (
                   <View key={y} className="flex-row items-center gap-1">
                     <Pressable
-                      onPress={() => setSelectedYear(y)}
+                      onPress={() => { void haptics.light(); setSelectedYear(y); }}
                       className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+                      android_ripple={{ color: colors.primary + "20" }}
+                      accessibilityRole="button"
+                      accessibilityLabel={String(y)}
+                      accessibilityState={{ selected: isSelected }}
                     >
                       <Text className={`text-xs font-medium ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{y}</Text>
                     </Pressable>
@@ -346,10 +356,14 @@ export default function SavingsScreen() {
                 );
               })}
               <Pressable
-                onPress={() => setSelectedYear("all")}
+                onPress={() => { void haptics.light(); setSelectedYear("all"); }}
                 className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+                android_ripple={{ color: colors.primary + "20" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("filterAll")}
+                accessibilityState={{ selected: selectedYear === "all" }}
               >
-                <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>All</Text>
+                <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>{t("filterAll")}</Text>
               </Pressable>
             </ScrollView>
 
@@ -436,7 +450,7 @@ export default function SavingsScreen() {
             <Text className="text-lg font-semibold text-foreground">
               {editingId === null ? t("savingsNewEntry") : t("savingsEditEntry")}
             </Text>
-            {modalError ? <Text className="mt-2 text-sm text-red-500">{modalError}</Text> : null}
+            {modalError ? <Text className="mt-2 text-sm text-destructive">{modalError}</Text> : null}
             <View className="mt-4 gap-4">
               {!(editingId !== null && editingKind === "auto") && (
                 <View>
@@ -451,7 +465,7 @@ export default function SavingsScreen() {
                           onPress={() => setFormType(typeOption)}
                           className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-3 py-2.5 ${active ? "border-primary bg-muted" : "border-border"}`}
                         >
-                          <Icon size={16} color={typeOption === "deposit" ? "#22c55e" : "#ef4444"} />
+                          <Icon size={16} color={typeOption === "deposit" ? colors.success : colors.destructive} />
                           <Text className={typeOption === "deposit" ? "text-success" : "text-destructive"}>
                             {typeOption === "deposit" ? t("savingsTypeDeposit") : t("savingsTypePurchase")}
                           </Text>
@@ -495,14 +509,14 @@ export default function SavingsScreen() {
             </View>
             <View className="mt-5 flex-row items-center justify-end gap-2">
               {editingId !== null && (
-                <Pressable onPress={requestDelete} className="px-2 py-1">
-                  <Text className="text-sm font-medium text-red-500">{t("delete")}</Text>
+                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1">
+                  <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
                 </Pressable>
               )}
               <Pressable onPress={() => setShowModal(false)} className="px-2 py-1">
                 <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
               </Pressable>
-              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2">
+              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2" android_ripple={{ color: colors.primaryForeground + "30" }} accessibilityRole="button" accessibilityLabel={t("save")}>
                 <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
               </Pressable>
             </View>

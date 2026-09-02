@@ -11,7 +11,6 @@ import {
   addMonths,
   currentMonth,
   deleteBudget,
-  formatCurrency,
   listMonthSummaries,
   loadBudget,
   loadLoans,
@@ -20,6 +19,7 @@ import {
   saveBudget,
   type MonthSummary,
 } from "../../src/lib/budget";
+import { formatCurrency } from "../../src/lib/utils";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
 export default function DashboardScreen() {
@@ -124,6 +124,9 @@ export default function DashboardScreen() {
           onPress={() => openBudgetMonth(item.month)}
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
           className="rounded-xl border border-border bg-card p-3"
+          android_ripple={{ color: colors.primary + "20" }}
+          accessibilityRole="button"
+          accessibilityLabel={monthLabelShort(lang, item.month)}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
@@ -137,7 +140,7 @@ export default function DashboardScreen() {
                 {monthLabelShort(lang, item.month)}
               </Text>
               <Text
-                className={`text-xs ${item.remaining < 0 ? "text-red-500" : "text-muted-foreground"}`}
+                className={`text-xs ${item.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
               >
                 {formatCurrency(item.remaining)}
               </Text>
@@ -150,10 +153,12 @@ export default function DashboardScreen() {
                 }}
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={expanded ? t("collapse") : t("expand")}
+                accessibilityRole="button"
+                android_ripple={{ color: colors.primary + "20" }}
               >
                 <ChevronDown
                   size={16}
-                  color={item.remaining < 0 ? "#ef4444" : "#9ca3af"}
+                  color={item.remaining < 0 ? colors.destructive : colors.mutedForeground}
                   style={expanded ? styles.rotated : undefined}
                 />
               </Pressable>
@@ -164,8 +169,10 @@ export default function DashboardScreen() {
                 }}
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={t("delete")}
+                accessibilityRole="button"
+                android_ripple={{ color: colors.destructive + "20" }}
               >
-                <Trash2 size={14} color="#9ca3af" />
+                <Trash2 size={14} color={colors.mutedForeground} />
               </Pressable>
             </View>
           </View>
@@ -187,7 +194,7 @@ export default function DashboardScreen() {
               <View className="flex-row justify-between text-xs">
                 <Text className="text-muted-foreground">{t("remainsColon")} </Text>
                 <Text
-                  className={item.remaining < 0 ? "text-red-500" : "font-medium text-foreground"}
+                  className={item.remaining < 0 ? "text-destructive" : "font-medium text-foreground"}
                 >
                   {formatCurrency(item.remaining)}
                 </Text>
@@ -210,7 +217,7 @@ export default function DashboardScreen() {
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs text-muted-foreground">{t("goalColon")}</Text>
                     <Text
-                      className={item.goalMet ? "text-green-500" : "font-medium text-foreground"}
+                      className={item.goalMet ? "text-success" : "font-medium text-foreground"}
                     >
                       {formatCurrency(Math.max(0, item.actualRemaining))} /{" "}
                       {formatCurrency(item.savingsGoal)}
@@ -218,7 +225,7 @@ export default function DashboardScreen() {
                   </View>
                   <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
                     <View
-                      className={item.goalMet ? "bg-green-500" : "bg-primary"}
+                      className={item.goalMet ? "bg-success" : "bg-primary"}
                       style={{ width: `${item.goalProgress}%`, height: "100%" }}
                     />
                   </View>
@@ -242,6 +249,8 @@ export default function DashboardScreen() {
             disabled={creatingBudget}
             className="flex-row items-center rounded-lg bg-primary px-3 py-1.5 opacity-100 disabled:opacity-60"
             accessibilityRole="button"
+            accessibilityLabel={t("newBudget")}
+            android_ripple={{ color: colors.primaryForeground + "30" }}
           >
             <Plus size={14} color={colors.primaryForeground} />
             <Text className="ml-1.5 text-sm font-medium text-primary-foreground">{t("newBudget")}</Text>

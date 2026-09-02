@@ -25,13 +25,6 @@ export function addMonths(key: string, delta: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number.isFinite(value) ? value : 0);
-}
-
 // ---------------------------------------------------------------------------
 // Loans (single global profile)
 // ---------------------------------------------------------------------------

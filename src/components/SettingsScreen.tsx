@@ -4,7 +4,7 @@ import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Downloa
 import { useRouter } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
-import { getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
+import { useHaptics, getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
 import { APP_VERSION } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme } = useTheme();
   const colors = useThemeColors();
+  const haptics = useHaptics();
   const [activeSection, setActiveSection] = useState<Section>(null);
   const [hapticsOn, setHapticsOn] = useState(true);
   const [goalAmount, setGoalAmount] = useState(0);
@@ -147,7 +148,7 @@ export default function SettingsScreen() {
       }
       setConfirmAction({
         title: t("importData"),
-        message: "This will replace all current data with the backup. Continue?",
+        message: t("importConfirmMessage"),
         confirmLabel: t("importData"),
         destructive: true,
         onConfirm: () => {
@@ -197,8 +198,11 @@ export default function SettingsScreen() {
             return (
               <Pressable
                 key={item.section}
-                onPress={() => setActiveSection(item.section)}
+                onPress={() => { void haptics.light(); setActiveSection(item.section); }}
                 className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
+                android_ripple={{ color: colors.primary + "20" }}
+                accessibilityRole="button"
+                accessibilityLabel={t(item.labelKey)}
               >
                 <View className="flex-row items-center gap-3">
                    <Icon size={20} color={colors.foreground} />
@@ -230,7 +234,7 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1 bg-background">
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center gap-2">
-            <Pressable onPress={() => setActiveSection(null)}>
+            <Pressable onPress={() => setActiveSection(null)} accessibilityRole="button" accessibilityLabel={t("cancel")} android_ripple={{ color: colors.primary + "20" }}>
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
           <Text className="text-2xl font-bold text-foreground">
@@ -252,10 +256,14 @@ export default function SettingsScreen() {
                 {THEMES.map((th) => (
                   <Pressable
                     key={th.value}
-                    onPress={() => setTheme(th.value)}
+                    onPress={() => { void haptics.light(); setTheme(th.value); }}
                     className={`flex-row items-center gap-3 rounded-lg border p-3 ${
                       theme === th.value ? "border-primary bg-primary/10" : "border-border"
                     }`}
+                    android_ripple={{ color: colors.primary + "20" }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: theme === th.value }}
+                    accessibilityLabel={t(th.labelKey as "themeLight" | "themeDark")}
                   >
                     <View className={`h-5 w-5 rounded-full border-2 ${
                       theme === th.value ? "border-primary" : "border-border"
@@ -274,10 +282,14 @@ export default function SettingsScreen() {
                 {(["sq", "en"] as const).map((l) => (
                   <Pressable
                     key={l}
-                    onPress={() => setLang(l)}
+                    onPress={() => { void haptics.light(); setLang(l); }}
                     className={`flex-1 rounded-lg border p-3 ${
                       lang === l ? "border-primary bg-primary/10" : "border-border"
                     }`}
+                    android_ripple={{ color: colors.primary + "20" }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: lang === l }}
+                    accessibilityLabel={l === "sq" ? "Shqip" : "English"}
                   >
                     <Text className={`text-center text-sm ${lang === l ? "font-semibold text-primary" : "text-foreground"}`}>
                       {l === "sq" ? "Shqip" : "English"}
@@ -345,17 +357,23 @@ export default function SettingsScreen() {
               </View>
               <Text className="text-xs text-muted-foreground">{t("backupComingSoon")}</Text>
               <Pressable
-                onPress={handleExport}
+                onPress={() => { void haptics.light(); void handleExport(); }}
                 disabled={backupBusy}
                 className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
+                android_ripple={{ color: colors.primaryForeground + "30" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("exportData")}
               >
-                <Download size={16} color="#fff" />
-                <Text className="text-sm font-medium text-white">{t("exportData")}</Text>
+                <Download size={16} color={colors.primaryForeground} />
+                <Text className="text-sm font-medium text-primary-foreground">{t("exportData")}</Text>
               </Pressable>
               <Pressable
-                onPress={handleImportPick}
+                onPress={() => { void haptics.light(); void handleImportPick(); }}
                 disabled={backupBusy}
                 className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
+                android_ripple={{ color: colors.primary + "20" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("importData")}
               >
                 <Cloud size={16} color={colors.foreground} />
                 <Text className="text-sm font-medium text-foreground">{t("importData")}</Text>

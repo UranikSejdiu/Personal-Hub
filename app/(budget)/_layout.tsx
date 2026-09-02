@@ -49,10 +49,10 @@ export default function BudgetLayout() {
           />
         )}
       >
-        <Tabs.Screen name="index" options={{ title: "Dashboard" }} />
-        <Tabs.Screen name="savings" options={{ title: "Savings" }} />
-        <Tabs.Screen name="loans" options={{ title: "Loans" }} />
-        <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+        <Tabs.Screen name="index" options={{ title: t("navDashboard") }} />
+        <Tabs.Screen name="savings" options={{ title: t("navSavings") }} />
+        <Tabs.Screen name="loans" options={{ title: t("navLoans") }} />
+        <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
       </Tabs>
     </>
   );

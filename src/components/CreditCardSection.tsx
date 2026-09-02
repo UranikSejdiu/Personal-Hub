@@ -2,8 +2,10 @@ import { View, Text, Pressable } from "react-native";
 import { CreditCard, Check } from "lucide-react-native";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
+import { useHaptics } from "../hooks/useHaptics";
 import { creditCardPayoff } from "../lib/calculations";
-import { formatCurrency, type Budget, type Loans } from "../lib/budget";
+import { type Budget, type Loans } from "../lib/budget";
+import { formatCurrency } from "../lib/utils";
 
 interface Props {
   budget: Budget;
@@ -14,6 +16,7 @@ interface Props {
 export function CreditCardSection({ budget, loans, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const haptics = useHaptics();
   if (loans.cc_balance <= 0 && loans.cc_payment <= 0) return null;
 
   const ccMonthsPaid = loans.cc_months_paid;
@@ -57,7 +60,7 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
               <Pressable
-                onPress={onToggle}
+                onPress={() => { void haptics.light(); onToggle(); }}
                 className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
                   budget.cc_paid
                     ? "border-primary bg-primary/15"
@@ -66,6 +69,7 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: budget.cc_paid }}
                 accessibilityLabel={t("monthlyPayment")}
+                android_ripple={{ color: colors.primary + "20" }}
               >
                 {budget.cc_paid && <Check size={14} color={colors.primary} />}
               </Pressable>

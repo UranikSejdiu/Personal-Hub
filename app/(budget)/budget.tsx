@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, Keyboard } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
+import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
   loadBudget,
@@ -33,6 +34,7 @@ export default function BudgetScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
   const initialMonth = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
+  const haptics = useHaptics();
   const [month] = useState<string>(initialMonth);
   const [loans, setLoans] = useState<Loans | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
@@ -99,7 +101,6 @@ export default function BudgetScreen() {
       try {
         await loadData(month);
         if (cancelled) return;
-        setBudget((b) => b);
       } catch {
         if (!cancelled) toast.error(t("errorLoadingData"));
       } finally {
@@ -212,10 +213,11 @@ export default function BudgetScreen() {
       setLoans(updatedLoans);
       setBudget((b) => (b ? { ...b, loan_paid: newLoanPaid } : b));
       scheduleSave();
+      void haptics.light();
     } catch {
       toast.error(t("errorUpdatingLoan"));
     }
-  }, [budget, ensureBudget, scheduleSave, t]);
+  }, [budget, ensureBudget, scheduleSave, t, haptics]);
 
   const handleCcToggle = useCallback(async () => {
     const prev = budget;
@@ -228,17 +230,19 @@ export default function BudgetScreen() {
       setLoans(updatedLoans);
       setBudget((b) => (b ? { ...b, cc_paid: newCcPaid } : b));
       scheduleSave();
+      void haptics.light();
     } catch {
       toast.error(t("errorUpdatingCc"));
     }
-  }, [budget, ensureBudget, scheduleSave, t]);
+  }, [budget, ensureBudget, scheduleSave, t, haptics]);
 
   const handleAddExpense = useCallback(async () => {
     const b = await ensureBudget();
     await addExpense(b.id, "", 0, false);
     const exps = await listExpenses(b.id);
     setExpenses(exps);
-  }, [ensureBudget]);
+    void haptics.light();
+  }, [ensureBudget, haptics]);
 
   const handleUpdateExpense = useCallback(
     async (id: number, fields: Partial<Pick<Expense, "category" | "amount" | "paid">>) => {
@@ -303,10 +307,11 @@ export default function BudgetScreen() {
       }
       await removeExpense(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
+      void haptics.warning();
     } catch {
       toast.error(t("errorRemovingExpense"));
     }
-  }, [expenses, t]);
+  }, [expenses, t, haptics]);
 
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;
@@ -320,19 +325,20 @@ export default function BudgetScreen() {
         result.budget.loan_paid,
         result.budget.cc_paid,
       ]);
+      void haptics.success();
       toast.success(
         t("copiedFromPreviousMonth", { month: previousMonthLabel })
       );
     } catch {
       toast.error(t("noPreviousMonthFound"));
     }
-  }, [month, previousMonth, previousMonthLabel, loading, t]);
+  }, [month, previousMonth, previousMonthLabel, loading, t, haptics]);
 
   const prevMonthLabel = monthLabelShort(lang, addMonths(month, -1));
 
   if (loading || !loans || !budget) {
     return (
-      <ScrollView className="flex-1 bg-background">
+      <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
@@ -361,11 +367,11 @@ export default function BudgetScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background">
+    <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
       <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
         {saveError ? (
-          <View className="rounded-md bg-red-500/15 p-3">
-            <Text className="text-sm font-medium text-red-500">{saveError}</Text>
+          <View className="rounded-md bg-destructive/15 p-3">
+            <Text className="text-sm font-medium text-destructive">{saveError}</Text>
           </View>
         ) : null}
         {isSaving ? (

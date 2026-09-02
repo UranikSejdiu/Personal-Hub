@@ -2,6 +2,7 @@ import { Pressable, Text, Modal, View } from "react-native";
 import { X } from "lucide-react-native";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
+import { useI18n } from "../lib/i18n";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -26,9 +27,10 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const haptics = useHaptics();
   const colors = useThemeColors();
+  const { t } = useI18n();
 
   const handleConfirm = () => {
-    void haptics.light();
+    void (destructive ? haptics.warning() : haptics.light());
     void onConfirm();
   };
 
@@ -54,7 +56,7 @@ export function ConfirmDialog({
             <Pressable
               onPress={onClose}
               className="ml-2 h-5 w-5 items-center justify-center rounded"
-              accessibilityLabel="Close"
+              accessibilityLabel={t("cancel")}
             >
               <X size={16} color={colors.mutedForeground} />
             </Pressable>
@@ -74,11 +76,11 @@ export function ConfirmDialog({
             </Pressable>
             <Pressable
               onPress={handleConfirm}
-              className={`rounded-lg px-4 py-2 ${destructive ? "bg-red-500" : "bg-primary"}`}
+              className={`rounded-lg px-4 py-2 ${destructive ? "bg-destructive" : "bg-primary"}`}
               accessibilityRole="button"
             >
               <Text
-                className={`text-sm font-semibold ${destructive ? "text-white" : "text-white"}`}
+                className={`text-sm font-semibold ${destructive ? "text-destructive-foreground" : "text-primary-foreground"}`}
               >
                 {confirmLabel}
               </Text>

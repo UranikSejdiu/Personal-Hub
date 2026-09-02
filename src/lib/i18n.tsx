@@ -312,7 +312,11 @@ const dict = {
     msOct: "Tet",
     msNov: "Nën",
     msDec: "Dhj",
+
+    filterAll: "Të gjitha",
+    importConfirmMessage: "Kjo do të zëvendësojë të gjitha të dhënat aktuale me kopjen e rezervuar. Doni të vazhdoni?",
   },
+
   en: {
     appBudget: "Budget",
     appDhikr: "Dhikr",
@@ -609,6 +613,9 @@ const dict = {
     msOct: "Oct",
     msNov: "Nov",
     msDec: "Dec",
+
+    filterAll: "All",
+    importConfirmMessage: "This will replace all current data with the backup. Continue?",
   },
 } as const;
 

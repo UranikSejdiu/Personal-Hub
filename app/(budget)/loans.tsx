@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { View, Text, ScrollView, Pressable, Keyboard } from "react-native";
 import { Landmark, CreditCard, Save, ChevronRight } from "lucide-react-native";
 import { useI18n } from "../../src/lib/i18n";
+import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
   saveLoans,
@@ -18,19 +19,33 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 export default function LoansScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const haptics = useHaptics();
   const [loans, setLoans] = useState<Loans>(EMPTY_LOANS);
   const [saved, setSaved] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    loadLoans().then(setLoans);
+    let cancelled = false;
+    loadLoans()
+      .then((l) => { if (!cancelled) setLoans(l); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
   }, []);
 
   const handleSave = useCallback(async () => {
     await saveLoans(loans);
+    void haptics.success();
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, [loans]);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+  }, [loans, haptics]);
 
   const update = useCallback((fields: Partial<Loans>) => {
     setLoans((prev) => ({ ...prev, ...fields }));
@@ -101,13 +116,16 @@ export default function LoansScreen() {
 
   return (
     <>
-      <ScrollView className="flex-1 bg-background">
+      <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
       <View className="w-full max-w-md self-center gap-3 p-4 pb-28">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
           <Pressable
             onPress={handleSave}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-4 py-2"
+            android_ripple={{ color: colors.primaryForeground + "30" }}
+            accessibilityRole="button"
+            accessibilityLabel={t("save")}
           >
             <Save size={16} color={colors.primaryForeground} />
             <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
@@ -165,6 +183,9 @@ export default function LoansScreen() {
               <Pressable
                 onPress={() => setDatePickerVisible(true)}
                 className="flex-row items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
+                android_ripple={{ color: colors.primary + "20" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("loanStartDate")}
               >
                 <Text className="text-sm text-foreground">{formatDate(loans.loan_start_date)}</Text>
                 <ChevronRight size={16} color={colors.mutedForeground} />
