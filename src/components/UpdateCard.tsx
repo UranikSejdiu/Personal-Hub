@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, AppState } from "react-native";
 import { Download, Loader2, RefreshCw, Rocket } from "lucide-react-native";
 import { toast } from "sonner-native";
 import { useI18n } from "../lib/i18n";
@@ -7,7 +7,6 @@ import { useThemeColors } from "../lib/theme";
 import { useUpdate } from "../lib/UpdateContext";
 import { downloadApk, installApk, openInstallSettings } from "../lib/updater";
 import type { File } from "expo-file-system";
-import { AppState } from "react-native";
 
 type UpdateState = "idle" | "downloading" | "ready";
 

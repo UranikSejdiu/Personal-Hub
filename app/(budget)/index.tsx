@@ -236,7 +236,7 @@ export default function DashboardScreen() {
         </Pressable>
       );
     },
-    [expandedMonths, lang, openBudgetMonth, t, toggleMonth]
+    [expandedMonths, lang, openBudgetMonth, t, toggleMonth, colors.destructive, colors.mutedForeground, colors.primary]
   );
 
   return (

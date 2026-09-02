@@ -40,7 +40,12 @@ export default function NotesEditorScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    setLoading(true);
+    
+    // Defer setting loading state to avoid synchronous setState in effect
+    setTimeout(() => {
+      if (!cancelled) setLoading(true);
+    }, 0);
+
     getNote(Number(id))
       .then((n) => {
         if (cancelled) return;
@@ -81,12 +86,15 @@ export default function NotesEditorScreen() {
 
   useEffect(() => {
     if (id) return;
-    setNoteId(null);
-    setTitle("");
-    setContentHtml("");
-    setColor("default");
-    setIsPinned(false);
-    setEditorState(null);
+    // Defer reset to avoid synchronous setState in effect
+    setTimeout(() => {
+      setNoteId(null);
+      setTitle("");
+      setContentHtml("");
+      setColor("default");
+      setIsPinned(false);
+      setEditorState(null);
+    }, 0);
     editorRef.current?.setValue("");
   }, [id]);
 
