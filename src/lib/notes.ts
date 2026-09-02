@@ -1,8 +1,14 @@
 import * as db from "./db";
-import { type NoteColor } from "../constants/theme";
+import { NOTE_COLORS, type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
 
 export type { Note };
+
+export function getNoteColorClass(color: NoteColor, isDark: boolean): string {
+  const entry = NOTE_COLORS[color];
+  if (!entry) return "bg-card";
+  return isDark ? entry.dark : entry.light;
+}
 
 function toNote(row: Record<string, unknown>): Note {
   return {
@@ -41,9 +47,12 @@ export async function getNote(id: number): Promise<Note | undefined> {
   return toNote(row);
 }
 
-export async function createNote(): Promise<Note> {
+export async function createNote(
+  fields: Pick<Note, "title" | "content" | "color" | "is_pinned">
+): Promise<Note> {
   const result = await db.execute(
-    "INSERT INTO notes (title, content, is_pinned, color) VALUES ('', '', 0, 'default')"
+    "INSERT INTO notes (title, content, is_pinned, color) VALUES (?, ?, ?, ?)",
+    [fields.title, fields.content, fields.is_pinned ? 1 : 0, fields.color]
   );
   const created = await db.get<Record<string, unknown>>(
     "SELECT * FROM notes WHERE id = ?",
