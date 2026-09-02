@@ -31,7 +31,21 @@ function TableHeader({ className, ...props }: ViewProps) {
   );
 }
 
-function TableBody({ className, ...props }: React.ComponentProps<typeof ScrollView>) {
+interface TableBodyProps extends ViewProps {
+  scrollable?: boolean;
+}
+
+function TableBody({ className, scrollable, ...props }: TableBodyProps) {
+  if (scrollable) {
+    return (
+      <ScrollView
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        className={cn("", className)}
+        {...(props as React.ComponentProps<typeof ScrollView>)}
+      />
+    );
+  }
   return (
     <View
       className={cn("", className)}

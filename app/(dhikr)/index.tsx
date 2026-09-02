@@ -25,7 +25,6 @@ export default function CounterScreen() {
   const colors = useThemeColors();
   const [dhikrs, setDhikrs] = useState<Dhikr[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [animating, setAnimating] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
 
@@ -64,40 +63,66 @@ export default function CounterScreen() {
     void setSelectedDhikrId(id);
   }, []);
 
-  const handleTap = useCallback(async () => {
+  // Queued write: we fire optimistic UI immediately and let the DB flush
+  // sequentially via a ref-based mutex — rapid taps are never dropped.
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const handleTap = useCallback(() => {
     const dhikr = activeDhikr;
-    if (!dhikr || animating) return;
-    setAnimating(true);
-    haptics.light();
-    try {
-      const updated = await incrementDhikr(dhikr.id);
-      if (!updated) {
-        haptics.warning();
-        setShowLimitWarning(true);
-        if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
-        limitTimerRef.current = setTimeout(() => setShowLimitWarning(false), 2000);
-        return;
-      }
-      const hitLimit =
-        updated.daily_limit != null &&
-        updated.daily_limit > 0 &&
-        updated.daily_count >= updated.daily_limit;
-      setDhikrs((prev) =>
-        prev.map((d) => (d.id === updated.id ? updated : d))
-      );
-      if (hitLimit) {
-        haptics.success();
-        toast.success(t("goalComplete"));
-        setShowFireworks(true);
-        if (fireworksTimerRef.current) clearTimeout(fireworksTimerRef.current);
-        fireworksTimerRef.current = setTimeout(() => setShowFireworks(false), 2000);
-      }
-    } catch {
-      toast.error(t("errorLoadingData"));
-    } finally {
-      setAnimating(false);
+    if (!dhikr) return;
+
+    const limit = dhikr.daily_limit;
+    const alreadyAtLimit =
+      limit != null && limit > 0 && dhikr.daily_count >= limit;
+
+    if (alreadyAtLimit) {
+      haptics.warning();
+      setShowLimitWarning(true);
+      if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+      limitTimerRef.current = setTimeout(() => setShowLimitWarning(false), 2000);
+      return;
     }
-  }, [activeDhikr, animating, haptics, t]);
+
+    // Optimistic update: increment UI immediately without waiting for DB.
+    const newDailyCount = dhikr.daily_count + 1;
+    const newTotalCount = dhikr.total_count + 1;
+    const hitLimit = limit != null && limit > 0 && newDailyCount >= limit;
+
+    setDhikrs((prev) =>
+      prev.map((d) =>
+        d.id === dhikr.id
+          ? { ...d, daily_count: newDailyCount, total_count: newTotalCount }
+          : d
+      )
+    );
+
+    haptics.light();
+
+    if (hitLimit) {
+      haptics.success();
+      toast.success(t("goalComplete"));
+      setShowFireworks(true);
+      if (fireworksTimerRef.current) clearTimeout(fireworksTimerRef.current);
+      fireworksTimerRef.current = setTimeout(() => setShowFireworks(false), 2000);
+    }
+
+    // Queue the DB write so concurrent calls execute sequentially.
+    writeQueueRef.current = writeQueueRef.current.then(async () => {
+      try {
+        await incrementDhikr(dhikr.id);
+      } catch {
+        // Revert optimistic update on failure.
+        setDhikrs((prev) =>
+          prev.map((d) =>
+            d.id === dhikr.id
+              ? { ...d, daily_count: dhikr.daily_count, total_count: dhikr.total_count }
+              : d
+          )
+        );
+        toast.error(t("errorLoadingData"));
+      }
+    });
+  }, [activeDhikr, haptics, t]);
 
   const handleReset = useCallback(async () => {
     if (!activeDhikr) return;
@@ -202,7 +227,7 @@ export default function CounterScreen() {
               <Text
                 className={`text-center font-extralight leading-none ${
                   limitReached ? "text-success" : "text-foreground"
-                } ${animating ? "opacity-70" : "opacity-100"}`}
+                }`}
                 style={{ fontSize: 132, letterSpacing: -2 }}
               >
                 {activeDhikr.total_count.toLocaleString()}

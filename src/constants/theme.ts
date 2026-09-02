@@ -47,6 +47,53 @@ export const COLORS = {
 
 export type ThemeName = "light" | "dark";
 
+export type AccentName = "blue" | "green" | "purple" | "teal" | "orange" | "pink";
+
+interface AccentColor {
+  primary: string;
+  primaryForeground: string;
+}
+
+export const ACCENT_COLORS: Record<AccentName, AccentColor> = {
+  blue: {
+    primary: "hsl(221, 83%, 53%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+  green: {
+    primary: "hsl(142, 71%, 36%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+  purple: {
+    primary: "hsl(262, 83%, 58%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+  teal: {
+    primary: "hsl(173, 65%, 30%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+  orange: {
+    primary: "hsl(24, 95%, 48%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+  pink: {
+    primary: "hsl(330, 81%, 57%)",
+    primaryForeground: "hsl(0, 0%, 100%)",
+  },
+};
+
+export const ACCENT_ORDER: AccentName[] = [
+  "blue",
+  "green",
+  "purple",
+  "teal",
+  "orange",
+  "pink",
+];
+
+export function isAccentName(value: string | null | undefined): value is AccentName {
+  return typeof value === "string" && value in ACCENT_COLORS;
+}
+
 export const NOTE_COLORS = {
   default: { light: "bg-card", dark: "bg-card" },
   yellow: { light: "bg-yellow-100", dark: "bg-yellow-900/30" },

@@ -35,7 +35,9 @@ export default function BudgetScreen() {
   const initialMonth = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
   const haptics = useHaptics();
-  const [month] = useState<string>(initialMonth);
+  const month = initialMonth;
+  const prevMonthRef = useRef(month);
+
   const [loans, setLoans] = useState<Loans | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -50,6 +52,24 @@ export default function BudgetScreen() {
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedRef = useRef("");
+  const pendingSaveRef = useRef<{
+    month: string;
+    income: number;
+    loanPaid: boolean;
+    ccPaid: boolean;
+    current: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (prevMonthRef.current === month) return;
+    prevMonthRef.current = month;
+    budgetIdRef.current = null;
+    salaryRef.current = 0;
+    persistedRef.current = "";
+    saveTimerRef.current = null;
+    pendingSaveRef.current = null;
+    setSavingsGoal(0);
+  }, [month]);
 
   const previousMonth = addMonths(month, -1);
   const previousMonthLabel = monthLabelShort(lang, previousMonth);
@@ -111,14 +131,6 @@ export default function BudgetScreen() {
       cancelled = true;
     };
   }, [month, loadData, t]);
-
-  const pendingSaveRef = useRef<{
-    month: string;
-    income: number;
-    loanPaid: boolean;
-    ccPaid: boolean;
-    current: string;
-  } | null>(null);
 
   const flushSave = useCallback(async () => {
     const pending = pendingSaveRef.current;

@@ -17,7 +17,7 @@ import { ensureMonthlyAutoDeposit } from "../src/lib/savings";
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutInner() {
-  const { theme, resolvedTheme } = useTheme();
+  const { theme, resolvedTheme, accent } = useTheme();
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -51,7 +51,10 @@ function RootLayoutInner() {
   }, []);
 
   return (
-    <View className={theme} style={{ flex: 1 }}>
+    <View
+      className={`${theme} ${accent === "blue" ? "" : `accent-${accent}`}`}
+      style={{ flex: 1 }}
+    >
       <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(budget)" />

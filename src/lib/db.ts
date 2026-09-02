@@ -82,11 +82,14 @@ const MIGRATIONS: string[] = [
     content TEXT NOT NULL DEFAULT '',
     is_pinned INTEGER NOT NULL DEFAULT 0,
     color TEXT NOT NULL DEFAULT 'default',
+    plain_text TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );`,
   `CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(is_pinned);`,
   `CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);`,
+  `ALTER TABLE notes ADD COLUMN plain_text TEXT NOT NULL DEFAULT '';`,
+  `CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);`,
 ];
 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {

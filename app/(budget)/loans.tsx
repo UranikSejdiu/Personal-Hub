@@ -261,7 +261,7 @@ export default function LoansScreen() {
                 <TableHead className="w-[68] text-right">{t("interestCol")}</TableHead>
                 <TableHead className="w-[68] text-right">{t("balanceCol")}</TableHead>
               </TableHeader>
-              <TableBody style={{ maxHeight: 288 }}>
+              <TableBody scrollable style={{ maxHeight: 288 }}>
                 {schedule.map((row) => (
                   <TableRow key={row.index}>
                     <TableCell className="w-5 text-center">{row.index}</TableCell>

@@ -36,32 +36,45 @@ function toNote(row: Record<string, unknown>): Note {
 }
 
 export async function loadNotes(): Promise<Note[]> {
+  await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
     "SELECT * FROM notes ORDER BY is_pinned DESC, updated_at DESC"
   );
   return rows.map(toNote);
 }
 
-export async function searchNotes(query: string): Promise<Note[]> {
-  const pattern = `%${query}%`;
-  const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes WHERE title LIKE ? ORDER BY is_pinned DESC, updated_at DESC",
-    [pattern]
-  );
-  const titleMatches = rows.map(toNote);
+let backfillPromise: Promise<void> | null = null;
 
-  const allRows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes ORDER BY is_pinned DESC, updated_at DESC"
-  );
-  const contentMatches = allRows
-    .map(toNote)
-    .filter(
-      (n) =>
-        !titleMatches.some((t) => t.id === n.id) &&
-        stripHtml(n.content).toLowerCase().includes(query.toLowerCase())
+async function ensurePlainTextBackfill(): Promise<void> {
+  if (backfillPromise) return backfillPromise;
+  backfillPromise = (async () => {
+    const rows = await db.query<Record<string, unknown>>(
+      "SELECT id, content FROM notes WHERE plain_text = '' AND content != ''"
     );
+    for (const row of rows) {
+      const plain = stripHtml(String(row.content));
+      await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
+        plain,
+        Number(row.id),
+      ]);
+    }
+  })();
+  try {
+    await backfillPromise;
+  } catch {
+    backfillPromise = null;
+    throw new Error("Failed to backfill note search content.");
+  }
+}
 
-  return [...titleMatches, ...contentMatches];
+export async function searchNotes(query: string): Promise<Note[]> {
+  const normalized = query.trim().toLowerCase();
+  const pattern = `%${normalized}%`;
+  const rows = await db.query<Record<string, unknown>>(
+    "SELECT * FROM notes WHERE plain_text LIKE ? OR title LIKE ? ORDER BY is_pinned DESC, updated_at DESC",
+    [pattern, pattern]
+  );
+  return rows.map(toNote);
 }
 
 export async function getNote(id: number): Promise<Note | undefined> {
@@ -77,8 +90,14 @@ export async function createNote(
   fields: Pick<Note, "title" | "content" | "color" | "is_pinned">
 ): Promise<Note> {
   const result = await db.execute(
-    "INSERT INTO notes (title, content, is_pinned, color) VALUES (?, ?, ?, ?)",
-    [fields.title, fields.content, fields.is_pinned ? 1 : 0, fields.color]
+    "INSERT INTO notes (title, content, is_pinned, color, plain_text) VALUES (?, ?, ?, ?, ?)",
+    [
+      fields.title,
+      fields.content,
+      fields.is_pinned ? 1 : 0,
+      fields.color,
+      stripHtml(fields.content),
+    ]
   );
   const created = await db.get<Record<string, unknown>>(
     "SELECT * FROM notes WHERE id = ?",
@@ -101,6 +120,8 @@ export async function updateNote(
   if (fields.content !== undefined) {
     sets.push("content = ?");
     values.push(fields.content);
+    sets.push("plain_text = ?");
+    values.push(stripHtml(fields.content));
   }
   if (fields.is_pinned !== undefined) {
     sets.push("is_pinned = ?");

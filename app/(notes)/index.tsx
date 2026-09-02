@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, startTransition } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, FlatList, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -26,16 +26,12 @@ export default function NotesListScreen() {
   }, [searchQuery]);
 
   useEffect(() => {
-    startTransition(() => {
-      void load();
-    });
+    void load();
   }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      startTransition(() => {
-        void load();
-      });
+      void load();
     }, [load])
   );
 

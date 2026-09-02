@@ -4,7 +4,9 @@ import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Downloa
 import { useRouter } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
-import { useHaptics, getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
+import { ACCENT_ORDER, ACCENT_COLORS } from "../constants/theme";
+import { useHaptics, getHapticsEnabled, setHapticsEnabled, isHapticsEnabled } from "../hooks/useHaptics";
+import * as Haptics from "expo-haptics";
 import { APP_VERSION } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
@@ -35,11 +37,11 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, lang, setLang } = useI18n();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, accent, setAccent } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
   const [activeSection, setActiveSection] = useState<Section>(null);
-  const [hapticsOn, setHapticsOn] = useState(true);
+  const [hapticsOn, setHapticsOn] = useState<boolean>(isHapticsEnabled);
   const [goalAmount, setGoalAmount] = useState(0);
   const [salary, setSalary] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -113,8 +115,15 @@ export default function SettingsScreen() {
 
   const toggleHaptics = useCallback(async (val: boolean) => {
     setHapticsOn(val);
-    await setHapticsEnabled(val);
-  }, []);
+    try {
+      await setHapticsEnabled(val);
+      if (val) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch {
+      toast.error(t("saveFailed"));
+    }
+  }, [t]);
 
   const handleExport = useCallback(async () => {
     if (backupBusy) return;
@@ -271,6 +280,30 @@ export default function SettingsScreen() {
                       {theme === th.value && <View className="m-0.5 h-full rounded-full bg-primary" />}
                     </View>
                     <Text className="text-sm text-foreground">{t(th.labelKey as "themeLight" | "themeDark")}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View className="rounded-xl border border-border bg-card p-4">
+              <Text className="mb-3 text-sm font-semibold text-foreground">{t("accentLabel")}</Text>
+              <View className="flex-row gap-3">
+                {ACCENT_ORDER.map((name) => (
+                  <Pressable
+                    key={name}
+                    onPress={() => { void haptics.light(); setAccent(name); }}
+                    className={`h-8 w-8 items-center justify-center rounded-full border-2 ${
+                      accent === name ? "border-foreground" : "border-border"
+                    }`}
+                    style={{ backgroundColor: ACCENT_COLORS[name].primary }}
+                    android_ripple={{ color: colors.primary + "20" }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: accent === name }}
+                    accessibilityLabel={t(`accent_${name}` as "accent_blue")}
+                  >
+                    {accent === name && (
+                      <View className="h-2.5 w-2.5 rounded-full bg-white" />
+                    )}
                   </Pressable>
                 ))}
               </View>

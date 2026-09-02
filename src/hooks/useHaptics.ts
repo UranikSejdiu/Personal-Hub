@@ -4,55 +4,58 @@ import * as SecureStore from "expo-secure-store";
 
 const HAPTICS_KEY = "haptics_enabled";
 
+let cachedEnabled: boolean | null = null;
+
+export function isHapticsEnabled(): boolean {
+  return cachedEnabled === null ? true : cachedEnabled;
+}
+
 export async function getHapticsEnabled(): Promise<boolean> {
   const stored = await SecureStore.getItemAsync(HAPTICS_KEY);
-  return stored !== "false";
+  const enabled = stored !== "false";
+  cachedEnabled = enabled;
+  return enabled;
 }
 
 export async function setHapticsEnabled(enabled: boolean): Promise<void> {
+  cachedEnabled = enabled;
   await SecureStore.setItemAsync(HAPTICS_KEY, String(enabled));
 }
 
 export function useHaptics() {
   const light = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isHapticsEnabled()) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, []);
 
   const medium = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isHapticsEnabled()) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   }, []);
 
   const heavy = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    if (isHapticsEnabled()) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
   }, []);
 
   const success = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (isHapticsEnabled()) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, []);
 
   const warning = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    if (isHapticsEnabled()) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
   }, []);
 
   const error = useCallback(async () => {
-    const enabled = await getHapticsEnabled();
-    if (enabled) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    if (isHapticsEnabled()) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }, []);
 
