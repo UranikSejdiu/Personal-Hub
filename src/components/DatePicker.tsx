@@ -19,17 +19,19 @@ function parseValue(v: string | null): Date | null {
 }
 
 export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const colors = useThemeColors();
   const today = useMemo(() => new Date(), []);
 
   const [display, setDisplay] = useState<Date>(parseValue(value) ?? today);
 
+  const locale = lang === "sq" ? "sq-AL" : "en-US";
+
   const weekdays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) =>
-      new Date(2024, 0, i).toLocaleDateString(undefined, { weekday: "narrow" })
+      new Date(2024, 0, i).toLocaleDateString(locale, { weekday: "narrow" })
     );
-  }, []);
+  }, [locale]);
 
   const days = useMemo(() => {
     const first = new Date(display.getFullYear(), display.getMonth(), 1);
@@ -46,7 +48,7 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
     return arr;
   }, [display]);
 
-  const monthLabel = display.toLocaleDateString(undefined, {
+  const monthLabel = display.toLocaleDateString(locale, {
     month: "long",
     year: "numeric",
   });

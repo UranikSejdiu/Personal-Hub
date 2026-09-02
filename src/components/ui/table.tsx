@@ -33,9 +33,7 @@ function TableHeader({ className, ...props }: ViewProps) {
 
 function TableBody({ className, ...props }: React.ComponentProps<typeof ScrollView>) {
   return (
-    <ScrollView
-      nestedScrollEnabled
-      showsVerticalScrollIndicator={false}
+    <View
       className={cn("", className)}
       {...props}
     />

@@ -72,7 +72,7 @@ export default function NotesListScreen() {
         </View>
         <View className="mt-2 flex-row items-center justify-end">
           <Text className="text-[10px] text-muted-foreground">
-            {note.updated_at ? new Date(note.updated_at).toLocaleDateString() : ""}
+            {note.updated_at ? new Date(note.updated_at.replace(" ", "T")).toLocaleDateString() : ""}
           </Text>
         </View>
       </Pressable>

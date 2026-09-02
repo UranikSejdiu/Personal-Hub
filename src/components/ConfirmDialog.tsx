@@ -19,8 +19,8 @@ export function ConfirmDialog({
   visible,
   title,
   message,
-  confirmLabel = "OK",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   onClose,
   onConfirm,
@@ -28,6 +28,9 @@ export function ConfirmDialog({
   const haptics = useHaptics();
   const colors = useThemeColors();
   const { t } = useI18n();
+
+  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("cancel");
 
   const handleConfirm = () => {
     void (destructive ? haptics.warning() : haptics.light());
@@ -71,7 +74,7 @@ export function ConfirmDialog({
               accessibilityRole="button"
             >
               <Text className="text-sm font-medium text-muted-foreground">
-                {cancelLabel}
+                {resolvedCancelLabel}
               </Text>
             </Pressable>
             <Pressable
@@ -82,7 +85,7 @@ export function ConfirmDialog({
               <Text
                 className={`text-sm font-semibold ${destructive ? "text-destructive-foreground" : "text-primary-foreground"}`}
               >
-                {confirmLabel}
+                {resolvedConfirmLabel}
               </Text>
             </Pressable>
           </View>

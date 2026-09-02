@@ -47,9 +47,9 @@ export default function DhikrLayout() {
           />
         )}
       >
-        <Tabs.Screen name="index" options={{ title: "Counter" }} />
-        <Tabs.Screen name="list" options={{ title: "Dhikr List" }} />
-        <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+        <Tabs.Screen name="index" options={{ title: t("navCounter") }} />
+        <Tabs.Screen name="list" options={{ title: t("navDhikrList") }} />
+        <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
       </Tabs>
     </>
   );

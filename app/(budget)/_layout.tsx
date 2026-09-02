@@ -25,34 +25,40 @@ export default function BudgetLayout() {
       <HubHeader activeAppId="budget" onAppSelect={handleAppSelect} />
       <Tabs
         screenOptions={{ headerShown: false }}
-        tabBar={({ state }) => (
-          <PillNav
-            tabs={BUDGET_TABS.map((tab) => ({
-              ...tab,
-             label: t(
-               tab.id === "index"
-                 ? "navDashboard"
-                 : tab.id === "savings"
-                   ? "navSavings"
-                   : tab.id === "loans"
-                     ? "navLoans"
-                     : "navSettings"
-             ),
-            }))}
-            activeTabId={state.routes[state.index].name}
-            onTabPress={(tabId) => {
-              const index = state.routes.findIndex((r) => r.name === tabId);
-              if (index !== -1) {
-                router.push(`/(budget)/${tabId === "index" ? "" : tabId}`);
-              }
-            }}
-          />
-        )}
+        tabBar={({ state }) => {
+          const routeName = state.routes[state.index].name;
+          const isSubScreen = !BUDGET_TABS.some((tab) => tab.id === routeName);
+          if (isSubScreen) return null;
+          return (
+            <PillNav
+              tabs={BUDGET_TABS.map((tab) => ({
+                ...tab,
+               label: t(
+                 tab.id === "index"
+                   ? "navDashboard"
+                   : tab.id === "savings"
+                     ? "navSavings"
+                     : tab.id === "loans"
+                       ? "navLoans"
+                       : "navSettings"
+               ),
+              }))}
+              activeTabId={routeName}
+              onTabPress={(tabId) => {
+                const index = state.routes.findIndex((r) => r.name === tabId);
+                if (index !== -1) {
+                  router.push(`/(budget)/${tabId === "index" ? "" : tabId}`);
+                }
+              }}
+            />
+          );
+        }}
       >
         <Tabs.Screen name="index" options={{ title: t("navDashboard") }} />
         <Tabs.Screen name="savings" options={{ title: t("navSavings") }} />
         <Tabs.Screen name="loans" options={{ title: t("navLoans") }} />
         <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
+        <Tabs.Screen name="budget" options={{ href: null }} />
       </Tabs>
     </>
   );

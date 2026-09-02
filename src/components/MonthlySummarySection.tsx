@@ -73,7 +73,7 @@ export function MonthlySummarySection({
             <TableHead className="w-[72] text-right">{t("planned")}</TableHead>
             <TableHead className="w-[72] text-right">{t("actualLabel")}</TableHead>
           </TableHeader>
-          <TableBody style={{ maxHeight: Infinity }} contentContainerStyle={{ flexGrow: 1 }}>
+          <TableBody>
             <TableRow className="border-t-0 px-0 py-1">
               <TableCell numberOfLines={1} className="flex-1 text-chart-1">{t("loanPaymentLabel")}</TableCell>
               <TableCell className="w-[72] text-right text-chart-1">{formatCurrency(c.loanPayment)}</TableCell>

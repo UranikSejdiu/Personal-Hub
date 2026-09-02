@@ -24,26 +24,32 @@ export default function NotesLayout() {
       <HubHeader activeAppId="notes" onAppSelect={handleAppSelect} />
       <Tabs
         screenOptions={{ headerShown: false }}
-        tabBar={({ state }) => (
-          <PillNav
-            tabs={NOTES_TABS.map((tab) => ({
-              ...tab,
-              label: t(
-                tab.id === "index" ? "navNotes" : "navSettings"
-              ),
-            }))}
-            activeTabId={state.routes[state.index].name}
-            onTabPress={(tabId) => {
-              const index = state.routes.findIndex((r) => r.name === tabId);
-              if (index !== -1) {
-                router.push(`/(notes)/${tabId === "index" ? "" : tabId}`);
-              }
-            }}
-          />
-        )}
+        tabBar={({ state }) => {
+          const routeName = state.routes[state.index].name;
+          const isSubScreen = !NOTES_TABS.some((tab) => tab.id === routeName);
+          if (isSubScreen) return null;
+          return (
+            <PillNav
+              tabs={NOTES_TABS.map((tab) => ({
+                ...tab,
+                label: t(
+                  tab.id === "index" ? "navNotes" : "navSettings"
+                ),
+              }))}
+              activeTabId={routeName}
+              onTabPress={(tabId) => {
+                const index = state.routes.findIndex((r) => r.name === tabId);
+                if (index !== -1) {
+                  router.push(`/(notes)/${tabId === "index" ? "" : tabId}`);
+                }
+              }}
+            />
+          );
+        }}
       >
-        <Tabs.Screen name="index" options={{ title: "Notes" }} />
-        <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+        <Tabs.Screen name="index" options={{ title: t("navNotes") }} />
+        <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
+        <Tabs.Screen name="editor" options={{ href: null }} />
       </Tabs>
     </>
   );

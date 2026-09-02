@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { EnrichedTextInput } from "react-native-enriched-html";
 import type { EnrichedTextInputInstance, OnChangeStateEvent } from "react-native-enriched-html";
 import { useI18n } from "../../src/lib/i18n";
@@ -37,10 +37,13 @@ export default function NotesEditorScreen() {
   const [loading, setLoading] = useState(!!id);
   const [editorState, setEditorState] = useState<OnChangeStateEvent | null>(null);
 
+  // Track whether any content has been changed since load
+  const [isDirty, setIsDirty] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    
+
     // Defer setting loading state to avoid synchronous setState in effect
     setTimeout(() => {
       if (!cancelled) setLoading(true);
@@ -62,21 +65,15 @@ export default function NotesEditorScreen() {
           setColor("default");
           setIsPinned(false);
         }
+        setIsDirty(false);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
         setLoading(false);
-        Alert.alert(t("notesDelete"), t("notesDeleteConfirm"), [
-          {
-            text: t("cancel"),
-            style: "cancel",
-          },
-          {
-            text: t("delete"),
-            style: "destructive",
-            onPress: () => router.back(),
-          },
+        // Bug #3 fix: show a proper error, not the delete confirmation.
+        Alert.alert(t("errorLoadingData"), undefined, [
+          { text: t("cancel"), onPress: () => router.back() },
         ]);
       });
     return () => {
@@ -94,6 +91,7 @@ export default function NotesEditorScreen() {
       setColor("default");
       setIsPinned(false);
       setEditorState(null);
+      setIsDirty(false);
     }, 0);
     editorRef.current?.setValue("");
   }, [id]);
@@ -102,6 +100,40 @@ export default function NotesEditorScreen() {
     if (!editorRef.current) return;
     editorRef.current.setValue(contentHtml);
   }, [contentHtml]);
+
+  // Bug #16: guard back navigation when there are unsaved changes
+  const handleBack = useCallback(() => {
+    if (!isDirty) {
+      router.back();
+      return;
+    }
+    Alert.alert(t("notesDelete"), t("notesUnsavedChanges"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("discard"),
+        style: "destructive",
+        onPress: () => router.back(),
+      },
+    ]);
+  }, [isDirty, router, t]);
+
+  // Bug #16: intercept hardware back button and swipe-back gesture
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e: { preventDefault: () => void; data: { action: { type: string } } }) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      Alert.alert(t("notesDelete"), t("notesUnsavedChanges"), [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("discard"),
+          style: "destructive",
+          onPress: () => navigation.dispatch(e.data.action as never),
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, [isDirty, navigation, t]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -113,6 +145,7 @@ export default function NotesEditorScreen() {
         const created = await createNote({ title, content: finalContent, color, is_pinned: isPinned });
         setNoteId(created.id);
       }
+      setIsDirty(false);
       void haptics.success();
       router.back();
     } catch {
@@ -133,7 +166,8 @@ export default function NotesEditorScreen() {
             void haptics.light();
             router.back();
           } catch {
-            Alert.alert(t("notesDelete"), t("notesDeleteConfirm"));
+            // Bug #3 fix: show saveFailed, not the delete confirmation again.
+            Alert.alert(t("saveFailed"));
           }
         },
       },
@@ -147,6 +181,7 @@ export default function NotesEditorScreen() {
 
   const handleEditorStateChange = useCallback((e: { nativeEvent: OnChangeStateEvent }) => {
     setEditorState(e.nativeEvent);
+    setIsDirty(true);
   }, []);
 
   if (loading) {
@@ -181,7 +216,7 @@ export default function NotesEditorScreen() {
           <View className="w-full max-w-md self-center gap-4 p-4 pb-8">
             {/* Header */}
             <View className="flex-row items-center justify-between">
-              <Pressable onPress={() => router.back()} className="p-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
+              <Pressable onPress={handleBack} className="p-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
                 <ArrowLeft size={24} color={colors.foreground} />
               </Pressable>
               <View className="flex-row items-center gap-2">
@@ -208,7 +243,7 @@ export default function NotesEditorScreen() {
               {COLOR_OPTIONS.map((c) => (
                 <Pressable
                   key={c}
-                  onPress={() => setColor(c)}
+                  onPress={() => { setColor(c); setIsDirty(true); }}
                   className={`h-7 w-7 rounded-full border-2 ${
                     color === c ? "border-primary" : "border-border"
                   } ${getNoteColorClass(c, isDark)}`}
@@ -222,7 +257,7 @@ export default function NotesEditorScreen() {
             {/* Title */}
             <TextInput
               value={title}
-              onChangeText={setTitle}
+              onChangeText={(v) => { setTitle(v); setIsDirty(true); }}
               placeholder={t("notesUntitled")}
               placeholderTextColor={colors.mutedForeground}
               className={`rounded-xl border border-border px-4 py-3 text-lg font-bold text-foreground ${getNoteColorClass(color, isDark)}`}

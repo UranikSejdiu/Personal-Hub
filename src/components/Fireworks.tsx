@@ -4,7 +4,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  runOnJS,
   Easing,
 } from "react-native-reanimated";
 
@@ -98,7 +97,7 @@ export default function Fireworks({
     const timer = setTimeout(() => {
       if (!doneRef.current) {
         doneRef.current = true;
-        runOnJS(onComplete)();
+        onComplete();
       }
     }, 1150);
     return () => clearTimeout(timer);

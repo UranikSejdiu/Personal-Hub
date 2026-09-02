@@ -11,6 +11,8 @@ import {
   addMonths,
   currentMonth,
   deleteBudget,
+  incrementCcMonthsPaid,
+  incrementLoanMonthsPaid,
   listMonthSummaries,
   loadBudget,
   loadLoans,
@@ -86,6 +88,9 @@ export default function DashboardScreen() {
     const month = monthToDelete;
     setMonthToDelete(null);
     try {
+      const budget = await loadBudget(month);
+      if (budget?.loan_paid) await incrementLoanMonthsPaid(-1);
+      if (budget?.cc_paid) await incrementCcMonthsPaid(-1);
       await deleteBudget(month);
       await refresh();
       haptics.success();
@@ -99,10 +104,15 @@ export default function DashboardScreen() {
     setCreatingBudget(true);
     try {
       const now = currentMonth();
+      const nextMonth = addMonths(now, 1);
+      const existing = await loadBudget(nextMonth);
+      if (existing) {
+        openBudgetMonth(nextMonth);
+        return;
+      }
       const prevBudget = await loadBudget(addMonths(now, -1));
       const { salary } = await loadSavingsGoal();
       const seedIncome = prevBudget && prevBudget.income > 0 ? prevBudget.income : salary;
-      const nextMonth = addMonths(now, 1);
       const budget = await saveBudget(nextMonth, seedIncome, false, false);
       await populateRecurringExpenses(budget.id);
       await refresh();

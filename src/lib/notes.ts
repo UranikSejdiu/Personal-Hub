@@ -45,10 +45,23 @@ export async function loadNotes(): Promise<Note[]> {
 export async function searchNotes(query: string): Promise<Note[]> {
   const pattern = `%${query}%`;
   const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes WHERE title LIKE ? OR content LIKE ? ORDER BY is_pinned DESC, updated_at DESC",
-    [pattern, pattern]
+    "SELECT * FROM notes WHERE title LIKE ? ORDER BY is_pinned DESC, updated_at DESC",
+    [pattern]
   );
-  return rows.map(toNote);
+  const titleMatches = rows.map(toNote);
+
+  const allRows = await db.query<Record<string, unknown>>(
+    "SELECT * FROM notes ORDER BY is_pinned DESC, updated_at DESC"
+  );
+  const contentMatches = allRows
+    .map(toNote)
+    .filter(
+      (n) =>
+        !titleMatches.some((t) => t.id === n.id) &&
+        stripHtml(n.content).toLowerCase().includes(query.toLowerCase())
+    );
+
+  return [...titleMatches, ...contentMatches];
 }
 
 export async function getNote(id: number): Promise<Note | undefined> {
