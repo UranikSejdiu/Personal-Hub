@@ -38,32 +38,79 @@ export default function NotesEditorScreen() {
   const [editorState, setEditorState] = useState<OnChangeStateEvent | null>(null);
 
   useEffect(() => {
-    if (id) {
-      getNote(Number(id)).then((n) => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    getNote(Number(id))
+      .then((n) => {
+        if (cancelled) return;
         if (n) {
           setNoteId(n.id);
           setTitle(n.title);
           setContentHtml(n.content);
           setColor(n.color);
           setIsPinned(n.is_pinned);
+        } else {
+          setNoteId(null);
+          setTitle("");
+          setContentHtml("");
+          setColor("default");
+          setIsPinned(false);
         }
         setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoading(false);
+        Alert.alert(t("notesDelete"), t("notesDeleteConfirm"), [
+          {
+            text: t("cancel"),
+            style: "cancel",
+          },
+          {
+            text: t("delete"),
+            style: "destructive",
+            onPress: () => router.back(),
+          },
+        ]);
       });
-    }
+    return () => {
+      cancelled = true;
+    };
+  }, [id, router, t]);
+
+  useEffect(() => {
+    if (id) return;
+    setNoteId(null);
+    setTitle("");
+    setContentHtml("");
+    setColor("default");
+    setIsPinned(false);
+    setEditorState(null);
+    editorRef.current?.setValue("");
   }, [id]);
 
+  useEffect(() => {
+    if (!editorRef.current) return;
+    editorRef.current.setValue(contentHtml);
+  }, [contentHtml]);
+
   const handleSave = useCallback(async () => {
-    const html = await editorRef.current?.getHTML();
-    const finalContent = html ?? contentHtml;
-    if (noteId) {
-      await updateNote(noteId, { title, content: finalContent, color, is_pinned: isPinned });
-    } else {
-      const created = await createNote({ title, content: finalContent, color, is_pinned: isPinned });
-      setNoteId(created.id);
+    try {
+      const html = await editorRef.current?.getHTML();
+      const finalContent = html ?? contentHtml;
+      if (noteId) {
+        await updateNote(noteId, { title, content: finalContent, color, is_pinned: isPinned });
+      } else {
+        const created = await createNote({ title, content: finalContent, color, is_pinned: isPinned });
+        setNoteId(created.id);
+      }
+      void haptics.success();
+      router.back();
+    } catch {
+      Alert.alert(t("saveFailed"));
     }
-    void haptics.success();
-    router.back();
-  }, [noteId, title, contentHtml, color, isPinned, router, haptics]);
+  }, [noteId, title, contentHtml, color, isPinned, router, haptics, t]);
 
   const handleDelete = useCallback(() => {
     if (!noteId) return;
@@ -73,9 +120,13 @@ export default function NotesEditorScreen() {
         text: t("delete"),
         style: "destructive",
         onPress: async () => {
-          await deleteNote(noteId);
-          void haptics.light();
-          router.back();
+          try {
+            await deleteNote(noteId);
+            void haptics.light();
+            router.back();
+          } catch {
+            Alert.alert(t("notesDelete"), t("notesDeleteConfirm"));
+          }
         },
       },
     ]);
@@ -105,15 +156,28 @@ export default function NotesEditorScreen() {
       keyboardVerticalOffset={90}
     >
       <View className="flex-1 bg-background">
+        <RichTextToolbar
+          state={editorState}
+          onBold={() => editorRef.current?.toggleBold()}
+          onItalic={() => editorRef.current?.toggleItalic()}
+          onStrikethrough={() => editorRef.current?.toggleStrikeThrough()}
+          onUnderline={() => editorRef.current?.toggleUnderline()}
+          onH1={() => editorRef.current?.toggleH1()}
+          onH2={() => editorRef.current?.toggleH2()}
+          onBulletList={() => editorRef.current?.toggleUnorderedList()}
+          onOrderedList={() => editorRef.current?.toggleOrderedList()}
+          onCheckboxList={() => editorRef.current?.toggleCheckboxList(false)}
+        />
+
         <ScrollView className="flex-1 bg-background">
           <View className="w-full max-w-md self-center gap-4 p-4 pb-8">
             {/* Header */}
             <View className="flex-row items-center justify-between">
-              <Pressable onPress={() => router.back()} className="p-1">
+              <Pressable onPress={() => router.back()} className="p-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
                 <ArrowLeft size={24} color={colors.foreground} />
               </Pressable>
               <View className="flex-row items-center gap-2">
-                <Pressable onPress={handleTogglePin} className="p-2">
+                <Pressable onPress={handleTogglePin} className="p-2" accessibilityRole="button" accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}>
                    {isPinned ? (
                      <Pin size={20} color={colors.foreground} />
                    ) : (
@@ -121,11 +185,11 @@ export default function NotesEditorScreen() {
                    )}
                 </Pressable>
                 {noteId && (
-                  <Pressable onPress={handleDelete} className="p-2">
+                  <Pressable onPress={handleDelete} className="p-2" accessibilityRole="button" accessibilityLabel={t("notesDelete")}>
                     <Trash2 size={20} color={colors.destructive} />
                   </Pressable>
                 )}
-                <Pressable onPress={handleSave} className="rounded-lg bg-primary px-4 py-2">
+                <Pressable onPress={handleSave} className="rounded-lg bg-primary px-4 py-2" accessibilityRole="button" accessibilityLabel={t("save")}>
                   <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
                 </Pressable>
               </View>
@@ -140,6 +204,9 @@ export default function NotesEditorScreen() {
                   className={`h-7 w-7 rounded-full border-2 ${
                     color === c ? "border-primary" : "border-border"
                   } ${getNoteColorClass(c, isDark)}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: color === c }}
+                  accessibilityLabel={c}
                 />
               ))}
             </View>
@@ -158,7 +225,7 @@ export default function NotesEditorScreen() {
             <View className={`rounded-xl border border-border overflow-hidden ${getNoteColorClass(color, isDark)}`}>
               <EnrichedTextInput
                 ref={editorRef}
-                defaultValue={contentHtml}
+                defaultValue=""
                 placeholder={t("notesContentPlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
                 onChangeState={handleEditorStateChange}
@@ -173,20 +240,6 @@ export default function NotesEditorScreen() {
             </View>
           </View>
         </ScrollView>
-
-        {/* Toolbar pinned to bottom */}
-        <RichTextToolbar
-          state={editorState}
-          onBold={() => editorRef.current?.toggleBold()}
-          onItalic={() => editorRef.current?.toggleItalic()}
-          onStrikethrough={() => editorRef.current?.toggleStrikeThrough()}
-          onUnderline={() => editorRef.current?.toggleUnderline()}
-          onH1={() => editorRef.current?.toggleH1()}
-          onH2={() => editorRef.current?.toggleH2()}
-          onBulletList={() => editorRef.current?.toggleUnorderedList()}
-          onOrderedList={() => editorRef.current?.toggleOrderedList()}
-          onCheckboxList={() => editorRef.current?.toggleCheckboxList(false)}
-        />
       </View>
     </KeyboardAvoidingView>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, startTransition } from "react";
 import { View, Text, FlatList, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useI18n } from "../../src/lib/i18n";
 import { loadNotes, searchNotes, getNoteColorClass, stripHtml, type Note } from "../../src/lib/notes";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
@@ -30,6 +30,14 @@ export default function NotesListScreen() {
       void load();
     });
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      startTransition(() => {
+        void load();
+      });
+    }, [load])
+  );
 
   const handleNew = useCallback(async () => {
     router.push("/(notes)/editor");
