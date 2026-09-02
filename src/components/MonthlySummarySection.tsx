@@ -75,7 +75,7 @@ export function MonthlySummarySection({
           </View>
 
           <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-chart-1">{t("loanPaymentLabel")}</Text>
+            <Text numberOfLines={1} className="text-sm text-chart-1">{t("loanPaymentLabel")}</Text>
             <View className="flex-row items-center gap-4">
               <Text className="w-20 text-right text-sm text-chart-1">{formatCurrency(c.loanPayment)}</Text>
               <View className="w-20 flex-row items-center justify-end gap-1">
@@ -88,7 +88,7 @@ export function MonthlySummarySection({
           </View>
 
           <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-chart-2">{t("ccPaymentLabel")}</Text>
+            <Text numberOfLines={1} className="text-sm text-chart-2">{t("ccPaymentLabel")}</Text>
             <View className="flex-row items-center gap-4">
               <Text className="w-20 text-right text-sm text-chart-2">{formatCurrency(c.ccPayment)}</Text>
               <View className="w-20 flex-row items-center justify-end gap-1">
@@ -101,7 +101,7 @@ export function MonthlySummarySection({
           </View>
 
           <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm text-chart-3">{t("totalCustomExpenses")}</Text>
+            <Text numberOfLines={1} className="text-sm text-chart-3">{t("totalCustomExpenses")}</Text>
             <View className="flex-row items-center gap-4">
               <Text className="w-20 text-right text-sm text-chart-3">{formatCurrency(c.totalExpenses)}</Text>
               <View className="w-20 flex-row items-center justify-end gap-1">
@@ -115,7 +115,7 @@ export function MonthlySummarySection({
 
           {savingsGoal > 0 && (
             <View className="flex-row justify-between py-1">
-              <Text className="text-sm text-chart-4">{t("savingsGoalLabel")}</Text>
+              <Text numberOfLines={1} className="text-sm text-chart-4">{t("savingsGoalLabel")}</Text>
               <View className="flex-row gap-4">
                 <Text className="w-20 text-right text-sm text-chart-4">-{formatCurrency(savingsGoal)}</Text>
                 <Text className="w-20" />
@@ -126,7 +126,7 @@ export function MonthlySummarySection({
           <View className="my-1 border-t border-border" />
 
           <View className="flex-row items-center justify-between py-1">
-            <Text className="text-sm font-medium text-foreground">{t("totalMonthlyOutflow")}</Text>
+            <Text numberOfLines={1} className="text-sm font-medium text-foreground">{t("totalMonthlyOutflow")}</Text>
             <View className="flex-row gap-4">
               <Text className="w-20 text-right text-sm font-medium text-foreground">{formatCurrency(c.totalOutflow)}</Text>
               <Text className="w-20 text-right text-sm font-medium text-foreground">{formatCurrency(c.actualOutflow)}</Text>
@@ -134,7 +134,7 @@ export function MonthlySummarySection({
           </View>
 
           <View className="flex-row items-center justify-between py-1">
-            <Text className={`text-sm font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
+            <Text numberOfLines={1} className={`text-sm font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
               {t("remainingSavings")}
             </Text>
             <View className="flex-row items-center gap-4">

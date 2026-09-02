@@ -13,6 +13,7 @@ import { formatCurrency } from "../../src/lib/utils";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
 import { useThemeColors } from "../../src/lib/theme";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../../src/components/ui/table";
 
 export default function LoansScreen() {
   const { t } = useI18n();
@@ -205,53 +206,53 @@ export default function LoansScreen() {
 
         {schedule.length > 0 && (
           <View className="rounded-xl border border-border bg-card p-4">
-            <Text className="mb-2 text-base font-semibold text-foreground">
+            <Text className="mb-3 text-base font-medium text-foreground">
               {t("scheduleTitle")}
             </Text>
 
             <View className="flex-row gap-2">
-              <View className="flex-1 rounded-lg bg-muted p-2">
-                <Text className="text-xs text-muted-foreground">{t("totalInterest")}</Text>
-                <Text className="font-medium text-foreground">
+              <View className="flex-1 items-center rounded-md bg-muted p-2">
+                <Text className="text-sm text-muted-foreground">{t("totalInterest")}</Text>
+                <Text className="text-center font-medium text-foreground">
                   {formatCurrency(schedule.reduce((s, r) => s + r.interest, 0))}
                 </Text>
               </View>
-              <View className="flex-1 rounded-lg bg-muted p-2">
-                <Text className="text-xs text-muted-foreground">{t("totalCost")}</Text>
-                <Text className="font-medium text-foreground">
+              <View className="flex-1 items-center rounded-md bg-muted p-2">
+                <Text className="text-sm text-muted-foreground">{t("totalCost")}</Text>
+                <Text className="text-center font-medium text-foreground">
                   {formatCurrency(loans.loan_amount + schedule.reduce((s, r) => s + r.interest, 0))}
                 </Text>
               </View>
-              <View className="flex-1 rounded-lg bg-muted p-2">
-                <Text className="text-xs text-muted-foreground">{t("firstPayment")}</Text>
-                <Text className="font-medium text-foreground">
+              <View className="flex-1 items-center rounded-md bg-muted p-2">
+                <Text className="text-sm text-muted-foreground">{t("firstPayment")}</Text>
+                <Text className="text-center font-medium text-foreground">
                   {formatCurrency(schedule[0].payment)}
                 </Text>
               </View>
             </View>
 
-            <View className="mt-1 overflow-hidden rounded-md border border-border">
-              <View className="flex-row bg-muted px-1 py-1.5">
-                <Text className="w-5 text-center text-xs font-semibold text-muted-foreground">#</Text>
-                <Text className="w-[70] text-left text-xs font-semibold text-muted-foreground">{t("dateCol")}</Text>
-                <Text className="flex-1 text-right text-xs font-semibold text-muted-foreground">{t("paymentCol")}</Text>
-                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("principalCol")}</Text>
-                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("interestCol")}</Text>
-                <Text className="w-[62] text-right text-xs font-semibold text-muted-foreground">{t("balanceCol")}</Text>
-              </View>
-              <ScrollView style={{ maxHeight: 288 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+            <Table className="mt-3">
+              <TableHeader>
+                <TableHead className="w-5 text-center">#</TableHead>
+                <TableHead className="w-[70]">{t("dateCol")}</TableHead>
+                <TableHead className="flex-1 text-right">{t("paymentCol")}</TableHead>
+                <TableHead className="w-[68] text-right">{t("principalCol")}</TableHead>
+                <TableHead className="w-[68] text-right">{t("interestCol")}</TableHead>
+                <TableHead className="w-[68] text-right">{t("balanceCol")}</TableHead>
+              </TableHeader>
+              <TableBody style={{ maxHeight: 288 }}>
                 {schedule.map((row) => (
-                  <View key={row.index} className="flex-row items-center border-t border-border px-1 py-1">
-                    <Text className="w-5 text-center text-sm text-foreground">{row.index}</Text>
-                    <Text className="w-[70] text-left text-sm text-foreground">{row.paymentDate}</Text>
-                    <Text className="flex-1 text-right text-sm text-foreground">{formatCurrency(row.payment)}</Text>
-                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.capital)}</Text>
-                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.interest)}</Text>
-                    <Text className="w-[62] text-right text-sm text-foreground">{formatCurrency(row.balance)}</Text>
-                  </View>
+                  <TableRow key={row.index}>
+                    <TableCell className="w-5 text-center">{row.index}</TableCell>
+                    <TableCell className="w-[70]">{row.paymentDate}</TableCell>
+                    <TableCell className="flex-1 text-right">{formatCurrency(row.payment)}</TableCell>
+                    <TableCell className="w-[68] text-right">{formatCurrency(row.capital)}</TableCell>
+                    <TableCell className="w-[68] text-right">{formatCurrency(row.interest)}</TableCell>
+                    <TableCell className="w-[68] text-right">{formatCurrency(row.balance)}</TableCell>
+                  </TableRow>
                 ))}
-              </ScrollView>
-            </View>
+              </TableBody>
+            </Table>
           </View>
         )}
 
