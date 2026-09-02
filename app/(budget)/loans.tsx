@@ -231,7 +231,7 @@ export default function LoansScreen() {
               </View>
             </View>
 
-            <Table className="mt-3">
+            <Table className="mt-3" scrollable>
               <TableHeader>
                 <TableHead className="w-5 text-center">#</TableHead>
                 <TableHead className="w-[70]">{t("dateCol")}</TableHead>

@@ -6,6 +6,7 @@ import { useThemeColors } from "../lib/theme";
 import { pmt } from "../lib/calculations";
 import { formatCurrency, type Budget, type Expense, type Loans } from "../lib/budget";
 import { NumberInput } from "./NumberInput";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 
 interface Props {
   budget: Budget;
@@ -65,91 +66,78 @@ export function MonthlySummarySection({
       </View>
 
       {hasData && (
-        <View className="rounded-lg bg-muted p-3">
-          <View className="flex-row justify-between pb-1">
-            <Text className="text-xs font-semibold text-muted-foreground" />
-            <View className="flex-row gap-4">
-              <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("planned")}</Text>
-              <Text className="w-20 text-right text-xs font-semibold text-muted-foreground">{t("actualLabel")}</Text>
-            </View>
-          </View>
-
-          <View className="flex-row items-center justify-between py-1">
-            <Text numberOfLines={1} className="text-sm text-chart-1">{t("loanPaymentLabel")}</Text>
-            <View className="flex-row items-center gap-4">
-              <Text className="w-20 text-right text-sm text-chart-1">{formatCurrency(c.loanPayment)}</Text>
-              <View className="w-20 flex-row items-center justify-end gap-1">
-                <Text className={`text-sm ${budget.loan_paid ? "font-semibold text-chart-1" : "text-foreground"}`}>
+        <Table className="border-0 rounded-none bg-transparent">
+          <TableHeader className="bg-transparent px-0">
+            <TableHead className="flex-1" />
+            <TableHead className="w-[72] text-right">{t("planned")}</TableHead>
+            <TableHead className="w-[72] text-right">{t("actualLabel")}</TableHead>
+          </TableHeader>
+          <TableBody style={{ maxHeight: Infinity }} contentContainerStyle={{ flexGrow: 1 }}>
+            <TableRow className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className="flex-1 text-chart-1">{t("loanPaymentLabel")}</TableCell>
+              <TableCell className="w-[72] text-right text-chart-1">{formatCurrency(c.loanPayment)}</TableCell>
+              <View className="w-[72] flex-row items-center justify-end gap-1">
+                <Text numberOfLines={1} className={`text-sm ${budget.loan_paid ? "font-semibold text-chart-1" : "text-foreground"}`}>
                   {formatCurrency(c.paidLoan)}
                 </Text>
                 {budget.loan_paid && <CircleCheck size={12} color={colors.success} />}
               </View>
-            </View>
-          </View>
+            </TableRow>
 
-          <View className="flex-row items-center justify-between py-1">
-            <Text numberOfLines={1} className="text-sm text-chart-2">{t("ccPaymentLabel")}</Text>
-            <View className="flex-row items-center gap-4">
-              <Text className="w-20 text-right text-sm text-chart-2">{formatCurrency(c.ccPayment)}</Text>
-              <View className="w-20 flex-row items-center justify-end gap-1">
-                <Text className={`text-sm ${budget.cc_paid ? "font-semibold text-chart-2" : "text-foreground"}`}>
+            <TableRow className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className="flex-1 text-chart-2">{t("ccPaymentLabel")}</TableCell>
+              <TableCell className="w-[72] text-right text-chart-2">{formatCurrency(c.ccPayment)}</TableCell>
+              <View className="w-[72] flex-row items-center justify-end gap-1">
+                <Text numberOfLines={1} className={`text-sm ${budget.cc_paid ? "font-semibold text-chart-2" : "text-foreground"}`}>
                   {formatCurrency(c.paidCc)}
                 </Text>
                 {budget.cc_paid && <CircleCheck size={12} color={colors.success} />}
               </View>
-            </View>
-          </View>
+            </TableRow>
 
-          <View className="flex-row items-center justify-between py-1">
-            <Text numberOfLines={1} className="text-sm text-chart-3">{t("totalCustomExpenses")}</Text>
-            <View className="flex-row items-center gap-4">
-              <Text className="w-20 text-right text-sm text-chart-3">{formatCurrency(c.totalExpenses)}</Text>
-              <View className="w-20 flex-row items-center justify-end gap-1">
-                <Text className={`text-sm ${c.paidExpenses > 0 ? "font-semibold text-chart-3" : "text-foreground"}`}>
+            <TableRow className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className="flex-1 text-chart-3">{t("totalCustomExpenses")}</TableCell>
+              <TableCell className="w-[72] text-right text-chart-3">{formatCurrency(c.totalExpenses)}</TableCell>
+              <View className="w-[72] flex-row items-center justify-end gap-1">
+                <Text numberOfLines={1} className={`text-sm ${c.paidExpenses > 0 ? "font-semibold text-chart-3" : "text-foreground"}`}>
                   {formatCurrency(c.paidExpenses)}
                 </Text>
                 {c.paidExpenses > 0 && <CircleCheck size={12} color={colors.success} />}
               </View>
-            </View>
-          </View>
+            </TableRow>
 
-          {savingsGoal > 0 && (
-            <View className="flex-row justify-between py-1">
-              <Text numberOfLines={1} className="text-sm text-chart-4">{t("savingsGoalLabel")}</Text>
-              <View className="flex-row gap-4">
-                <Text className="w-20 text-right text-sm text-chart-4">-{formatCurrency(savingsGoal)}</Text>
-                <Text className="w-20" />
-              </View>
-            </View>
-          )}
+            {savingsGoal > 0 && (
+              <TableRow className="border-t-0 px-0 py-1">
+                <TableCell numberOfLines={1} className="flex-1 text-chart-4">{t("savingsGoalLabel")}</TableCell>
+                <TableCell className="w-[72] text-right text-chart-4">-{formatCurrency(savingsGoal)}</TableCell>
+                <Text className="w-[72]" />
+              </TableRow>
+            )}
 
-          <View className="my-1 border-t border-border" />
+            <View className="my-0.5 border-t border-border" />
 
-          <View className="flex-row items-center justify-between py-1">
-            <Text numberOfLines={1} className="text-sm font-medium text-foreground">{t("totalMonthlyOutflow")}</Text>
-            <View className="flex-row gap-4">
-              <Text className="w-20 text-right text-sm font-medium text-foreground">{formatCurrency(c.totalOutflow)}</Text>
-              <Text className="w-20 text-right text-sm font-medium text-foreground">{formatCurrency(c.actualOutflow)}</Text>
-            </View>
-          </View>
+            <TableRow className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className="flex-1 font-medium">{t("totalMonthlyOutflow")}</TableCell>
+              <TableCell className="w-[72] text-right font-medium">{formatCurrency(c.totalOutflow)}</TableCell>
+              <TableCell className="w-[72] text-right font-medium">{formatCurrency(c.actualOutflow)}</TableCell>
+            </TableRow>
 
-          <View className="flex-row items-center justify-between py-1">
-            <Text numberOfLines={1} className={`text-sm font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
-              {t("remainingSavings")}
-            </Text>
-            <View className="flex-row items-center gap-4">
-              <Text className={`text-sm font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
+            <TableRow className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className={`flex-1 font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
+                {t("remainingSavings")}
+              </TableCell>
+              <TableCell className={`w-[72] text-right font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
                 {formatCurrency(c.remaining)}
-              </Text>
-              <View className="w-20 flex-row items-center justify-end gap-1">
-                <Text className={`text-sm font-semibold ${c.actualRemaining >= 0 ? "text-success" : "text-destructive"}`}>
+              </TableCell>
+              <View className="w-[72] flex-row items-center justify-end gap-1">
+                <Text numberOfLines={1} className={`text-sm font-semibold ${c.actualRemaining >= 0 ? "text-success" : "text-destructive"}`}>
                   {formatCurrency(c.actualRemaining)}
                 </Text>
                 {c.actualRemaining >= 0 && <CircleCheck size={12} color={colors.success} />}
               </View>
-            </View>
-          </View>
-        </View>
+            </TableRow>
+          </TableBody>
+        </Table>
       )}
 
       {savingsGoal > 0 && (

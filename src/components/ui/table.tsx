@@ -1,8 +1,22 @@
-import { forwardRef } from "react";
 import { View, Text, ScrollView, type ViewProps, type TextProps } from "react-native";
 import { cn } from "../../lib/utils";
 
-function Table({ className, ...props }: ViewProps) {
+interface TableProps extends ViewProps {
+  scrollable?: boolean;
+}
+
+function Table({ className, scrollable, ...props }: TableProps) {
+  if (scrollable) {
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View
+          className={cn("overflow-hidden rounded-md border border-border", className)}
+          style={{ minWidth: 380 }}
+          {...props}
+        />
+      </ScrollView>
+    );
+  }
   return (
     <View
       className={cn("overflow-hidden rounded-md border border-border", className)}
