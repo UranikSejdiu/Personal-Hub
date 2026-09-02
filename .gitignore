@@ -7,6 +7,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# AI
+.kilo/
+
 # Native
 .kotlin/
 *.orig.*
