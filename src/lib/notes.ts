@@ -10,6 +10,19 @@ export function getNoteColorClass(color: NoteColor, isDark: boolean): string {
   return isDark ? entry.dark : entry.light;
 }
 
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function toNote(row: Record<string, unknown>): Note {
   return {
     id: Number(row.id),

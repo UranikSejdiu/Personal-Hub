@@ -271,6 +271,7 @@ const dict = {
     notesEmpty: "Nuk ka shënime ende",
     notesEmptyHint: "Shtypni + për të krijuar shënimin e parë",
     notesNoResults: "Nuk u gjetën shënime",
+    notesContentPlaceholder: "Shkruani përmbajtjen e shënimit...",
 
     reorderHandle: "Zvarrit për të rradhitur",
     saveReorder: "Ruaj",
@@ -567,6 +568,7 @@ const dict = {
     notesEmpty: "No notes yet",
     notesEmptyHint: "Tap + to create your first note",
     notesNoResults: "No notes found",
+    notesContentPlaceholder: "Write your note content...",
 
     reorderHandle: "Drag to reorder",
     saveReorder: "Save",

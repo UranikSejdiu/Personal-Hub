@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useI18n } from "../../src/lib/i18n";
-import { loadNotes, searchNotes, getNoteColorClass, type Note } from "../../src/lib/notes";
+import { loadNotes, searchNotes, getNoteColorClass, stripHtml, type Note } from "../../src/lib/notes";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 
@@ -55,7 +55,7 @@ export default function NotesListScreen() {
               {note.title || t("notesUntitled")}
             </Text>
             <Text numberOfLines={2} className="text-xs text-muted-foreground">
-              {note.content || "—"}
+              {stripHtml(note.content) || "—"}
             </Text>
           </View>
           {note.is_pinned && (
