@@ -7,7 +7,7 @@ import { useTheme, useThemeColors, THEMES } from "../lib/theme";
 import { ACCENT_ORDER, ACCENT_COLORS } from "../constants/theme";
 import { useHaptics, getHapticsEnabled, setHapticsEnabled, isHapticsEnabled } from "../hooks/useHaptics";
 import * as Haptics from "expo-haptics";
-import { APP_VERSION } from "../constants/config";
+import { getAppVersion } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
 import { ensureMonthlyAutoDeposit } from "../lib/savings";
@@ -422,7 +422,7 @@ export default function SettingsScreen() {
               <View className="items-center gap-3 py-6">
                 <Image source={require("../../assets/icon.png")} className="h-16 w-16 rounded-xl" />
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
-                <Text className="text-sm text-muted-foreground">{t("version")}: {APP_VERSION}</Text>
+                <Text className="text-sm text-muted-foreground">{t("version")}: {getAppVersion()}</Text>
                 <Text className="text-center text-sm text-muted-foreground">{t("aboutDescription")}</Text>
               </View>
             </View>

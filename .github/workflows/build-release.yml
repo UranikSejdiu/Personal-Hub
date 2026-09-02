@@ -43,11 +43,11 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Sync Android version from app.json
+      - name: Sync Android version from package.json
         run: |
-          VERSION=$(node -p "require('./app.json').expo.version")
+          VERSION=$(node -p "require('./package.json').version")
           CODE=$(node -p "require('./app.json').expo.android.versionCode")
-          echo "Syncing Android to $VERSION ($CODE) from app.json"
+          echo "Syncing Android to $VERSION ($CODE) from package.json"
           sed -i "s/versionCode [0-9]*/versionCode $CODE/" android/app/build.gradle
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle

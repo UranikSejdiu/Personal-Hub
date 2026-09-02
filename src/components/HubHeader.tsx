@@ -38,7 +38,7 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
         />
         {hasUpdate ? (
           <Pressable
-            onPress={() => router.push(`/${activeAppId}/settings` as never)}
+            onPress={() => router.push(`/(budget)/settings` as never)}
             accessibilityRole="button"
             accessibilityLabel={t("newUpdateAvailable")}
             className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"

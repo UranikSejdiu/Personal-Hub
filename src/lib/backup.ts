@@ -2,7 +2,7 @@ import * as db from "./db";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
-import { APP_VERSION } from "../constants/config";
+import { getAppVersion } from "../constants/config";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -100,7 +100,7 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
     meta: {
       format: BACKUP_FORMAT,
       version: BACKUP_VERSION,
-      appVersion: APP_VERSION,
+      appVersion: getAppVersion(),
       exportedAt: new Date().toISOString(),
       platform: Platform.OS,
     },
