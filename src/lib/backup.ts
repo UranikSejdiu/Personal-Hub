@@ -151,9 +151,7 @@ export async function exportAndShareBackup(): Promise<string> {
   return uri;
 }
 
-export type ImportMode = "replace";
-
-export async function importBackupFromJson(jsonStr: string, mode: ImportMode = "replace"): Promise<void> {
+export async function importBackupFromJson(jsonStr: string): Promise<void> {
   // Quick SQLite header guard: if user picked a .db file, first bytes are "SQLite format 3"
   if (jsonStr.startsWith("SQLite format 3")) {
     throw new Error("Invalid backup: SQLite file selected instead of JSON");
@@ -183,8 +181,6 @@ export async function importBackupFromJson(jsonStr: string, mode: ImportMode = "
     const e = validateLoans(env.tables.loans as Record<string, unknown>);
     if (e) throw new Error(e);
   }
-
-  if (mode !== "replace") throw new Error("Only replace mode supported");
 
   await db.withTransaction(async () => {
     // Clear in FK-safe order
@@ -335,12 +331,13 @@ export async function importBackupFromJson(jsonStr: string, mode: ImportMode = "
     for (const r of env.tables.notes) {
       const row = r as Record<string, unknown>;
       await db.execute(
-        `INSERT INTO notes (title, content, is_pinned, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notes (title, content, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           String(row.title ?? ""),
           String(row.content ?? ""),
           Number(row.is_pinned) ? 1 : 0,
           String(row.color ?? "default"),
+          String(row.plain_text ?? ""),
           String(row.created_at ?? new Date().toISOString()),
           String(row.updated_at ?? new Date().toISOString()),
         ]

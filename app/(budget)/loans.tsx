@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Keyboard } from "react-native";
 import { Landmark, CreditCard, Save, ChevronRight } from "lucide-react-native";
+import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import {
@@ -29,9 +30,9 @@ export default function LoansScreen() {
     let cancelled = false;
     loadLoans()
       .then((l) => { if (!cancelled) setLoans(l); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) toast.error(t("errorLoadingData")); });
     return () => { cancelled = true; };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     return () => {
@@ -40,12 +41,16 @@ export default function LoansScreen() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    await saveLoans(loans);
-    void haptics.success();
-    setSaved(true);
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
-  }, [loans, haptics]);
+    try {
+      await saveLoans(loans);
+      void haptics.success();
+      setSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast.error(t("errorLoadingData"));
+    }
+  }, [loans, haptics, t]);
 
   const update = useCallback((fields: Partial<Loans>) => {
     setLoans((prev) => ({ ...prev, ...fields }));

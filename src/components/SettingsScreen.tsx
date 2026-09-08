@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
 import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
 import { ACCENT_ORDER, ACCENT_COLORS } from "../constants/theme";
@@ -34,6 +34,13 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   information: Info,
 };
 
+const MENU_ITEMS = [
+  { section: "general" as const, icon: "theme-light-dark" as const, labelKey: "settingsGeneral" as const },
+  { section: "budget" as const, icon: "target" as const, labelKey: "settingsBudget" as const },
+  { section: "backup" as const, icon: "cloud" as const, labelKey: "settingsBackupSync" as const },
+  { section: "about" as const, icon: "information" as const, labelKey: "settingsAbout" as const },
+];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, lang, setLang } = useI18n();
@@ -57,7 +64,7 @@ export default function SettingsScreen() {
         setActiveSection(null);
         return true;
       }
-      router.replace("/(budget)" as any);
+      router.replace("/(budget)" as Href);
       return true;
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
@@ -164,7 +171,7 @@ export default function SettingsScreen() {
           void (async () => {
             setBackupBusy(true);
             try {
-              await importBackupFromJson(json, "replace");
+              await importBackupFromJson(json);
               toast.success(t("importSuccess"));
               setConfirmAction(null);
               const sg = await loadSavingsGoal();
@@ -185,13 +192,6 @@ export default function SettingsScreen() {
       toast.error(t("importFailed"));
     }
   }, [backupBusy, t]);
-
-  const MENU_ITEMS = [
-    { section: "general" as const, icon: "theme-light-dark" as const, labelKey: "settingsGeneral" as const },
-    { section: "budget" as const, icon: "target" as const, labelKey: "settingsBudget" as const },
-    { section: "backup" as const, icon: "cloud" as const, labelKey: "settingsBackupSync" as const },
-    { section: "about" as const, icon: "information" as const, labelKey: "settingsAbout" as const },
-  ];
 
   if (!activeSection) {
     return (

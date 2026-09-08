@@ -1,5 +1,4 @@
 import * as db from "./db";
-import { withTransaction } from "./db";
 import { pmt } from "./calculations";
 import {
   type Loans,
@@ -175,13 +174,13 @@ export async function populateRecurringExpenses(
     [budgetId]
   );
   const existingKeys = new Set(
-    existing.map((r) => `${String(r.category)}::${Number(r.amount)}`)
+    existing.map((r) => `${String(r.category)}::${Number(r.amount)}::${Number(r.is_recurring)}`)
   );
   const toInsert = recurring.filter(
-    (r) => !existingKeys.has(`${r.category}::${r.amount}`)
+    (r) => !existingKeys.has(`${r.category}::${r.amount}::1`)
   );
   if (toInsert.length === 0) return;
-  await withTransaction(async () => {
+  await db.withTransaction(async () => {
     for (const exp of toInsert) {
       await db.execute(
         "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, 1)",
@@ -354,13 +353,14 @@ export async function copyBudgetFromMonth(
         `${e.category}::${e.amount}::${e.is_recurring ? 1 : 0}`
       )
   );
-  if (toCopy.length > 0) {
-    await withTransaction(async () => {
+  if (toCopy.length > 0 && targetBudget) {
+    const targetId = targetBudget.id;
+    await db.withTransaction(async () => {
       for (const exp of toCopy) {
         await db.execute(
           "INSERT INTO expenses (budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?)",
           [
-            targetBudget!.id,
+            targetId,
             exp.category,
             exp.amount,
             0,

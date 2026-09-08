@@ -57,13 +57,10 @@ export async function listAutoDeposits(): Promise<AutoDeposit[]> {
   }));
 }
 
-export async function setAutoDepositAmount(
-  month: string,
-  amount: number
-): Promise<void> {
+export async function deleteAutoDeposit(month: string): Promise<void> {
   await db.execute(
-    "UPDATE savings_auto_deposits SET amount = ? WHERE month = ?",
-    [sanitizeAmount(amount), month]
+    "DELETE FROM savings_auto_deposits WHERE month = ?",
+    [month]
   );
 }
 
@@ -91,13 +88,6 @@ export async function updateAutoDeposit(
   await db.execute(
     `UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`,
     values
-  );
-}
-
-export async function deleteAutoDeposit(month: string): Promise<void> {
-  await db.execute(
-    "DELETE FROM savings_auto_deposits WHERE month = ?",
-    [month]
   );
 }
 

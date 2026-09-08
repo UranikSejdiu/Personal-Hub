@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, startTransition, useMemo } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput } from "react-native";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from "react-native";
 import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "lucide-react-native";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -99,9 +99,7 @@ export default function SavingsScreen() {
   }, [t]);
 
   useEffect(() => {
-    startTransition(() => {
-      void loadData();
-    });
+    void loadData();
   }, [loadData]);
 
   const currentYear = new Date().getFullYear();
@@ -208,14 +206,14 @@ export default function SavingsScreen() {
         return;
       }
       const nextYear = year + 1;
-      const desc = t("closingBalance", { year }) as string;
+      const desc = t("closingBalance", { year });
       setConfirmAction({
         title: t("closeYearLabel"),
         message: t("closeYearConfirm", {
           year,
           amount: formatCurrency(Math.abs(net)),
           nextYear,
-        }) as string,
+        }),
         confirmLabel: t("closeYearLabel"),
         onConfirm: () => {
           void (async () => {
@@ -307,7 +305,7 @@ export default function SavingsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
@@ -353,7 +351,7 @@ export default function SavingsScreen() {
               </Pressable>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
               {availableYears.map((y) => {
                 const isSelected = selectedYear === y;
                 const isPastYear = y < currentYear;
@@ -425,7 +423,7 @@ export default function SavingsScreen() {
 
                   return (
                     <View key={entry.id} className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
-                      <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center">
+                      <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center" accessibilityRole="button" accessibilityLabel={t("savingsEditEntry")}>
                         {rowContent}
                       </Pressable>
                       <Text className={`text-sm font-medium ${amountColor}`}>
@@ -438,6 +436,8 @@ export default function SavingsScreen() {
                           handleDeleteEntry(entry);
                         }}
                         className="ml-2 p-1"
+                        accessibilityRole="button"
+                        accessibilityLabel={t("delete")}
                       >
                         <Trash2 size={18} color={colors.mutedForeground} />
                       </Pressable>
@@ -468,7 +468,7 @@ export default function SavingsScreen() {
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-card p-5">
+          <Pressable className="w-full max-w-sm rounded-2xl bg-card p-5">
             <Text className="text-lg font-semibold text-foreground">
               {editingKind === "auto"
                 ? t("savingsAutoEditTitle")
@@ -533,11 +533,11 @@ export default function SavingsScreen() {
             </View>
             <View className="mt-5 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (
-                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1">
+                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("delete")}>
                   <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
                 </Pressable>
               )}
-              <Pressable onPress={() => setShowModal(false)} className="px-2 py-1">
+              <Pressable onPress={() => setShowModal(false)} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
                 <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
               </Pressable>
               <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2" android_ripple={{ color: colors.primaryForeground + "30" }} accessibilityRole="button" accessibilityLabel={t("save")}>
@@ -572,3 +572,8 @@ export default function SavingsScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollContent: { flexGrow: 1 },
+  yearScrollContent: { gap: 8, paddingBottom: 4 },
+});

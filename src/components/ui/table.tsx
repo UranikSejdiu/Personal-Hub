@@ -41,7 +41,7 @@ function TableBody({ className, scrollable, ...props }: TableBodyProps) {
       <ScrollView
         nestedScrollEnabled
         showsVerticalScrollIndicator={false}
-        className={cn("", className)}
+        className={cn(className)}
         {...(props as React.ComponentProps<typeof ScrollView>)}
       />
     );

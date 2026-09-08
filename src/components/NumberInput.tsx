@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, startTransition } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { TextInput, View, Text } from "react-native";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
@@ -32,9 +32,7 @@ export function NumberInput({
 
   useEffect(() => {
     if (!isFocused) {
-      startTransition(() => {
-        setText(value === 0 ? "" : String(value));
-      });
+      setText(value === 0 ? "" : String(value));
     }
   }, [value, isFocused]);
 

@@ -1,4 +1,4 @@
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, useRouter, type Href } from "expo-router";
 import { PillNav, type PillNavTab } from "../../src/components/PillNav";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
@@ -15,9 +15,9 @@ export default function BudgetLayout() {
   const { t } = useI18n();
 
   const handleAppSelect = (appId: string) => {
-    if (appId === "dhikr") router.replace("/(dhikr)" as any);
-    else if (appId === "notes") router.replace("/(notes)" as any);
-    else router.replace("/(budget)" as any);
+    if (appId === "dhikr") router.replace("/(dhikr)" as Href);
+    else if (appId === "notes") router.replace("/(notes)" as Href);
+    else router.replace("/(budget)" as Href);
   };
 
   return (

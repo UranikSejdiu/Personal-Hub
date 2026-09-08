@@ -159,55 +159,11 @@ export async function execute(
   };
 }
 
-let transactionDepth = 0;
-
 export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
   const database = await getDb();
-  transactionDepth++;
-  try {
-    if (transactionDepth > 1) {
-      await database.execAsync(`SAVEPOINT sp_${transactionDepth};`);
-    } else {
-      await database.execAsync("BEGIN TRANSACTION;");
-    }
-    const result = await fn();
-    if (transactionDepth > 1) {
-      await database.execAsync(`RELEASE SAVEPOINT sp_${transactionDepth};`);
-    } else {
-      await database.execAsync("COMMIT;");
-    }
-    return result;
-  } catch (error) {
-    try {
-      if (transactionDepth > 1) {
-        await database.execAsync(`ROLLBACK TO SAVEPOINT sp_${transactionDepth};`);
-        await database.execAsync(`RELEASE SAVEPOINT sp_${transactionDepth};`);
-      } else {
-        await database.execAsync("ROLLBACK;");
-      }
-    } catch {
-      // Rollback already handled
-    }
-    throw error;
-  } finally {
-    transactionDepth--;
-  }
-}
-
-export async function closeDatabase(): Promise<void> {
-  if (transactionDepth > 0) {
-    const start = Date.now();
-    while (transactionDepth > 0 && Date.now() - start < 3000) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    if (transactionDepth > 0) {
-      throw new Error("Cannot close database while a transaction is active.");
-    }
-  }
-  transactionDepth = 0;
-  if (db) {
-    await db.closeAsync();
-    db = null;
-    initPromise = null;
-  }
+  let result: T | undefined;
+  await database.withTransactionAsync(async () => {
+    result = await fn();
+  });
+  return result as T;
 }

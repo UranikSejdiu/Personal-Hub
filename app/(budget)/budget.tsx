@@ -346,8 +346,6 @@ export default function BudgetScreen() {
     }
   }, [month, previousMonth, previousMonthLabel, loading, t, haptics]);
 
-  const prevMonthLabel = monthLabelShort(lang, addMonths(month, -1));
-
   if (loading || !loans || !budget) {
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
@@ -418,7 +416,7 @@ export default function BudgetScreen() {
           onRemove={handleRemoveExpense}
           onToggleRecurring={handleToggleRecurring}
           onCopyPrevious={hasPreviousBudget ? handleCopyPrevious : undefined}
-          previousMonthLabel={expenses.length === 0 ? prevMonthLabel : undefined}
+          previousMonthLabel={expenses.length === 0 ? previousMonthLabel : undefined}
         />
 
         {budget && (

@@ -120,7 +120,7 @@ export default function DashboardScreen() {
       toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, nextMonth) }));
       openBudgetMonth(nextMonth);
     } catch {
-      toast.error(t("errorLoadingData"));
+      toast.error(t("errorCreatingBudget"));
     } finally {
       setCreatingBudget(false);
     }
@@ -154,6 +154,7 @@ export default function DashboardScreen() {
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={expanded ? t("collapse") : t("expand")}
                 accessibilityRole="button"
+                accessibilityState={{ expanded }}
                 android_ripple={{ color: colors.primary + "20" }}
               >
                 <ChevronDown
@@ -176,19 +177,19 @@ export default function DashboardScreen() {
 
           {expanded && (
             <View className="mt-2 gap-1">
-              <View className="flex-row justify-between text-xs">
+              <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">{t("incomeColon")} </Text>
                 <Text className="font-medium text-foreground">
                   {formatCurrency(item.income)}
                 </Text>
               </View>
-              <View className="flex-row justify-between text-xs">
+              <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">{t("plannedColon")} </Text>
                 <Text className="font-medium text-foreground">
                   {formatCurrency(item.outflow)}
                 </Text>
               </View>
-              <View className="flex-row justify-between text-xs">
+              <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">{t("remainsColon")} </Text>
                 <Text
                   className={item.remaining < 0 ? "text-destructive" : "font-medium text-foreground"}
@@ -196,13 +197,13 @@ export default function DashboardScreen() {
                   {formatCurrency(item.remaining)}
                 </Text>
               </View>
-              <View className="flex-row justify-between text-xs">
+              <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">{t("paidColon")} </Text>
                 <Text className="font-medium text-foreground">
                   {formatCurrency(item.actualOutflow)}
                 </Text>
               </View>
-              <View className="flex-row justify-between text-xs">
+              <View className="flex-row justify-between">
                 <Text className="text-muted-foreground">{t("actuallyRemainsColon")} </Text>
                 <Text className="font-medium text-foreground">
                   {formatCurrency(item.actualRemaining)}
@@ -263,7 +264,7 @@ export default function DashboardScreen() {
             data={summaries}
             keyExtractor={(item) => item.month}
             renderItem={renderMonth}
-            contentContainerStyle={{ gap: 8 }}
+            contentContainerStyle={styles.listContent}
           />
         )}
       </View>
@@ -290,4 +291,5 @@ const styles = StyleSheet.create({
   rotated: {
     transform: [{ rotate: "180deg" }],
   },
+  listContent: { gap: 8 },
 });
