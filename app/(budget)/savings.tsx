@@ -11,6 +11,7 @@ import {
   addTransaction,
   deleteTransaction,
   updateTransaction,
+  updateAutoDeposit,
   getSavingsSummary,
   closeYear,
   type SavingsTransaction,
@@ -79,7 +80,7 @@ export default function SavingsScreen() {
       id: `auto:${ad.month}`,
       kind: "auto" as const,
       type: "deposit" as const,
-      description: ad.month,
+      description: ad.description || ad.month,
       amount: ad.amount,
       date: ad.month,
       rawMonth: ad.month,
@@ -169,13 +170,29 @@ export default function SavingsScreen() {
     setShowModal(true);
   }, []);
 
+  const openEditAutoModal = useCallback(
+    (month: string, description: string, amount: number) => {
+      setEditingId(0);
+      setEditingKind("auto");
+      setFormType("deposit");
+      setFormDesc(description === month ? "" : description);
+      setFormAmount(String(amount));
+      setFormDate(month);
+      setModalError("");
+      setShowModal(true);
+    },
+    []
+  );
+
   const handleTapEntry = useCallback(
     (entry: SavingsEntry) => {
-      if (entry.kind === "tx" && entry.rawTx) {
+      if (entry.kind === "auto" && entry.rawMonth) {
+        openEditAutoModal(entry.rawMonth, entry.description, entry.amount);
+      } else if (entry.kind === "tx" && entry.rawTx) {
         openEditModal(entry.rawTx);
       }
     },
-    [openEditModal]
+    [openEditModal, openEditAutoModal]
   );
 
   const handleCloseYear = useCallback(
@@ -232,7 +249,12 @@ export default function SavingsScreen() {
     }
     setSaving(true);
     try {
-      if (editingId === null) {
+      if (editingKind === "auto") {
+        await updateAutoDeposit(formDate, {
+          description: formDesc,
+          amount: parsed,
+        });
+      } else if (editingId === null) {
         await addTransaction(formType, formDesc, parsed, formDate);
       } else {
         const update: TransactionUpdate = {
@@ -251,10 +273,10 @@ export default function SavingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, t, loadData, haptics]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, t, loadData, haptics]);
 
   const requestDelete = useCallback(() => {
-    if (editingId === null) return;
+    if (editingId === null && editingKind !== "auto") return;
     setConfirmAction({
       title: t("deleteConfirmTitle"),
       message: t("deleteSavingsEntryConfirm"),
@@ -263,7 +285,11 @@ export default function SavingsScreen() {
       onConfirm: () => {
         void (async () => {
           try {
-            await deleteTransaction(editingId);
+            if (editingKind === "auto") {
+              await deleteAutoDeposit(formDate);
+            } else if (editingId !== null) {
+              await deleteTransaction(editingId);
+            }
             setShowModal(false);
             await loadData();
             setConfirmAction(null);
@@ -274,7 +300,7 @@ export default function SavingsScreen() {
         })();
       },
     });
-  }, [editingId, t, loadData]);
+  }, [editingId, editingKind, formDate, t, loadData]);
 
   const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
   const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
@@ -399,13 +425,9 @@ export default function SavingsScreen() {
 
                   return (
                     <View key={entry.id} className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
-                      {isAuto ? (
-                        rowContent
-                      ) : (
-                        <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center">
-                          {rowContent}
-                        </Pressable>
-                      )}
+                      <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center">
+                        {rowContent}
+                      </Pressable>
                       <Text className={`text-sm font-medium ${amountColor}`}>
                         {sign}
                         {formatCurrency(entry.amount)}
@@ -448,11 +470,15 @@ export default function SavingsScreen() {
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
           <Pressable onPress={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-card p-5">
             <Text className="text-lg font-semibold text-foreground">
-              {editingId === null ? t("savingsNewEntry") : t("savingsEditEntry")}
+              {editingKind === "auto"
+                ? t("savingsAutoEditTitle")
+                : editingId === null
+                  ? t("savingsNewEntry")
+                  : t("savingsEditEntry")}
             </Text>
             {modalError ? <Text className="mt-2 text-sm text-destructive">{modalError}</Text> : null}
             <View className="mt-4 gap-4">
-              {!(editingId !== null && editingKind === "auto") && (
+              {editingKind !== "auto" && (
                 <View>
                   <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsEntryType")}</Text>
                   <View className="mt-1 flex-row gap-2">
@@ -486,29 +512,27 @@ export default function SavingsScreen() {
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
-              {!(editingId !== null && editingKind === "auto") && (
-                <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDescriptionLabel")}</Text>
-                  <TextInput
-                    value={formDesc}
-                    onChangeText={setFormDesc}
-                    placeholder={t("savingsDescriptionLabel")}
-                    className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
-                    placeholderTextColor={colors.mutedForeground}
-                  />
-                </View>
-              )}
-              {!(editingId !== null && editingKind === "auto") && (
-                <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
-                  <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
-                    <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
-                  </Pressable>
-                </View>
-              )}
+              <View>
+                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
+                  {editingKind === "auto" ? t("savingsAutoDescriptionLabel") : t("savingsDescriptionLabel")}
+                </Text>
+                <TextInput
+                  value={formDesc}
+                  onChangeText={setFormDesc}
+                  placeholder={t("savingsDescriptionLabel")}
+                  className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
+                  placeholderTextColor={colors.mutedForeground}
+                />
+              </View>
+              <View>
+                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
+                <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
+                  <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
+                </Pressable>
+              </View>
             </View>
             <View className="mt-5 flex-row items-center justify-end gap-2">
-              {editingId !== null && (
+              {(editingId !== null || editingKind === "auto") && (
                 <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1">
                   <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
                 </Pressable>

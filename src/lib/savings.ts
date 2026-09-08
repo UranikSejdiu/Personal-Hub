@@ -6,6 +6,7 @@ export type SavingsEntryType = "deposit" | "purchase";
 export interface AutoDeposit {
   month: string;
   amount: number;
+  description: string;
 }
 
 export interface SavingsTransaction {
@@ -32,14 +33,16 @@ function sanitizeAmount(value: unknown): number {
 // ---------------------------------------------------------------------------
 
 export async function ensureMonthlyAutoDeposit(
-  goalAmount: number
+  goalAmount: number,
+  description?: string
 ): Promise<void> {
   const amount = sanitizeAmount(goalAmount);
   if (amount === 0) return;
+  const desc = description?.trim() ?? "";
   await db.execute(
-    `INSERT OR IGNORE INTO savings_auto_deposits (month, amount)
-     VALUES (?, ?)`,
-    [currentMonth(), amount]
+    `INSERT OR IGNORE INTO savings_auto_deposits (month, amount, description)
+     VALUES (?, ?, ?)`,
+    [currentMonth(), amount, desc]
   );
 }
 
@@ -50,6 +53,7 @@ export async function listAutoDeposits(): Promise<AutoDeposit[]> {
   return rows.map((row) => ({
     month: String(row.month),
     amount: Number(row.amount) || 0,
+    description: String(row.description ?? ""),
   }));
 }
 
@@ -60,6 +64,33 @@ export async function setAutoDepositAmount(
   await db.execute(
     "UPDATE savings_auto_deposits SET amount = ? WHERE month = ?",
     [sanitizeAmount(amount), month]
+  );
+}
+
+export interface AutoDepositUpdate {
+  description?: string;
+  amount?: number;
+}
+
+export async function updateAutoDeposit(
+  month: string,
+  fields: AutoDepositUpdate
+): Promise<void> {
+  const sets: string[] = [];
+  const values: (string | number)[] = [];
+  if (fields.description !== undefined) {
+    sets.push("description = ?");
+    values.push(fields.description.trim());
+  }
+  if (fields.amount !== undefined) {
+    sets.push("amount = ?");
+    values.push(sanitizeAmount(fields.amount));
+  }
+  if (sets.length === 0) return;
+  values.push(month);
+  await db.execute(
+    `UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`,
+    values
   );
 }
 

@@ -130,25 +130,18 @@ export default function DashboardScreen() {
     ({ item }: { item: MonthSummary }) => {
       const expanded = expandedMonths.has(item.month);
       return (
-        <Pressable
-          onPress={() => openBudgetMonth(item.month)}
-          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
-          className="rounded-xl border border-border bg-card p-3"
-          android_ripple={{ color: colors.primary + "20" }}
-          accessibilityRole="button"
-          accessibilityLabel={monthLabelShort(lang, item.month)}
-        >
+        <View className="rounded-xl border border-border bg-card p-3">
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
-              <Text
-                onPress={(e) => {
-                  e.stopPropagation();
-                  openBudgetMonth(item.month);
-                }}
-                className="font-medium text-foreground underline"
+              <Pressable
+                onPress={() => openBudgetMonth(item.month)}
+                accessibilityRole="button"
+                accessibilityLabel={monthLabelShort(lang, item.month)}
               >
-                {monthLabelShort(lang, item.month)}
-              </Text>
+                <Text className="font-medium text-foreground underline">
+                  {monthLabelShort(lang, item.month)}
+                </Text>
+              </Pressable>
               <Text
                 className={`text-xs ${item.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
               >
@@ -157,10 +150,7 @@ export default function DashboardScreen() {
             </View>
             <View className="flex-row items-center gap-1">
               <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  toggleMonth(item.month);
-                }}
+                onPress={() => toggleMonth(item.month)}
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={expanded ? t("collapse") : t("expand")}
                 accessibilityRole="button"
@@ -173,10 +163,7 @@ export default function DashboardScreen() {
                 />
               </Pressable>
               <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setMonthToDelete(item.month);
-                }}
+                onPress={() => setMonthToDelete(item.month)}
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={t("delete")}
                 accessibilityRole="button"
@@ -243,7 +230,7 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
-        </Pressable>
+        </View>
       );
     },
     [expandedMonths, lang, openBudgetMonth, t, toggleMonth, colors.destructive, colors.mutedForeground, colors.primary]

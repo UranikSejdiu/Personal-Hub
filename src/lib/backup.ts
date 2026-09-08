@@ -296,9 +296,10 @@ export async function importBackupFromJson(jsonStr: string, mode: ImportMode = "
       const row = r as Record<string, unknown>;
       const month = String(row.month ?? "");
       if (!isValidMonth(month)) continue;
-      await db.execute(`INSERT INTO savings_auto_deposits (month, amount) VALUES (?, ?)`, [
+      await db.execute(`INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)`, [
         month,
         Number(row.amount) || 0,
+        String(row.description ?? ""),
       ]);
     }
 
