@@ -425,12 +425,45 @@ src/
 ├── hub/
 ├── lib/
 └── types/
+scripts/
+└── bump-version.js    # Version sync script (see section 33)
 plugins/
 └── withFilepathsXml.js    # Expo config plugin for native file persistence
 ```
 Do not move existing files around without an architectural reason.
 
-33. PREBUILD & NATIVE FILE PERSISTENCE
+33. VERSION MANAGEMENT
+Single source of truth: `package.json` `"version"` field.
+
+**Version files** — all must stay in sync:
+| File | Field(s) | Purpose |
+|------|----------|---------|
+| `package.json` | `version` | Source of truth |
+| `app.json` | `expo.version`, `expo.android.versionCode` | Expo config |
+| `version.json` | `versionName`, `versionCode` | Version tracking |
+| `android/app/build.gradle` | `versionName`, `versionCode` | Native build |
+| `package-lock.json` | `version` | Auto-synced by npm |
+
+**Bump workflow:**
+```bash
+# Set version and sync all files, commit, tag
+node scripts/bump-version.js <version>   # e.g. node scripts/bump-version.js 1.7.2
+
+# Push (triggers build-release.yml via v* tag)
+git push origin main --tags
+```
+
+**Script behavior:**
+- Reads target version from `package.json` (or accepts it as CLI arg)
+- Auto-increments `versionCode` by 1
+- Syncs all version files listed above
+- Runs `npm install --package-lock-only` to sync lock file
+- Creates git commit (`chore: bump version to X.Y.Z`) + tag (`vX.Y.Z`)
+- Use `--dry` flag to preview changes without writing
+
+**When user says "bump version":** Run `node scripts/bump-version.js <version>` then `git push origin main --tags`. Do not manually edit version numbers in individual files.
+
+34. PREBUILD & NATIVE FILE PERSISTENCE
 `npx expo prebuild --clean` wipes the entire `android/` directory and regenerates it. This deletes any manually added native files (e.g., `filepaths.xml`, custom gradle properties).
 
 **Config plugins** are used to persist native changes across prebuild runs. They are registered in `app.json` under `expo.plugins` and run automatically during prebuild.
@@ -442,19 +475,19 @@ Current config plugins:
 
 **Do NOT use `npx patch-project`** — it fails on Windows with EPERM errors due to Node.js `fs.rename` limitations on Windows directories.
 
-33. REFACTORING RULES
+35. REFACTORING RULES
 Refactor code when it directly improves the scope of your active task.
 Do not refactor unrelated code simply because you encountered it. Keep pull requests and changes focused.
 
-34. GIT / DIFF HYGIENE
+36. GIT / DIFF HYGIENE
 Before completing a task, inspect `git diff`:
 - Remove `console.log` statements, temporary debug code, and unused imports.
 - Ensure no accidental formatting changes occurred in untouched files.
 
-35. DO NOT DESTROY EXISTING FUNCTIONALITY
+37. DO NOT DESTROY EXISTING FUNCTIONALITY
 Inspect existing callers and hidden dependencies before altering shared utilities or components. Preserve existing module behavior unless the task explicitly demands breaking changes.
 
-36. BUILD VERIFICATION
+38. BUILD VERIFICATION
 Always run project typechecks and Expo checks before finishing:
 ```bash
 npm run typecheck
@@ -467,26 +500,26 @@ npx expo config
 ```
 The project must compile without TypeScript or bundle build errors.
 
-37. TEST THE ACTUAL FEATURE
+39. TEST THE ACTUAL FEATURE
 Verify behavior across expected scenarios:
 - **Happy Path:** Expected data & navigation flow.
 - **Edge Cases:** Empty data states, malformed input, offline mode, app restart/resume.
 - **Environment:** iOS & Android physical/emulator devices, dark/light/Tawheed themes, Albanian/English languages.
 
-38. DEBUGGING PROCESS
+40. DEBUGGING PROCESS
 Follow a structured flow:
 `Reproduce Problem → Locate Root Cause → Fix Underlying Issue → Verify Fix → Check Metro Bundler & Logs`
 
-39. WHEN SOMETHING FAILS
+41. WHEN SOMETHING FAILS
 If an implementation fails, analyze the Metro error stack or native logcat/Xcode output directly rather than stacking temporary workarounds or arbitrary timeouts.
 
-40. DO NOT GUESS
+42. DO NOT GUESS
 Inspect code, types, schema definitions, and Expo module documentation directly rather than guessing function signatures or component props.
 
-41. NO FAKE VERIFICATION
+43. NO FAKE VERIFICATION
 Never state that typechecks, Expo builds, or device tests were run unless they actually were performed and passed.
 
-42. AGENT WORKFLOW
+44. AGENT WORKFLOW
 Execute tasks in 7 distinct steps:
 1. **Understand:** Read `AGENTS.md` and related source files.
 2. **Investigate:** Search for existing implementations and reusable Expo/React Native modules.
@@ -496,7 +529,7 @@ Execute tasks in 7 distinct steps:
 6. **Verify:** Run TypeScript checks (`npx tsc --noEmit`) and test functional requirements.
 7. **Final Cleanup:** Remove temporary code and review `git diff`.
 
-43. FINAL RESPONSE FORMAT
+45. FINAL RESPONSE FORMAT
 Keep completion summaries concise:
 ```markdown
 Implemented:
@@ -512,11 +545,11 @@ Notes:
 ```
 Only list checks that were genuinely performed.
 
-44. DECISION RULE
+46. DECISION RULE
 Evaluate implementation choices against:
 `Correctness > Architecture > Maintainability > Reliability > Data Safety > UX > Performance > Simplicity`
 
-45. ABSOLUTE PROHIBITIONS
+47. ABSOLUTE PROHIBITIONS
 Never:
 - use `any` or bypass TypeScript without cause
 - suppress Metro bundler or native warnings
@@ -527,11 +560,11 @@ Never:
 - commit untranslated UI strings
 - break dark/Tawheed mode contrast
 
-46. QUALITY STANDARD
+48. QUALITY STANDARD
 Ensure your code passes all quality checks:
 `Works → Correct → Safe → Architectural → Clean → Strongly Typed → Handled Errors → Theme Compliant → Multi-language → Mobile Performant → Typecheck Clean`
 
-47. FINAL PRINCIPLE
+49. FINAL PRINCIPLE
 Ask: *"What is the cleanest, safest, most maintainable way to solve this correctly within the existing Expo / React Native architecture?"*
 
 **Inspect → Understand → Plan → Implement → Review → Test → Clean → Verify**
