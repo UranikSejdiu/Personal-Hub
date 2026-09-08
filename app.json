@@ -1,25 +1,25 @@
 {
   "expo": {
-  "name": "Personal Hub",
-  "slug": "uraniks-hub",
-    "version": "1.6.2",
-  "orientation": "portrait",
-  "icon": "./assets/icon.png",
-  "userInterfaceStyle": "automatic",
-  "splash": {
-    "image": "./assets/splash-icon.png",
-    "resizeMode": "contain",
-    "backgroundColor": "#1a1a2e"
-  },
-  "scheme": "uranikshub",
-  "newArchEnabled": false,
-  "ios": {
-    "supportsTablet": true,
-    "bundleIdentifier": "com.uranik.offlinehub"
-  },
-  "android": {
-    "package": "com.uranik.offlinehub",
-      "versionCode": 50,
+    "name": "Personal Hub",
+    "slug": "uraniks-hub",
+    "version": "1.7.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "scheme": "uranikshub",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.uranik.offlinehub"
+    },
+    "android": {
+      "package": "com.uranik.offlinehub",
+      "versionCode": 51,
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/android-icon-foreground.png"
@@ -46,7 +46,10 @@
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "enablePngCrunchInReleaseBuilds": true,
-            "buildArchs": ["armeabi-v7a", "arm64-v8a"],
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
             "kotlinVersion": "2.1.20",
             "useLegacyPackaging": false,
             "extraProguardRules": "-keep class com.uranik.offlinehub.** { *; }"
