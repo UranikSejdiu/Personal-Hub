@@ -6,10 +6,12 @@ export interface Loans {
   loan_start_date: string | null;
   loan_payment_day: number;
   loan_months_paid: number;
+  loan_name: string;
   cc_balance: number;
   cc_apr: number;
   cc_payment: number;
   cc_months_paid: number;
+  cc_name: string;
 }
 
 export interface Budget {
@@ -61,8 +63,10 @@ export const EMPTY_LOANS: Loans = {
   loan_start_date: null,
   loan_payment_day: 1,
   loan_months_paid: 0,
+  loan_name: "",
   cc_balance: 0,
   cc_apr: 0,
   cc_payment: 0,
   cc_months_paid: 0,
+  cc_name: "",
 };

@@ -16,6 +16,7 @@ import { NumberInput } from "./NumberInput";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
+import { withAlpha } from "../lib/utils";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
 
@@ -209,7 +210,7 @@ export default function SettingsScreen() {
                 key={item.section}
                 onPress={() => { void haptics.light(); setActiveSection(item.section); }}
                 className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t(item.labelKey)}
               >
@@ -243,7 +244,7 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1 bg-background">
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center gap-2">
-            <Pressable onPress={() => setActiveSection(null)} accessibilityRole="button" accessibilityLabel={t("cancel")} android_ripple={{ color: colors.primary + "20" }}>
+            <Pressable onPress={() => setActiveSection(null)} accessibilityRole="button" accessibilityLabel={t("cancel")} android_ripple={{ color: withAlpha(colors.primary, 0.125) }}>
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
           <Text className="text-2xl font-bold text-foreground">
@@ -269,7 +270,7 @@ export default function SettingsScreen() {
                     className={`flex-row items-center gap-3 rounded-lg border p-3 ${
                       theme === th.value ? "border-primary bg-primary/10" : "border-border"
                     }`}
-                    android_ripple={{ color: colors.primary + "20" }}
+                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: theme === th.value }}
                     accessibilityLabel={t(th.labelKey as "themeLight" | "themeDark")}
@@ -296,7 +297,7 @@ export default function SettingsScreen() {
                       accent === name ? "border-foreground" : "border-border"
                     }`}
                     style={{ backgroundColor: ACCENT_COLORS[name].primary }}
-                    android_ripple={{ color: colors.primary + "20" }}
+                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: accent === name }}
                     accessibilityLabel={t(`accent_${name}` as "accent_blue")}
@@ -319,7 +320,7 @@ export default function SettingsScreen() {
                     className={`flex-1 rounded-lg border p-3 ${
                       lang === l ? "border-primary bg-primary/10" : "border-border"
                     }`}
-                    android_ripple={{ color: colors.primary + "20" }}
+                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: lang === l }}
                     accessibilityLabel={l === "sq" ? "Shqip" : "English"}
@@ -393,7 +394,7 @@ export default function SettingsScreen() {
                 onPress={() => { void haptics.light(); void handleExport(); }}
                 disabled={backupBusy}
                 className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
-                android_ripple={{ color: colors.primaryForeground + "30" }}
+                android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("exportData")}
               >
@@ -404,7 +405,7 @@ export default function SettingsScreen() {
                 onPress={() => { void haptics.light(); void handleImportPick(); }}
                 disabled={backupBusy}
                 className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("importData")}
               >

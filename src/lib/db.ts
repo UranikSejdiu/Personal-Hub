@@ -91,6 +91,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE notes ADD COLUMN plain_text TEXT NOT NULL DEFAULT '';`,
   `CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);`,
   `ALTER TABLE savings_auto_deposits ADD COLUMN description TEXT NOT NULL DEFAULT '';`,
+  `ALTER TABLE loans ADD COLUMN loan_name TEXT NOT NULL DEFAULT '';`,
+  `ALTER TABLE loans ADD COLUMN cc_name TEXT NOT NULL DEFAULT '';`,
 ];
 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {

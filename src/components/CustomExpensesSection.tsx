@@ -5,7 +5,7 @@ import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { type Expense } from "../lib/budget";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, withAlpha } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 
 interface Props {
@@ -51,7 +51,7 @@ export function CustomExpensesSection({
             <Pressable
               onPress={() => { void haptics.light(); onCopyPrevious(); }}
               className="flex-row items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5"
-              android_ripple={{ color: colors.primary + "20" }}
+              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
               accessibilityRole="button"
               accessibilityLabel={t("copyFromPreviousMonth")}
             >
@@ -62,7 +62,7 @@ export function CustomExpensesSection({
           <Pressable
             onPress={() => { void haptics.light(); onAdd(); }}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-            android_ripple={{ color: colors.primaryForeground + "30" }}
+            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
             accessibilityRole="button"
             accessibilityLabel={t("addRow")}
           >
@@ -84,7 +84,7 @@ export function CustomExpensesSection({
               <Pressable
                 onPress={() => { void haptics.light(); onCopyPrevious(); }}
                 className="flex-row items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2"
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("copyFromPreviousMonth")}
               >
@@ -95,7 +95,7 @@ export function CustomExpensesSection({
             <Pressable
               onPress={() => { void haptics.light(); onAdd(); }}
               className="flex-row items-center gap-1.5 rounded-lg bg-primary px-3 py-2"
-              android_ripple={{ color: colors.primaryForeground + "30" }}
+              android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
               accessibilityRole="button"
               accessibilityLabel={t("addRow")}
             >
@@ -122,7 +122,7 @@ export function CustomExpensesSection({
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: expense.paid }}
                   accessibilityLabel={t("paid")}
-                  android_ripple={{ color: colors.primary + "20" }}
+                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 >
                   {expense.paid && <Check size={14} color={colors.primary} />}
                 </Pressable>
@@ -161,7 +161,7 @@ export function CustomExpensesSection({
                   className="shrink-0 p-1"
                   accessibilityLabel={t("delete")}
                   accessibilityRole="button"
-                  android_ripple={{ color: colors.destructive + "20" }}
+                  android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
                 >
                   <Trash2 size={18} color={colors.destructive} />
                 </Pressable>
@@ -178,7 +178,7 @@ export function CustomExpensesSection({
                   className="shrink-0 p-1"
                   accessibilityLabel={t("recurringToggle")}
                   accessibilityRole="button"
-                  android_ripple={{ color: colors.primary + "20" }}
+                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 >
                   <Repeat size={16} color={expense.is_recurring ? colors.foreground : colors.mutedForeground} />
                 </Pressable>

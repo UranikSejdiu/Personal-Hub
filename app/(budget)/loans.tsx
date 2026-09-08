@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Keyboard } from "react-native";
+import { View, Text, ScrollView, Pressable, Keyboard, TextInput } from "react-native";
 import { Landmark, CreditCard, Save, ChevronRight } from "lucide-react-native";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -11,7 +11,7 @@ import {
   EMPTY_LOANS,
 } from "../../src/lib/budget";
 import { pmt, remainingBalance, getActualSchedule, type ScheduleRow, creditCardPayoff } from "../../src/lib/calculations";
-import { formatCurrency } from "../../src/lib/utils";
+import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
 import { useThemeColors } from "../../src/lib/theme";
@@ -128,7 +128,7 @@ export default function LoansScreen() {
           <Pressable
             onPress={handleSave}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-4 py-2"
-            android_ripple={{ color: colors.primaryForeground + "30" }}
+            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
             accessibilityRole="button"
             accessibilityLabel={t("save")}
           >
@@ -151,6 +151,17 @@ export default function LoansScreen() {
           </View>
 
           <View className="gap-3">
+            <View>
+              <Text className="mb-1 text-sm text-muted-foreground">{t("loanName")}</Text>
+              <TextInput
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+                value={loans.loan_name}
+                onChangeText={(v) => update({ loan_name: v })}
+                placeholder={t("loanNamePlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
             <View>
               <Text className="mb-1 text-sm text-muted-foreground">{t("loanAmount")}</Text>
                <NumberInput value={loans.loan_amount} onChange={(v) => update({ loan_amount: v })} min={0} decimals={2} placeholder="0.00" />
@@ -188,7 +199,7 @@ export default function LoansScreen() {
               <Pressable
                 onPress={() => setDatePickerVisible(true)}
                 className="flex-row items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("loanStartDate")}
               >
@@ -290,6 +301,17 @@ export default function LoansScreen() {
           </View>
 
           <View className="gap-3">
+            <View>
+              <Text className="mb-1 text-sm text-muted-foreground">{t("ccName")}</Text>
+              <TextInput
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+                value={loans.cc_name}
+                onChangeText={(v) => update({ cc_name: v })}
+                placeholder={t("ccNamePlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
             <View>
               <Text className="mb-1 text-sm text-muted-foreground">{t("ccBalance")}</Text>
                <NumberInput value={loans.cc_balance} onChange={(v) => update({ cc_balance: v })} min={0} decimals={2} placeholder="0.00" />

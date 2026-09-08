@@ -5,7 +5,7 @@ import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { creditCardPayoff } from "../lib/calculations";
 import { type Budget, type Loans } from "../lib/budget";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, withAlpha } from "../lib/utils";
 
 interface Props {
   budget: Budget;
@@ -31,7 +31,7 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
     <View className="rounded-xl border border-border bg-card p-4">
       <View className="mb-3 flex-row items-center gap-2">
          <CreditCard size={20} color={colors.foreground} />
-        <Text className="text-base font-semibold text-foreground">{t("sectionCreditCard")}</Text>
+        <Text className="text-base font-semibold text-foreground">{loans.cc_name || t("sectionCreditCard")}</Text>
       </View>
 
       <View className="gap-2">
@@ -69,7 +69,7 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: budget.cc_paid }}
                 accessibilityLabel={t("monthlyPayment")}
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
               >
                 {budget.cc_paid && <Check size={14} color={colors.primary} />}
               </Pressable>

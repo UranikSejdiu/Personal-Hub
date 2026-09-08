@@ -41,10 +41,12 @@ export async function loadLoans(): Promise<Loans> {
     loan_start_date: (row.loan_start_date as string | null) ?? null,
     loan_payment_day: Number(row.loan_payment_day) || 1,
     loan_months_paid: Number(row.loan_months_paid) || 0,
+    loan_name: String(row.loan_name) || "",
     cc_balance: Number(row.cc_balance) || 0,
     cc_apr: Number(row.cc_apr) || 0,
     cc_payment: Number(row.cc_payment) || 0,
     cc_months_paid: Number(row.cc_months_paid) || 0,
+    cc_name: String(row.cc_name) || "",
   };
 }
 
@@ -52,9 +54,9 @@ export async function saveLoans(loans: Loans): Promise<void> {
   await db.execute(
     `INSERT INTO loans (
       id, loan_amount, loan_rate, loan_term, loan_payment,
-      loan_start_date, loan_payment_day, loan_months_paid,
-      cc_balance, cc_apr, cc_payment, cc_months_paid
-    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      loan_start_date, loan_payment_day, loan_months_paid, loan_name,
+      cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       loan_amount = excluded.loan_amount,
       loan_rate = excluded.loan_rate,
@@ -63,10 +65,12 @@ export async function saveLoans(loans: Loans): Promise<void> {
       loan_start_date = excluded.loan_start_date,
       loan_payment_day = excluded.loan_payment_day,
       loan_months_paid = excluded.loan_months_paid,
+      loan_name = excluded.loan_name,
       cc_balance = excluded.cc_balance,
       cc_apr = excluded.cc_apr,
       cc_payment = excluded.cc_payment,
       cc_months_paid = excluded.cc_months_paid,
+      cc_name = excluded.cc_name,
       updated_at = datetime('now')`,
     [
       loans.loan_amount,
@@ -76,10 +80,12 @@ export async function saveLoans(loans: Loans): Promise<void> {
       loans.loan_start_date ?? null,
       loans.loan_payment_day,
       loans.loan_months_paid,
+      loans.loan_name,
       loans.cc_balance,
       loans.cc_apr,
       loans.cc_payment,
       loans.cc_months_paid,
+      loans.cc_name,
     ]
   );
 }

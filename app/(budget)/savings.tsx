@@ -19,7 +19,7 @@ import {
   type SavingsEntryType,
   type TransactionUpdate,
 } from "../../src/lib/savings";
-import { formatCurrency } from "../../src/lib/utils";
+import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { todayDate } from "../../src/lib/dhikr";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
@@ -342,7 +342,7 @@ export default function SavingsScreen() {
               <Pressable
                 onPress={() => { void haptics.light(); openCreateModal(); }}
                 className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-                android_ripple={{ color: colors.primaryForeground + "30" }}
+                android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("savingsNewEntry")}
               >
@@ -360,7 +360,7 @@ export default function SavingsScreen() {
                     <Pressable
                       onPress={() => { void haptics.light(); setSelectedYear(y); }}
                       className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-                      android_ripple={{ color: colors.primary + "20" }}
+                      android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                       accessibilityRole="button"
                       accessibilityLabel={String(y)}
                       accessibilityState={{ selected: isSelected }}
@@ -382,7 +382,7 @@ export default function SavingsScreen() {
               <Pressable
                 onPress={() => { void haptics.light(); setSelectedYear("all"); }}
                 className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("filterAll")}
                 accessibilityState={{ selected: selectedYear === "all" }}
@@ -540,7 +540,7 @@ export default function SavingsScreen() {
               <Pressable onPress={() => setShowModal(false)} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
                 <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
               </Pressable>
-              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2" android_ripple={{ color: colors.primaryForeground + "30" }} accessibilityRole="button" accessibilityLabel={t("save")}>
+              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2" android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }} accessibilityRole="button" accessibilityLabel={t("save")}>
                 <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
               </Pressable>
             </View>

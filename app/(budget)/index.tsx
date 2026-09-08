@@ -21,7 +21,7 @@ import {
   saveBudget,
   type MonthSummary,
 } from "../../src/lib/budget";
-import { formatCurrency } from "../../src/lib/utils";
+import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
 export default function DashboardScreen() {
@@ -155,20 +155,21 @@ export default function DashboardScreen() {
                 accessibilityLabel={expanded ? t("collapse") : t("expand")}
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
-                android_ripple={{ color: colors.primary + "20" }}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
               >
-                <ChevronDown
-                  size={16}
-                  color={item.remaining < 0 ? colors.destructive : colors.mutedForeground}
-                  style={expanded ? styles.rotated : undefined}
-                />
+                <View style={expanded ? styles.rotated : undefined}>
+                  <ChevronDown
+                    size={16}
+                    color={item.remaining < 0 ? colors.destructive : colors.mutedForeground}
+                  />
+                </View>
               </Pressable>
               <Pressable
                 onPress={() => setMonthToDelete(item.month)}
                 className="h-6 w-6 items-center justify-center rounded-md transition-colors"
                 accessibilityLabel={t("delete")}
                 accessibilityRole="button"
-                android_ripple={{ color: colors.destructive + "20" }}
+                android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
               >
                 <Trash2 size={14} color={colors.mutedForeground} />
               </Pressable>
@@ -248,7 +249,7 @@ export default function DashboardScreen() {
             className="flex-row items-center rounded-lg bg-primary px-3 py-1.5 opacity-100 disabled:opacity-60"
             accessibilityRole="button"
             accessibilityLabel={t("newBudget")}
-            android_ripple={{ color: colors.primaryForeground + "30" }}
+            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
           >
             <Plus size={14} color={colors.primaryForeground} />
             <Text className="ml-1.5 text-sm font-medium text-primary-foreground">{t("newBudget")}</Text>
