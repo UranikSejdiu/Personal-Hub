@@ -10,12 +10,11 @@ import {
   type Loans,
   EMPTY_LOANS,
 } from "../../src/lib/budget";
-import { pmt, remainingBalance, getActualSchedule, type ScheduleRow, creditCardPayoff } from "../../src/lib/calculations";
+import { pmt, remainingBalance, creditCardPayoff } from "../../src/lib/calculations";
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
 import { useThemeColors } from "../../src/lib/theme";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../../src/components/ui/table";
 
 export default function LoansScreen() {
   const { t } = useI18n();
@@ -62,32 +61,6 @@ export default function LoansScreen() {
       : loans.loan_payment > 0
         ? loans.loan_payment
         : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
-
-  const schedule = useMemo<ScheduleRow[]>(() => {
-    if (
-      loans.loan_amount > 0 &&
-      loans.loan_term > 0 &&
-      loans.loan_start_date &&
-      loans.loan_start_date.length > 0
-    ) {
-      return getActualSchedule(
-        loans.loan_amount,
-        loans.loan_rate,
-        loans.loan_term,
-        loans.loan_start_date,
-        loans.loan_payment_day,
-        loans.loan_payment > 0 ? loans.loan_payment : undefined
-      );
-    }
-    return [];
-  }, [
-    loans.loan_amount,
-    loans.loan_rate,
-    loans.loan_term,
-    loans.loan_start_date,
-    loans.loan_payment_day,
-    loans.loan_payment,
-  ]);
 
   const payoff = useMemo(() => {
     if (loans.cc_balance <= 0 || loans.cc_payment <= 0) return null;
@@ -240,58 +213,6 @@ export default function LoansScreen() {
             )}
           </View>
         </View>
-
-        {schedule.length > 0 && (
-          <View className="rounded-xl border border-border bg-card p-4">
-            <Text className="mb-3 text-base font-medium text-foreground">
-              {t("scheduleTitle")}
-            </Text>
-
-            <View className="flex-row gap-2">
-              <View className="flex-1 items-center rounded-md bg-muted p-2">
-                <Text className="text-sm text-muted-foreground">{t("totalInterest")}</Text>
-                <Text className="text-center font-medium text-foreground">
-                  {formatCurrency(schedule.reduce((s, r) => s + r.interest, 0))}
-                </Text>
-              </View>
-              <View className="flex-1 items-center rounded-md bg-muted p-2">
-                <Text className="text-sm text-muted-foreground">{t("totalCost")}</Text>
-                <Text className="text-center font-medium text-foreground">
-                  {formatCurrency(loans.loan_amount + schedule.reduce((s, r) => s + r.interest, 0))}
-                </Text>
-              </View>
-              <View className="flex-1 items-center rounded-md bg-muted p-2">
-                <Text className="text-sm text-muted-foreground">{t("firstPayment")}</Text>
-                <Text className="text-center font-medium text-foreground">
-                  {formatCurrency(schedule[0].payment)}
-                </Text>
-              </View>
-            </View>
-
-            <Table className="mt-3" scrollable>
-              <TableHeader>
-                <TableHead className="w-5 text-center">#</TableHead>
-                <TableHead className="w-[70]">{t("dateCol")}</TableHead>
-                <TableHead className="flex-1 text-right">{t("paymentCol")}</TableHead>
-                <TableHead className="w-[68] text-right">{t("principalCol")}</TableHead>
-                <TableHead className="w-[68] text-right">{t("interestCol")}</TableHead>
-                <TableHead className="w-[68] text-right">{t("balanceCol")}</TableHead>
-              </TableHeader>
-              <TableBody scrollable style={{ maxHeight: 288 }}>
-                {schedule.map((row) => (
-                  <TableRow key={row.index}>
-                    <TableCell className="w-5 text-center">{row.index}</TableCell>
-                    <TableCell className="w-[70]">{row.paymentDate}</TableCell>
-                    <TableCell className="flex-1 text-right">{formatCurrency(row.payment)}</TableCell>
-                    <TableCell className="w-[68] text-right">{formatCurrency(row.capital)}</TableCell>
-                    <TableCell className="w-[68] text-right">{formatCurrency(row.interest)}</TableCell>
-                    <TableCell className="w-[68] text-right">{formatCurrency(row.balance)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </View>
-        )}
 
         {/* Credit Card Section */}
         <View className="rounded-xl border border-border bg-card p-4">
