@@ -12,8 +12,9 @@ import {
   updateNote,
   deleteNote,
   getNoteColorClass,
+  getNoteTextColorClass,
 } from "../../src/lib/notes";
-import { type NoteColor } from "../../src/constants/theme";
+import { type NoteColor, NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { RichTextToolbar } from "../../src/components/RichTextToolbar";
@@ -260,12 +261,12 @@ export default function NotesEditorScreen() {
                 onChangeText={(v) => { setTitle(v); setIsDirty(true); }}
                 placeholder={t("notesUntitled")}
                 placeholderTextColor={colors.mutedForeground}
-                className={`rounded-xl border border-border px-4 py-3 text-lg font-bold text-foreground ${getNoteColorClass(color, isDark)}`}
+                className={`rounded-xl border border-border bg-card px-4 py-3 text-lg font-bold ${getNoteTextColorClass(color, isDark)}`}
                 multiline
               />
 
               {/* Rich Text Editor */}
-              <View className={`rounded-xl border border-border overflow-hidden ${getNoteColorClass(color, isDark)}`}>
+              <View className="rounded-xl border border-border bg-card overflow-hidden">
                 <EnrichedTextInput
                   ref={editorRef}
                   defaultValue=""
@@ -277,7 +278,7 @@ export default function NotesEditorScreen() {
                     minHeight: 200,
                     padding: 16,
                     fontSize: 14,
-                    color: isDark ? "#e5e7eb" : "#1f2937",
+                    color: isDark ? NOTE_TEXT_HEX[color].dark : NOTE_TEXT_HEX[color].light,
                   }}
                 />
               </View>

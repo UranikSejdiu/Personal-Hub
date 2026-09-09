@@ -1,5 +1,5 @@
 import * as db from "./db";
-import { NOTE_COLORS, type NoteColor } from "../constants/theme";
+import { NOTE_COLORS, NOTE_TEXT_COLORS, type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
 
 export type { Note };
@@ -7,6 +7,12 @@ export type { Note };
 export function getNoteColorClass(color: NoteColor, isDark: boolean): string {
   const entry = NOTE_COLORS[color];
   if (!entry) return "bg-card";
+  return isDark ? entry.dark : entry.light;
+}
+
+export function getNoteTextColorClass(color: NoteColor, isDark: boolean): string {
+  const entry = NOTE_TEXT_COLORS[color];
+  if (!entry) return "text-foreground";
   return isDark ? entry.dark : entry.light;
 }
 

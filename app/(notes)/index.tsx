@@ -1,11 +1,74 @@
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, TextInput } from "react-native";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useI18n } from "../../src/lib/i18n";
-import { loadNotes, searchNotes, getNoteColorClass, stripHtml, type Note } from "../../src/lib/notes";
+import { useI18n, type TKey } from "../../src/lib/i18n";
+import {
+  loadNotes,
+  searchNotes,
+  getNoteTextColorClass,
+  stripHtml,
+  type Note,
+} from "../../src/lib/notes";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
+
+function splitIntoColumns(items: Note[], count: number): Note[][] {
+  const cols: Note[][] = Array.from({ length: count }, () => []);
+  for (const item of items) {
+    cols[0].push(item);
+    cols.sort((a, b) => a.length - b.length);
+  }
+  return cols;
+}
+
+function NoteCard({
+  note,
+  isDark,
+  onPress,
+  t,
+}: {
+  note: Note;
+  isDark: boolean;
+  onPress: () => void;
+  t: (key: TKey) => string;
+}) {
+  const textColorClass = getNoteTextColorClass(note.color, isDark);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="mb-2 rounded-xl border border-border bg-card p-3"
+    >
+      {note.title ? (
+        <Text
+          numberOfLines={2}
+          className={`text-sm font-semibold ${textColorClass}`}
+        >
+          {note.title}
+        </Text>
+      ) : null}
+      <Text
+        numberOfLines={5}
+        className={`mt-1 text-xs leading-relaxed ${textColorClass}`}
+      >
+        {stripHtml(note.content) || "—"}
+      </Text>
+      <View className="mt-2 flex-row items-center justify-between">
+        {note.is_pinned ? (
+          <Pin size={12} color={textColorClass.includes("foreground") ? undefined : undefined} />
+        ) : (
+          <View />
+        )}
+        <Text className="text-[10px] text-muted-foreground">
+          {note.updated_at
+            ? new Date(note.updated_at.replace(" ", "T")).toLocaleDateString()
+            : ""}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
 
 export default function NotesListScreen() {
   const { t } = useI18n();
@@ -35,7 +98,7 @@ export default function NotesListScreen() {
     }, [load])
   );
 
-  const handleNew = useCallback(async () => {
+  const handleNew = useCallback(() => {
     router.push("/(notes)/editor");
   }, [router]);
 
@@ -47,49 +110,49 @@ export default function NotesListScreen() {
     [router, haptics]
   );
 
-  const renderItem = useCallback(
-    ({ item: note }: { item: Note }) => (
-      <Pressable
-        onPress={() => handleNotePress(note)}
-        className={`rounded-xl border border-border p-4 ${getNoteColorClass(note.color, isDark)}`}
-      >
-        <View className="flex-row items-start justify-between">
-          <View className="flex-1 gap-1">
-            <Text numberOfLines={1} className="text-sm font-semibold text-foreground">
-              {note.title || t("notesUntitled")}
-            </Text>
-            <Text numberOfLines={2} className="text-xs text-muted-foreground">
-              {stripHtml(note.content) || "—"}
-            </Text>
-          </View>
-          {note.is_pinned && (
-            <Pin size={14} color={colors.mutedForeground} className="ml-2 mt-0.5" />
-          )}
-        </View>
-        <View className="mt-2 flex-row items-center justify-end">
-          <Text className="text-[10px] text-muted-foreground">
-            {note.updated_at ? new Date(note.updated_at.replace(" ", "T")).toLocaleDateString() : ""}
-          </Text>
-        </View>
-      </Pressable>
-    ),
-    [handleNotePress, isDark, colors.mutedForeground, t]
+  const pinnedNotes = useMemo(
+    () => notes.filter((n) => n.is_pinned),
+    [notes]
+  );
+  const otherNotes = useMemo(
+    () => notes.filter((n) => !n.is_pinned),
+    [notes]
   );
 
-  const keyExtractor = useCallback((item: Note) => String(item.id), []);
+  const pinnedCols = useMemo(() => splitIntoColumns(pinnedNotes, 2), [pinnedNotes]);
+  const otherCols = useMemo(() => splitIntoColumns(otherNotes, 2), [otherNotes]);
+
+  const hasPinned = pinnedNotes.length > 0;
+
+  const renderCard = useCallback(
+    (note: Note) => (
+      <NoteCard
+        key={note.id}
+        note={note}
+        isDark={isDark}
+        onPress={() => handleNotePress(note)}
+        t={t}
+      />
+    ),
+    [isDark, handleNotePress, t]
+  );
 
   return (
     <View className="flex-1 bg-background">
       <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
         {/* Header */}
         <View className="flex-row items-center justify-between">
-          <Text className="text-base font-semibold text-foreground">{t("notesTitle")}</Text>
+          <Text className="text-base font-semibold text-foreground">
+            {t("notesTitle")}
+          </Text>
           <Pressable
             onPress={handleNew}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-2"
           >
             <Plus size={14} color={colors.primaryForeground} />
-            <Text className="text-sm font-medium text-primary-foreground">{t("notesNew")}</Text>
+            <Text className="text-sm font-medium text-primary-foreground">
+              {t("notesNew")}
+            </Text>
           </Pressable>
         </View>
 
@@ -110,7 +173,7 @@ export default function NotesListScreen() {
           )}
         </View>
 
-        {/* Notes list */}
+        {/* Notes */}
         {notes.length === 0 ? (
           <View className="items-center gap-3 py-20">
             <FileText size={40} color={colors.mutedForeground} />
@@ -118,17 +181,50 @@ export default function NotesListScreen() {
               {searchQuery ? t("notesNoResults") : t("notesEmpty")}
             </Text>
             {!searchQuery && (
-              <Text className="text-xs text-muted-foreground">{t("notesEmptyHint")}</Text>
+              <Text className="text-xs text-muted-foreground">
+                {t("notesEmptyHint")}
+              </Text>
             )}
           </View>
         ) : (
-          <FlatList
-            data={notes}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            contentContainerStyle={{ gap: 8 }}
-            showsVerticalScrollIndicator={false}
-          />
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Pinned section */}
+            {hasPinned && (
+              <View className="mb-4">
+                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {t("notesPinned")}
+                </Text>
+                <View className="flex-row gap-2">
+                  {pinnedCols.map((col, i) => (
+                    <View key={i} className="flex-1">
+                      {col.map(renderCard)}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Others section */}
+            <View>
+              {hasPinned && (
+                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {t("notesOthers")}
+                </Text>
+              )}
+              {!hasPinned && (
+                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {t("notesTitle")}
+                </Text>
+              )}
+              <View className="flex-row gap-2">
+                {otherCols.map((col, i) => (
+                  <View key={i} className="flex-1">
+                    {col.map(renderCard)}
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
         )}
       </View>
     </View>

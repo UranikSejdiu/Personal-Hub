@@ -106,3 +106,25 @@ export const NOTE_COLORS = {
 } as const;
 
 export type NoteColor = keyof typeof NOTE_COLORS;
+
+export const NOTE_TEXT_COLORS = {
+  default: { light: "text-foreground", dark: "text-foreground" },
+  yellow: { light: "text-yellow-600", dark: "text-yellow-400" },
+  green: { light: "text-green-600", dark: "text-green-400" },
+  blue: { light: "text-blue-600", dark: "text-blue-400" },
+  pink: { light: "text-pink-600", dark: "text-pink-400" },
+  purple: { light: "text-purple-600", dark: "text-purple-400" },
+  orange: { light: "text-orange-600", dark: "text-orange-400" },
+  red: { light: "text-red-600", dark: "text-red-400" },
+} as const;
+
+export const NOTE_TEXT_HEX: Record<NoteColor, { light: string; dark: string }> = {
+  default: { light: "#1f2937", dark: "#e5e7eb" },
+  yellow: { light: "#ca8a04", dark: "#facc15" },
+  green: { light: "#16a34a", dark: "#4ade80" },
+  blue: { light: "#2563eb", dark: "#60a5fa" },
+  pink: { light: "#db2777", dark: "#f472b6" },
+  purple: { light: "#9333ea", dark: "#c084fc" },
+  orange: { light: "#ea580c", dark: "#fb923c" },
+  red: { light: "#dc2626", dark: "#f87171" },
+};
