@@ -11,8 +11,6 @@ import { ThemeProvider, useTheme } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
-import { loadSavingsGoal } from "../src/lib/budget";
-import { ensureMonthlyAutoDeposit } from "../src/lib/savings";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,14 +39,6 @@ function RootLayoutInner() {
     );
     return () => subscription.remove();
   }, [router, pathname, t]);
-
-  useEffect(() => {
-    loadSavingsGoal().then((sg) => {
-      if (sg.goal_amount > 0) {
-        ensureMonthlyAutoDeposit(sg.goal_amount);
-      }
-    });
-  }, []);
 
   return (
     <View

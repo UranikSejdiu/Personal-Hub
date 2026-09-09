@@ -1,5 +1,5 @@
 import SettingsScreen from "../../src/components/SettingsScreen";
 
 export default function NotesSettingsScreen() {
-  return <SettingsScreen />;
+  return <SettingsScreen activeAppId="notes" />;
 }

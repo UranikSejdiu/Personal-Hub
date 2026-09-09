@@ -1,7 +1,11 @@
-import { Tabs, useRouter, type Href } from "expo-router";
+import { useEffect } from "react";
+import { Tabs, useRouter } from "expo-router";
 import { PillNav, type PillNavTab } from "../../src/components/PillNav";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
+import { useAppSwitching } from "../../src/hooks/useAppSwitching";
+import { loadSavingsGoal } from "../../src/lib/budget";
+import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 
 const BUDGET_TABS: PillNavTab[] = [
   { id: "index", label: "Paneli", icon: "view-dashboard" },
@@ -13,12 +17,15 @@ const BUDGET_TABS: PillNavTab[] = [
 export default function BudgetLayout() {
   const router = useRouter();
   const { t } = useI18n();
+  const { handleAppSelect } = useAppSwitching("budget");
 
-  const handleAppSelect = (appId: string) => {
-    if (appId === "dhikr") router.replace("/(dhikr)" as Href);
-    else if (appId === "notes") router.replace("/(notes)" as Href);
-    else router.replace("/(budget)" as Href);
-  };
+  useEffect(() => {
+    loadSavingsGoal().then((sg) => {
+      if (sg.goal_amount > 0) {
+        ensureMonthlyAutoDeposit(sg.goal_amount);
+      }
+    });
+  }, []);
 
   return (
     <>

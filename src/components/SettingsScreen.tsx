@@ -17,6 +17,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
 import { withAlpha } from "../lib/utils";
+import { getHubRoute } from "../hub/registry";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
 
@@ -35,14 +36,18 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: stri
   information: Info,
 };
 
-const MENU_ITEMS = [
+const ALL_MENU_ITEMS = [
   { section: "general" as const, icon: "theme-light-dark" as const, labelKey: "settingsGeneral" as const },
   { section: "budget" as const, icon: "target" as const, labelKey: "settingsBudget" as const },
   { section: "backup" as const, icon: "cloud" as const, labelKey: "settingsBackupSync" as const },
   { section: "about" as const, icon: "information" as const, labelKey: "settingsAbout" as const },
 ];
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  activeAppId: string;
+}
+
+export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   const router = useRouter();
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme, accent, setAccent } = useTheme();
@@ -65,25 +70,27 @@ export default function SettingsScreen() {
         setActiveSection(null);
         return true;
       }
-      router.replace("/(budget)" as Href);
+      router.replace(getHubRoute(activeAppId) as Href);
       return true;
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
     return () => sub.remove();
-  }, [activeSection, router]);
+  }, [activeSection, router, activeAppId]);
 
   useEffect(() => {
     getHapticsEnabled().then(setHapticsOn);
-    loadSavingsGoal().then((sg) => {
-      setGoalAmount(sg.goal_amount);
-      setSalary(sg.salary);
-      goalRef.current = sg.goal_amount;
-      salaryRef.current = sg.salary;
-    });
+    if (activeAppId === "budget") {
+      loadSavingsGoal().then((sg) => {
+        setGoalAmount(sg.goal_amount);
+        setSalary(sg.salary);
+        goalRef.current = sg.goal_amount;
+        salaryRef.current = sg.salary;
+      });
+    }
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, []);
+  }, [activeAppId]);
 
   const scheduleGoalSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -175,11 +182,13 @@ export default function SettingsScreen() {
               await importBackupFromJson(json);
               toast.success(t("importSuccess"));
               setConfirmAction(null);
-              const sg = await loadSavingsGoal();
-              setGoalAmount(sg.goal_amount);
-              setSalary(sg.salary);
-              goalRef.current = sg.goal_amount;
-              salaryRef.current = sg.salary;
+              if (activeAppId === "budget") {
+                const sg = await loadSavingsGoal();
+                setGoalAmount(sg.goal_amount);
+                setSalary(sg.salary);
+                goalRef.current = sg.goal_amount;
+                salaryRef.current = sg.salary;
+              }
             } catch {
               toast.error(t("importFailed"));
               setConfirmAction(null);
@@ -203,7 +212,7 @@ export default function SettingsScreen() {
           <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
         </View>
         <View className="gap-2">
-          {MENU_ITEMS.map((item) => {
+          {ALL_MENU_ITEMS.filter((item) => item.section !== "budget" || activeAppId === "budget").map((item) => {
             const Icon = ICON_MAP[item.icon] ?? Info;
             return (
               <Pressable

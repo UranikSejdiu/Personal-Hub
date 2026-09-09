@@ -2,6 +2,7 @@ import { Tabs, useRouter } from "expo-router";
 import { PillNav, type PillNavTab } from "../../src/components/PillNav";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
+import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 
 const NOTES_TABS: PillNavTab[] = [
   { id: "index", label: "Shënimet", icon: "note-text" },
@@ -11,13 +12,7 @@ const NOTES_TABS: PillNavTab[] = [
 export default function NotesLayout() {
   const router = useRouter();
   const { t } = useI18n();
-
-  const handleAppSelect = (appId: string) => {
-    if (appId === "notes") return;
-    if (appId === "budget") router.replace("/(budget)" as any);
-    else if (appId === "dhikr") router.replace("/(dhikr)" as any);
-    else router.replace("/(notes)" as any);
-  };
+  const { handleAppSelect } = useAppSwitching("notes");
 
   return (
     <>

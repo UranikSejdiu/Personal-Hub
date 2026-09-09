@@ -2,6 +2,7 @@ import { Tabs, useRouter } from "expo-router";
 import { PillNav, type PillNavTab } from "../../src/components/PillNav";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
+import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 
 const DHIKR_TABS: PillNavTab[] = [
   { id: "index", label: "Numëruesi", icon: "star-four-points" },
@@ -12,13 +13,7 @@ const DHIKR_TABS: PillNavTab[] = [
 export default function DhikrLayout() {
   const router = useRouter();
   const { t } = useI18n();
-
-  const handleAppSelect = (appId: string) => {
-    if (appId === "dhikr") return;
-    if (appId === "budget") router.replace("/(budget)" as any);
-    else if (appId === "notes") router.replace("/(notes)" as any);
-    else router.replace("/(dhikr)" as any);
-  };
+  const { handleAppSelect } = useAppSwitching("dhikr");
 
   return (
     <>

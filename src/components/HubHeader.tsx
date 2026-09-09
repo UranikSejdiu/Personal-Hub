@@ -1,17 +1,12 @@
 import { View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Rocket } from "lucide-react-native";
-import { useRouter } from "expo-router";
-import { AppSwitcher, type AppInfo } from "./AppSwitcher";
+import { useRouter, type Href } from "expo-router";
+import { AppSwitcher } from "./AppSwitcher";
+import { HUB_APPS, getHubRoute } from "../hub/registry";
 import { useUpdate } from "../lib/UpdateContext";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
-
-const HUB_APPS: AppInfo[] = [
-  { id: "budget", titleKey: "appBudget", icon: "wallet" },
-  { id: "dhikr", titleKey: "appDhikr", icon: "star-four-points" },
-  { id: "notes", titleKey: "appNotes", icon: "note-text" },
-];
 
 interface HubHeaderProps {
   activeAppId: string;
@@ -38,7 +33,7 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
         />
         {hasUpdate ? (
           <Pressable
-            onPress={() => router.push(`/(budget)/settings` as never)}
+            onPress={() => router.push(`${getHubRoute(activeAppId)}/settings` as Href)}
             accessibilityRole="button"
             accessibilityLabel={t("newUpdateAvailable")}
             className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"
