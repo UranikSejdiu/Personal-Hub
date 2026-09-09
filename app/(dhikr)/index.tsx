@@ -222,23 +222,21 @@ export default function CounterScreen() {
           </View>
 
           {/* Main counter — vertically centered, larger */}
-          <View className="flex-1 items-center justify-center">
-            <Pressable
-              onPress={handleTap}
-              className="items-center justify-center"
-              accessibilityRole="button"
-              accessibilityLabel={t("tapToCount")}
+          <Pressable
+            onPress={handleTap}
+            className="flex-1 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel={t("tapToCount")}
+          >
+            <Text
+              className={`text-center font-extralight leading-none ${
+                limitReached ? "text-success" : "text-foreground"
+              }`}
+              style={{ fontSize: 132, letterSpacing: -2 }}
             >
-              <Text
-                className={`text-center font-extralight leading-none ${
-                  limitReached ? "text-success" : "text-foreground"
-                }`}
-                style={{ fontSize: 132, letterSpacing: -2 }}
-              >
-                {activeDhikr.total_count.toLocaleString()}
-              </Text>
-            </Pressable>
-          </View>
+              {activeDhikr.total_count.toLocaleString()}
+            </Text>
+          </Pressable>
 
           {/* Bottom: goal badge + reset */}
           <View className="items-center gap-3 pb-28">
