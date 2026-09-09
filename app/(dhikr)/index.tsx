@@ -57,6 +57,8 @@ export default function CounterScreen() {
   );
 
   const activeDhikr = dhikrs.find((d) => d.id === selectedId) ?? dhikrs[0] ?? null;
+  const activeDhikrRef = useRef(activeDhikr);
+  activeDhikrRef.current = activeDhikr;
 
   const selectDhikr = useCallback((id: number) => {
     setSelectedId(id);
@@ -68,7 +70,7 @@ export default function CounterScreen() {
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const handleTap = useCallback(() => {
-    const dhikr = activeDhikr;
+    const dhikr = activeDhikrRef.current;
     if (!dhikr) return;
 
     const limit = dhikr.daily_limit;
@@ -83,22 +85,25 @@ export default function CounterScreen() {
       return;
     }
 
-    // Optimistic update: increment UI immediately without waiting for DB.
-    const newDailyCount = dhikr.daily_count + 1;
-    const newTotalCount = dhikr.total_count + 1;
-    const hitLimit = limit != null && limit > 0 && newDailyCount >= limit;
+    let justHitLimit = false;
 
     setDhikrs((prev) =>
-      prev.map((d) =>
-        d.id === dhikr.id
-          ? { ...d, daily_count: newDailyCount, total_count: newTotalCount }
-          : d
-      )
+      prev.map((d) => {
+        if (d.id !== dhikr.id) return d;
+
+        const newDaily = d.daily_count + 1;
+        const newTotal = d.total_count + 1;
+        const atLimit = limit != null && limit > 0 && newDaily >= limit;
+
+        if (atLimit) justHitLimit = true;
+
+        return { ...d, daily_count: newDaily, total_count: newTotal };
+      })
     );
 
     haptics.light();
 
-    if (hitLimit) {
+    if (justHitLimit) {
       haptics.success();
       toast.success(t("goalComplete"));
       setShowFireworks(true);
@@ -122,7 +127,7 @@ export default function CounterScreen() {
         toast.error(t("errorLoadingData"));
       }
     });
-  }, [activeDhikr, haptics, t]);
+  }, [haptics, t]);
 
   const handleReset = useCallback(async () => {
     if (!activeDhikr) return;

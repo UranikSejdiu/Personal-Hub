@@ -89,7 +89,7 @@ export async function deleteDhikr(id: number): Promise<void> {
   await db.execute("DELETE FROM dhikrs WHERE id = ?", [id]);
 }
 
-export async function incrementDhikr(id: number): Promise<Dhikr | null> {
+export async function incrementDhikr(id: number): Promise<boolean> {
   const today = todayDate();
   const result = await db.execute(
     `UPDATE dhikrs SET
@@ -100,15 +100,7 @@ export async function incrementDhikr(id: number): Promise<Dhikr | null> {
        AND (daily_limit IS NULL OR daily_limit <= 0 OR CASE WHEN last_reset_date < ? THEN 0 ELSE daily_count END < daily_limit)`,
     [today, today, id, today]
   );
-  if (result.changes === 0) {
-    return null;
-  }
-  const row = await db.get<Record<string, unknown>>(
-    "SELECT * FROM dhikrs WHERE id = ?",
-    [id]
-  );
-  if (!row) return null;
-  return toDhikr(row);
+  return result.changes > 0;
 }
 
 export async function resetDhikr(id: number): Promise<void> {
