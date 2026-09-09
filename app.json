@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.uranik.offlinehub",
-      "versionCode": 53,
+      "versionCode": 54,
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/android-icon-foreground.png"
