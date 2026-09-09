@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download } from "lucide-react-native";
+import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen } from "lucide-react-native";
 import { useRouter, type Href } from "expo-router";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
@@ -18,6 +18,7 @@ import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
 import { withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
+import { setTutorialSeen } from "../lib/tutorial";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
 
@@ -353,8 +354,28 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                    onValueChange={toggleHaptics}
                    trackColor={{ false: colors.muted, true: colors.primary }}
                  />
-              </View>
+               </View>
             </View>
+
+            <Pressable
+              onPress={async () => {
+                haptics.light();
+                await setTutorialSeen(false);
+                router.replace("/(tutorial)" as Href);
+              }}
+              className="rounded-xl border border-border bg-card p-4"
+              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+              accessibilityRole="button"
+              accessibilityLabel={t("tutorialShowAgain")}
+            >
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-3">
+                  <BookOpen size={20} color={colors.foreground} />
+                  <Text className="text-sm font-medium text-foreground">{t("tutorialShowAgain")}</Text>
+                </View>
+                <ChevronRight size={20} color={colors.mutedForeground} />
+              </View>
+            </Pressable>
           </View>
         )}
 

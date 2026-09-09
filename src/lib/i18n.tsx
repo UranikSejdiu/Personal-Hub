@@ -332,6 +332,25 @@ const dict = {
 
     filterAll: "Të gjitha",
     importConfirmMessage: "Kjo do të zëvendësojë të gjitha të dhënat aktuale me kopjen e rezervuar. Doni të vazhdoni?",
+
+    tutorialWelcome: "Mirë se vini në Personal Hub",
+    tutorialWelcomeDesc: "Paneli juaj personal gjithçka-në-një.",
+    tutorialDashboard: "Paneli Mujor",
+    tutorialDashboardDesc: "Ndjekni të ardhurat vs shpenzimet çdo muaj. Shtypni për të parë detajet.",
+    tutorialSavings: "Gjurmuesi i Kursimeve",
+    tutorialSavingsDesc: "Vendosni një qëllim kursimi, regjistroni depozitat dhe blerjet, shikoni përparimin.",
+    tutorialLoans: "Kredi & Kartela",
+    tutorialLoansDesc: "Menaxhoni kreditë dhe kartelat me llogaritje automatike të pagesave.",
+    tutorialDhikr: "Numëruesi i Dhikrit",
+    tutorialDhikrDesc: "Shtypni për të numëruar përkujtimin tuaj ditor. Vendosni qëllime dhe fitoni fishekzjarre.",
+    tutorialNotes: "Shënimet",
+    tutorialNotesDesc: "Shkruani shënime me tekst të pasur, ngjyra, fiksim dhe kërkim.",
+    tutorialSettings: "Konfigurimet",
+    tutorialSettingsDesc: "Personalizoni temën, ngjyrën, gjuhën dhe rezervoni të dhënat tuaja.",
+    tutorialGetStarted: "Fillo",
+    tutorialNext: "Tjetër →",
+    tutorialSkip: "Kalo",
+    tutorialShowAgain: "Shfaq Udhëzuesin",
   },
 
   en: {
@@ -650,6 +669,25 @@ const dict = {
 
     filterAll: "All",
     importConfirmMessage: "This will replace all current data with the backup. Continue?",
+
+    tutorialWelcome: "Welcome to Personal Hub",
+    tutorialWelcomeDesc: "Your all-in-one personal dashboard.",
+    tutorialDashboard: "Monthly Dashboard",
+    tutorialDashboardDesc: "Track your income vs expenses each month. Tap to expand details.",
+    tutorialSavings: "Savings Tracker",
+    tutorialSavingsDesc: "Set a savings goal, log deposits and purchases, watch your progress.",
+    tutorialLoans: "Loans & Credit Cards",
+    tutorialLoansDesc: "Manage loans and credit cards with auto-calculated payments.",
+    tutorialDhikr: "Dhikr Counter",
+    tutorialDhikrDesc: "Tap to count your daily remembrance. Set goals and earn fireworks.",
+    tutorialNotes: "Notes",
+    tutorialNotesDesc: "Write rich-text notes with colors, pinning, and search.",
+    tutorialSettings: "Settings",
+    tutorialSettingsDesc: "Customize your theme, accent color, language, and backup your data.",
+    tutorialGetStarted: "Get Started",
+    tutorialNext: "Next →",
+    tutorialSkip: "Skip",
+    tutorialShowAgain: "Show Tutorial",
   },
 } as const;
 

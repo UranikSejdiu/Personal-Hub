@@ -47,6 +47,7 @@ function RootLayoutInner() {
     >
       <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tutorial)" />
         <Stack.Screen name="(budget)" />
         <Stack.Screen name="(dhikr)" />
         <Stack.Screen name="(notes)" />
