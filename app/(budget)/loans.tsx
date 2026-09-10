@@ -31,7 +31,7 @@ export default function LoansScreen() {
       .then((l) => { if (!cancelled) setLoans(l); })
       .catch(() => { if (!cancelled) toast.error(t("errorLoadingData")); });
     return () => { cancelled = true; };
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -47,7 +47,7 @@ export default function LoansScreen() {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch {
-      toast.error(t("errorLoadingData"));
+      toast.error(t("saveFailed"));
     }
   }, [loans, haptics, t]);
 

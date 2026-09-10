@@ -24,3 +24,14 @@ export async function setSelectedDhikrId(id: number | null): Promise<void> {
     /* ignore persistence failures */
   }
 }
+
+export async function clearSelectedDhikrIdIfMissing(validIds: number[]): Promise<void> {
+  try {
+    const currentId = await getSelectedDhikrId();
+    if (currentId != null && !validIds.includes(currentId)) {
+      await setSelectedDhikrId(validIds.length > 0 ? validIds[0] : null);
+    }
+  } catch {
+    /* ignore */
+  }
+}

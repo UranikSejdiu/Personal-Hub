@@ -5,8 +5,8 @@ import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 
 const NOTES_TABS: PillNavTab[] = [
-  { id: "index", label: "Shënimet", icon: "note-text" },
-  { id: "settings", label: "Konfigurimet", icon: "cog" },
+  { id: "index", label: "Notes", icon: "note-text" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export default function NotesLayout() {

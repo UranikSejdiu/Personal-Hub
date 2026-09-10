@@ -1,4 +1,5 @@
 import { Pressable, Text, Modal, View } from "react-native";
+import { useState } from "react";
 import { X } from "lucide-react-native";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
@@ -28,13 +29,22 @@ export function ConfirmDialog({
   const haptics = useHaptics();
   const colors = useThemeColors();
   const { t } = useI18n();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const resolvedConfirmLabel = confirmLabel ?? t("confirm");
   const resolvedCancelLabel = cancelLabel ?? t("cancel");
 
-  const handleConfirm = () => {
-    void (destructive ? haptics.warning() : haptics.light());
-    void onConfirm();
+  const handleConfirm = async () => {
+    if (isConfirming) return;
+    setIsConfirming(true);
+    try {
+      void (destructive ? haptics.warning() : haptics.light());
+      await onConfirm();
+    } catch {
+      // Error already handled by caller
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   return (
@@ -72,14 +82,16 @@ export function ConfirmDialog({
               onPress={onClose}
               className="px-4 py-2"
               accessibilityRole="button"
+              disabled={isConfirming}
             >
               <Text className="text-sm font-medium text-muted-foreground">
                 {resolvedCancelLabel}
               </Text>
             </Pressable>
             <Pressable
-              onPress={handleConfirm}
-              className={`rounded-lg px-4 py-2 ${destructive ? "bg-destructive" : "bg-primary"}`}
+              onPress={() => void handleConfirm()}
+              disabled={isConfirming}
+              className={`rounded-lg px-4 py-2 ${destructive ? "bg-destructive" : "bg-primary"} ${isConfirming ? "opacity-60" : ""}`}
               accessibilityRole="button"
             >
               <Text

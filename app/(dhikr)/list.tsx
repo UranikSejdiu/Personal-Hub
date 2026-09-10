@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
 } from "../../src/lib/dhikr";
 import {
   setSelectedDhikrId,
+  clearSelectedDhikrIdIfMissing,
 } from "../../src/lib/dhikrSelection";
 import { DhikrModal } from "../../src/components/DhikrModal";
 import { useThemeColors } from "../../src/lib/theme";
@@ -151,7 +152,7 @@ export default function DhikrListScreen() {
   const [modal, setModal] = useState<ModalState>({ visible: false });
 
   const refresh = useCallback(() => {
-    void loadDhikrs().then(setDhikrs);
+    void loadDhikrs().then(setDhikrs).catch(() => {});
   }, []);
 
   useFocusEffect(
@@ -190,7 +191,11 @@ export default function DhikrListScreen() {
             onPress: async () => {
               try {
                 await deleteDhikr(dhikr.id);
-                setDhikrs((prev) => prev.filter((d) => d.id !== dhikr.id));
+                setDhikrs((prev) => {
+                  const remaining = prev.filter((d) => d.id !== dhikr.id);
+                  void clearSelectedDhikrIdIfMissing(remaining.map((d) => d.id));
+                  return remaining;
+                });
               } catch {
                 toast.error(t("errorDeletingDhikr"));
               }
@@ -233,7 +238,7 @@ export default function DhikrListScreen() {
     [colors, handleDelete, handleEdit, handleSelect, t]
   );
 
-  const listHeader = (
+  const listHeader = useMemo(() => (
     <View className="flex-row items-center justify-between mb-3">
       <Text className="text-xl font-bold text-foreground">
         {t("myDhikrs")}
@@ -248,7 +253,7 @@ export default function DhikrListScreen() {
         </Text>
       </Pressable>
     </View>
-  );
+  ), [t, handleAdd, colors.primaryForeground]);
 
   const listEmpty = (
     <View className="items-center gap-2 py-12">
@@ -271,7 +276,6 @@ export default function DhikrListScreen() {
         if (modal.mode === "add") {
           setDhikrs((prev) => [...prev, d]);
           void haptics.light();
-          void router.push("/(dhikr)");
         } else {
           setDhikrs((prev) =>
             prev.map((item) => (item.id === d.id ? d : item))

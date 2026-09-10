@@ -20,11 +20,13 @@ export default function BudgetLayout() {
   const { handleAppSelect } = useAppSwitching("budget");
 
   useEffect(() => {
-    loadSavingsGoal().then((sg) => {
-      if (sg.goal_amount > 0) {
-        ensureMonthlyAutoDeposit(sg.goal_amount);
-      }
-    });
+    void loadSavingsGoal()
+      .then((sg) => {
+        if (sg.goal_amount > 0) {
+          void ensureMonthlyAutoDeposit(sg.goal_amount);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   return (

@@ -21,6 +21,7 @@ import {
   saveBudget,
   type MonthSummary,
 } from "../../src/lib/budget";
+import { withTransaction } from "../../src/lib/db";
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
@@ -88,10 +89,12 @@ export default function DashboardScreen() {
     const month = monthToDelete;
     setMonthToDelete(null);
     try {
-      const budget = await loadBudget(month);
-      if (budget?.loan_paid) await incrementLoanMonthsPaid(-1);
-      if (budget?.cc_paid) await incrementCcMonthsPaid(-1);
-      await deleteBudget(month);
+      await withTransaction(async () => {
+        const budget = await loadBudget(month);
+        if (budget?.loan_paid) await incrementLoanMonthsPaid(-1);
+        if (budget?.cc_paid) await incrementCcMonthsPaid(-1);
+        await deleteBudget(month);
+      });
       await refresh();
       haptics.success();
     } catch {

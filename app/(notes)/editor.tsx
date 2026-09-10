@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
@@ -47,6 +47,7 @@ export default function NotesEditorScreen() {
 
   // Track whether any content has been changed since load
   const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
 
@@ -139,6 +140,8 @@ export default function NotesEditorScreen() {
   }, [router]);
 
   const handleSave = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       const html = await editorRef.current?.getHTML();
       const finalContent = html ?? contentHtml;
@@ -153,8 +156,10 @@ export default function NotesEditorScreen() {
       router.back();
     } catch {
       toast.error(t("saveFailed"));
+    } finally {
+      setIsSaving(false);
     }
-  }, [noteId, title, contentHtml, color, isPinned, router, haptics, t]);
+  }, [isSaving, noteId, title, contentHtml, color, isPinned, router, haptics, t]);
 
   const handleDelete = useCallback(() => {
     if (!noteId) return;
@@ -170,7 +175,7 @@ export default function NotesEditorScreen() {
       allowRemoveRef.current = true;
       router.back();
     } catch {
-      toast.error(t("saveFailed"));
+      toast.error(t("deleteFailed"));
     }
   }, [noteId, router, haptics, t]);
 
@@ -183,6 +188,24 @@ export default function NotesEditorScreen() {
     setEditorState(e.nativeEvent);
     setIsDirty(true);
   }, []);
+
+  const editorStyle = useMemo(() => ({
+    minHeight: 200,
+    padding: 16,
+    fontSize: 14,
+    color: isDark ? NOTE_TEXT_HEX[color].dark : NOTE_TEXT_HEX[color].light,
+  }), [color, isDark]);
+
+  const colorLabels = useMemo(() => ({
+    default: t("notesColorDefault"),
+    yellow: t("notesColorYellow"),
+    green: t("notesColorGreen"),
+    blue: t("notesColorBlue"),
+    pink: t("notesColorPink"),
+    purple: t("notesColorPurple"),
+    orange: t("notesColorOrange"),
+    red: t("notesColorRed"),
+  }), [t]);
 
   if (loading) {
     return (
@@ -250,7 +273,7 @@ export default function NotesEditorScreen() {
                     } ${getNoteColorClass(c, isDark)}`}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: color === c }}
-                    accessibilityLabel={c}
+                    accessibilityLabel={colorLabels[c]}
                   />
                 ))}
               </View>
@@ -274,12 +297,7 @@ export default function NotesEditorScreen() {
                   placeholderTextColor={colors.mutedForeground}
                   onChangeState={handleEditorStateChange}
                   scrollEnabled={false}
-                  style={{
-                    minHeight: 200,
-                    padding: 16,
-                    fontSize: 14,
-                    color: isDark ? NOTE_TEXT_HEX[color].dark : NOTE_TEXT_HEX[color].light,
-                  }}
+                  style={editorStyle}
                 />
               </View>
             </View>

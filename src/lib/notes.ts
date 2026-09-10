@@ -4,6 +4,12 @@ import { type Note } from "../types/notes";
 
 export type { Note };
 
+const VALID_NOTE_COLORS: NoteColor[] = ["default", "yellow", "green", "blue", "pink", "purple", "orange", "red"];
+
+function isValidNoteColor(color: string): color is NoteColor {
+  return (VALID_NOTE_COLORS as string[]).includes(color);
+}
+
 export function getNoteColorClass(color: NoteColor, isDark: boolean): string {
   const entry = NOTE_COLORS[color];
   if (!entry) return "bg-card";
@@ -30,14 +36,15 @@ export function stripHtml(html: string): string {
 }
 
 function toNote(row: Record<string, unknown>): Note {
+  const rawColor = String(row.color ?? "default");
   return {
     id: Number(row.id),
-    title: String(row.title),
-    content: String(row.content),
+    title: String(row.title ?? ""),
+    content: String(row.content ?? ""),
     is_pinned: Number(row.is_pinned) === 1,
-    color: (String(row.color) as NoteColor) || "default",
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
+    color: isValidNoteColor(rawColor) ? rawColor : "default",
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
   };
 }
 
@@ -54,26 +61,27 @@ let backfillPromise: Promise<void> | null = null;
 async function ensurePlainTextBackfill(): Promise<void> {
   if (backfillPromise) return backfillPromise;
   backfillPromise = (async () => {
-    const rows = await db.query<Record<string, unknown>>(
-      "SELECT id, content FROM notes WHERE plain_text = '' AND content != ''"
-    );
-    for (const row of rows) {
-      const plain = stripHtml(String(row.content));
-      await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
-        plain,
-        Number(row.id),
-      ]);
+    try {
+      const rows = await db.query<Record<string, unknown>>(
+        "SELECT id, content FROM notes WHERE plain_text = '' AND content != ''"
+      );
+      for (const row of rows) {
+        const plain = stripHtml(String(row.content));
+        await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
+          plain,
+          Number(row.id),
+        ]);
+      }
+    } catch (error) {
+      backfillPromise = null;
+      throw error;
     }
   })();
-  try {
-    await backfillPromise;
-  } catch {
-    backfillPromise = null;
-    throw new Error("Failed to backfill note search content.");
-  }
+  return backfillPromise;
 }
 
 export async function searchNotes(query: string): Promise<Note[]> {
+  await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
   const pattern = `%${normalized}%`;
   const rows = await db.query<Record<string, unknown>>(

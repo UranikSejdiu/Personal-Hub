@@ -39,16 +39,20 @@ export default function CounterScreen() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const rows = await loadDhikrs();
-    setDhikrs(rows);
-    const savedId = await getSelectedDhikrId();
-    if (rows.length > 0) {
-      const valid = savedId != null && rows.some((d) => d.id === savedId);
-      setSelectedId(valid ? savedId! : rows[0].id);
-    } else {
-      setSelectedId(null);
+    try {
+      const rows = await loadDhikrs();
+      setDhikrs(rows);
+      const savedId = await getSelectedDhikrId();
+      if (rows.length > 0) {
+        const valid = savedId != null && rows.some((d) => d.id === savedId);
+        setSelectedId(valid ? savedId! : rows[0].id);
+      } else {
+        setSelectedId(null);
+      }
+    } catch {
+      toast.error(t("errorLoadingData"));
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,7 +89,7 @@ export default function CounterScreen() {
       return;
     }
 
-    let justHitLimit = false;
+    let hitLimit = false;
 
     setDhikrs((prev) =>
       prev.map((d) => {
@@ -95,7 +99,7 @@ export default function CounterScreen() {
         const newTotal = d.total_count + 1;
         const atLimit = limit != null && limit > 0 && newDaily >= limit;
 
-        if (atLimit) justHitLimit = true;
+        if (atLimit) hitLimit = true;
 
         return { ...d, daily_count: newDaily, total_count: newTotal };
       })
@@ -103,7 +107,7 @@ export default function CounterScreen() {
 
     haptics.light();
 
-    if (justHitLimit) {
+    if (hitLimit) {
       haptics.success();
       toast.success(t("goalComplete"));
       setShowFireworks(true);
@@ -116,11 +120,11 @@ export default function CounterScreen() {
       try {
         await incrementDhikr(dhikr.id);
       } catch {
-        // Revert optimistic update on failure.
+        // Revert optimistic update on failure using functional state to avoid race conditions.
         setDhikrs((prev) =>
           prev.map((d) =>
             d.id === dhikr.id
-              ? { ...d, daily_count: dhikr.daily_count, total_count: dhikr.total_count }
+              ? { ...d, daily_count: d.daily_count - 1, total_count: d.total_count - 1 }
               : d
           )
         );

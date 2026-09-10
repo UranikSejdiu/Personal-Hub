@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -12,6 +12,7 @@ import {
 } from "../../src/lib/notes";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
+import { toast } from "sonner-native";
 
 function splitIntoColumns(items: Note[], count: number): Note[][] {
   const cols: Note[][] = Array.from({ length: count }, () => []);
@@ -34,6 +35,7 @@ function NoteCard({
   t: (key: TKey) => string;
 }) {
   const textColorClass = getNoteTextColorClass(note.color, isDark);
+  const colors = useThemeColors();
 
   return (
     <Pressable
@@ -56,7 +58,7 @@ function NoteCard({
       </Text>
       <View className="mt-2 flex-row items-center justify-between">
         {note.is_pinned ? (
-          <Pin size={12} color={textColorClass.includes("foreground") ? undefined : undefined} />
+          <Pin size={12} color={colors.mutedForeground} />
         ) : (
           <View />
         )}
@@ -79,18 +81,33 @@ export default function NotesListScreen() {
   const isDark = theme === "dark";
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
-    if (searchQuery.trim()) {
-      setNotes(await searchNotes(searchQuery.trim()));
-    } else {
-      setNotes(await loadNotes());
+  const load = useCallback(async (query?: string) => {
+    try {
+      setLoadError(null);
+      const q = query ?? searchQuery;
+      if (q.trim()) {
+        setNotes(await searchNotes(q.trim()));
+      } else {
+        setNotes(await loadNotes());
+      }
+    } catch {
+      setNotes([]);
+      setLoadError("Failed to load notes");
     }
   }, [searchQuery]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const debouncedSearch = useCallback(
+    (query: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void load(query);
+      }, 300);
+    },
+    [load]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -161,7 +178,10 @@ export default function NotesListScreen() {
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={(v) => {
+              setSearchQuery(v);
+              debouncedSearch(v);
+            }}
             placeholder={t("notesSearchPlaceholder")}
             placeholderTextColor={colors.mutedForeground}
             className="flex-1 text-sm text-foreground"

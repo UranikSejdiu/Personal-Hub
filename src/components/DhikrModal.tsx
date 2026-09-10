@@ -74,7 +74,7 @@ export function DhikrModal({ mode, dhikr, onClose, onSave, haptics }: Props) {
           </View>
 
           {error ? (
-            <Text className="mt-2 text-sm text-red-500">{error}</Text>
+            <Text className="mt-2 text-sm text-destructive">{error}</Text>
           ) : null}
 
           <View className="mt-4 gap-4">

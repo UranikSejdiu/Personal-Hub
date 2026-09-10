@@ -112,12 +112,13 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       }
     }
 
-    db = database;
     return database;
   })();
 
   try {
-    return await initPromise;
+    const database = await initPromise;
+    db = database;
+    return database;
   } catch (error) {
     initPromise = null;
     throw error;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Alert, BackHandler, View } from "react-native";
+import { Alert, BackHandler, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
@@ -70,12 +70,19 @@ export default function RootLayout() {
     "Urbanist-Bold": require("../assets/fonts/Urbanist-Bold.ttf"),
   });
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await initDatabase();
-      if (!cancelled) setDbReady(true);
+      try {
+        await initDatabase();
+        if (!cancelled) setDbReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          setDbError(err instanceof Error ? err.message : "Database initialization failed");
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -87,6 +94,31 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, dbReady]);
+
+  if (dbError) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <Text style={{ fontSize: 16, fontWeight: "600", marginBottom: 8, textAlign: "center" }}>
+          Failed to initialize database
+        </Text>
+        <Text style={{ fontSize: 14, color: "#888", marginBottom: 16, textAlign: "center" }}>
+          {dbError}
+        </Text>
+        <Pressable
+          onPress={() => {
+            setDbError(null);
+            setDbReady(false);
+            void initDatabase()
+              .then(() => setDbReady(true))
+              .catch((err) => setDbError(err instanceof Error ? err.message : "Database initialization failed"));
+          }}
+          style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#007AFF", borderRadius: 8 }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!fontsLoaded || !dbReady) {
     return null;

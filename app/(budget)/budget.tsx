@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Keyboard } from "react-native";
+import { View, Text, ScrollView, Keyboard, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
@@ -43,6 +43,7 @@ export default function BudgetScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [hasPreviousBudget, setHasPreviousBudget] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savingsGoal, setSavingsGoal] = useState(0);
@@ -63,10 +64,13 @@ export default function BudgetScreen() {
   useEffect(() => {
     if (prevMonthRef.current === month) return;
     prevMonthRef.current = month;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     budgetIdRef.current = null;
     salaryRef.current = 0;
     persistedRef.current = "";
-    saveTimerRef.current = null;
     pendingSaveRef.current = null;
     setSavingsGoal(0);
   }, [month]);
@@ -112,17 +116,19 @@ export default function BudgetScreen() {
       b ? b.loan_paid : false,
       b ? b.cc_paid : false,
     ]);
+    setLoadError(null);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         await loadData(month);
         if (cancelled) return;
       } catch {
-        if (!cancelled) toast.error(t("errorLoadingData"));
+        if (!cancelled) setLoadError(t("errorLoadingData"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -207,11 +213,15 @@ export default function BudgetScreen() {
 
   const handleIncomeChange = useCallback(
     async (v: number) => {
-      await ensureBudget();
-      setBudget((prev) => (prev ? { ...prev, income: v } : prev));
-      scheduleSave();
+      try {
+        await ensureBudget();
+        setBudget((prev) => (prev ? { ...prev, income: v } : prev));
+        scheduleSave();
+      } catch {
+        toast.error(t("saveFailed"));
+      }
     },
-    [ensureBudget, scheduleSave]
+    [ensureBudget, scheduleSave, t]
   );
 
   const handleLoanToggle = useCallback(async () => {
@@ -249,12 +259,16 @@ export default function BudgetScreen() {
   }, [budget, ensureBudget, scheduleSave, t, haptics]);
 
   const handleAddExpense = useCallback(async () => {
-    const b = await ensureBudget();
-    await addExpense(b.id, "", 0, false);
-    const exps = await listExpenses(b.id);
-    setExpenses(exps);
-    void haptics.light();
-  }, [ensureBudget, haptics]);
+    try {
+      const b = await ensureBudget();
+      await addExpense(b.id, "", 0, false);
+      const exps = await listExpenses(b.id);
+      setExpenses(exps);
+      void haptics.light();
+    } catch {
+      toast.error(t("errorUpdatingExpense"));
+    }
+  }, [ensureBudget, haptics, t]);
 
   const handleUpdateExpense = useCallback(
     async (id: number, fields: Partial<Pick<Expense, "category" | "amount" | "paid">>) => {
@@ -308,22 +322,28 @@ export default function BudgetScreen() {
   );
 
   const handleRemoveExpense = useCallback(async (id: number) => {
-    const exp = expenses.find((e) => e.id === id);
     try {
-      if (exp?.is_recurring) {
-        const templates = await listRecurringExpenses();
-        const match = templates.find(
-          (x) => x.category === exp.category && x.amount === exp.amount
-        );
-        if (match) await removeRecurringExpense(match.id);
-      }
+      setExpenses((prev) => {
+        const exp = prev.find((e) => e.id === id);
+        if (exp?.is_recurring) {
+          void (async () => {
+            try {
+              const templates = await listRecurringExpenses();
+              const match = templates.find(
+                (x) => x.category === exp.category && x.amount === exp.amount
+              );
+              if (match) await removeRecurringExpense(match.id);
+            } catch {}
+          })();
+        }
+        return prev.filter((e) => e.id !== id);
+      });
       await removeExpense(id);
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
       void haptics.warning();
     } catch {
       toast.error(t("errorRemovingExpense"));
     }
-  }, [expenses, t, haptics]);
+  }, [t, haptics]);
 
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;
@@ -347,6 +367,33 @@ export default function BudgetScreen() {
   }, [month, previousMonth, previousMonthLabel, loading, t, haptics]);
 
   if (loading || !loans || !budget) {
+    if (loadError) {
+      return (
+        <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
+          <View className="w-full max-w-md self-center items-center gap-4 p-4 pb-28 pt-20">
+            <Text className="text-center text-sm text-destructive">{loadError}</Text>
+            <Pressable
+              onPress={() => {
+                setLoadError(null);
+                setLoading(true);
+                void (async () => {
+                  try {
+                    await loadData(month);
+                  } catch {
+                    setLoadError(t("errorLoadingData"));
+                  } finally {
+                    setLoading(false);
+                  }
+                })();
+              }}
+              className="rounded-lg bg-primary px-4 py-2"
+            >
+              <Text className="text-sm font-medium text-primary-foreground">{t("retry")}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      );
+    }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">

@@ -49,12 +49,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: ThemeName) => {
     setThemeState(next);
-    SecureStore.setItem(THEME_KEY, next);
+    Promise.resolve(SecureStore.setItem(THEME_KEY, next)).catch(() => {});
   }, []);
 
   const setAccent = useCallback((next: AccentName) => {
     setAccentState(next);
-    SecureStore.setItem(ACCENT_KEY, next);
+    Promise.resolve(SecureStore.setItem(ACCENT_KEY, next)).catch(() => {});
   }, []);
 
   const resolvedTheme: "light" | "dark" =

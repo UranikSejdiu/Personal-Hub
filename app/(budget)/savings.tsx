@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from "react-native";
 import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "lucide-react-native";
 import { toast } from "sonner-native";
@@ -20,11 +20,15 @@ import {
   type TransactionUpdate,
 } from "../../src/lib/savings";
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
-import { todayDate } from "../../src/lib/dhikr";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
+
+function todayDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 interface SavingsEntry {
   id: string;
@@ -66,6 +70,9 @@ export default function SavingsScreen() {
   const [saving, setSaving] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
+
   const loadData = useCallback(async () => {
     const [sg, ads, txs, sum] = await Promise.all([
       loadSavingsGoal(),
@@ -89,14 +96,14 @@ export default function SavingsScreen() {
       id: `tx:${tx.id}`,
       kind: "tx" as const,
       type: tx.type,
-      description: tx.description || t("transaction"),
+      description: tx.description || tRef.current("transaction"),
       amount: tx.amount,
       date: tx.date,
       rawTx: tx,
     }));
     const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
     setEntries(merged);
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     void loadData();
