@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
@@ -35,6 +36,7 @@ export default function NotesEditorScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const isDark = theme === "dark";
+  const insets = useSafeAreaInsets();
   const editorRef = useRef<EnrichedTextInputInstance>(null);
 
   const [noteId, setNoteId] = useState<number | null>(id ? Number(id) : null);
@@ -189,6 +191,10 @@ export default function NotesEditorScreen() {
     setIsDirty(true);
   }, []);
 
+  const handleTextChange = useCallback(() => {
+    setIsDirty(true);
+  }, []);
+
   const editorStyle = useMemo(() => ({
     minHeight: 200,
     padding: 16,
@@ -219,8 +225,8 @@ export default function NotesEditorScreen() {
     <>
       <KeyboardAvoidingView
         className="flex-1 bg-background"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={90}
+        behavior="padding"
+        keyboardVerticalOffset={insets.top}
       >
         <View className="flex-1 bg-background">
           <RichTextToolbar
@@ -236,7 +242,7 @@ export default function NotesEditorScreen() {
             onCheckboxList={() => editorRef.current?.toggleCheckboxList(false)}
           />
 
-          <ScrollView className="flex-1 bg-background">
+          <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag">
             <View className="w-full max-w-md self-center gap-4 p-4 pb-8">
               {/* Header */}
               <View className="flex-row items-center justify-between">
@@ -296,8 +302,17 @@ export default function NotesEditorScreen() {
                   placeholder={t("notesContentPlaceholder")}
                   placeholderTextColor={colors.mutedForeground}
                   onChangeState={handleEditorStateChange}
+                  onChangeText={handleTextChange}
                   scrollEnabled={false}
                   style={editorStyle}
+                  htmlStyle={{
+                    ulCheckbox: {
+                      boxSize: 18,
+                      gapWidth: 10,
+                      marginLeft: 8,
+                      boxColor: isDark ? "#888" : "#555",
+                    },
+                  }}
                 />
               </View>
             </View>

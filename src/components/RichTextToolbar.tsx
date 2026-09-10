@@ -61,7 +61,7 @@ export function RichTextToolbar({
 
   return (
     <View className="border-t border-border bg-card px-2 py-2">
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4, flexGrow: 1, justifyContent: "center" }}>
         {buttons.map((btn, i) => {
           const active = state ? btn.isActive(state) : false;
           const blocked = state ? btn.isBlocked(state) : false;

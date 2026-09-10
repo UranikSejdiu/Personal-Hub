@@ -1,15 +1,16 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
+import { EnrichedText } from "react-native-enriched-html";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useI18n, type TKey } from "../../src/lib/i18n";
 import {
   loadNotes,
   searchNotes,
   getNoteTextColorClass,
-  stripHtml,
   type Note,
 } from "../../src/lib/notes";
+import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { toast } from "sonner-native";
@@ -50,12 +51,23 @@ function NoteCard({
           {note.title}
         </Text>
       ) : null}
-      <Text
-        numberOfLines={5}
-        className={`mt-1 text-xs leading-relaxed ${textColorClass}`}
-      >
-        {stripHtml(note.content) || "—"}
-      </Text>
+      {note.content ? (
+        <EnrichedText
+          numberOfLines={3}
+          ellipsizeMode="tail"
+          useHtmlNormalizer={false}
+          style={{
+            marginTop: 4,
+            fontSize: 12,
+            lineHeight: 18,
+            color: isDark ? NOTE_TEXT_HEX[note.color]?.dark : NOTE_TEXT_HEX[note.color]?.light,
+          }}
+        >
+          {note.content}
+        </EnrichedText>
+      ) : (
+        <Text className="mt-1 text-xs text-muted-foreground">—</Text>
+      )}
       <View className="mt-2 flex-row items-center justify-between">
         {note.is_pinned ? (
           <Pin size={12} color={colors.mutedForeground} />
