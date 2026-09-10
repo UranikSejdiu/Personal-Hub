@@ -3,11 +3,12 @@ import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { EnrichedText } from "react-native-enriched-html";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useI18n, type TKey } from "../../src/lib/i18n";
+import { useI18n } from "../../src/lib/i18n";
 import {
   loadNotes,
   searchNotes,
   getNoteTextColorClass,
+  getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
 import { NOTE_TEXT_HEX } from "../../src/constants/theme";
@@ -28,25 +29,29 @@ function NoteCard({
   note,
   isDark,
   onPress,
-  t,
 }: {
   note: Note;
   isDark: boolean;
   onPress: () => void;
-  t: (key: TKey) => string;
 }) {
   const textColorClass = getNoteTextColorClass(note.color, isDark);
   const colors = useThemeColors();
+  const bgColorClass = getNoteColorClass(note.color, isDark);
 
   return (
     <Pressable
       onPress={onPress}
-      className="mb-2 rounded-xl border border-border bg-card p-3"
+      className={`relative mb-2 rounded-lg border border-border/50 p-3 ${bgColorClass}`}
     >
+      {note.is_pinned ? (
+        <View className="absolute top-2 right-2">
+          <Pin size={12} color={colors.mutedForeground} />
+        </View>
+      ) : null}
       {note.title ? (
         <Text
           numberOfLines={2}
-          className={`text-sm font-semibold ${textColorClass}`}
+          className={`text-base font-medium ${textColorClass}`}
         >
           {note.title}
         </Text>
@@ -57,29 +62,23 @@ function NoteCard({
           ellipsizeMode="tail"
           useHtmlNormalizer={false}
           style={{
-            marginTop: 4,
-            fontSize: 12,
+            marginTop: 6,
+            fontSize: 13,
             lineHeight: 18,
             color: isDark ? NOTE_TEXT_HEX[note.color]?.dark : NOTE_TEXT_HEX[note.color]?.light,
+          }}
+          htmlStyle={{
+            ulCheckbox: {
+              boxSize: 18,
+              gapWidth: 10,
+              marginLeft: 8,
+              boxColor: isDark ? "#888" : "#555",
+            },
           }}
         >
           {note.content}
         </EnrichedText>
-      ) : (
-        <Text className="mt-1 text-xs text-muted-foreground">—</Text>
-      )}
-      <View className="mt-2 flex-row items-center justify-between">
-        {note.is_pinned ? (
-          <Pin size={12} color={colors.mutedForeground} />
-        ) : (
-          <View />
-        )}
-        <Text className="text-[10px] text-muted-foreground">
-          {note.updated_at
-            ? new Date(note.updated_at.replace(" ", "T")).toLocaleDateString()
-            : ""}
-        </Text>
-      </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -160,10 +159,9 @@ export default function NotesListScreen() {
         note={note}
         isDark={isDark}
         onPress={() => handleNotePress(note)}
-        t={t}
       />
     ),
-    [isDark, handleNotePress, t]
+    [isDark, handleNotePress]
   );
 
   return (
@@ -186,7 +184,7 @@ export default function NotesListScreen() {
         </View>
 
         {/* Search */}
-        <View className="flex-row items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <View className="flex-row items-center gap-2 rounded-full bg-muted px-4 py-2.5">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -223,7 +221,7 @@ export default function NotesListScreen() {
             {/* Pinned section */}
             {hasPinned && (
               <View className="mb-4">
-                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {t("notesPinned")}
                 </Text>
                 <View className="flex-row gap-2">
@@ -239,12 +237,12 @@ export default function NotesListScreen() {
             {/* Others section */}
             <View>
               {hasPinned && (
-                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {t("notesOthers")}
                 </Text>
               )}
               {!hasPinned && (
-                <Text className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {t("notesTitle")}
                 </Text>
               )}

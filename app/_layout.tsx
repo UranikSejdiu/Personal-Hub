@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Alert, BackHandler, Pressable, Text, View } from "react-native";
+import { BackHandler, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
@@ -11,6 +11,7 @@ import { ThemeProvider, useTheme } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
+import { ConfirmDialog } from "../src/components/ConfirmDialog";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -19,6 +20,7 @@ function RootLayoutInner() {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -26,19 +28,12 @@ function RootLayoutInner() {
       () => {
         if (pathname.includes("/settings")) return false;
         if (router.canGoBack()) return false;
-        Alert.alert(t("exitTitle"), t("exitMessage"), [
-          { text: t("cancel"), style: "cancel" },
-          {
-            text: t("exitApp"),
-            style: "destructive",
-            onPress: () => BackHandler.exitApp(),
-          },
-        ]);
+        setShowExitDialog(true);
         return true;
       }
     );
     return () => subscription.remove();
-  }, [router, pathname, t]);
+  }, [router, pathname]);
 
   return (
     <View
@@ -57,6 +52,16 @@ function RootLayoutInner() {
         theme={resolvedTheme}
         richColors
         closeButton
+      />
+      <ConfirmDialog
+        visible={showExitDialog}
+        title={t("exitTitle")}
+        message={t("exitMessage")}
+        confirmLabel={t("exitApp")}
+        cancelLabel={t("cancel")}
+        destructive
+        onClose={() => setShowExitDialog(false)}
+        onConfirm={() => BackHandler.exitApp()}
       />
     </View>
   );
