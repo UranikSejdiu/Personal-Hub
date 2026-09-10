@@ -12,7 +12,6 @@
       "backgroundColor": "#1a1a2e"
     },
     "scheme": "uranikshub",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.uranik.offlinehub"
