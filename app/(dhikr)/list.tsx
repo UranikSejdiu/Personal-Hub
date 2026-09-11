@@ -292,7 +292,7 @@ export default function DhikrListScreen() {
         <View className="w-full max-w-md self-center p-4 pb-0">
           <DraggableFlatList
             data={dhikrs}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
             onDragEnd={({ data }: DragEndParams<Dhikr>) => void handleDragEnd(data)}
             renderItem={renderItem}
             ListHeaderComponent={listHeader}

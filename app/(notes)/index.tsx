@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import {
   loadNotes,
@@ -11,6 +12,7 @@ import {
   type Note,
 } from "../../src/lib/notes";
 import { getNotePreviewText } from "../../src/lib/lexicalPreview";
+import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 
@@ -23,7 +25,7 @@ function splitIntoColumns(items: Note[], count: number): Note[][] {
   return cols;
 }
 
-function NoteCard({
+const NoteCard = React.memo(function NoteCard({
   note,
   isDark,
   onPress,
@@ -35,11 +37,14 @@ function NoteCard({
   const textColorClass = getNoteTextColorClass(note.color, isDark);
   const colors = useThemeColors();
   const bgColorClass = getNoteColorClass(note.color, isDark);
+  const previewColor = NOTE_TEXT_HEX[note.color][isDark ? "dark" : "light"];
 
   return (
     <Pressable
       onPress={onPress}
       className={`relative mb-2 rounded-lg border border-border/50 p-3 ${bgColorClass}`}
+      accessibilityRole="button"
+      accessibilityLabel={note.title || "Untitled note"}
     >
       {note.is_pinned ? (
         <View className="absolute top-2 right-2">
@@ -64,7 +69,7 @@ function NoteCard({
               style={{
                 fontSize: 13,
                 lineHeight: 18,
-                color: isDark ? "#e5e7eb" : "#374151",
+                color: previewColor,
               }}
             >
               {line}
@@ -74,7 +79,7 @@ function NoteCard({
       ) : null}
     </Pressable>
   );
-}
+});
 
 export default function NotesListScreen() {
   const { t } = useI18n();
@@ -88,6 +93,12 @@ export default function NotesListScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const load = useCallback(async (query?: string) => {
     try {
       setLoadError(null);
@@ -100,6 +111,7 @@ export default function NotesListScreen() {
     } catch {
       setNotes([]);
       setLoadError("Failed to load notes");
+      toast.error(t("errorLoadingData"));
     }
   }, [searchQuery]);
 
@@ -168,6 +180,8 @@ export default function NotesListScreen() {
           <Pressable
             onPress={handleNew}
             className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-2"
+            accessibilityRole="button"
+            accessibilityLabel={t("notesNew")}
           >
             <Plus size={14} color={colors.primaryForeground} />
             <Text className="text-sm font-medium text-primary-foreground">
@@ -190,7 +204,14 @@ export default function NotesListScreen() {
             className="flex-1 text-sm text-foreground"
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery("")}>
+            <Pressable
+              onPress={() => {
+                setSearchQuery("");
+                void load("");
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
           )}

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
 import {
@@ -22,7 +22,7 @@ import {
   getNoteColorClass,
   getNoteTextColorClass,
 } from "../../src/lib/notes";
-import { type NoteColor, NOTE_TEXT_HEX } from "../../src/constants/theme";
+import { type NoteColor } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
@@ -264,7 +264,7 @@ export default function NotesEditorScreen() {
       <KeyboardAvoidingView
         className="flex-1 bg-background"
         behavior="padding"
-        keyboardVerticalOffset={insets.top}
+        keyboardVerticalOffset={insets.top + 48}
       >
         <View className="flex-1 bg-background">
           {/* Toolbar */}
@@ -280,7 +280,7 @@ export default function NotesEditorScreen() {
             </ScrollView>
           </View>
 
-          <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag">
+          <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             <View className="w-full max-w-md self-center gap-4 p-4 pb-8">
               {/* Header */}
               <View className="flex-row items-center justify-between">
@@ -377,9 +377,7 @@ export default function NotesEditorScreen() {
         onConfirm={
           confirmState?.kind === "delete"
             ? handleConfirmDelete
-            : confirmState?.kind === "discard"
-              ? handleConfirmDiscard
-              : () => setConfirmState(null)
+            : handleConfirmDiscard
         }
       />
     </>

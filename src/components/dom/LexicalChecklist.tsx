@@ -82,7 +82,9 @@ function CommandHandlerPlugin({
       try {
         const state = editor.parseEditorState(initialJson);
         editor.setEditorState(state);
-      } catch {}
+      } catch (error) {
+        console.warn('[LexicalChecklist] Failed to parse initial editor state:', error);
+      }
     }
     initializedRef.current = true;
   }, [editor, initialJson]);
@@ -167,6 +169,12 @@ function DragReorderPlugin() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDraggingRef = useRef(false);
   const [, forceUpdate] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   const getListItemElements = useCallback((): HTMLElement[] => {
     const editable = document.querySelector('.keep-editable');
