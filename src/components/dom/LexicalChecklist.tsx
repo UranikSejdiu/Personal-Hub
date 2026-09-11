@@ -1,6 +1,6 @@
 'use dom';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -15,6 +15,8 @@ import {
   FORMAT_TEXT_COMMAND,
   INDENT_CONTENT_COMMAND,
   OUTDENT_CONTENT_COMMAND,
+  $getRoot,
+  ElementNode,
 } from 'lexical';
 import {
   INSERT_ORDERED_LIST_COMMAND,
@@ -38,13 +40,9 @@ export type LexicalCommandType =
   | { type: 'outdent' };
 
 export interface LexicalChecklistProps {
-  /** Lexical JSON string for initial content. Empty string = blank editor. */
   initialJson: string;
-  /** 'light' | 'dark' — drives CSS variables for theming. */
   colorScheme: 'light' | 'dark';
-  /** Fired (debounced by caller) with Lexical JSON string on every change. */
   onChange: (json: string) => Promise<void>;
-  /** Command from native toolbar. Execute when command changes. */
   command?: LexicalCommandType;
   dom?: import('expo/dom').DOMProps;
 }
@@ -65,7 +63,7 @@ function onError(error: Error) {
   console.error('[LexicalChecklist]', error);
 }
 
-// ── Command handler plugin (runs inside Lexical context) ────────────
+// ── Command handler plugin ──────────────────────────────────────────
 function CommandHandlerPlugin({
   command,
   initialJson,
@@ -76,21 +74,17 @@ function CommandHandlerPlugin({
   const [editor] = useLexicalComposerContext();
   const initializedRef = useRef(false);
 
-  // Load initial content once
   useEffect(() => {
     if (initializedRef.current) return;
     if (initialJson) {
       try {
         const state = editor.parseEditorState(initialJson);
         editor.setEditorState(state);
-      } catch {
-        // Invalid JSON — start blank
-      }
+      } catch {}
     }
     initializedRef.current = true;
   }, [editor, initialJson]);
 
-  // Handle commands from native toolbar
   useEffect(() => {
     if (!command) return;
     editor.focus();
@@ -131,6 +125,391 @@ function CommandHandlerPlugin({
   return null;
 }
 
+// ── Drag-to-reorder plugin ──────────────────────────────────────────
+interface DragState {
+  /** key of the node being dragged */
+  dragKey: string | null;
+  /** current Y offset of dragged item (px from original position) */
+  dragOffsetY: number;
+  /** index of the drop target (insert before this index) */
+  dropIndex: number | null;
+  /** original bounding rects of all list items */
+  itemRects: { key: string; top: number; bottom: number; mid: number }[];
+  /** total number of checklist items */
+  itemCount: number;
+}
+
+function DragReorderPlugin() {
+  const [editor] = useLexicalComposerContext();
+  const dragRef = useRef<DragState>({
+    dragKey: null,
+    dragOffsetY: 0,
+    dropIndex: null,
+    itemRects: [],
+    itemCount: 0,
+  });
+  const dragCloneRef = useRef<HTMLDivElement | null>(null);
+  const dropIndicatorRef = useRef<HTMLDivElement | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDraggingRef = useRef(false);
+  const [, forceUpdate] = useState(0);
+
+  const getListItemElements = useCallback((): HTMLElement[] => {
+    const editable = document.querySelector('.keep-editable');
+    if (!editable) return [];
+    return Array.from(editable.querySelectorAll('li')).filter((el) =>
+      el.classList.contains('keep-listitem'),
+    );
+  }, []);
+
+  const getListItems = useCallback(() => {
+    let items: { key: string; element: HTMLElement }[] = [];
+    editor.getEditorState().read(() => {
+      const root = $getRoot();
+      const children = root.getChildren();
+      for (const child of children) {
+        if (child.getType() === 'list') {
+          const listNode = child as ListNode;
+          const listChildren = listNode.getChildren().filter((c): c is ListItemNode => c.getType() === 'listitem');
+          items = listChildren
+            .map((c, i) => ({
+              key: c.getKey(),
+              element: getListItemElements()[i],
+            }))
+            .filter((item) => item.element != null);
+        }
+      }
+    });
+    return items;
+  }, [editor, getListItemElements]);
+
+  const reorderNodes = useCallback(
+    (fromKey: string, toIndex: number) => {
+      editor.update(() => {
+        const root = $getRoot();
+        const children = root.getChildren();
+        for (const child of children) {
+          if (child.getType() === 'list') {
+            const listNode = child as ListNode;
+            const listItems = listNode.getChildren().filter((c): c is ListItemNode => c.getType() === 'listitem');
+            const fromIndex = listItems.findIndex((item) => item.getKey() === fromKey);
+            if (fromIndex === -1 || fromIndex === toIndex) return;
+
+            const [draggedNode] = listItems.splice(fromIndex, 1);
+            if (!draggedNode) return;
+
+            const adjustedIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
+            listItems.splice(adjustedIndex, 0, draggedNode);
+
+            listNode.clear();
+            for (const item of listItems) {
+              listNode.append(item);
+            }
+            return;
+          }
+        }
+      });
+    },
+    [editor],
+  );
+
+  // Handle long-press on drag handle to start drag
+  const handleDragHandlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      const target = e.currentTarget as HTMLElement;
+      const listItem = target.closest('li') as HTMLElement;
+      if (!listItem) return;
+
+      // Find key by matching element position in Lexical state
+      const elements = getListItemElements();
+      const elementIndex = elements.indexOf(listItem);
+      if (elementIndex === -1) return;
+
+      let key = '';
+      let currentIndex = 0;
+      editor.getEditorState().read(() => {
+        const root = $getRoot();
+        for (const child of root.getChildren()) {
+          if (child.getType() === 'list') {
+            const listNode = child as ListNode;
+            for (const item of listNode.getChildren()) {
+              if (item.getType() === 'listitem') {
+                if (currentIndex === elementIndex) {
+                  key = item.getKey();
+                  return;
+                }
+                currentIndex++;
+              }
+            }
+          }
+        }
+      });
+      if (!key) return;
+
+      // Prevent text selection
+      e.preventDefault();
+      e.stopPropagation();
+
+      const rect = listItem.getBoundingClientRect();
+      const startY = e.clientY;
+      const startScrollTop = document.documentElement.scrollTop;
+
+      longPressTimerRef.current = setTimeout(() => {
+        isDraggingRef.current = true;
+        listItem.classList.add('dragging');
+
+        // Build item rects
+        const elements = getListItemElements();
+        const rects = elements.map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            key: el.getAttribute('data-lexical-key') || '',
+            top: r.top + document.documentElement.scrollTop,
+            bottom: r.bottom + document.documentElement.scrollTop,
+            mid: (r.top + r.bottom) / 2,
+          };
+        });
+
+        dragRef.current = {
+          dragKey: key,
+          dragOffsetY: 0,
+          dropIndex: null,
+          itemRects: rects,
+          itemCount: rects.length,
+        };
+
+        // Create clone
+        const clone = listItem.cloneNode(true) as HTMLDivElement;
+        clone.classList.add('drag-clone');
+        clone.style.position = 'absolute';
+        clone.style.left = `${rect.left}px`;
+        clone.style.top = `${rect.top}px`;
+        clone.style.width = `${rect.width}px`;
+        clone.style.zIndex = '9999';
+        clone.style.pointerEvents = 'none';
+        clone.style.transition = 'none';
+        document.body.appendChild(clone);
+        dragCloneRef.current = clone;
+
+        // Create drop indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.position = 'absolute';
+        indicator.style.left = '0';
+        indicator.style.right = '0';
+        indicator.style.height = '3px';
+        indicator.style.background = 'var(--keep-box-fill)';
+        indicator.style.borderRadius = '2px';
+        indicator.style.zIndex = '9998';
+        indicator.style.display = 'none';
+        indicator.style.transition = 'top 100ms ease';
+        document.body.appendChild(indicator);
+        dropIndicatorRef.current = indicator;
+
+        forceUpdate((n) => n + 1);
+      }, 400);
+
+      const handlePointerMove = (me: PointerEvent) => {
+        const dy = me.clientY - startY;
+        const scrollDelta = document.documentElement.scrollTop - startScrollTop;
+
+        if (isDraggingRef.current && dragCloneRef.current) {
+          me.preventDefault();
+          const itemHeight = rect.height;
+          const newTop = rect.top + dy;
+          dragCloneRef.current.style.top = `${newTop}px`;
+          dragRef.current.dragOffsetY = dy;
+
+          // Find drop target
+          const currentMid = (rect.top + rect.bottom) / 2 + dy;
+          const { itemRects } = dragRef.current;
+          const fromIndex = itemRects.findIndex((r) => r.key === key);
+          let newDropIndex = fromIndex;
+
+          for (let i = 0; i < itemRects.length; i++) {
+            if (i === fromIndex) continue;
+            if (currentMid < itemRects[i].mid) {
+              newDropIndex = i;
+              break;
+            }
+            newDropIndex = i + 1;
+          }
+
+          dragRef.current.dropIndex = newDropIndex;
+
+          // Update drop indicator
+          if (dropIndicatorRef.current) {
+            const indicatorY =
+              newDropIndex <= fromIndex
+                ? itemRects[newDropIndex]?.top ?? itemRects[fromIndex].top
+                : itemRects[newDropIndex]?.bottom ?? itemRects[fromIndex].bottom;
+
+            dropIndicatorRef.current.style.display = 'block';
+            dropIndicatorRef.current.style.top = `${indicatorY - 1.5}px`;
+            dropIndicatorRef.current.style.left = '0px';
+            dropIndicatorRef.current.style.width = '100%';
+          }
+        }
+      };
+
+      const handlePointerUp = () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
+
+        if (isDraggingRef.current) {
+          isDraggingRef.current = false;
+          listItem.classList.remove('dragging');
+
+          // Clean up visual elements
+          if (dragCloneRef.current) {
+            dragCloneRef.current.remove();
+            dragCloneRef.current = null;
+          }
+          if (dropIndicatorRef.current) {
+            dropIndicatorRef.current.remove();
+            dropIndicatorRef.current = null;
+          }
+
+          // Perform the reorder
+          const { dropIndex } = dragRef.current;
+          if (dropIndex !== null) {
+            reorderNodes(key, dropIndex);
+          }
+
+          dragRef.current = {
+            dragKey: null,
+            dragOffsetY: 0,
+            dropIndex: null,
+            itemRects: [],
+            itemCount: 0,
+          };
+        }
+      };
+
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
+    },
+    [editor, getListItemElements, reorderNodes],
+  );
+
+  // Attach drag handles to checklist items
+  useEffect(() => {
+    const elements = getListItemElements();
+    for (const el of elements) {
+      if (el.querySelector('.drag-handle')) continue;
+
+      const handle = document.createElement('div');
+      handle.className = 'drag-handle';
+      handle.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <circle cx="5" cy="3" r="1.2"/>
+        <circle cx="11" cy="3" r="1.2"/>
+        <circle cx="5" cy="8" r="1.2"/>
+        <circle cx="11" cy="8" r="1.2"/>
+        <circle cx="5" cy="13" r="1.2"/>
+        <circle cx="11" cy="13" r="1.2"/>
+      </svg>`;
+      handle.style.cssText = `
+        position: absolute;
+        left: -2px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        opacity: 0;
+        transition: opacity 150ms ease;
+        touch-action: none;
+        user-select: none;
+        color: var(--keep-muted);
+        border-radius: 4px;
+        z-index: 10;
+      `;
+      handle.addEventListener('pointerdown', handleDragHandlePointerDown as any);
+      el.appendChild(handle);
+    }
+
+    // Show/hide handles on hover via CSS
+    const style = document.getElementById('drag-handle-style') || document.createElement('style');
+    style.id = 'drag-handle-style';
+    style.textContent = `
+      li.keep-listitem:hover > .drag-handle,
+      li.keep-listitem.dragging > .drag-handle {
+        opacity: 1;
+      }
+      li.keep-listitem.dragging {
+        opacity: 0.4 !important;
+      }
+      .drag-clone {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        border-radius: 6px;
+        background: var(--keep-bg, #fff);
+        opacity: 0.95;
+      }
+      .drop-indicator {
+        pointer-events: none;
+      }
+    `;
+    if (!document.getElementById('drag-handle-style')) {
+      document.head.appendChild(style);
+    }
+  }, [editor, getListItemElements, handleDragHandlePointerDown]);
+
+  // Re-attach handles when editor content changes
+  useEffect(() => {
+    const unsubscribe = editor.registerUpdateListener(() => {
+      queueMicrotask(() => {
+        const elements = getListItemElements();
+        for (const el of elements) {
+          if (el.querySelector('.drag-handle')) continue;
+          const handle = document.createElement('div');
+          handle.className = 'drag-handle';
+          handle.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="5" cy="3" r="1.2"/>
+            <circle cx="11" cy="3" r="1.2"/>
+            <circle cx="5" cy="8" r="1.2"/>
+            <circle cx="11" cy="8" r="1.2"/>
+            <circle cx="5" cy="13" r="1.2"/>
+            <circle cx="11" cy="13" r="1.2"/>
+          </svg>`;
+          handle.style.cssText = `
+            position: absolute;
+            left: -2px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            opacity: 0;
+            transition: opacity 150ms ease;
+            touch-action: none;
+            user-select: none;
+            color: var(--keep-muted);
+            border-radius: 4px;
+            z-index: 10;
+          `;
+          handle.addEventListener('pointerdown', handleDragHandlePointerDown as any);
+          el.appendChild(handle);
+        }
+      });
+    });
+    return unsubscribe;
+  }, [editor, getListItemElements, handleDragHandlePointerDown]);
+
+  return null;
+}
+
+// ── Main component ──────────────────────────────────────────────────
 export default function LexicalChecklist({
   initialJson,
   colorScheme,
@@ -142,7 +521,6 @@ export default function LexicalChecklist({
     theme,
     nodes: [ListNode, ListItemNode],
     onError,
-    // No editorState function — CommandHandlerPlugin loads it
   };
 
   return (
@@ -160,6 +538,7 @@ export default function LexicalChecklist({
         <CheckListPlugin />
         <HistoryPlugin />
         <CommandHandlerPlugin command={command} initialJson={initialJson} />
+        <DragReorderPlugin />
         <OnChangePlugin
           onChange={(editorState) => {
             void onChange(JSON.stringify(editorState.toJSON()));
@@ -178,6 +557,7 @@ const KEEP_CSS = `
   --keep-box-fill: #3b82f6;
   --keep-check: #ffffff;
   --keep-placeholder: #9ca3af;
+  --keep-bg: #fff;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--keep-text);
 }
@@ -188,6 +568,7 @@ const KEEP_CSS = `
   --keep-box-fill: #60a5fa;
   --keep-check: #111827;
   --keep-placeholder: #6b7280;
+  --keep-bg: #1c1c1e;
 }
 .keep-editable {
   outline: none;
@@ -226,6 +607,7 @@ const KEEP_CSS = `
   line-height: 1.45;
   border-radius: 6px;
   -webkit-tap-highlight-color: transparent;
+  transition: opacity 150ms ease;
 }
 .keep-listitem::before {
   content: '';
