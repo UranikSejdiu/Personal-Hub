@@ -91,6 +91,8 @@ export default function CounterScreen() {
 
     let hitLimit = false;
 
+    void haptics.light();
+
     setDhikrs((prev) =>
       prev.map((d) => {
         if (d.id !== dhikr.id) return d;
@@ -104,8 +106,6 @@ export default function CounterScreen() {
         return { ...d, daily_count: newDaily, total_count: newTotal };
       })
     );
-
-    haptics.light();
 
     if (hitLimit) {
       haptics.success();
@@ -228,6 +228,9 @@ export default function CounterScreen() {
           {/* Main counter — vertically centered, larger */}
           <Pressable
             onPress={handleTap}
+            unstable_pressDelay={0}
+            android_disableSound={true}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             className="flex-1 items-center justify-center"
             accessibilityRole="button"
             accessibilityLabel={t("tapToCount")}

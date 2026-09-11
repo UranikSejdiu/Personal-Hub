@@ -11,7 +11,7 @@ import {
   getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
-import { getNotePreviewText } from "../../src/lib/lexicalPreview";
+import { jsonToBlocks, getPreviewLines } from "../../src/lib/noteContent";
 import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -39,6 +39,12 @@ const NoteCard = React.memo(function NoteCard({
   const bgColorClass = getNoteColorClass(note.color, isDark);
   const previewColor = NOTE_TEXT_HEX[note.color][isDark ? "dark" : "light"];
 
+  const previewLines = useMemo(() => {
+    if (!note.content) return [];
+    const blocks = jsonToBlocks(note.content);
+    return getPreviewLines(blocks, 3);
+  }, [note.content]);
+
   return (
     <Pressable
       onPress={onPress}
@@ -59,9 +65,9 @@ const NoteCard = React.memo(function NoteCard({
           {note.title}
         </Text>
       ) : null}
-      {note.content ? (
+      {previewLines.length > 0 ? (
         <View style={{ marginTop: 6 }}>
-          {getNotePreviewText(note.content, 3).map((line, i) => (
+          {previewLines.map((line, i) => (
             <Text
               key={i}
               numberOfLines={1}
@@ -172,7 +178,6 @@ export default function NotesListScreen() {
   return (
     <View className="flex-1 bg-background">
       <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-        {/* Header */}
         <View className="flex-row items-center justify-between">
           <Text className="text-base font-semibold text-foreground">
             {t("notesTitle")}
@@ -190,7 +195,6 @@ export default function NotesListScreen() {
           </Pressable>
         </View>
 
-        {/* Search */}
         <View className="flex-row items-center gap-2 rounded-full bg-muted px-4 py-2.5">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
@@ -217,7 +221,6 @@ export default function NotesListScreen() {
           )}
         </View>
 
-        {/* Notes */}
         {notes.length === 0 ? (
           <View className="items-center gap-3 py-20">
             <FileText size={40} color={colors.mutedForeground} />
@@ -232,7 +235,6 @@ export default function NotesListScreen() {
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Pinned section */}
             {hasPinned && (
               <View className="mb-4">
                 <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -248,7 +250,6 @@ export default function NotesListScreen() {
               </View>
             )}
 
-            {/* Others section */}
             <View>
               {hasPinned && (
                 <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
