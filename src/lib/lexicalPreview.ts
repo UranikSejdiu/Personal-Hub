@@ -58,6 +58,32 @@ function extractNodeText(node: LexicalNode): string[] {
 }
 
 /**
+ * Valid empty Lexical editor state (one empty paragraph).
+ * Used as the canonical empty-value instead of "{}".
+ */
+export const EMPTY_LEXICAL_JSON = JSON.stringify({
+  root: {
+    children: [
+      {
+        children: [
+          { detail: 0, format: 0, mode: "normal", style: "", text: "", type: "text", version: 1 },
+        ],
+        direction: "ltr",
+        format: "",
+        indent: 0,
+        type: "paragraph",
+        version: 1,
+      },
+    ],
+    direction: "ltr",
+    format: "",
+    indent: 0,
+    type: "root",
+    version: 1,
+  },
+});
+
+/**
  * Check if a content string is Lexical JSON (starts with `{` and has a root).
  */
 export function isLexicalJson(content: string): boolean {

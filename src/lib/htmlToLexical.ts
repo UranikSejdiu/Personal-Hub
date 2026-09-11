@@ -48,14 +48,13 @@ type LexicalNode = LexicalParagraphNode | LexicalListNode;
 // Text format flags (Lexical uses bitmask)
 const BOLD = 1;
 const ITALIC = 2;
-const STRIKETHROUGH = 8;
 const UNDERLINE = 4;
+const STRIKETHROUGH = 8;
 
 function parseInlineFormat(html: string): { text: string; format: number } {
   let format = 0;
   let text = html;
 
-  // Strip inline tags and track formatting
   if (text.includes("<strong>") || text.includes("<b>")) {
     format |= BOLD;
     text = text.replace(/<\/?(strong|b)>/gi, "");
@@ -73,7 +72,6 @@ function parseInlineFormat(html: string): { text: string; format: number } {
     text = text.replace(/<\/?u>/gi, "");
   }
 
-  // Decode HTML entities
   text = text
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -85,35 +83,33 @@ function parseInlineFormat(html: string): { text: string; format: number } {
   return { text, format };
 }
 
+/**
+ * Extract text nodes from inline HTML.
+ * Preserves spaces between segments (does not trim individual parts).
+ */
 function extractTextFromHtml(html: string): LexicalTextNode[] {
   const segments: LexicalTextNode[] = [];
-
-  // Split by inline tags to preserve formatting boundaries
-  const parts = html.split(/(<(?:strong|b|em|i|s|del|strike|u)>.*?<\/(?:strong|b|em|i|s|del|strike|u)>)/gi);
+  const inlineTagRe = /(<(?:strong|b|em|i|s|del|strike|u)>[\s\S]*?<\/(?:strong|b|em|i|s|del|strike|u)>)/gi;
+  const parts = html.split(inlineTagRe);
 
   for (const part of parts) {
-    if (!part.trim()) continue;
+    if (!part) continue;
     if (part.startsWith("<")) {
       const { text, format } = parseInlineFormat(part);
       if (text) {
-        segments.push({
-          type: "text",
-          text,
-          format,
-          style: "",
-          version: 1,
-        });
+        segments.push({ type: "text", text, format, style: "", version: 1 });
       }
     } else {
-      const text = part.replace(/<[^>]+>/g, "").trim();
-      if (text) {
-        segments.push({
-          type: "text",
-          text,
-          format: 0,
-          style: "",
-          version: 1,
-        });
+      // Decode entities but preserve whitespace
+      const decoded = part
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+      if (decoded) {
+        segments.push({ type: "text", text: decoded, format: 0, style: "", version: 1 });
       }
     }
   }
@@ -121,174 +117,126 @@ function extractTextFromHtml(html: string): LexicalTextNode[] {
   return segments;
 }
 
-function createEmptyText(): LexicalTextNode {
-  return { type: "text", text: "", format: 0, style: "", version: 1 };
+function getChildren(html: string): LexicalTextNode[] {
+  const children = extractTextFromHtml(html);
+  return children.length > 0 ? children : [{ type: "text", text: "", format: 0, style: "", version: 1 }];
 }
 
-let itemCount = 0;
+function makeListItem(content: string, checked: boolean, value: number): LexicalListItemNode {
+  return {
+    type: "listitem",
+    children: getChildren(content),
+    direction: "ltr",
+    format: "",
+    indent: 0,
+    version: 1,
+    checked,
+    value,
+  };
+}
 
+function parseListItems(html: string, checked: boolean, startValue: number): LexicalListItemNode[] {
+  const items: LexicalListItemNode[] = [];
+  const itemRegex = /<li([^>]*)>([\s\S]*?)<\/li>/gi;
+  let match;
+  let value = startValue;
+  while ((match = itemRegex.exec(html)) !== null) {
+    const attrs = match[1];
+    const content = match[2];
+    const isChecked = checked || /\bchecked\b/.test(attrs);
+    items.push(makeListItem(content, isChecked, value));
+    value++;
+  }
+  return items;
+}
+
+function makeList(listType: "bullet" | "number" | "check", tag: string, items: LexicalListItemNode[]): LexicalListNode | null {
+  if (items.length === 0) return null;
+  return {
+    type: "list",
+    children: items,
+    direction: "ltr",
+    format: "",
+    indent: 0,
+    version: 1,
+    listType,
+    start: 1,
+    tag,
+  };
+}
+
+function makeParagraph(html: string): LexicalParagraphNode {
+  return {
+    type: "paragraph",
+    children: getChildren(html),
+    direction: "ltr",
+    format: "",
+    indent: 0,
+    version: 1,
+  };
+}
+
+/**
+ * Process HTML top-to-bottom, handling every block element in document order.
+ * No first-match early returns — all blocks are converted.
+ */
 function htmlToLexical(html: string): LexicalNode[] {
   const nodes: LexicalNode[] = [];
-  itemCount = 0;
-
-  // Handle empty content
   if (!html || !html.trim()) return nodes;
 
-  // Check if it's a checkbox list
-  const isCheckboxList = /data-type=["']checkbox["']/.test(html);
-
-  if (isCheckboxList) {
-    // Parse checkbox list
-    const listMatch = html.match(/<ul[^>]*data-type=["']checkbox["'][^>]*>([\s\S]*?)<\/ul>/i);
-    if (listMatch) {
-      const items: LexicalListItemNode[] = [];
-      const itemRegex = /<li([^>]*)>([\s\S]*?)<\/li>/gi;
-      let match;
-      while ((match = itemRegex.exec(listMatch[1])) !== null) {
-        const attrs = match[1];
-        const content = match[2];
-        const isChecked = /\bchecked\b/.test(attrs);
-        itemCount++;
-        items.push({
-          type: "listitem",
-          children: extractTextFromHtml(content) || [createEmptyText()],
-          direction: "ltr",
-          format: "",
-          indent: 0,
-          version: 1,
-          checked: isChecked,
-          value: itemCount,
-        });
-      }
-      if (items.length > 0) {
-        nodes.push({
-          type: "list",
-          children: items,
-          direction: "ltr",
-          format: "",
-          indent: 0,
-          version: 1,
-          listType: "check",
-          start: 1,
-          tag: "ul",
-        });
-      }
-      return nodes;
-    }
-  }
-
-  // Check if it's a bullet or ordered list
-  const ulMatch = html.match(/<ul[^>]*>([\s\S]*?)<\/ul>/i);
-  const olMatch = html.match(/<ol[^>]*>([\s\S]*?)<\/ol>/i);
-
-  if (ulMatch) {
-    const items: LexicalListItemNode[] = [];
-    const itemRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-    let match;
-    while ((match = itemRegex.exec(ulMatch[1])) !== null) {
-      itemCount++;
-      items.push({
-        type: "listitem",
-        children: extractTextFromHtml(match[2]) || [createEmptyText()],
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-        checked: false,
-        value: itemCount,
-      });
-    }
-    if (items.length > 0) {
-      nodes.push({
-        type: "list",
-        children: items,
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-        listType: "bullet",
-        start: 1,
-        tag: "ul",
-      });
-    }
-    return nodes;
-  }
-
-  if (olMatch) {
-    const items: LexicalListItemNode[] = [];
-    const itemRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-    let match;
-    while ((match = itemRegex.exec(olMatch[1])) !== null) {
-      itemCount++;
-      items.push({
-        type: "listitem",
-        children: extractTextFromHtml(match[2]) || [createEmptyText()],
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-        checked: false,
-        value: itemCount,
-      });
-    }
-    if (items.length > 0) {
-      nodes.push({
-        type: "list",
-        children: items,
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-        listType: "number",
-        start: 1,
-        tag: "ol",
-      });
-    }
-    return nodes;
-  }
-
-  // Split by block-level tags
-  const blockRegex = /<(p|div|h[1-6]|li)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+  // Top-level block regex: matches <ul>, <ol>, <p>, <div>, <h1>-<h6>, <li>
+  const blockRe = /(<(?:ul|ol|p|div|h[1-6]|li)(?:\s[^>]*)?>[\s\S]*?<\/(?:ul|ol|p|div|h[1-6]|li)>)/gi;
   let blockMatch;
-  while ((blockMatch = blockRegex.exec(html)) !== null) {
-    const tag = blockMatch[1].toLowerCase();
-    const content = blockMatch[2];
+  let cursor = 0;
 
-    if (tag === "li") {
-      // Standalone <li> — wrap in a paragraph
-      itemCount++;
-      nodes.push({
-        type: "paragraph",
-        children: extractTextFromHtml(content) || [createEmptyText()],
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-      });
+  while ((blockMatch = blockRe.exec(html)) !== null) {
+    // Capture any text between blocks (e.g. bare text outside tags)
+    const gap = html.slice(cursor, blockMatch.index);
+    const gapText = gap.replace(/<[^>]*>/g, "").trim();
+    if (gapText) {
+      nodes.push(makeParagraph(gapText));
+    }
+    cursor = blockRe.lastIndex;
+
+    const full = blockMatch[1];
+    const tagMatch = full.match(/^<([a-z]+)/i);
+    const tag = tagMatch ? tagMatch[1].toLowerCase() : "";
+
+    if (tag === "ul") {
+      const isCheckbox = /data-type=["']checkbox["']/.test(full);
+      const inner = full.replace(/<\/?ul[^>]*>/gi, "");
+      const items = parseListItems(inner, isCheckbox, 1);
+      const listType = isCheckbox ? "check" : "bullet";
+      const listNode = makeList(listType, "ul", items);
+      if (listNode) nodes.push(listNode);
+    } else if (tag === "ol") {
+      const inner = full.replace(/<\/?ol[^>]*>/gi, "");
+      const items = parseListItems(inner, false, 1);
+      const listNode = makeList("number", "ol", items);
+      if (listNode) nodes.push(listNode);
+    } else if (tag === "li") {
+      // Standalone <li> outside a list — wrap in paragraph
+      const inner = full.replace(/<\/?li[^>]*>/gi, "");
+      nodes.push(makeParagraph(inner));
     } else if (tag.startsWith("h")) {
-      const level = parseInt(tag[1]);
-      nodes.push({
-        type: "paragraph",
-        children: extractTextFromHtml(content) || [createEmptyText()],
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-      });
+      // Heading treated as paragraph (Lexical doesn't have heading nodes in this config)
+      const inner = full.replace(/<\/?h[1-6][^>]*>/gi, "");
+      nodes.push(makeParagraph(inner));
     } else {
-      // <p> or <div>
-      nodes.push({
-        type: "paragraph",
-        children: extractTextFromHtml(content) || [createEmptyText()],
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        version: 1,
-      });
+      // <p>, <div>, or other block
+      const inner = full.replace(/<\/?[^>]+>/g, "");
+      nodes.push(makeParagraph(inner));
     }
   }
 
-  // If no block tags found, split by <br> or treat as single paragraph
+  // Handle any trailing text after the last block tag
+  const trailing = html.slice(cursor);
+  const trailingText = trailing.replace(/<[^>]*>/g, "").trim();
+  if (trailingText) {
+    nodes.push(makeParagraph(trailingText));
+  }
+
+  // Fallback: if no block tags matched, treat entire content as paragraphs
   if (nodes.length === 0) {
     const lines = html
       .replace(/<br\s*\/?>/gi, "\n")
@@ -300,7 +248,7 @@ function htmlToLexical(html: string): LexicalNode[] {
       const { text, format } = parseInlineFormat(line);
       nodes.push({
         type: "paragraph",
-        children: text ? [{ type: "text", text, format, style: "", version: 1 }] : [createEmptyText()],
+        children: text ? [{ type: "text", text, format, style: "", version: 1 }] : [{ type: "text", text: "", format: 0, style: "", version: 1 }],
         direction: "ltr",
         format: "",
         indent: 0,
@@ -319,11 +267,10 @@ function htmlToLexical(html: string): LexicalNode[] {
 export function htmlToLexicalJson(html: string): string {
   const children = htmlToLexical(html);
 
-  // Ensure at least one empty paragraph
   if (children.length === 0) {
     children.push({
       type: "paragraph",
-      children: [createEmptyText()],
+      children: [{ type: "text", text: "", format: 0, style: "", version: 1 }],
       direction: "ltr",
       format: "",
       indent: 0,

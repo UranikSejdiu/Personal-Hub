@@ -28,7 +28,7 @@ import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import LexicalChecklist from "../../src/components/dom/LexicalChecklist";
 import type { LexicalCommandType } from "../../src/components/dom/LexicalChecklist";
-import { isLexicalJson } from "../../src/lib/lexicalPreview";
+import { isLexicalJson, EMPTY_LEXICAL_JSON } from "../../src/lib/lexicalPreview";
 import { htmlToLexicalJson } from "../../src/lib/htmlToLexical";
 
 type ConfirmState =
@@ -92,10 +92,12 @@ export default function NotesEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
+  const suppressDirtyRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    setLoading(true);
 
     getNote(Number(id))
       .then((n) => {
@@ -103,13 +105,17 @@ export default function NotesEditorScreen() {
         if (n) {
           setNoteId(n.id);
           setTitle(n.title);
-          // Auto-migrate legacy HTML content to Lexical JSON
+          // Auto-migrate legacy HTML content to Lexical JSON (in memory only)
           let content = n.content;
-          if (content && !isLexicalJson(content)) {
-            content = htmlToLexicalJson(content);
-            // Background save so future loads use Lexical JSON
-            updateNote(n.id, { content }).catch(() => {});
+          if (content && !isLexicalJson(content) && /<[a-z][\s\S]*>/i.test(content)) {
+            try {
+              content = htmlToLexicalJson(content);
+            } catch {
+              // Conversion failed — keep original HTML, will be saved on next explicit save
+            }
           }
+          // Suppress the onChange that fires from programmatic setEditorState
+          suppressDirtyRef.current = true;
           setContentJson(content);
           setColor(n.color);
           setIsPinned(n.is_pinned);
@@ -185,7 +191,7 @@ export default function NotesEditorScreen() {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const finalContent = contentJson || "{}";
+      const finalContent = contentJson || EMPTY_LEXICAL_JSON;
       if (noteId) {
         await updateNote(noteId, { title, content: finalContent, color, is_pinned: isPinned });
       } else {
@@ -226,6 +232,10 @@ export default function NotesEditorScreen() {
   }, [haptics]);
 
   const handleContentChange = useCallback(async (json: string) => {
+    if (suppressDirtyRef.current) {
+      suppressDirtyRef.current = false;
+      return;
+    }
     setContentJson(json);
     setIsDirty(true);
   }, []);
@@ -325,6 +335,7 @@ export default function NotesEditorScreen() {
               {/* Lexical Editor (DOM Component) */}
               <View className="rounded-xl border border-border bg-card overflow-hidden">
                 <LexicalChecklist
+                  key={noteId || "new"}
                   initialJson={contentJson}
                   colorScheme={isDark ? "dark" : "light"}
                   onChange={handleContentChange}

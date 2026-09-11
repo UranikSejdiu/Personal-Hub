@@ -1,6 +1,7 @@
 import * as db from "./db";
 import { NOTE_COLORS, NOTE_TEXT_COLORS, type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
+import { isLexicalJson, extractLexicalLines } from "./lexicalPreview";
 
 export type { Note };
 
@@ -35,6 +36,18 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
+/**
+ * Extract plain text from note content for search indexing.
+ * Handles Lexical JSON, legacy HTML, and empty/invalid content.
+ */
+function getPlainTextFromContent(content: string): string {
+  if (!content) return "";
+  if (isLexicalJson(content)) {
+    return extractLexicalLines(content).join("\n");
+  }
+  return stripHtml(content);
+}
+
 function toNote(row: Record<string, unknown>): Note {
   const rawColor = String(row.color ?? "default");
   return {
@@ -62,11 +75,24 @@ async function ensurePlainTextBackfill(): Promise<void> {
   if (backfillPromise) return backfillPromise;
   backfillPromise = (async () => {
     try {
+      // Pass 1: backfill rows with empty plain_text
       const rows = await db.query<Record<string, unknown>>(
         "SELECT id, content FROM notes WHERE plain_text = '' AND content != ''"
       );
       for (const row of rows) {
-        const plain = stripHtml(String(row.content));
+        const plain = getPlainTextFromContent(String(row.content));
+        await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
+          plain,
+          Number(row.id),
+        ]);
+      }
+      // Pass 2: repair rows where plain_text was polluted by Lexical JSON
+      // (plain_text containing JSON key patterns like "root", "children", "type")
+      const polluted = await db.query<Record<string, unknown>>(
+        "SELECT id, content, plain_text FROM notes WHERE plain_text != '' AND plain_text LIKE '%\"root\"%' AND plain_text LIKE '%\"children\"%'"
+      );
+      for (const row of polluted) {
+        const plain = getPlainTextFromContent(String(row.content));
         await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
           plain,
           Number(row.id),
@@ -110,7 +136,7 @@ export async function createNote(
       fields.content,
       fields.is_pinned ? 1 : 0,
       fields.color,
-      stripHtml(fields.content),
+      getPlainTextFromContent(fields.content),
     ]
   );
   const created = await db.get<Record<string, unknown>>(
@@ -135,7 +161,7 @@ export async function updateNote(
     sets.push("content = ?");
     values.push(fields.content);
     sets.push("plain_text = ?");
-    values.push(stripHtml(fields.content));
+    values.push(getPlainTextFromContent(fields.content));
   }
   if (fields.is_pinned !== undefined) {
     sets.push("is_pinned = ?");
