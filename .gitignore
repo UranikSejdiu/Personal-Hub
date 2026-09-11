@@ -45,3 +45,4 @@ yarn-error.*
 /android/local.properties
 /android/keystore.properties
 /SECRETS.md
+*.md

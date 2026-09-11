@@ -11,7 +11,7 @@ import {
   getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
-import { jsonToBlocks, getPreviewLines } from "../../src/lib/noteContent";
+import { getPreviewLines } from "../../src/lib/noteContent";
 import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -41,8 +41,7 @@ const NoteCard = React.memo(function NoteCard({
 
   const previewLines = useMemo(() => {
     if (!note.content) return [];
-    const blocks = jsonToBlocks(note.content);
-    return getPreviewLines(blocks, 3);
+    return getPreviewLines(note.content, 3);
   }, [note.content]);
 
   return (

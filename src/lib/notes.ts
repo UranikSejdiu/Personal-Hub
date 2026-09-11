@@ -1,11 +1,7 @@
 import * as db from "./db";
 import { NOTE_COLORS, NOTE_TEXT_COLORS, type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
-import {
-  isBlockArray,
-  jsonToBlocks,
-  getPlainTextFromBlocks,
-} from "./noteContent";
+import { contentToMarkdown } from "./noteContent";
 import { isLexicalJson, extractLexicalLines } from "./lexicalPreview";
 
 export type { Note };
@@ -43,17 +39,12 @@ export function stripHtml(html: string): string {
 
 /**
  * Extract plain text from note content for search indexing.
- * Handles Block[] JSON (new), Lexical JSON, legacy HTML, and empty/invalid content.
+ * Handles markdown (new), Block[] JSON, Lexical JSON, legacy HTML.
  */
 function getPlainTextFromContent(content: string): string {
   if (!content) return "";
-  if (isBlockArray(content)) {
-    return getPlainTextFromBlocks(jsonToBlocks(content));
-  }
-  if (isLexicalJson(content)) {
-    return extractLexicalLines(content).join("\n");
-  }
-  return stripHtml(content);
+  const md = contentToMarkdown(content);
+  return md;
 }
 
 function toNote(row: Record<string, unknown>): Note {
