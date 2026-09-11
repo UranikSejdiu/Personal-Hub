@@ -16,6 +16,8 @@ import {
   INDENT_CONTENT_COMMAND,
   OUTDENT_CONTENT_COMMAND,
   $getRoot,
+  $getSelection,
+  $isRangeSelection,
   ElementNode,
 } from 'lexical';
 import {
@@ -87,39 +89,51 @@ function CommandHandlerPlugin({
 
   useEffect(() => {
     if (!command) return;
-    editor.focus();
-    switch (command.type) {
-      case 'bold':
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold');
-        break;
-      case 'italic':
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic');
-        break;
-      case 'strikethrough':
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough');
-        break;
-      case 'underline':
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline');
-        break;
-      case 'bulletList':
-        editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
-        break;
-      case 'orderedList':
-        editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
-        break;
-      case 'checkList':
-        editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
-        break;
-      case 'removeList':
-        editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
-        break;
-      case 'indent':
-        editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-        break;
-      case 'outdent':
-        editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
-        break;
-    }
+    // Delay to let the browser settle focus after native touch event
+    const raf = requestAnimationFrame(() => {
+      editor.focus();
+      // Ensure there's an active selection before dispatching
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) {
+          const root = $getRoot();
+          root.selectEnd();
+        }
+      });
+      switch (command.type) {
+        case 'bold':
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold');
+          break;
+        case 'italic':
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic');
+          break;
+        case 'strikethrough':
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough');
+          break;
+        case 'underline':
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline');
+          break;
+        case 'bulletList':
+          editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
+          break;
+        case 'orderedList':
+          editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
+          break;
+        case 'checkList':
+          editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined);
+          break;
+        case 'removeList':
+          editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+          break;
+        case 'indent':
+          editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+          break;
+        case 'outdent':
+          editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+          break;
+      }
+    });
+    return () => cancelAnimationFrame(raf);
   }, [editor, command]);
 
   return null;
