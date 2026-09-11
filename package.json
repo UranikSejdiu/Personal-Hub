@@ -1,6 +1,6 @@
 {
   "name": "uraniks-hub",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@chaitrabhairappa/react-native-rich-text-editor": "^3.5.2",
