@@ -340,6 +340,7 @@ export default function NotesEditorScreen() {
                   colorScheme={isDark ? "dark" : "light"}
                   onChange={handleContentChange}
                   command={command}
+                  dom={{ matchContents: true }}
                 />
               </View>
             </View>
