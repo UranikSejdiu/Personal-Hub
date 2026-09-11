@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
-import { EnrichedText } from "react-native-enriched-html";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useI18n } from "../../src/lib/i18n";
 import {
@@ -11,10 +10,9 @@ import {
   getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
-import { NOTE_TEXT_HEX } from "../../src/constants/theme";
+import { getNotePreviewText } from "../../src/lib/lexicalPreview";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
-import { toast } from "sonner-native";
 
 function splitIntoColumns(items: Note[], count: number): Note[][] {
   const cols: Note[][] = Array.from({ length: count }, () => []);
@@ -57,27 +55,22 @@ function NoteCard({
         </Text>
       ) : null}
       {note.content ? (
-        <EnrichedText
-          numberOfLines={3}
-          ellipsizeMode="tail"
-          useHtmlNormalizer={false}
-          style={{
-            marginTop: 6,
-            fontSize: 13,
-            lineHeight: 18,
-            color: isDark ? NOTE_TEXT_HEX[note.color]?.dark : NOTE_TEXT_HEX[note.color]?.light,
-          }}
-          htmlStyle={{
-            ulCheckbox: {
-              boxSize: 18,
-              gapWidth: 10,
-              marginLeft: 8,
-              boxColor: isDark ? "#888" : "#555",
-            },
-          }}
-        >
-          {note.content}
-        </EnrichedText>
+        <View style={{ marginTop: 6 }}>
+          {getNotePreviewText(note.content, 3).map((line, i) => (
+            <Text
+              key={i}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={{
+                fontSize: 13,
+                lineHeight: 18,
+                color: isDark ? "#e5e7eb" : "#374151",
+              }}
+            >
+              {line}
+            </Text>
+          ))}
+        </View>
       ) : null}
     </Pressable>
   );

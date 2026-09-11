@@ -2,10 +2,17 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
+import {
+  Bold,
+  Italic,
+  Strikethrough,
+  Underline,
+  List,
+  ListOrdered,
+  CheckSquare,
+} from "lucide-react-native";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
-import { EnrichedTextInput } from "react-native-enriched-html";
-import type { EnrichedTextInputInstance, OnChangeStateEvent } from "react-native-enriched-html";
 import { useI18n } from "../../src/lib/i18n";
 import {
   getNote,
@@ -18,8 +25,9 @@ import {
 import { type NoteColor, NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
-import { RichTextToolbar } from "../../src/components/RichTextToolbar";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
+import LexicalChecklist from "../../src/components/dom/LexicalChecklist";
+import type { LexicalCommandType } from "../../src/components/dom/LexicalChecklist";
 
 type ConfirmState =
   | { kind: "discard"; action: "back" | "pending" }
@@ -27,6 +35,29 @@ type ConfirmState =
   | null;
 
 const COLOR_OPTIONS: NoteColor[] = ["default", "yellow", "green", "blue", "pink", "purple", "orange", "red"];
+
+// ── Toolbar button ──────────────────────────────────────────────────
+function ToolbarButton({
+  icon: Icon,
+  label,
+  onPress,
+}: {
+  icon: typeof Bold;
+  label: string;
+  onPress: () => void;
+}) {
+  const colors = useThemeColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      className="h-9 w-9 items-center justify-center rounded-lg bg-muted"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Icon size={18} color={colors.foreground} />
+    </Pressable>
+  );
+}
 
 export default function NotesEditorScreen() {
   const { t } = useI18n();
@@ -37,15 +68,22 @@ export default function NotesEditorScreen() {
   const haptics = useHaptics();
   const isDark = theme === "dark";
   const insets = useSafeAreaInsets();
-  const editorRef = useRef<EnrichedTextInputInstance>(null);
 
   const [noteId, setNoteId] = useState<number | null>(id ? Number(id) : null);
   const [title, setTitle] = useState("");
-  const [contentHtml, setContentHtml] = useState("");
+  const [contentJson, setContentJson] = useState("");
   const [color, setColor] = useState<NoteColor>("default");
   const [isPinned, setIsPinned] = useState(false);
   const [loading, setLoading] = useState(!!id);
-  const [editorState, setEditorState] = useState<OnChangeStateEvent | null>(null);
+
+  // Toolbar command — incremented to trigger execution in DOM component
+  const [command, setCommand] = useState<LexicalCommandType | undefined>(undefined);
+  const commandIdRef = useRef(0);
+
+  const sendCommand = useCallback((cmd: LexicalCommandType) => {
+    commandIdRef.current += 1;
+    setCommand({ ...cmd });
+  }, []);
 
   // Track whether any content has been changed since load
   const [isDirty, setIsDirty] = useState(false);
@@ -63,13 +101,13 @@ export default function NotesEditorScreen() {
         if (n) {
           setNoteId(n.id);
           setTitle(n.title);
-          setContentHtml(n.content);
+          setContentJson(n.content);
           setColor(n.color);
           setIsPinned(n.is_pinned);
         } else {
           setNoteId(null);
           setTitle("");
-          setContentHtml("");
+          setContentJson("");
           setColor("default");
           setIsPinned(false);
         }
@@ -90,18 +128,11 @@ export default function NotesEditorScreen() {
     if (id) return;
     setNoteId(null);
     setTitle("");
-    setContentHtml("");
+    setContentJson("");
     setColor("default");
     setIsPinned(false);
-    setEditorState(null);
     setIsDirty(false);
-    editorRef.current?.setValue("");
   }, [id]);
-
-  useEffect(() => {
-    if (!editorRef.current) return;
-    editorRef.current.setValue(contentHtml);
-  }, [contentHtml]);
 
   // Guard back navigation when there are unsaved changes
   const handleBack = useCallback(() => {
@@ -145,8 +176,7 @@ export default function NotesEditorScreen() {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const html = await editorRef.current?.getHTML();
-      const finalContent = html ?? contentHtml;
+      const finalContent = contentJson || "{}";
       if (noteId) {
         await updateNote(noteId, { title, content: finalContent, color, is_pinned: isPinned });
       } else {
@@ -161,7 +191,7 @@ export default function NotesEditorScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, noteId, title, contentHtml, color, isPinned, router, haptics, t]);
+  }, [isSaving, noteId, title, contentJson, color, isPinned, router, haptics, t]);
 
   const handleDelete = useCallback(() => {
     if (!noteId) return;
@@ -186,21 +216,10 @@ export default function NotesEditorScreen() {
     setIsPinned((prev) => !prev);
   }, [haptics]);
 
-  const handleEditorStateChange = useCallback((e: { nativeEvent: OnChangeStateEvent }) => {
-    setEditorState(e.nativeEvent);
+  const handleContentChange = useCallback(async (json: string) => {
+    setContentJson(json);
     setIsDirty(true);
   }, []);
-
-  const handleTextChange = useCallback(() => {
-    setIsDirty(true);
-  }, []);
-
-  const editorStyle = useMemo(() => ({
-    minHeight: 200,
-    padding: 16,
-    fontSize: 14,
-    color: isDark ? NOTE_TEXT_HEX[color].dark : NOTE_TEXT_HEX[color].light,
-  }), [color, isDark]);
 
   const colorLabels = useMemo(() => ({
     default: t("notesColorDefault"),
@@ -229,18 +248,18 @@ export default function NotesEditorScreen() {
         keyboardVerticalOffset={insets.top}
       >
         <View className="flex-1 bg-background">
-          <RichTextToolbar
-            state={editorState}
-            onBold={() => editorRef.current?.toggleBold()}
-            onItalic={() => editorRef.current?.toggleItalic()}
-            onStrikethrough={() => editorRef.current?.toggleStrikeThrough()}
-            onUnderline={() => editorRef.current?.toggleUnderline()}
-            onH1={() => editorRef.current?.toggleH1()}
-            onH2={() => editorRef.current?.toggleH2()}
-            onBulletList={() => editorRef.current?.toggleUnorderedList()}
-            onOrderedList={() => editorRef.current?.toggleOrderedList()}
-            onCheckboxList={() => editorRef.current?.toggleCheckboxList(false)}
-          />
+          {/* Toolbar */}
+          <View className="flex-row items-center gap-1 border-t border-border bg-card px-2 py-2">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4, flexGrow: 1, justifyContent: "center" }}>
+              <ToolbarButton icon={Bold} label="Bold" onPress={() => sendCommand({ type: "bold" })} />
+              <ToolbarButton icon={Italic} label="Italic" onPress={() => sendCommand({ type: "italic" })} />
+              <ToolbarButton icon={Strikethrough} label="Strikethrough" onPress={() => sendCommand({ type: "strikethrough" })} />
+              <ToolbarButton icon={Underline} label="Underline" onPress={() => sendCommand({ type: "underline" })} />
+              <ToolbarButton icon={List} label="Bullet list" onPress={() => sendCommand({ type: "bulletList" })} />
+              <ToolbarButton icon={ListOrdered} label="Ordered list" onPress={() => sendCommand({ type: "orderedList" })} />
+              <ToolbarButton icon={CheckSquare} label="Check list" onPress={() => sendCommand({ type: "checkList" })} />
+            </ScrollView>
+          </View>
 
           <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag">
             <View className="w-full max-w-md self-center gap-4 p-4 pb-8">
@@ -294,25 +313,13 @@ export default function NotesEditorScreen() {
                 multiline
               />
 
-              {/* Rich Text Editor */}
+              {/* Lexical Editor (DOM Component) */}
               <View className="rounded-xl border border-border bg-card overflow-hidden">
-                <EnrichedTextInput
-                  ref={editorRef}
-                  defaultValue=""
-                  placeholder={t("notesContentPlaceholder")}
-                  placeholderTextColor={colors.mutedForeground}
-                  onChangeState={handleEditorStateChange}
-                  onChangeText={handleTextChange}
-                  scrollEnabled={false}
-                  style={editorStyle}
-                  htmlStyle={{
-                    ulCheckbox: {
-                      boxSize: 18,
-                      gapWidth: 10,
-                      marginLeft: 8,
-                      boxColor: isDark ? "#888" : "#555",
-                    },
-                  }}
+                <LexicalChecklist
+                  initialJson={contentJson}
+                  colorScheme={isDark ? "dark" : "light"}
+                  onChange={handleContentChange}
+                  command={command}
                 />
               </View>
             </View>
