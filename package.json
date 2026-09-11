@@ -1,9 +1,8 @@
 {
   "name": "uraniks-hub",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@chaitrabhairappa/react-native-rich-text-editor": "^3.5.2",
     "@expo-google-fonts/urbanist": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
