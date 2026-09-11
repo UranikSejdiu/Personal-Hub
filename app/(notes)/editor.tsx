@@ -28,6 +28,8 @@ import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import LexicalChecklist from "../../src/components/dom/LexicalChecklist";
 import type { LexicalCommandType } from "../../src/components/dom/LexicalChecklist";
+import { isLexicalJson } from "../../src/lib/lexicalPreview";
+import { htmlToLexicalJson } from "../../src/lib/htmlToLexical";
 
 type ConfirmState =
   | { kind: "discard"; action: "back" | "pending" }
@@ -101,7 +103,14 @@ export default function NotesEditorScreen() {
         if (n) {
           setNoteId(n.id);
           setTitle(n.title);
-          setContentJson(n.content);
+          // Auto-migrate legacy HTML content to Lexical JSON
+          let content = n.content;
+          if (content && !isLexicalJson(content)) {
+            content = htmlToLexicalJson(content);
+            // Background save so future loads use Lexical JSON
+            updateNote(n.id, { content }).catch(() => {});
+          }
+          setContentJson(content);
           setColor(n.color);
           setIsPinned(n.is_pinned);
         } else {
