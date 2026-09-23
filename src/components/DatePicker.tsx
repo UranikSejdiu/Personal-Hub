@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Modal, View, Text, Pressable } from "react-native";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
+import { ChevronLeft, ChevronRight } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { cn } from "../lib/utils";

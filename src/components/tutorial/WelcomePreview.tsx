@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
   Easing,
 } from "react-native-reanimated";
-import { Wallet, Sparkles, FileText } from "lucide-react-native";
+import { Wallet, Sparkles, FileText } from "../AppIcons";
 import { useThemeColors } from "../../lib/theme";
 
 export function WelcomePreview() {

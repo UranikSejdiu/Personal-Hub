@@ -1,6 +1,6 @@
 import { Pressable, Text, Modal, View } from "react-native";
 import { useState } from "react";
-import { X } from "lucide-react-native";
+import { X } from "./AppIcons";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";

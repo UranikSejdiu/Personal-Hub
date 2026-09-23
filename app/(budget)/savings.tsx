@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
-import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "lucide-react-native";
+import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";

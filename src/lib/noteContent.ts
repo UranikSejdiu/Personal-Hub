@@ -2,6 +2,8 @@ import { isLexicalJson, extractLexicalLines } from "./lexicalPreview";
 
 export function stripMarkdown(content: string): string {
   return content
+    .replace(/^- \[[ xX]\]\s+/g, "")
+    .replace(/^[☐✓○]\s+/g, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/~~(.+?)~~/g, "$1")
@@ -19,6 +21,54 @@ export function getPreviewLines(
     .map((line) => stripMarkdown(line))
     .filter((line) => line.trim().length > 0)
     .slice(0, maxLines);
+}
+
+export interface PreviewSegment {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  strikethrough?: boolean;
+}
+
+export function getPreviewSegments(content: string, maxLines = 3): PreviewSegment[][] {
+  return contentToMarkdown(content)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, maxLines)
+    .map((line) => {
+      const task = line.match(/^- \[([ xX])\]\s+(.*)$/);
+      const legacyTask = line.match(/^([☐✓○])\s+(.*)$/);
+      if (task) {
+        return parseInlineMarkdown(`${task[1].toLowerCase() === "x" ? "✓" : "☐"} ${task[2]}`);
+      }
+      if (legacyTask) {
+        return parseInlineMarkdown(`${legacyTask[1] === "○" ? "☐" : legacyTask[1]} ${legacyTask[2]}`);
+      }
+      return parseInlineMarkdown(line);
+    });
+}
+
+export function parseInlineMarkdown(line: string): PreviewSegment[] {
+  const segments: PreviewSegment[] = [];
+  const pattern = /(\*\*|~~|\*)(.+?)\1/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > cursor) segments.push({ text: line.slice(cursor, match.index) });
+    const marker = match[1];
+    segments.push({
+      text: match[2],
+      bold: marker === "**",
+      italic: marker === "*",
+      strikethrough: marker === "~~",
+    });
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < line.length) segments.push({ text: line.slice(cursor) });
+  return segments.length > 0 ? segments : [{ text: line }];
 }
 
 export function contentToMarkdown(content: string): string {
@@ -40,6 +90,86 @@ export function contentToMarkdown(content: string): string {
     return htmlToMarkdown(content);
   }
   return content;
+}
+
+export function contentToEditorHtml(content: string): string {
+  if (!content) return "<p></p>";
+  if (/<[a-z][\s\S]*>/i.test(content)) return content;
+  return markdownToHtml(contentToMarkdown(content));
+}
+
+export function markdownToHtml(markdown: string): string {
+  const lines = markdown.split("\n");
+  const html: string[] = [];
+  let listType: "ul" | "ol" | "task" | null = null;
+
+  const closeList = () => {
+    if (!listType) return;
+    html.push(listType === "task" ? "</ul>" : `</${listType}>`);
+    listType = null;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const task = line.match(/^- \[([ xX])\]\s+(.*)$/);
+    const checklist = line.match(/^[☐✓]\s+(.*)$/);
+    const bullet = line.match(/^(?:[-*•])\s+(.*)$/);
+    const ordered = line.match(/^\d+[.)]\s+(.*)$/);
+
+    if (task || checklist) {
+      if (listType !== "task") {
+        closeList();
+        html.push('<ul data-type="taskList">');
+        listType = "task";
+      }
+      const checked = task ? task[1].toLowerCase() === "x" : line.startsWith("✓");
+      const text = task ? task[2] : checklist?.[1] ?? "";
+      html.push(`<li data-checked="${checked}"><p>${inlineMarkdownToHtml(text)}</p></li>`);
+      continue;
+    }
+
+    if (bullet) {
+      if (listType !== "ul") {
+        closeList();
+        html.push("<ul>");
+        listType = "ul";
+      }
+      html.push(`<li><p>${inlineMarkdownToHtml(bullet[1])}</p></li>`);
+      continue;
+    }
+
+    if (ordered) {
+      if (listType !== "ol") {
+        closeList();
+        html.push("<ol>");
+        listType = "ol";
+      }
+      html.push(`<li><p>${inlineMarkdownToHtml(ordered[1])}</p></li>`);
+      continue;
+    }
+
+    closeList();
+    if (line.trim()) html.push(`<p>${inlineMarkdownToHtml(line)}</p>`);
+  }
+
+  closeList();
+  return html.join("") || "<p></p>";
+}
+
+function inlineMarkdownToHtml(value: string): string {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~(.+?)~~/g, "<s>$1</s>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 interface BlockLegacy {
@@ -68,9 +198,18 @@ function blocksToMarkdown(blocks: BlockLegacy[]): string {
 
 function htmlToMarkdown(html: string): string {
   return html
-    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<li[^>]*data-checked=["']true["'][^>]*>/gi, "- [x] ")
+    .replace(/<li[^>]*data-checked=["']false["'][^>]*>/gi, "- [ ] ")
+    .replace(/<li[^>]*>/gi, "- ")
     .replace(/<\/li>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6])>/gi, "\n")
+    .replace(/<(strong|b)>/gi, "**")
+    .replace(/<\/(strong|b)>/gi, "**")
+    .replace(/<(em|i)>/gi, "*")
+    .replace(/<\/(em|i)>/gi, "*")
+    .replace(/<(s|del|strike)>/gi, "~~")
+    .replace(/<\/(s|del|strike)>/gi, "~~")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")

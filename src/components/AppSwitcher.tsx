@@ -7,7 +7,7 @@ import {
   FileText,
   LayoutGrid,
   CircleHelp,
-} from "lucide-react-native";
+} from "./AppIcons";
 import { cn } from "../lib/utils";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useHaptics } from "../hooks/useHaptics";

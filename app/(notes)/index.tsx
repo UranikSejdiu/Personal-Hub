@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
+import { FileText, Plus, Search, XCircle, Pin } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, type TKey } from "../../src/lib/i18n";
@@ -11,7 +11,7 @@ import {
   getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
-import { getPreviewLines } from "../../src/lib/noteContent";
+import { getPreviewSegments } from "../../src/lib/noteContent";
 import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -61,7 +61,7 @@ const NoteCard = React.memo(function NoteCard({
 
   const previewLines = useMemo(() => {
     if (!note.content) return [];
-    return getPreviewLines(note.content, 3);
+    return getPreviewSegments(note.content, 3);
   }, [note.content]);
 
   return (
@@ -97,7 +97,18 @@ const NoteCard = React.memo(function NoteCard({
                 color: previewColor,
               }}
             >
-              {line}
+              {line.map((segment, segmentIndex) => (
+                <Text
+                  key={`${i}-${segmentIndex}`}
+                  style={{
+                    fontWeight: segment.bold ? "700" : undefined,
+                    fontStyle: segment.italic ? "italic" : undefined,
+                    textDecorationLine: segment.strikethrough ? "line-through" : "none",
+                  }}
+                >
+                  {segment.text}
+                </Text>
+              ))}
             </Text>
           ))}
         </View>

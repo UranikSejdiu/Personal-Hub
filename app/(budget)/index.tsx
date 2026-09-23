@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
-import { Trash2, Plus, ChevronDown } from "lucide-react-native";
+import { Trash2, Plus, ChevronDown } from "../../src/components/AppIcons";
 import { useRouter } from "expo-router";
 import { toast } from "sonner-native";
 

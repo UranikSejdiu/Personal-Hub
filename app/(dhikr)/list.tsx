@@ -6,7 +6,7 @@ import {
   Alert,
   StyleSheet,
 } from "react-native";
-import { Sparkles, Plus, Pencil, Trash2, GripVertical } from "lucide-react-native";
+import { Sparkles, Plus, Pencil, Trash2, GripVertical } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";

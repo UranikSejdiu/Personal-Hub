@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen } from "lucide-react-native";
+import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
+import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors, THEMES } from "../lib/theme";
 import { ACCENT_ORDER, ACCENT_COLORS } from "../constants/theme";
@@ -454,6 +455,19 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
                 <Text className="text-sm text-muted-foreground">{t("version")}: {getAppVersion()}</Text>
                 <Text className="text-center text-sm text-muted-foreground">{t("aboutDescription")}</Text>
+                <Pressable
+                  onPress={() => {
+                    void Linking.openURL("https://www.flaticon.com/uicons").catch(() => {
+                      toast.error(t("linkOpenFailed"));
+                    });
+                  }}
+                  accessibilityRole="link"
+                  accessibilityLabel={t("flaticonAttribution")}
+                >
+                  <Text className="text-center text-xs text-muted-foreground underline">
+                    {t("flaticonAttribution")}
+                  </Text>
+                </Pressable>
               </View>
             </View>
             <UpdateCard />

@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
-import { Palette, Target, Cloud, Info } from "lucide-react-native";
+import { Palette, Target, Cloud, Info } from "../AppIcons";
 import { useThemeColors } from "../../lib/theme";
 
 export function SettingsPreview() {

@@ -1,5 +1,5 @@
 import { View, Text, Pressable } from "react-native";
-import { CreditCard, Check } from "lucide-react-native";
+import { CreditCard, Check } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";

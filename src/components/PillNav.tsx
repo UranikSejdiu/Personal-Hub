@@ -10,7 +10,7 @@ import {
   ListOrdered,
   FileText,
   CircleHelp,
-} from "lucide-react-native";
+} from "./AppIcons";
 import { cn } from "../lib/utils";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";

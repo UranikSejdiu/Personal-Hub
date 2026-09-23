@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
-import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";

@@ -140,6 +140,7 @@ export default function RootLayout() {
     "Urbanist-Medium": require("../assets/fonts/Urbanist-Medium.ttf"),
     "Urbanist-SemiBold": require("../assets/fonts/Urbanist-SemiBold.ttf"),
     "Urbanist-Bold": require("../assets/fonts/Urbanist-Bold.ttf"),
+    Uicons: require("../assets/fonts/uicons-regular-rounded.ttf"),
   });
 
   if (!fontsLoaded) return null;

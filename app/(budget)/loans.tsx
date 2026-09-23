@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Keyboard, TextInput } from "react-native";
-import { Landmark, CreditCard, Save, ChevronRight } from "lucide-react-native";
+import { Landmark, CreditCard, Save, ChevronRight } from "../../src/components/AppIcons";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";

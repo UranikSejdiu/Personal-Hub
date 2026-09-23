@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable, TextInput, Modal } from "react-native";
-import { X } from "lucide-react-native";
+import { X } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { NumberInput } from "./NumberInput";

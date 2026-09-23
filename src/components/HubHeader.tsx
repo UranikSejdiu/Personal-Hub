@@ -1,6 +1,6 @@
 import { View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Rocket } from "lucide-react-native";
+import { Rocket } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import { AppSwitcher } from "./AppSwitcher";
 import { HUB_APPS, getHubRoute } from "../hub/registry";

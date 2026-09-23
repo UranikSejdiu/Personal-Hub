@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { View, Text, Pressable, TextInput, KeyboardAvoidingView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -12,7 +12,8 @@ import {
   List,
   ListOrdered,
   CheckSquare,
-} from "lucide-react-native";
+} from "../../src/components/AppIcons";
+import { RichText, useEditorBridge } from "@10play/tentap-editor";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -28,77 +29,54 @@ import { type NoteColor } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { contentToMarkdown } from "../../src/lib/noteContent";
+import { contentToEditorHtml } from "../../src/lib/noteContent";
 
 type ConfirmState =
   | { kind: "discard"; action: "back" | "pending" }
   | { kind: "delete" }
   | null;
 
-const COLOR_OPTIONS: NoteColor[] = ["default", "yellow", "green", "blue", "pink", "purple", "orange", "red"];
+const COLOR_OPTIONS: NoteColor[] = [
+  "default",
+  "yellow",
+  "green",
+  "blue",
+  "pink",
+  "purple",
+  "orange",
+  "red",
+];
 
-interface SelectionRange {
-  start: number;
-  end: number;
-}
+type FormatButton = {
+  type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
+  label: string;
+  icon: typeof Bold;
+  action: "toggleBold" | "toggleItalic" | "toggleStrike" | "toggleBulletList" | "toggleOrderedList" | "toggleTaskList";
+};
 
-function wrapInline(
-  content: string,
-  sel: SelectionRange,
-  marker: string
-): [string, SelectionRange] {
-  const selected = content.substring(sel.start, sel.end);
-  const before = content.substring(0, sel.start);
-  const after = content.substring(sel.end);
-  const isWrapped =
-    selected.startsWith(marker) &&
-    selected.endsWith(marker) &&
-    selected.length > marker.length * 2;
-  if (isWrapped) {
-    const inner = selected.substring(
-      marker.length,
-      selected.length - marker.length
-    );
-    const newText = before + inner + after;
-    return [newText, { start: sel.start, end: sel.end - marker.length * 2 }];
-  }
-  const wrapped = marker + selected + marker;
-  const newText = before + wrapped + after;
-  return [
-    newText,
-    { start: sel.start + marker.length, end: sel.end + marker.length },
-  ];
-}
-
-function toggleLinePrefix(
-  content: string,
-  sel: SelectionRange,
-  prefix: string
-): [string, SelectionRange] {
-  const lineStart = content.lastIndexOf("\n", sel.start - 1) + 1;
-  const lineEnd = content.indexOf("\n", sel.end);
-  const actualEnd = lineEnd === -1 ? content.length : lineEnd;
-  const line = content.substring(lineStart, actualEnd);
-  const hasPrefix = line.startsWith(prefix);
-  let newLine: string;
-  let delta: number;
-  if (hasPrefix) {
-    newLine = line.substring(prefix.length);
-    delta = -prefix.length;
-  } else {
-    newLine = prefix + line;
-    delta = prefix.length;
-  }
-  const newText =
-    content.substring(0, lineStart) + newLine + content.substring(actualEnd);
-  return [
-    newText,
-    {
-      start: Math.max(lineStart, sel.start + delta),
-      end: Math.max(lineStart, sel.end + delta),
-    },
-  ];
-}
+const FORMAT_BUTTONS: FormatButton[] = [
+  { type: "bold", label: "Bold", icon: Bold, action: "toggleBold" },
+  { type: "italic", label: "Italic", icon: Italic, action: "toggleItalic" },
+  {
+    type: "strikethrough",
+    label: "Strikethrough",
+    icon: Strikethrough,
+    action: "toggleStrike",
+  },
+  { type: "bullet", label: "Bullet list", icon: List, action: "toggleBulletList" },
+  {
+    type: "numbered",
+    label: "Numbered list",
+    icon: ListOrdered,
+    action: "toggleOrderedList",
+  },
+  {
+    type: "checklist",
+    label: "Checklist",
+    icon: CheckSquare,
+    action: "toggleTaskList",
+  },
+];
 
 export default function NotesEditorScreen() {
   const { t } = useI18n();
@@ -109,63 +87,77 @@ export default function NotesEditorScreen() {
   const haptics = useHaptics();
   const isDark = theme === "dark";
   const insets = useSafeAreaInsets();
-  const contentRef = useRef<TextInput>(null);
+  const suppressChangeRef = useRef(true);
+  const editor = useEditorBridge({
+    initialContent: "<p></p>",
+    avoidIosKeyboard: true,
+    onChange: () => {
+      if (!suppressChangeRef.current) setIsDirty(true);
+    },
+  });
 
   const [noteId, setNoteId] = useState<number | null>(id ? Number(id) : null);
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
   const [color, setColor] = useState<NoteColor>("default");
   const [isPinned, setIsPinned] = useState(false);
   const [loading, setLoading] = useState(!!id);
-  const [selection, setSelection] = useState<SelectionRange>({
-    start: 0,
-    end: 0,
-  });
-
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      suppressChangeRef.current = true;
+      editor.setContent("<p></p>");
+      requestAnimationFrame(() => {
+        suppressChangeRef.current = false;
+      });
+      return;
+    }
+
     let cancelled = false;
+    suppressChangeRef.current = true;
     getNote(Number(id))
-      .then((n) => {
+      .then((note) => {
         if (cancelled) return;
-        if (n) {
-          setNoteId(n.id);
-          setTitle(n.title);
-          setContent(contentToMarkdown(n.content));
-          setColor(n.color);
-          setIsPinned(n.is_pinned);
+        if (note) {
+          setNoteId(note.id);
+          setTitle(note.title);
+          setColor(note.color);
+          setIsPinned(note.is_pinned);
+          editor.setContent(contentToEditorHtml(note.content));
         } else {
           setNoteId(null);
           setTitle("");
-          setContent("");
           setColor("default");
           setIsPinned(false);
+          editor.setContent("<p></p>");
         }
         setIsDirty(false);
         setLoading(false);
+        requestAnimationFrame(() => {
+          suppressChangeRef.current = false;
+        });
       })
       .catch(() => {
         if (cancelled) return;
         setLoading(false);
+        suppressChangeRef.current = false;
         toast.error(t("errorLoadingData"));
       });
+
     return () => {
       cancelled = true;
     };
-  }, [id, t]);
+  }, [editor, id, t]);
 
-  const [prevId, setPrevId] = useState(id);
-  if (prevId !== id) {
-    setPrevId(id);
+  const [previousId, setPreviousId] = useState(id);
+  if (previousId !== id) {
+    setPreviousId(id);
     if (!id) {
       setNoteId(null);
       setTitle("");
-      setContent("");
       setColor("default");
       setIsPinned(false);
       setIsDirty(false);
@@ -185,16 +177,15 @@ export default function NotesEditorScreen() {
   useEffect(() => {
     const unsubscribe = navigation.addListener(
       "beforeRemove",
-      (e: {
+      (event: {
         preventDefault: () => void;
         data: { action: { type: string } };
       }) => {
-        if (!isDirty) return;
-        if (allowRemoveRef.current) return;
-        e.preventDefault();
+        if (!isDirty || allowRemoveRef.current) return;
+        event.preventDefault();
         pendingRemoveActionRef.current = () => {
           allowRemoveRef.current = true;
-          navigation.dispatch(e.data.action as never);
+          navigation.dispatch(event.data.action as never);
         };
         setConfirmState({ kind: "discard", action: "pending" });
       }
@@ -218,20 +209,11 @@ export default function NotesEditorScreen() {
     if (isSaving) return;
     setIsSaving(true);
     try {
+      const content = await editor.getHTML();
       if (noteId) {
-        await updateNote(noteId, {
-          title,
-          content,
-          color,
-          is_pinned: isPinned,
-        });
+        await updateNote(noteId, { title, content, color, is_pinned: isPinned });
       } else {
-        const created = await createNote({
-          title,
-          content,
-          color,
-          is_pinned: isPinned,
-        });
+        const created = await createNote({ title, content, color, is_pinned: isPinned });
         setNoteId(created.id);
       }
       setIsDirty(false);
@@ -242,11 +224,10 @@ export default function NotesEditorScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, noteId, title, content, color, isPinned, router, haptics, t]);
+  }, [color, editor, haptics, isPinned, isSaving, noteId, router, t, title]);
 
   const handleDelete = useCallback(() => {
-    if (!noteId) return;
-    setConfirmState({ kind: "delete" });
+    if (noteId) setConfirmState({ kind: "delete" });
   }, [noteId]);
 
   const handleConfirmDelete = useCallback(async () => {
@@ -260,60 +241,13 @@ export default function NotesEditorScreen() {
     } catch {
       toast.error(t("deleteFailed"));
     }
-  }, [noteId, router, haptics, t]);
+  }, [haptics, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
     void haptics.light();
-    setIsPinned((prev) => !prev);
+    setIsPinned((previous) => !previous);
     setIsDirty(true);
   }, [haptics]);
-
-  const applyFormat = useCallback(
-    (type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist") => {
-      const sel = selection;
-      switch (type) {
-        case "bold": {
-          const [newText, newSel] = wrapInline(content, sel, "**");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-        case "italic": {
-          const [newText, newSel] = wrapInline(content, sel, "*");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-        case "strikethrough": {
-          const [newText, newSel] = wrapInline(content, sel, "~~");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-        case "bullet": {
-          const [newText, newSel] = toggleLinePrefix(content, sel, "• ");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-        case "numbered": {
-          const [newText, newSel] = toggleLinePrefix(content, sel, "1. ");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-        case "checklist": {
-          const [newText, newSel] = toggleLinePrefix(content, sel, "☐ ");
-          setContent(newText);
-          setSelection(newSel);
-          break;
-        }
-      }
-      setIsDirty(true);
-      setTimeout(() => contentRef.current?.focus(), 50);
-    },
-    [content, selection]
-  );
 
   const colorLabels = useMemo(
     () => ({
@@ -345,7 +279,7 @@ export default function NotesEditorScreen() {
         keyboardVerticalOffset={insets.top + 48}
       >
         <View className="flex-1 bg-background">
-          <View className="w-full max-w-md self-center gap-3 p-4 pb-8">
+          <View className="w-full max-w-md flex-1 self-center gap-3 p-4 pb-8">
             <View className="flex-row items-center justify-between">
               <Pressable
                 onPress={handleBack}
@@ -360,9 +294,7 @@ export default function NotesEditorScreen() {
                   onPress={handleTogglePin}
                   className="p-2"
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    isPinned ? t("notesUnpin") : t("notesPin")
-                  }
+                  accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
                 >
                   {isPinned ? (
                     <Pin size={20} color={colors.foreground} />
@@ -370,7 +302,7 @@ export default function NotesEditorScreen() {
                     <PinOff size={20} color={colors.mutedForeground} />
                   )}
                 </Pressable>
-                {noteId && (
+                {noteId ? (
                   <Pressable
                     onPress={handleDelete}
                     className="p-2"
@@ -379,63 +311,57 @@ export default function NotesEditorScreen() {
                   >
                     <Trash2 size={20} color={colors.destructive} />
                   </Pressable>
-                )}
+                ) : null}
                 <Pressable
                   onPress={handleSave}
                   className="rounded-lg bg-primary px-4 py-2"
                   accessibilityRole="button"
                   accessibilityLabel={t("save")}
                 >
-                  <Text className="text-sm font-medium text-primary-foreground">
-                    {t("save")}
-                  </Text>
+                  <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
                 </Pressable>
               </View>
             </View>
 
             <View className="flex-row items-center gap-2">
-              {COLOR_OPTIONS.map((c) => (
+              {COLOR_OPTIONS.map((option) => (
                 <Pressable
-                  key={c}
+                  key={option}
                   onPress={() => {
-                    setColor(c);
+                    setColor(option);
                     setIsDirty(true);
                   }}
                   className={`h-7 w-7 rounded-full border-2 ${
-                    color === c ? "border-primary" : "border-border"
-                  } ${getNoteColorClass(c, isDark)}`}
+                    color === option ? "border-primary" : "border-border"
+                  } ${getNoteColorClass(option, isDark)}`}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: color === c }}
-                  accessibilityLabel={colorLabels[c]}
+                  accessibilityState={{ checked: color === option }}
+                  accessibilityLabel={colorLabels[option]}
                 />
               ))}
             </View>
 
             <View className="flex-row items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5">
-              {[
-                { icon: Bold, label: "Bold", type: "bold" as const },
-                { icon: Italic, label: "Italic", type: "italic" as const },
-                { icon: Strikethrough, label: "Strikethrough", type: "strikethrough" as const },
-                { icon: List, label: "Bullet list", type: "bullet" as const },
-                { icon: ListOrdered, label: "Numbered list", type: "numbered" as const },
-                { icon: CheckSquare, label: "Checklist", type: "checklist" as const },
-              ].map((btn) => (
+              {FORMAT_BUTTONS.map((button) => (
                 <Pressable
-                  key={btn.type}
-                  onPress={() => applyFormat(btn.type)}
+                  key={button.type}
+                  onPress={() => {
+                    editor[button.action]();
+                    void haptics.light();
+                  }}
                   className="h-9 w-9 items-center justify-center rounded-lg bg-muted"
                   accessibilityRole="button"
-                  accessibilityLabel={btn.label}
+                  accessibilityLabel={button.label}
                 >
-                  <btn.icon size={18} color={colors.foreground} />
+                  <button.icon size={18} color={colors.foreground} />
                 </Pressable>
               ))}
             </View>
 
             <TextInput
               value={title}
-              onChangeText={(v) => {
-                setTitle(v);
+              onChangeText={(value) => {
+                setTitle(value);
                 setIsDirty(true);
               }}
               placeholder={t("notesUntitled")}
@@ -444,21 +370,12 @@ export default function NotesEditorScreen() {
               multiline
             />
 
-            <TextInput
-              ref={contentRef}
-              value={content}
-              onChangeText={(v) => {
-                setContent(v);
-                setIsDirty(true);
-              }}
-              onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-              placeholder={t("notesContentPlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              className={`rounded-xl border border-border bg-card px-4 py-3 text-base min-h-[200px] ${getNoteTextColorClass(color, isDark)}`}
-              multiline
-              textAlignVertical="top"
-              scrollEnabled={false}
-            />
+            <View className="min-h-[240px] flex-1 overflow-hidden rounded-xl border border-border bg-card">
+              <RichText
+                editor={editor}
+                style={{ flex: 1, minHeight: 240, backgroundColor: colors.card }}
+              />
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -489,11 +406,7 @@ export default function NotesEditorScreen() {
         cancelLabel={t("cancel")}
         destructive={confirmState?.kind === "delete"}
         onClose={() => setConfirmState(null)}
-        onConfirm={
-          confirmState?.kind === "delete"
-            ? handleConfirmDelete
-            : handleConfirmDiscard
-        }
+        onConfirm={confirmState?.kind === "delete" ? handleConfirmDelete : handleConfirmDiscard}
       />
     </>
   );
