@@ -85,7 +85,7 @@ export default function NotesEditorScreen() {
   const { theme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const isDark = theme === "dark";
+  const isDark = theme !== "light";
   const insets = useSafeAreaInsets();
   const suppressChangeRef = useRef(true);
   const editor = useEditorBridge({
@@ -151,18 +151,6 @@ export default function NotesEditorScreen() {
       cancelled = true;
     };
   }, [editor, id, t]);
-
-  const [previousId, setPreviousId] = useState(id);
-  if (previousId !== id) {
-    setPreviousId(id);
-    if (!id) {
-      setNoteId(null);
-      setTitle("");
-      setColor("default");
-      setIsPinned(false);
-      setIsDirty(false);
-    }
-  }
 
   const handleBack = useCallback(() => {
     if (!isDirty) {

@@ -37,6 +37,7 @@ export default function BudgetScreen() {
   const haptics = useHaptics();
   const month = initialMonth;
   const prevMonthRef = useRef(month);
+  const activeMonthRef = useRef(month);
 
   const [loans, setLoans] = useState<Loans | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
@@ -60,10 +61,13 @@ export default function BudgetScreen() {
     ccPaid: boolean;
     current: string;
   } | null>(null);
+  const loadRequestRef = useRef(0);
+  const saveQueueRef = useRef(Promise.resolve());
 
   useEffect(() => {
     if (prevMonthRef.current === month) return;
     prevMonthRef.current = month;
+    activeMonthRef.current = month;
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -83,12 +87,14 @@ export default function BudgetScreen() {
   }, [t]);
 
   const loadData = useCallback(async (m: string) => {
+    const request = ++loadRequestRef.current;
     const [l, b, pb, sg] = await Promise.all([
       loadLoans(),
       loadBudget(m),
       loadBudget(addMonths(m, -1)),
       loadSavingsGoal(),
     ]);
+    if (request !== loadRequestRef.current) return;
     setLoans(l);
     setHasPreviousBudget(!!pb);
     setSavingsGoal(sg.goal_amount);
@@ -96,6 +102,7 @@ export default function BudgetScreen() {
     budgetIdRef.current = b ? b.id : null;
     if (b) {
       const exps = await listExpenses(b.id);
+      if (request !== loadRequestRef.current) return;
       setExpenses(exps);
     } else {
       setExpenses([]);
@@ -141,27 +148,30 @@ export default function BudgetScreen() {
   const flushSave = useCallback(async () => {
     const pending = pendingSaveRef.current;
     if (!pending || pending.current === persistedRef.current) {
+      await saveQueueRef.current;
       setIsSaving(false);
       return;
     }
-    try {
-      const saved = await saveBudget(
-        pending.month,
-        pending.income,
-        pending.loanPaid,
-        pending.ccPaid
-      );
-      budgetIdRef.current = saved.id;
-      persistedRef.current = pending.current;
-      pendingSaveRef.current = null;
-      setSaveError(null);
-    } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : tRef.current("saveFailed")
-      );
-    } finally {
-      setIsSaving(false);
-    }
+    pendingSaveRef.current = null;
+    setIsSaving(true);
+    saveQueueRef.current = saveQueueRef.current.then(async () => {
+      try {
+        const saved = await saveBudget(pending.month, pending.income, pending.loanPaid, pending.ccPaid);
+        if (pending.month === activeMonthRef.current) {
+          budgetIdRef.current = saved.id;
+          persistedRef.current = pending.current;
+          setSaveError(null);
+        }
+      } catch (err) {
+        if (pending.month === activeMonthRef.current) {
+          pendingSaveRef.current = pending;
+          setSaveError(err instanceof Error ? err.message : tRef.current("saveFailed"));
+        }
+      } finally {
+        if (pending.month === activeMonthRef.current && !pendingSaveRef.current) setIsSaving(false);
+      }
+    });
+    await saveQueueRef.current;
   }, []);
 
   const scheduleSave = useCallback(() => {
@@ -345,6 +355,11 @@ export default function BudgetScreen() {
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;
     try {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      await flushSave();
       const result = await copyBudgetFromMonth(previousMonth, month);
       setBudget(result.budget);
       budgetIdRef.current = result.budget.id;
@@ -361,7 +376,7 @@ export default function BudgetScreen() {
     } catch {
       toast.error(t("noPreviousMonthFound"));
     }
-  }, [month, previousMonth, previousMonthLabel, loading, t, haptics]);
+  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushSave]);
 
   if (loading || !loans || !budget) {
     if (loadError) {

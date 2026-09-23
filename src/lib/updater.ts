@@ -22,16 +22,25 @@ export interface InstallOptions {
   onProgress?: (percent: number) => void;
 }
 
+interface GitHubAsset {
+  name: string;
+  browser_download_url: string;
+}
+
 interface GitHubRelease {
   tag_name: string;
-  body?: string;
-  assets?: { name: string; browser_download_url: string }[];
+  body?: string | null;
+  assets: GitHubAsset[];
 }
 
 const REPO = "UranikSejdiu/Personal-Hub";
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_KEY = "update_check_cache";
 const FETCH_TIMEOUT_MS = 15_000;
+const GITHUB_ASSET_HOSTS = new Set([
+  "release-assets.githubusercontent.com",
+  "objects.githubusercontent.com",
+]);
 
 export async function getCurrentVersion(): Promise<string> {
   try {
@@ -41,10 +50,11 @@ export async function getCurrentVersion(): Promise<string> {
   }
 }
 
-function parseLatestVersionCode(tag: string): number {
-  const match = /v?(\d+)\.(\d+)\.(\d+)/.exec(tag);
-  if (!match) return 0;
-  return Number(match[1]) * 1_000_000 + Number(match[2]) * 1000 + Number(match[3]);
+function parseVersion(tag: string): { name: string; code: number } | null {
+  const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
+  if (!match) return null;
+  const code = Number(match[1]) * 1_000_000 + Number(match[2]) * 1000 + Number(match[3]);
+  return Number.isSafeInteger(code) ? { name: `${match[1]}.${match[2]}.${match[3]}`, code } : null;
 }
 
 function isNewer(latestVersionCode: number, current: string): boolean {
@@ -57,29 +67,92 @@ function isNewer(latestVersionCode: number, current: string): boolean {
   return latestVersionCode > currentVersionCode;
 }
 
-function findApkAsset(
-  assets: { name: string; browser_download_url: string }[]
-): { name: string; browser_download_url: string } | undefined {
-  return assets.find((a) => /\.apk$/i.test(a.name));
+function findApkAsset(assets: GitHubAsset[]): GitHubAsset | undefined {
+  return assets.find((asset) => asset.name === "app-release.apk");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isGitHubAsset(value: unknown): value is GitHubAsset {
+  if (!isRecord(value)) return false;
+  return typeof value.name === "string" && typeof value.browser_download_url === "string";
 }
 
 function parseReleaseData(data: unknown): GitHubRelease | null {
   if (typeof data === "string") {
     try {
-      data = JSON.parse(data);
+      data = JSON.parse(data) as unknown;
     } catch {
       return null;
     }
   }
-  if (
-    data &&
-    typeof data === "object" &&
-    "tag_name" in data &&
-    typeof (data as GitHubRelease).tag_name === "string"
-  ) {
-    return data as GitHubRelease;
+  if (!isRecord(data) || typeof data.tag_name !== "string" || !Array.isArray(data.assets)) {
+    return null;
   }
-  return null;
+  const assets = data.assets.filter(isGitHubAsset);
+  if (assets.length !== data.assets.length) return null;
+  if (data.body !== undefined && data.body !== null && typeof data.body !== "string") return null;
+  const body = typeof data.body === "string" ? data.body : data.body === null ? null : undefined;
+  return {
+    tag_name: data.tag_name,
+    body,
+    assets,
+  };
+}
+
+function isExpectedAssetUrl(value: string, versionName: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "github.com" &&
+      url.pathname ===
+        `/UranikSejdiu/Personal-Hub/releases/download/v${versionName}/app-release.apk`
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidUpdateInfo(value: unknown): value is UpdateInfo {
+  if (!isRecord(value)) return false;
+  const versionName = typeof value.versionName === "string" ? value.versionName : "";
+  const parsedVersion = parseVersion(`v${versionName}`);
+  return (
+    parsedVersion !== null &&
+    typeof value.versionCode === "number" &&
+    Number.isSafeInteger(value.versionCode) &&
+    value.versionCode === parsedVersion.code &&
+    typeof value.downloadUrl === "string" &&
+    isExpectedAssetUrl(value.downloadUrl, versionName) &&
+    typeof value.body === "string"
+  );
+}
+
+function isCheckResult(value: unknown): value is CheckResult {
+  if (!isRecord(value) || typeof value.currentVersion !== "string") return false;
+  if (value.status === "error" || value.status === "no-releases" || value.status === "up-to-date") {
+    return true;
+  }
+  return value.status === "update" && isValidUpdateInfo(value.latest);
+}
+
+async function resolveDownloadUrl(url: string, versionName: string): Promise<string> {
+  if (!isExpectedAssetUrl(url, versionName)) throw new Error("Unexpected APK download URL");
+  const response = await fetch(url, { method: "HEAD", redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (!location) throw new Error("APK download redirect did not provide a URL");
+    const redirected = new URL(location, url);
+    if (redirected.protocol !== "https:" || !GITHUB_ASSET_HOSTS.has(redirected.hostname)) {
+      throw new Error("APK download redirected to an unexpected host");
+    }
+    return redirected.toString();
+  }
+  if (!response.ok) throw new Error(`APK download URL check failed (${response.status})`);
+  return url;
 }
 
 async function saveCheckCache(result: CheckResult): Promise<void> {
@@ -95,7 +168,8 @@ async function loadCheckCache(): Promise<CheckResult | null> {
   try {
     const value = await AsyncStorage.getItem(CACHE_KEY);
     if (!value) return null;
-    return JSON.parse(value) as CheckResult;
+    const parsed: unknown = JSON.parse(value);
+    return isCheckResult(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -103,6 +177,10 @@ async function loadCheckCache(): Promise<CheckResult | null> {
 
 export async function checkForUpdate(): Promise<CheckResult> {
   const currentVersion = await getCurrentVersion();
+  const cachedOrError = async (): Promise<CheckResult> => {
+    const cached = await loadCheckCache();
+    return cached && cached.status !== "error" ? cached : { status: "error", currentVersion };
+  };
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -118,9 +196,7 @@ export async function checkForUpdate(): Promise<CheckResult> {
     }
 
     if (response.status === 403 || response.status === 429) {
-      const cached = await loadCheckCache();
-      if (cached && cached.status !== "error") return cached;
-      return { status: "error", currentVersion };
+      return cachedOrError();
     }
 
     if (response.status === 404) {
@@ -132,14 +208,20 @@ export async function checkForUpdate(): Promise<CheckResult> {
     }
 
     const release = parseReleaseData(await response.text());
-    if (!release) return { status: "error", currentVersion };
+    if (!release) return cachedOrError();
 
-    const asset = findApkAsset(release.assets ?? []);
-    if (!asset) return { status: "error", currentVersion };
+    const version = parseVersion(release.tag_name);
+    if (!version) return cachedOrError();
+
+    const asset = findApkAsset(release.assets);
+    if (!asset) return cachedOrError();
+    if (!isExpectedAssetUrl(asset.browser_download_url, version.name)) {
+      return cachedOrError();
+    }
 
     const latest: UpdateInfo = {
-      versionName: release.tag_name.replace(/^v/i, ""),
-      versionCode: parseLatestVersionCode(release.tag_name),
+      versionName: version.name,
+      versionCode: version.code,
       downloadUrl: asset.browser_download_url,
       body: release.body ?? "",
     };
@@ -154,9 +236,7 @@ export async function checkForUpdate(): Promise<CheckResult> {
     return result;
   } catch (error) {
     console.warn("[updater] checkForUpdate failed:", error);
-    const cached = await loadCheckCache();
-    if (cached && cached.status !== "error") return cached;
-    return { status: "error", currentVersion };
+    return cachedOrError();
   }
 }
 
@@ -165,6 +245,9 @@ export async function downloadApk(
   options?: InstallOptions
 ): Promise<File> {
   if (Platform.OS !== "android") throw new Error("Auto-update is only supported on Android.");
+  if (!isValidUpdateInfo(info)) throw new Error("Invalid update metadata");
+
+  const downloadUrl = await resolveDownloadUrl(info.downloadUrl, info.versionName);
 
   const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
   try {
@@ -179,7 +262,7 @@ export async function downloadApk(
     // non-critical
   }
 
-  const task = File.createDownloadTask(info.downloadUrl, destination, {
+  const task = File.createDownloadTask(downloadUrl, destination, {
     onProgress: ({ bytesWritten, totalBytes }) => {
       if (!options?.onProgress) return;
       if (totalBytes > 0) {
@@ -197,7 +280,7 @@ export async function downloadApk(
     throw new Error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
   }
 
-  if (!apk || !apk.exists) throw new Error("Download failed: no file written.");
+  if (!apk || !apk.exists || apk.size <= 0) throw new Error("Download failed: empty APK file.");
   options?.onProgress?.(100);
   return apk;
 }

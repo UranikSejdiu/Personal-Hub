@@ -8,7 +8,8 @@ export async function getSelectedDhikrId(): Promise<number | null> {
     if (!raw) return null;
     const id = parseInt(raw, 10);
     return Number.isNaN(id) ? null : id;
-  } catch {
+  } catch (error) {
+    console.warn("[dhikr] failed to read selected item", error);
     return null;
   }
 }
@@ -20,8 +21,9 @@ export async function setSelectedDhikrId(id: number | null): Promise<void> {
     } else {
       await AsyncStorage.setItem(SELECTED_ID_KEY, String(id));
     }
-  } catch {
-    /* ignore persistence failures */
+  } catch (error) {
+    console.warn("[dhikr] failed to persist selected item", error);
+    throw error;
   }
 }
 
@@ -31,7 +33,8 @@ export async function clearSelectedDhikrIdIfMissing(validIds: number[]): Promise
     if (currentId != null && !validIds.includes(currentId)) {
       await setSelectedDhikrId(validIds.length > 0 ? validIds[0] : null);
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn("[dhikr] failed to repair selected item", error);
+    throw error;
   }
 }

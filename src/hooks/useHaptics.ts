@@ -28,14 +28,20 @@ export async function setHapticsEnabled(enabled: boolean): Promise<void> {
 
 export function useHaptics() {
   useEffect(() => {
-    void getHapticsEnabled();
+    void getHapticsEnabled().catch(() => {
+      // Haptics are optional; retain the safe disabled default when storage is unavailable.
+      cachedEnabled = false;
+      settingsLoaded = true;
+    });
   }, []);
   const light = useCallback(async () => {
     try {
       if (isHapticsEnabled()) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   const medium = useCallback(async () => {
@@ -43,7 +49,9 @@ export function useHaptics() {
       if (isHapticsEnabled()) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   const heavy = useCallback(async () => {
@@ -51,7 +59,9 @@ export function useHaptics() {
       if (isHapticsEnabled()) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   const success = useCallback(async () => {
@@ -59,7 +69,9 @@ export function useHaptics() {
       if (isHapticsEnabled()) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   const warning = useCallback(async () => {
@@ -67,7 +79,9 @@ export function useHaptics() {
       if (isHapticsEnabled()) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   const error = useCallback(async () => {
@@ -75,7 +89,9 @@ export function useHaptics() {
       if (isHapticsEnabled()) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-    } catch {}
+    } catch {
+      // Native haptics can be unavailable on simulators and unsupported devices.
+    }
   }, []);
 
   return { light, medium, heavy, success, warning, error };

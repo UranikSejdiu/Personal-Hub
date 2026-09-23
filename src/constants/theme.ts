@@ -43,9 +43,31 @@ export const COLORS = {
     input: "hsl(240, 3.7%, 15.9%)",
     ring: "hsl(240, 4.9%, 83.9%)",
   },
+  tawheed: {
+    background: "hsl(160, 35%, 7%)",
+    foreground: "hsl(42, 65%, 92%)",
+    card: "hsl(160, 30%, 10%)",
+    cardForeground: "hsl(42, 65%, 92%)",
+    primary: "hsl(43, 78%, 52%)",
+    primaryForeground: "hsl(160, 35%, 7%)",
+    secondary: "hsl(160, 25%, 17%)",
+    secondaryForeground: "hsl(42, 65%, 92%)",
+    muted: "hsl(160, 25%, 17%)",
+    mutedForeground: "hsl(42, 20%, 68%)",
+    accent: "hsl(160, 25%, 17%)",
+    accentForeground: "hsl(42, 65%, 92%)",
+    destructive: "hsl(0, 72%, 58%)",
+    destructiveForeground: "hsl(42, 65%, 92%)",
+    success: "hsl(145, 55%, 45%)",
+    successForeground: "hsl(160, 35%, 7%)",
+    surface: "hsl(160, 25%, 17%)",
+    border: "hsl(160, 20%, 24%)",
+    input: "hsl(160, 20%, 24%)",
+    ring: "hsl(43, 78%, 52%)",
+  },
 } as const;
 
-export type ThemeName = "light" | "dark";
+export type ThemeName = "light" | "dark" | "tawheed";
 
 export type AccentName = "blue" | "green" | "purple" | "teal" | "orange" | "pink";
 

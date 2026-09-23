@@ -29,7 +29,7 @@ export default function BudgetLayout() {
     void loadSavingsGoal()
       .then((sg) => {
         if (sg.goal_amount > 0) {
-          void ensureMonthlyAutoDeposit(sg.goal_amount);
+          return ensureMonthlyAutoDeposit(sg.goal_amount);
         }
       })
       .catch(() => {

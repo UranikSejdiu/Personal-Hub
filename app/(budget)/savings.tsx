@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform, type ListRenderItemInfo } from "react-native";
 import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -511,7 +511,11 @@ export default function SavingsScreen() {
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
-          <Pressable className="w-full max-w-sm rounded-2xl bg-card p-5">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            className="max-h-[85%] w-full max-w-sm"
+          >
+          <ScrollView keyboardShouldPersistTaps="handled" className="rounded-2xl bg-card" contentContainerClassName="p-5">
             <Text className="text-lg font-semibold text-foreground">
               {editingKind === "auto"
                 ? t("savingsAutoEditTitle")
@@ -587,7 +591,8 @@ export default function SavingsScreen() {
                 <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
               </Pressable>
             </View>
-          </Pressable>
+          </ScrollView>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 

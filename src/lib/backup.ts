@@ -3,6 +3,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { getAppVersion } from "../constants/config";
+import { NOTE_COLORS } from "../constants/theme";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -33,27 +34,94 @@ function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 function isValidMonth(v: unknown): boolean {
-  return typeof v === "string" && /^\d{4}-\d{2}$/.test(v);
+  if (typeof v !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return false;
+  return true;
 }
 
 function isValidDate(v: unknown): boolean {
-  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const date = new Date(`${v}T00:00:00Z`);
+  return date.toISOString().slice(0, 10) === v;
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function isInteger(v: unknown): v is number {
+  return isFiniteNumber(v) && Number.isInteger(v);
+}
+
+function requiredString(row: Record<string, unknown>, key: string): boolean {
+  return typeof row[key] === "string";
+}
+
+function optionalString(row: Record<string, unknown>, key: string): boolean {
+  return row[key] === undefined || typeof row[key] === "string";
+}
+
+function optionalId(row: Record<string, unknown>): boolean {
+  return row.id === undefined || (isInteger(row.id) && row.id > 0);
 }
 
 function validateLoans(row: Record<string, unknown>): string | null {
-  if (row.id !== 1 && row.id !== undefined) return "loans.id must be 1";
+  if (row.id !== undefined && row.id !== 1) return "loans.id must be 1";
+  for (const key of ["loan_amount", "loan_rate", "loan_term", "loan_payment", "loan_payment_day", "loan_months_paid", "cc_balance", "cc_apr", "cc_payment", "cc_months_paid"]) {
+    if (!isFiniteNumber(row[key])) return `loans.${key} invalid`;
+  }
+  if (row.loan_start_date !== null && row.loan_start_date !== undefined && !isValidDate(row.loan_start_date)) return "loans.loan_start_date invalid";
+  if (!optionalString(row, "loan_name") || !optionalString(row, "cc_name")) return "loans names invalid";
+  return null;
+}
+
+function validateSavingsGoal(row: Record<string, unknown>): string | null {
+  if (row.id !== undefined && row.id !== 1) return "savingsGoal.id must be 1";
+  if (!isFiniteNumber(row.goal_amount) || !isFiniteNumber(row.salary)) return "savingsGoal numeric fields invalid";
   return null;
 }
 
 function validateBudget(row: Record<string, unknown>): string | null {
-  if (!isValidMonth(row.month)) return "budget.month invalid";
-  if (typeof row.income !== "number" && typeof row.income !== "string") return "budget.income invalid";
+  if (!optionalId(row) || !isValidMonth(row.month) || !isFiniteNumber(row.income)) return "budget fields invalid";
+  if (row.loan_paid !== undefined && !isInteger(row.loan_paid)) return "budget.loan_paid invalid";
+  if (row.cc_paid !== undefined && !isInteger(row.cc_paid)) return "budget.cc_paid invalid";
+  if (!optionalString(row, "updated_at")) return "budget.updated_at invalid";
   return null;
 }
 
 function validateExpense(row: Record<string, unknown>): string | null {
-  if (typeof row.category !== "string") return "expense.category invalid";
-  if (typeof row.amount !== "number" && typeof row.amount !== "string") return "expense.amount invalid";
+  if (!optionalId(row) || !requiredString(row, "category") || !isFiniteNumber(row.amount)) return "expense fields invalid";
+  if (row.budget_id !== undefined && !isInteger(row.budget_id)) return "expense.budget_id invalid";
+  if (row.budget_month !== undefined && !isValidMonth(row.budget_month)) return "expense.budget_month invalid";
+  if (row.budget_id === undefined && row.budget_month === undefined) return "expense has no budget reference";
+  for (const key of ["paid", "is_recurring"]) if (row[key] !== undefined && !isInteger(row[key])) return `expense.${key} invalid`;
+  return null;
+}
+
+function validateRecurringExpense(row: Record<string, unknown>): string | null {
+  return !optionalId(row) || !requiredString(row, "category") || !isFiniteNumber(row.amount) ? "recurring expense fields invalid" : null;
+}
+
+function validateAutoDeposit(row: Record<string, unknown>): string | null {
+  return !isValidMonth(row.month) || !isFiniteNumber(row.amount) || !optionalString(row, "description") ? "auto deposit fields invalid" : null;
+}
+
+function validateTransaction(row: Record<string, unknown>): string | null {
+  if (!optionalId(row) || (row.type !== "deposit" && row.type !== "purchase") || !requiredString(row, "description") || !isFiniteNumber(row.amount)) return "transaction fields invalid";
+  if (!isValidDate(row.date) && !isValidMonth(row.date)) return "transaction.date invalid";
+  return null;
+}
+
+function validateDhikr(row: Record<string, unknown>): string | null {
+  if (!optionalId(row) || !requiredString(row, "name") || !isInteger(row.total_count) || !isInteger(row.daily_count) || !isInteger(row.sort_order)) return "dhikr fields invalid";
+  if (row.daily_limit !== null && !isInteger(row.daily_limit)) return "dhikr.daily_limit invalid";
+  if (!isValidDate(row.last_reset_date) || !requiredString(row, "created_at")) return "dhikr dates invalid";
+  return null;
+}
+
+function validateNote(row: Record<string, unknown>): string | null {
+  if (!optionalId(row) || !requiredString(row, "title") || !requiredString(row, "content") || !optionalString(row, "plain_text")) return "note text fields invalid";
+  if (!isInteger(row.is_pinned) || typeof row.color !== "string" || !(row.color in NOTE_COLORS)) return "note fields invalid";
+  if (!requiredString(row, "created_at") || !requiredString(row, "updated_at")) return "note dates invalid";
   return null;
 }
 
@@ -66,15 +134,41 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
 
-  // Light validation — per-row deeper checks happen during import
   const requiredArrays = ["budgets", "expenses", "recurringExpenses", "autoDeposits", "transactions", "dhikrs", "notes"] as const;
   for (const k of requiredArrays) {
     if (!Array.isArray(tables[k])) return { ok: false, error: `tables.${k} must be array` };
   }
 
   // Optional singletons can be null or object
-  if (tables.loans !== null && tables.loans !== undefined && !isObject(tables.loans as unknown)) return { ok: false, error: "tables.loans invalid" };
-  if (tables.savingsGoal !== null && tables.savingsGoal !== undefined && !isObject(tables.savingsGoal as unknown)) return { ok: false, error: "tables.savingsGoal invalid" };
+  if (tables.loans !== null && tables.loans !== undefined && (!isObject(tables.loans) || validateLoans(tables.loans))) return { ok: false, error: "tables.loans invalid" };
+  if (tables.savingsGoal !== null && tables.savingsGoal !== undefined && (!isObject(tables.savingsGoal) || validateSavingsGoal(tables.savingsGoal))) return { ok: false, error: "tables.savingsGoal invalid" };
+
+  const validators = { budgets: validateBudget, expenses: validateExpense, recurringExpenses: validateRecurringExpense, autoDeposits: validateAutoDeposit, transactions: validateTransaction, dhikrs: validateDhikr, notes: validateNote } as const;
+  for (const key of requiredArrays) {
+    const rows = tables[key];
+    if (!Array.isArray(rows)) return { ok: false, error: `tables.${key} must be array` };
+    for (const [index, value] of rows.entries()) {
+      if (!isObject(value)) return { ok: false, error: `tables.${key}[${index}] must be object` };
+      const error = validators[key](value);
+      if (error) return { ok: false, error: `tables.${key}[${index}]: ${error}` };
+    }
+  }
+
+  const budgets = tables.budgets as Record<string, unknown>[];
+  const budgetMonths = new Set<string>();
+  const budgetIds = new Set<number>();
+  for (const budget of budgets) {
+    budgetMonths.add(budget.month as string);
+    if (budget.id !== undefined) budgetIds.add(budget.id as number);
+  }
+  if (budgetMonths.size !== budgets.length) return { ok: false, error: "Duplicate budget month" };
+  for (const expense of tables.expenses as Record<string, unknown>[]) {
+    const hasMonth = expense.budget_month !== undefined && budgetMonths.has(expense.budget_month as string);
+    const hasId = expense.budget_id !== undefined && budgetIds.has(expense.budget_id as number);
+    if (!hasMonth && !hasId) return { ok: false, error: "Expense references a missing budget" };
+  }
+  const autoDepositMonths = (tables.autoDeposits as Record<string, unknown>[]).map((row) => row.month as string);
+  if (new Set(autoDepositMonths).size !== autoDepositMonths.length) return { ok: false, error: "Duplicate auto deposit month" };
 
   // Detect accidental .db file pick: JSON parse would have thrown already, but guard SQLite header if base64
   // Real SQLite header check is done on file read before JSON parse (see import flow).
@@ -166,21 +260,9 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
   if (!validated.ok) throw new Error(validated.error);
   const env = validated.data;
 
-  // Per-row sanity before touching DB
-  for (const b of env.tables.budgets) {
-    const e = validateBudget(b as Record<string, unknown>);
-    if (e) throw new Error(e);
-  }
-  for (const ex of env.tables.expenses) {
-    const e = validateExpense(ex as Record<string, unknown>);
-    if (e) throw new Error(e);
-  }
-
-  // Single-row validation
-  if (env.tables.loans) {
-    const e = validateLoans(env.tables.loans as Record<string, unknown>);
-    if (e) throw new Error(e);
-  }
+  // Keep a restorable copy before the first destructive statement. If it cannot
+  // be created, abort rather than proceeding without the safety copy.
+  await exportBackupToFile();
 
   await db.withTransaction(async () => {
     // Clear in FK-safe order
@@ -200,18 +282,18 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
       await db.execute(
         `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          Number(r.loan_amount) || 0,
-          Number(r.loan_rate) || 0,
-          Number(r.loan_term) || 0,
-          Number(r.loan_payment) || 0,
+          r.loan_amount as number,
+          r.loan_rate as number,
+          r.loan_term as number,
+          r.loan_payment as number,
           (r.loan_start_date as string | null) ?? null,
           Number(r.loan_payment_day) || 1,
-          Number(r.loan_months_paid) || 0,
+          r.loan_months_paid as number,
           String(r.loan_name ?? ""),
-          Number(r.cc_balance) || 0,
-          Number(r.cc_apr) || 0,
-          Number(r.cc_payment) || 0,
-          Number(r.cc_months_paid) || 0,
+          r.cc_balance as number,
+          r.cc_apr as number,
+          r.cc_payment as number,
+          r.cc_months_paid as number,
           String(r.cc_name ?? ""),
         ]
       );
@@ -220,8 +302,8 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
     if (env.tables.savingsGoal) {
       const r = env.tables.savingsGoal as Record<string, unknown>;
       await db.execute(`INSERT INTO savings_goals (id, goal_amount, salary) VALUES (1, ?, ?)`, [
-        Number(r.goal_amount) || 0,
-        Number(r.salary) || 0,
+        r.goal_amount as number,
+        r.salary as number,
       ]);
     }
 
@@ -229,15 +311,14 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
     const monthToId = new Map<string, number>();
     for (const b of env.tables.budgets) {
       const row = b as Record<string, unknown>;
-      const month = String(row.month);
-      if (!isValidMonth(month)) continue;
+      const month = row.month as string;
       const res = await db.execute(
         `INSERT INTO budgets (month, income, loan_paid, cc_paid, updated_at) VALUES (?, ?, ?, ?, ?)`,
         [
           month,
-          Number(row.income) || 0,
-          Number(row.loan_paid) ? 1 : 0,
-          Number(row.cc_paid) ? 1 : 0,
+          row.income as number,
+          row.loan_paid ? 1 : 0,
+          row.cc_paid ? 1 : 0,
           (row.updated_at as string) || new Date().toISOString(),
         ]
       );
@@ -245,7 +326,7 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
       let newId = res.lastId;
       if (!newId) {
         const found = await db.get<Record<string, unknown>>("SELECT id FROM budgets WHERE month = ?", [month]);
-        newId = Number(found?.id) || 0;
+        newId = typeof found?.id === "number" ? found.id : 0;
       }
       if (newId) monthToId.set(month, newId);
     }
@@ -255,7 +336,7 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
     const oldIdToMonth = new Map<number, string>();
     for (const b of env.tables.budgets) {
       const row = b as Record<string, unknown>;
-      if (row.id !== undefined && row.month) oldIdToMonth.set(Number(row.id), String(row.month));
+      if (row.id !== undefined) oldIdToMonth.set(row.id as number, row.month as string);
     }
 
     for (const ex of env.tables.expenses) {
@@ -268,16 +349,15 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
         const month = oldIdToMonth.get(Number(row.budget_id));
         if (month) targetBudgetId = monthToId.get(month) ?? null;
       }
-      // Fallback: try category/amount dedup not needed — skip orphan expenses
-      if (!targetBudgetId) continue;
+      if (!targetBudgetId) throw new Error("Invalid backup: expense references a missing budget");
       await db.execute(
         `INSERT INTO expenses (budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?)`,
         [
           targetBudgetId,
           String(row.category ?? ""),
-          Number(row.amount) || 0,
-          Number(row.paid) ? 1 : 0,
-          Number(row.is_recurring) ? 1 : 0,
+          row.amount as number,
+          row.paid ? 1 : 0,
+          row.is_recurring ? 1 : 0,
         ]
       );
     }
@@ -286,46 +366,42 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
       const row = r as Record<string, unknown>;
       await db.execute(`INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)`, [
         String(row.category ?? ""),
-        Number(row.amount) || 0,
+        row.amount as number,
       ]);
     }
 
     for (const r of env.tables.autoDeposits) {
       const row = r as Record<string, unknown>;
-      const month = String(row.month ?? "");
-      if (!isValidMonth(month)) continue;
+      const month = row.month as string;
       await db.execute(`INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)`, [
         month,
-        Number(row.amount) || 0,
+        row.amount as number,
         String(row.description ?? ""),
       ]);
     }
 
     for (const r of env.tables.transactions) {
       const row = r as Record<string, unknown>;
-      const t = String(row.type);
-      if (t !== "deposit" && t !== "purchase") continue;
-      const date = String(row.date ?? "");
-      if (!isValidDate(date) && !isValidMonth(date)) continue;
+      const t = row.type as "deposit" | "purchase";
+      const date = row.date as string;
       await db.execute(
         `INSERT INTO savings_transactions (type, description, amount, date) VALUES (?, ?, ?, ?)`,
-        [t, String(row.description ?? ""), Number(row.amount) || 0, date]
+        [t, row.description as string, row.amount as number, date]
       );
     }
 
     for (const r of env.tables.dhikrs) {
       const row = r as Record<string, unknown>;
-      if (!row.name) continue;
       await db.execute(
         `INSERT INTO dhikrs (name, total_count, daily_count, daily_limit, last_reset_date, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
-          String(row.name),
-          Number(row.total_count) || 0,
-          Number(row.daily_count) || 0,
-          row.daily_limit !== null && row.daily_limit !== undefined ? Number(row.daily_limit) : null,
-          String(row.last_reset_date ?? new Date().toISOString().slice(0, 10)),
-          Number(row.sort_order) || 0,
-          String(row.created_at ?? new Date().toISOString()),
+          row.name as string,
+          row.total_count as number,
+          row.daily_count as number,
+          row.daily_limit as number | null,
+          row.last_reset_date as string,
+          row.sort_order as number,
+          row.created_at as string,
         ]
       );
     }
@@ -335,13 +411,13 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
       await db.execute(
         `INSERT INTO notes (title, content, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
-          String(row.title ?? ""),
-          String(row.content ?? ""),
-          Number(row.is_pinned) ? 1 : 0,
-          String(row.color ?? "default"),
-          String(row.plain_text ?? ""),
-          String(row.created_at ?? new Date().toISOString()),
-          String(row.updated_at ?? new Date().toISOString()),
+          row.title as string,
+          row.content as string,
+          row.is_pinned ? 1 : 0,
+          row.color as string,
+          (row.plain_text as string | undefined) ?? "",
+          row.created_at as string,
+          row.updated_at as string,
         ]
       );
     }

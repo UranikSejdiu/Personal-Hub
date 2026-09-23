@@ -1,28 +1,5 @@
 import { isLexicalJson, extractLexicalLines } from "./lexicalPreview";
 
-export function stripMarkdown(content: string): string {
-  return content
-    .replace(/^- \[[ xX]\]\s+/g, "")
-    .replace(/^[☐✓○]\s+/g, "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/~~(.+?)~~/g, "$1")
-    .replace(/`(.+?)`/g, "$1")
-    .trim();
-}
-
-export function getPreviewLines(
-  content: string,
-  maxLines: number = 3
-): string[] {
-  if (!content) return [];
-  return content
-    .split("\n")
-    .map((line) => stripMarkdown(line))
-    .filter((line) => line.trim().length > 0)
-    .slice(0, maxLines);
-}
-
 export interface PreviewSegment {
   text: string;
   bold?: boolean;

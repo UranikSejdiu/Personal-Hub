@@ -80,19 +80,23 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   }, [activeSection, router, activeAppId]);
 
   useEffect(() => {
-    getHapticsEnabled().then(setHapticsOn);
+    void getHapticsEnabled().then(setHapticsOn).catch(() => {
+      toast.error(t("errorLoadingData"));
+    });
     if (activeAppId === "budget") {
-      loadSavingsGoal().then((sg) => {
+      void loadSavingsGoal().then((sg) => {
         setGoalAmount(sg.goal_amount);
         setSalary(sg.salary);
         goalRef.current = sg.goal_amount;
         salaryRef.current = sg.salary;
+      }).catch(() => {
+        toast.error(t("errorLoadingData"));
       });
     }
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [activeAppId]);
+  }, [activeAppId, t]);
 
   const scheduleGoalSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -359,10 +363,16 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
             </View>
 
             <Pressable
-              onPress={async () => {
-                haptics.light();
-                await setTutorialSeen(false);
-                router.replace("/(tutorial)" as Href);
+              onPress={() => {
+                void (async () => {
+                  await haptics.light();
+                  try {
+                    await setTutorialSeen(false);
+                    router.replace("/(tutorial)" as Href);
+                  } catch {
+                    toast.error(t("saveFailed"));
+                  }
+                })();
               }}
               className="rounded-xl border border-border bg-card p-4"
               android_ripple={{ color: withAlpha(colors.primary, 0.125) }}

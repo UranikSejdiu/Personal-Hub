@@ -72,6 +72,7 @@ function DhikrDraggableRow({
         onLongPress={drag}
         delayLongPress={150}
         className="shrink-0 items-center justify-center px-1 py-2"
+        accessibilityRole="button"
         accessibilityLabel={t("reorderHandle")}
       >
         <GripVertical size={18} color={colors.mutedForeground} />
@@ -80,6 +81,7 @@ function DhikrDraggableRow({
       <Pressable
         onPress={() => onSelect(d)}
         className="flex-1 min-w-0"
+        accessibilityRole="button"
         accessibilityLabel={t("openDhikr")}
       >
         <Text
@@ -118,6 +120,7 @@ function DhikrDraggableRow({
       <Pressable
         onPress={() => onEdit(d)}
         className="shrink-0 p-2"
+        accessibilityRole="button"
         accessibilityLabel={t("editDhikr")}
       >
         <Pencil size={18} color={colors.mutedForeground} />
@@ -127,6 +130,7 @@ function DhikrDraggableRow({
           void onDelete(d);
         }}
         className="shrink-0 p-2"
+        accessibilityRole="button"
         accessibilityLabel={t("delete")}
       >
         <Trash2 size={18} color={colors.destructive} />
@@ -166,12 +170,17 @@ export default function DhikrListScreen() {
   );
 
   const handleSelect = useCallback(
-    (d: Dhikr) => {
-      void setSelectedDhikrId(d.id);
+    async (d: Dhikr) => {
+      try {
+        await setSelectedDhikrId(d.id);
+      } catch {
+        toast.error(t("errorSavingData"));
+        return;
+      }
       void haptics.light();
       router.push("/(dhikr)");
     },
-    [haptics, router]
+    [haptics, router, t]
   );
 
   const handleAdd = useCallback(() => {
@@ -197,7 +206,9 @@ export default function DhikrListScreen() {
                 await deleteDhikr(dhikr.id);
                 setDhikrs((prev) => {
                   const remaining = prev.filter((d) => d.id !== dhikr.id);
-                  void clearSelectedDhikrIdIfMissing(remaining.map((d) => d.id));
+                  void clearSelectedDhikrIdIfMissing(remaining.map((d) => d.id)).catch(() => {
+                    toast.error(t("errorSavingData"));
+                  });
                   return remaining;
                 });
               } catch {
@@ -250,6 +261,8 @@ export default function DhikrListScreen() {
       <Pressable
         onPress={handleAdd}
         className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+        accessibilityRole="button"
+        accessibilityLabel={t("addDhikrBtn")}
       >
         <Plus size={14} color={colors.primaryForeground} />
         <Text className="text-sm font-medium text-primary-foreground">
@@ -296,7 +309,7 @@ export default function DhikrListScreen() {
         <View className="w-full max-w-md self-center p-4 pb-0">
           <DraggableFlatList
             data={dhikrs}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item) => String(item.id)}
             onDragEnd={({ data }: DragEndParams<Dhikr>) => void handleDragEnd(data)}
             renderItem={renderItem}
             ListHeaderComponent={listHeader}

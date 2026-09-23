@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CI: true
     permissions:
       contents: write
     steps:
@@ -39,6 +41,9 @@ jobs:
             "${{ secrets.KEYSTORE_PASSWORD }}" \
             "${{ secrets.KEY_ALIAS }}" \
             "${{ secrets.KEY_PASSWORD }}" > android/keystore.properties
+          test -s android/release-keystore.jks
+          test -s android/keystore.properties
+          chmod 600 android/release-keystore.jks android/keystore.properties
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -58,6 +63,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/release/*.apk
+          files: android/app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

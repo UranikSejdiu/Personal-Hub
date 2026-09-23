@@ -49,10 +49,12 @@ const NoteCard = React.memo(function NoteCard({
   note,
   isDark,
   onPress,
+  untitledLabel,
 }: {
   note: Note;
   isDark: boolean;
   onPress: () => void;
+  untitledLabel: string;
 }) {
   const textColorClass = getNoteTextColorClass(note.color, isDark);
   const colors = useThemeColors();
@@ -69,7 +71,7 @@ const NoteCard = React.memo(function NoteCard({
       onPress={onPress}
       className={`relative mb-2 rounded-lg border border-border/50 p-3 ${bgColorClass}`}
       accessibilityRole="button"
-      accessibilityLabel={note.title || "Untitled note"}
+      accessibilityLabel={note.title || untitledLabel}
     >
       {note.is_pinned ? (
         <View className="absolute top-2 right-2">
@@ -123,7 +125,7 @@ export default function NotesListScreen() {
   const { theme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const isDark = theme === "dark";
+  const isDark = theme !== "light";
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,6 +159,15 @@ export default function NotesListScreen() {
     },
     [load]
   );
+
+  const clearSearch = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setSearchQuery("");
+    void load("");
+  }, [load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -234,7 +245,8 @@ export default function NotesListScreen() {
               <View key={note.id} className="flex-1">
                 <NoteCard
                   note={note}
-                  isDark={isDark}
+                   isDark={isDark}
+                   untitledLabel={t("notesUntitled")}
                   onPress={() => handleNotePress(note)}
                 />
               </View>
@@ -299,12 +311,9 @@ export default function NotesListScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable
-              onPress={() => {
-                setSearchQuery("");
-                void load("");
-              }}
+               onPress={clearSearch}
               accessibilityRole="button"
-              accessibilityLabel="Clear search"
+               accessibilityLabel={t("clear")}
             >
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>

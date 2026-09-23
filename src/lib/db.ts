@@ -6,7 +6,9 @@ type BindValue = string | number | null | Uint8Array;
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-const MIGRATIONS: string[] = [
+const SCHEMA_VERSION = 1;
+
+const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     loan_amount REAL NOT NULL DEFAULT 0,
@@ -88,11 +90,13 @@ const MIGRATIONS: string[] = [
   );`,
   `CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(is_pinned);`,
   `CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);`,
-  `ALTER TABLE notes ADD COLUMN plain_text TEXT NOT NULL DEFAULT '';`,
-  `CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);`,
-  `ALTER TABLE savings_auto_deposits ADD COLUMN description TEXT NOT NULL DEFAULT '';`,
-  `ALTER TABLE loans ADD COLUMN loan_name TEXT NOT NULL DEFAULT '';`,
-  `ALTER TABLE loans ADD COLUMN cc_name TEXT NOT NULL DEFAULT '';`,
+];
+
+const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "notes", column: "plain_text", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "savings_auto_deposits", column: "description", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "loans", column: "loan_name", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "loans", column: "cc_name", definition: "TEXT NOT NULL DEFAULT ''" },
 ];
 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -103,14 +107,22 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
     await database.execAsync("PRAGMA journal_mode = WAL;");
     await database.execAsync("PRAGMA foreign_keys = ON;");
 
-    for (const statement of MIGRATIONS) {
-      try {
+    await database.withTransactionAsync(async () => {
+      for (const statement of SCHEMA_STATEMENTS) {
         await database.execAsync(statement);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (!msg.includes("duplicate column")) throw e;
       }
-    }
+
+      for (const { table, column, definition } of ADDITIONAL_COLUMNS) {
+        const columns = await database.getAllAsync<{ name: string }>(`PRAGMA table_info(${table});`);
+        if (!columns.some((item) => item.name === column)) {
+          await database.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+        }
+      }
+
+      await database.execAsync("CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);");
+
+      await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    });
 
     return database;
   })();
