@@ -31,7 +31,7 @@ export default function LoansScreen() {
       .then((l) => { if (!cancelled) setLoans(l); })
       .catch(() => { if (!cancelled) toast.error(t("errorLoadingData")); });
     return () => { cancelled = true; };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     return () => {

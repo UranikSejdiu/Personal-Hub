@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from "react-native";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
 import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "lucide-react-native";
+import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { loadSavingsGoal } from "../../src/lib/budget";
@@ -60,6 +61,7 @@ export default function SavingsScreen() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<"auto" | "tx">("tx");
   const [formType, setFormType] = useState<SavingsEntryType>("purchase");
   const [formDesc, setFormDesc] = useState("");
@@ -105,9 +107,11 @@ export default function SavingsScreen() {
     setEntries(merged);
   }, []);
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadData();
+    }, [loadData])
+  );
 
   const currentYear = new Date().getFullYear();
   const availableYears = useMemo(() => {
@@ -155,6 +159,7 @@ export default function SavingsScreen() {
 
   const openCreateModal = useCallback(() => {
     setEditingId(null);
+    setEditingMonth(null);
     setEditingKind("tx");
     setFormType("purchase");
     setFormDesc("");
@@ -166,6 +171,7 @@ export default function SavingsScreen() {
 
   const openEditModal = useCallback((item: SavingsTransaction) => {
     setEditingId(item.id);
+    setEditingMonth(null);
     setEditingKind("tx");
     setFormType(item.type);
     setFormDesc(item.description);
@@ -178,6 +184,7 @@ export default function SavingsScreen() {
   const openEditAutoModal = useCallback(
     (month: string, description: string, amount: number) => {
       setEditingId(0);
+      setEditingMonth(month);
       setEditingKind("auto");
       setFormType("deposit");
       setFormDesc(description === month ? "" : description);
@@ -255,7 +262,8 @@ export default function SavingsScreen() {
     setSaving(true);
     try {
       if (editingKind === "auto") {
-        await updateAutoDeposit(formDate, {
+        if (!editingMonth) throw new Error("Missing auto-deposit month");
+        await updateAutoDeposit(editingMonth, formDate, {
           description: formDesc,
           amount: parsed,
         });
@@ -278,7 +286,7 @@ export default function SavingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, t, loadData, haptics]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null && editingKind !== "auto") return;
@@ -310,168 +318,196 @@ export default function SavingsScreen() {
   const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
   const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
 
-  return (
-    <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-          <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
+  const renderEntry = useCallback(
+    ({ item: entry, index }: ListRenderItemInfo<SavingsEntry>) => {
+      const isAuto = entry.kind === "auto";
+      const isDeposit = entry.type === "deposit";
+      const badgeBg = isAuto ? "bg-primary/15" : isDeposit ? "bg-success/15" : "bg-destructive/15";
+      const badgeText = isAuto ? "text-primary" : isDeposit ? "text-success" : "text-destructive";
+      const badgeLabel = isAuto ? t("savingsAutoBadge") : isDeposit ? t("savingsTypeDeposit") : t("savingsTypePurchase");
+      const amountColor = isDeposit ? "text-success" : "text-destructive";
+      const sign = isDeposit ? "+" : "-";
+      const isLast = index === filteredEntries.length - 1;
 
-          {goalAmount > 0 && (
-            <View className="rounded-xl border border-border bg-card p-4">
-              <View className="mb-3 flex-row items-center justify-between">
-                <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
-                {goalMet && (
-                  <View className="flex-row items-center gap-1 rounded-full bg-success/15 px-2 py-0.5">
-                    <CircleCheck size={12} color={colors.success} />
-                    <Text className="text-[11px] font-semibold text-success">{t("goalMetBadge")}</Text>
+      return (
+        <View className={`border-x border-border bg-card px-4 ${isLast ? "" : "pb-2"}`}>
+          <View className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
+            <Pressable
+              onPress={() => handleTapEntry(entry)}
+              className="flex-1 flex-row items-center"
+              accessibilityRole="button"
+              accessibilityLabel={t("savingsEditEntry")}
+            >
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2">
+                  <View className={`rounded-full px-2 py-0.5 ${badgeBg}`}>
+                    <Text className={`text-[10px] font-semibold ${badgeText}`}>{badgeLabel}</Text>
                   </View>
-                )}
+                  <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
+                    {entry.description}
+                  </Text>
+                </View>
+                <Text className="mt-1 text-xs text-muted-foreground">{entry.date}</Text>
               </View>
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">{t("goalColon")}</Text>
-                <Text className="text-sm font-medium text-foreground">{formatCurrency(goalAmount)}</Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-sm text-muted-foreground">{t("savedLabel")}</Text>
-                <Text className={`text-sm font-medium ${goalMet ? "text-success" : "text-foreground"}`}>
-                  {formatCurrency(summary.balance)}
-                </Text>
-              </View>
-              <View className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-border">
-                <View className={`h-full rounded-full ${goalMet ? "bg-success" : "bg-primary"}`} style={{ width: `${goalProgress}%` }} />
-              </View>
-            </View>
-          )}
+            </Pressable>
+            <Text className={`text-sm font-medium ${amountColor}`}>
+              {sign}
+              {formatCurrency(entry.amount)}
+            </Text>
+            <Pressable
+              onPress={() => {
+                void haptics.warning();
+                handleDeleteEntry(entry);
+              }}
+              className="ml-2 p-1"
+              accessibilityRole="button"
+              accessibilityLabel={t("delete")}
+            >
+              <Trash2 size={18} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        </View>
+      );
+    },
+    [filteredEntries.length, t, handleTapEntry, handleDeleteEntry, haptics, colors.mutedForeground]
+  );
 
-          <View className="flex-grow rounded-xl border border-border bg-card p-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
-              <Pressable
-                onPress={() => { void haptics.light(); openCreateModal(); }}
-                className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-                android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-                accessibilityRole="button"
-                accessibilityLabel={t("savingsNewEntry")}
-              >
-                <Plus size={14} color={colors.primaryForeground} />
-                <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
-              </Pressable>
-            </View>
+  const listHeader = (
+    <View className="gap-4">
+      <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
-              {availableYears.map((y) => {
-                const isSelected = selectedYear === y;
-                const isPastYear = y < currentYear;
-                return (
-                  <View key={y} className="flex-row items-center gap-1">
-                    <Pressable
-                      onPress={() => { void haptics.light(); setSelectedYear(y); }}
-                      className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-                      android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                      accessibilityRole="button"
-                      accessibilityLabel={String(y)}
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <Text className={`text-xs font-medium ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{y}</Text>
-                    </Pressable>
-                    {isPastYear && (
-                      <Pressable
-                        onPress={() => handleCloseYear(y)}
-                        className="rounded-full border border-border bg-card p-1.5"
-                        accessibilityLabel={t("closeYearLabel")}
-                      >
-                        <Archive size={14} color={colors.mutedForeground} />
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })}
-              <Pressable
-                onPress={() => { void haptics.light(); setSelectedYear("all"); }}
-                className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                accessibilityRole="button"
-                accessibilityLabel={t("filterAll")}
-                accessibilityState={{ selected: selectedYear === "all" }}
-              >
-                <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>{t("filterAll")}</Text>
-              </Pressable>
-            </ScrollView>
-
-            {filteredEntries.length === 0 ? (
-              <View className="py-6 items-center gap-1">
-                <Text className="text-sm text-muted-foreground">{t("savingsNoEntries")}</Text>
-                <Text className="text-xs text-muted-foreground">{t("savingsNoEntriesHint")}</Text>
-              </View>
-            ) : (
-              <View className="mt-3 gap-2">
-                {filteredEntries.map((entry) => {
-                  const isAuto = entry.kind === "auto";
-                  const isDeposit = entry.type === "deposit";
-                  const badgeBg = isAuto ? "bg-primary/15" : isDeposit ? "bg-success/15" : "bg-destructive/15";
-                  const badgeText = isAuto ? "text-primary" : isDeposit ? "text-success" : "text-destructive";
-                  const badgeLabel = isAuto ? t("savingsAutoBadge") : isDeposit ? t("savingsTypeDeposit") : t("savingsTypePurchase");
-                  const amountColor = isDeposit ? "text-success" : "text-destructive";
-                  const sign = isDeposit ? "+" : "-";
-
-                  const rowContent = (
-                    <View className="flex-1">
-                      <View className="flex-row items-center gap-2">
-                        <View className={`rounded-full px-2 py-0.5 ${badgeBg}`}>
-                          <Text className={`text-[10px] font-semibold ${badgeText}`}>{badgeLabel}</Text>
-                        </View>
-                        <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
-                          {entry.description}
-                        </Text>
-                      </View>
-                      <Text className="mt-1 text-xs text-muted-foreground">{entry.date}</Text>
-                    </View>
-                  );
-
-                  return (
-                    <View key={entry.id} className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
-                      <Pressable onPress={() => handleTapEntry(entry)} className="flex-1 flex-row items-center" accessibilityRole="button" accessibilityLabel={t("savingsEditEntry")}>
-                        {rowContent}
-                      </Pressable>
-                      <Text className={`text-sm font-medium ${amountColor}`}>
-                        {sign}
-                        {formatCurrency(entry.amount)}
-                      </Text>
-                      <Pressable
-                        onPress={() => {
-                          void haptics.warning();
-                          handleDeleteEntry(entry);
-                        }}
-                        className="ml-2 p-1"
-                        accessibilityRole="button"
-                        accessibilityLabel={t("delete")}
-                      >
-                        <Trash2 size={18} color={colors.mutedForeground} />
-                      </Pressable>
-                    </View>
-                  );
-                })}
+      {goalAmount > 0 && (
+        <View className="rounded-xl border border-border bg-card p-4">
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
+            {goalMet && (
+              <View className="flex-row items-center gap-1 rounded-full bg-success/15 px-2 py-0.5">
+                <CircleCheck size={12} color={colors.success} />
+                <Text className="text-[11px] font-semibold text-success">{t("goalMetBadge")}</Text>
               </View>
             )}
           </View>
-
-          <View className="rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
-            <View className="flex-row justify-between">
-              <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
-              <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
-              <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
-            </View>
-            <View className="h-px bg-border my-1" />
-            <View className="flex-row justify-between">
-              <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
-              <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
-            </View>
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-muted-foreground">{t("goalColon")}</Text>
+            <Text className="text-sm font-medium text-foreground">{formatCurrency(goalAmount)}</Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-muted-foreground">{t("savedLabel")}</Text>
+            <Text className={`text-sm font-medium ${goalMet ? "text-success" : "text-foreground"}`}>
+              {formatCurrency(summary.balance)}
+            </Text>
+          </View>
+          <View className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-border">
+            <View className={`h-full rounded-full ${goalMet ? "bg-success" : "bg-primary"}`} style={{ width: `${goalProgress}%` }} />
           </View>
         </View>
-      </ScrollView>
+      )}
+
+      {/* Activity card shell — closed by the footer strip so entry rows stay
+          virtualized inside FlatList while preserving the card chrome. */}
+      <View
+        className={`rounded-t-xl border-x border-t border-border bg-card px-4 pt-4 ${
+          filteredEntries.length > 0 ? "pb-3" : ""
+        }`}
+      >
+        <View className="mb-3 flex-row items-center justify-between">
+          <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
+          <Pressable
+            onPress={() => { void haptics.light(); openCreateModal(); }}
+            className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
+            accessibilityRole="button"
+            accessibilityLabel={t("savingsNewEntry")}
+          >
+            <Plus size={14} color={colors.primaryForeground} />
+            <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
+          {availableYears.map((y) => {
+            const isSelected = selectedYear === y;
+            const isPastYear = y < currentYear;
+            return (
+              <View key={y} className="flex-row items-center gap-1">
+                <Pressable
+                  onPress={() => { void haptics.light(); setSelectedYear(y); }}
+                  className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={String(y)}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <Text className={`text-xs font-medium ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{y}</Text>
+                </Pressable>
+                {isPastYear && (
+                  <Pressable
+                    onPress={() => handleCloseYear(y)}
+                    className="rounded-full border border-border bg-card p-1.5"
+                    accessibilityLabel={t("closeYearLabel")}
+                  >
+                    <Archive size={14} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
+          <Pressable
+            onPress={() => { void haptics.light(); setSelectedYear("all"); }}
+            className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+            android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+            accessibilityRole="button"
+            accessibilityLabel={t("filterAll")}
+            accessibilityState={{ selected: selectedYear === "all" }}
+          >
+            <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>{t("filterAll")}</Text>
+          </Pressable>
+        </ScrollView>
+
+        {filteredEntries.length === 0 && (
+          <View className="items-center gap-1 py-6">
+            <Text className="text-sm text-muted-foreground">{t("savingsNoEntries")}</Text>
+            <Text className="text-xs text-muted-foreground">{t("savingsNoEntriesHint")}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  const listFooter = (
+    <View className="gap-4">
+      <View className="h-4 rounded-b-xl border-x border-b border-border bg-card" />
+      <View className="rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
+        <View className="flex-row justify-between">
+          <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
+          <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
+        </View>
+        <View className="flex-row justify-between">
+          <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
+          <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
+        </View>
+        <View className="h-px bg-border my-1" />
+        <View className="flex-row justify-between">
+          <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
+          <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View className="flex-1 bg-background">
+      <FlatList
+        className="w-full max-w-md self-center"
+        style={styles.list}
+        data={filteredEntries}
+        keyExtractor={(entry) => entry.id}
+        renderItem={renderEntry}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
@@ -581,6 +617,7 @@ export default function SavingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { flexGrow: 1 },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
   yearScrollContent: { gap: 8, paddingBottom: 4 },
 });

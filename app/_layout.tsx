@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackHandler, Pressable, Text, View } from "react-native";
@@ -13,7 +13,9 @@ import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
 
-SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // Already hidden or unsupported — safe to ignore.
+});
 
 function RootLayoutInner() {
   const { theme, resolvedTheme, accent } = useTheme();
@@ -67,13 +69,9 @@ function RootLayoutInner() {
   );
 }
 
-export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    "Urbanist-Regular": require("../assets/fonts/Urbanist-Regular.ttf"),
-    "Urbanist-Medium": require("../assets/fonts/Urbanist-Medium.ttf"),
-    "Urbanist-SemiBold": require("../assets/fonts/Urbanist-SemiBold.ttf"),
-    "Urbanist-Bold": require("../assets/fonts/Urbanist-Bold.ttf"),
-  });
+function BootstrapGate() {
+  const { theme, accent } = useTheme();
+  const { t } = useI18n();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -85,7 +83,7 @@ export default function RootLayout() {
         if (!cancelled) setDbReady(true);
       } catch (err) {
         if (!cancelled) {
-          setDbError(err instanceof Error ? err.message : "Database initialization failed");
+          setDbError(err instanceof Error ? err.message : String(err));
         }
       }
     })();
@@ -95,39 +93,56 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded && dbReady) {
-      SplashScreen.hideAsync();
+    if (dbReady || dbError) {
+      void SplashScreen.hideAsync().catch(() => {
+        // Already hidden — safe to ignore.
+      });
     }
-  }, [fontsLoaded, dbReady]);
+  }, [dbReady, dbError]);
+
+  const retryDb = useCallback(() => {
+    setDbError(null);
+    setDbReady(false);
+    void initDatabase()
+      .then(() => setDbReady(true))
+      .catch((err: unknown) => {
+        setDbError(err instanceof Error ? err.message : String(err));
+      });
+  }, []);
 
   if (dbError) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Text style={{ fontSize: 16, fontWeight: "600", marginBottom: 8, textAlign: "center" }}>
-          Failed to initialize database
-        </Text>
-        <Text style={{ fontSize: 14, color: "#888", marginBottom: 16, textAlign: "center" }}>
-          {dbError}
-        </Text>
+      <View
+        className={`${theme} ${accent === "blue" ? "" : `accent-${accent}`} flex-1 items-center justify-center bg-background px-6`}
+      >
+        <Text className="text-base font-semibold text-foreground">{t("dbInitFailed")}</Text>
+        <Text className="mt-2 text-center text-sm text-muted-foreground">{dbError}</Text>
         <Pressable
-          onPress={() => {
-            setDbError(null);
-            setDbReady(false);
-            void initDatabase()
-              .then(() => setDbReady(true))
-              .catch((err) => setDbError(err instanceof Error ? err.message : "Database initialization failed"));
-          }}
-          style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#007AFF", borderRadius: 8 }}
+          onPress={retryDb}
+          className="mt-4 rounded-lg bg-primary px-5 py-2.5"
+          accessibilityRole="button"
+          accessibilityLabel={t("retry")}
         >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+          <Text className="text-sm font-semibold text-primary-foreground">{t("retry")}</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (!fontsLoaded || !dbReady) {
-    return null;
-  }
+  if (!dbReady) return null;
+
+  return <RootLayoutInner />;
+}
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    "Urbanist-Regular": require("../assets/fonts/Urbanist-Regular.ttf"),
+    "Urbanist-Medium": require("../assets/fonts/Urbanist-Medium.ttf"),
+    "Urbanist-SemiBold": require("../assets/fonts/Urbanist-SemiBold.ttf"),
+    "Urbanist-Bold": require("../assets/fonts/Urbanist-Bold.ttf"),
+  });
+
+  if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -135,7 +150,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <I18nProvider>
             <UpdateProvider>
-              <RootLayoutInner />
+              <BootstrapGate />
             </UpdateProvider>
           </I18nProvider>
         </ThemeProvider>

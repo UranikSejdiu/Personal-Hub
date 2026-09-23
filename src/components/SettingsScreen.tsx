@@ -202,7 +202,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
     } catch {
       toast.error(t("importFailed"));
     }
-  }, [backupBusy, t]);
+  }, [backupBusy, t, activeAppId]);
 
   if (!activeSection) {
     return (
@@ -283,14 +283,14 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                     android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: theme === th.value }}
-                    accessibilityLabel={t(th.labelKey as "themeLight" | "themeDark")}
+                    accessibilityLabel={t(th.labelKey)}
                   >
                     <View className={`h-5 w-5 rounded-full border-2 ${
                       theme === th.value ? "border-primary" : "border-border"
                     }`}>
                       {theme === th.value && <View className="m-0.5 h-full rounded-full bg-primary" />}
                     </View>
-                    <Text className="text-sm text-foreground">{t(th.labelKey as "themeLight" | "themeDark")}</Text>
+                    <Text className="text-sm text-foreground">{t(th.labelKey)}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -419,7 +419,6 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                 <Cloud size={20} color={colors.foreground} />
                 <Text className="text-sm font-semibold text-foreground">{t("settingsBackupSync")}</Text>
               </View>
-              <Text className="text-xs text-muted-foreground">{t("backupComingSoon")}</Text>
               <Pressable
                 onPress={() => { void haptics.light(); void handleExport(); }}
                 disabled={backupBusy}

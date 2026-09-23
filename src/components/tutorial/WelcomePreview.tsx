@@ -21,7 +21,7 @@ export function WelcomePreview() {
     scale1.value = withDelay(0, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
     scale2.value = withDelay(200, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
     scale3.value = withDelay(400, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
-  }, []);
+  }, [scale1, scale2, scale3]);
 
   const style1 = useAnimatedStyle(() => ({ transform: [{ scale: scale1.value }] }));
   const style2 = useAnimatedStyle(() => ({ transform: [{ scale: scale2.value }] }));

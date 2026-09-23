@@ -3,6 +3,8 @@ import { currentMonth } from "./budget";
 
 export type SavingsEntryType = "deposit" | "purchase";
 
+const CLOSING_MARKER = "[system:closing]";
+
 export interface AutoDeposit {
   month: string;
   amount: number;
@@ -70,6 +72,7 @@ export interface AutoDepositUpdate {
 }
 
 export async function updateAutoDeposit(
+  originalMonth: string,
   month: string,
   fields: AutoDepositUpdate
 ): Promise<void> {
@@ -84,7 +87,9 @@ export async function updateAutoDeposit(
     values.push(sanitizeAmount(fields.amount));
   }
   if (sets.length === 0) return;
-  values.push(month);
+  sets.unshift("month = ?");
+  values.unshift(month);
+  values.push(originalMonth);
   await db.execute(
     `UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`,
     values
@@ -100,7 +105,7 @@ function toTransaction(row: Record<string, unknown>): SavingsTransaction {
   return {
     id: Number(row.id),
     type: rawType === "deposit" ? "deposit" : "purchase",
-    description: String(row.description),
+    description: String(row.description).replace(`${CLOSING_MARKER} `, ""),
     amount: Number(row.amount) || 0,
     date: String(row.date),
   };
@@ -185,8 +190,9 @@ export async function getSavingsSummary(): Promise<SavingsSummary> {
   // don't double-count data from already-closed years.
   const closingTxs = await db.query<Record<string, unknown>>(
     `SELECT id, amount, type, date FROM savings_transactions
-     WHERE description LIKE '%Bilanci mbyllës%' OR description LIKE '%Closing balance%'
-     ORDER BY date DESC, id DESC`
+      WHERE description LIKE ? OR description LIKE '%Bilanci mbyllës%' OR description LIKE '%Closing balance%'
+      ORDER BY date DESC, id DESC`
+    , [`${CLOSING_MARKER}%`]
   );
 
   let carryForwardNet = 0;
@@ -258,8 +264,8 @@ export async function closeYear(
   // Guard: prevent running closeYear twice for the same year — if a carry-forward
   // transaction with this exact description already exists, bail out early.
   const existing = await db.get<Record<string, unknown>>(
-    "SELECT id FROM savings_transactions WHERE date = ? AND description = ? LIMIT 1",
-    [carryForwardDate, closingDescription]
+    "SELECT id FROM savings_transactions WHERE date = ? AND (description LIKE ? OR description = ? OR description = ? OR description = ?) LIMIT 1",
+    [carryForwardDate, `${CLOSING_MARKER}%`, closingDescription, "Bilanci mbyllës", "Closing balance"]
   );
   if (existing) return { net: 0, created: null };
 
@@ -285,6 +291,11 @@ export async function closeYear(
   if (net === 0) return { net: 0, created: null };
   const type: SavingsEntryType = net > 0 ? "deposit" : "purchase";
   const amount = Math.abs(net);
-  const created = await addTransaction(type, closingDescription, amount, carryForwardDate);
+  const created = await addTransaction(
+    type,
+    `${CLOSING_MARKER} ${closingDescription}`,
+    amount,
+    carryForwardDate
+  );
   return { net, created };
 }

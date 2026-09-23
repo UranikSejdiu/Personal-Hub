@@ -12,11 +12,11 @@ import {
   listExpenses,
   addExpense,
   updateExpense,
+  setExpenseRecurring,
   removeExpense,
-  copyBudgetFromMonth,
   listRecurringExpenses,
-  addRecurringExpense,
   removeRecurringExpense,
+  copyBudgetFromMonth,
   incrementLoanMonthsPaid,
   incrementCcMonthsPaid,
   currentMonth,
@@ -299,16 +299,7 @@ export default function BudgetScreen() {
         )
       );
       try {
-        await updateExpense(expense.id, { is_recurring: next });
-        if (next) {
-          await addRecurringExpense(expense.category, expense.amount);
-        } else {
-          const templates = await listRecurringExpenses();
-          const match = templates.find(
-            (x) => x.category === expense.category && x.amount === expense.amount
-          );
-          if (match) await removeRecurringExpense(match.id);
-        }
+        await setExpenseRecurring(expense.id, expense.category, expense.amount, next);
       } catch {
         if (prevExpense) {
           setExpenses((prev) =>
@@ -321,29 +312,35 @@ export default function BudgetScreen() {
     [expenses, t]
   );
 
-  const handleRemoveExpense = useCallback(async (id: number) => {
-    try {
-      setExpenses((prev) => {
-        const exp = prev.find((e) => e.id === id);
-        if (exp?.is_recurring) {
-          void (async () => {
-            try {
-              const templates = await listRecurringExpenses();
-              const match = templates.find(
-                (x) => x.category === exp.category && x.amount === exp.amount
-              );
-              if (match) await removeRecurringExpense(match.id);
-            } catch {}
-          })();
+  const handleRemoveExpense = useCallback(
+    async (id: number) => {
+      const prevExpenses = expenses;
+      const target = expenses.find((e) => e.id === id);
+      setExpenses((curr) => curr.filter((e) => e.id !== id));
+      try {
+        await removeExpense(id);
+        if (target?.is_recurring) {
+          try {
+            const templates = await listRecurringExpenses();
+            const match = templates.find(
+              (x) => x.category === target.category && x.amount === target.amount
+            );
+            if (match) await removeRecurringExpense(match.id);
+          } catch (err) {
+            // Non-critical: expense itself was removed; a leftover template
+            // would recreate it next month, so surface the failure.
+            console.warn("[budget] failed to remove recurring template:", err);
+            toast.error(t("errorRemovingExpense"));
+          }
         }
-        return prev.filter((e) => e.id !== id);
-      });
-      await removeExpense(id);
-      void haptics.warning();
-    } catch {
-      toast.error(t("errorRemovingExpense"));
-    }
-  }, [t, haptics]);
+        void haptics.warning();
+      } catch {
+        setExpenses(prevExpenses);
+        toast.error(t("errorRemovingExpense"));
+      }
+    },
+    [expenses, t, haptics]
+  );
 
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;

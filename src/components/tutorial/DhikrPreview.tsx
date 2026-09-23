@@ -27,7 +27,7 @@ export function DhikrPreview() {
       ),
       -1
     );
-  }, []);
+  }, [count, ripple]);
 
   const numStyle = useAnimatedStyle(() => ({
     transform: [{ scale: ripple.value }],

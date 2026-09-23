@@ -15,8 +15,9 @@ import {
   type AccentName,
   type ThemeName,
 } from "../constants/theme";
+import type { TKey } from "./i18n";
 
-export const THEMES: { value: ThemeName; labelKey: string }[] = [
+export const THEMES: { value: ThemeName; labelKey: TKey }[] = [
   { value: "light", labelKey: "themeLight" },
   { value: "dark", labelKey: "themeDark" },
 ];
@@ -37,24 +38,38 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
   const [theme, setThemeState] = useState<ThemeName>(() => {
-    const stored = SecureStore.getItem(THEME_KEY);
-    if (stored === "light" || stored === "dark") return stored;
-    if (stored === "tawheed") return "dark";
+    try {
+      const stored = SecureStore.getItem(THEME_KEY);
+      if (stored === "light" || stored === "dark") return stored;
+      if (stored === "tawheed") return "dark";
+    } catch {
+      // SecureStore unavailable (keychain failure) — fall through to system scheme.
+    }
     return systemScheme === "dark" ? "dark" : "light";
   });
   const [accent, setAccentState] = useState<AccentName>(() => {
-    const stored = SecureStore.getItem(ACCENT_KEY);
-    return isAccentName(stored) ? stored : "blue";
+    try {
+      const stored = SecureStore.getItem(ACCENT_KEY);
+      return isAccentName(stored) ? stored : "blue";
+    } catch {
+      return "blue";
+    }
   });
 
   const setTheme = useCallback((next: ThemeName) => {
     setThemeState(next);
-    Promise.resolve(SecureStore.setItem(THEME_KEY, next)).catch(() => {});
+    void SecureStore.setItemAsync(THEME_KEY, next).catch((err) => {
+      // Non-critical: theme applies in-memory; persist failure only affects restart.
+      console.warn("[theme] failed to persist theme:", err);
+    });
   }, []);
 
   const setAccent = useCallback((next: AccentName) => {
     setAccentState(next);
-    Promise.resolve(SecureStore.setItem(ACCENT_KEY, next)).catch(() => {});
+    void SecureStore.setItemAsync(ACCENT_KEY, next).catch((err) => {
+      // Non-critical: accent applies in-memory; persist failure only affects restart.
+      console.warn("[theme] failed to persist accent:", err);
+    });
   }, []);
 
   const resolvedTheme: "light" | "dark" =

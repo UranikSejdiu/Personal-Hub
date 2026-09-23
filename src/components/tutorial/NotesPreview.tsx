@@ -26,7 +26,7 @@ export function NotesPreview() {
       withTiming(1, { duration: 600, easing: Easing.out(Easing.ease) }),
       -1, true
     );
-  }, []);
+  }, [slide1, slide2, slide3]);
 
   const s1 = useAnimatedStyle(() => ({ opacity: slide1.value, transform: [{ translateY: (1 - slide1.value) * 15 }] }));
   const s2 = useAnimatedStyle(() => ({ opacity: slide2.value, transform: [{ translateY: (1 - slide2.value) * 15 }] }));
@@ -49,7 +49,7 @@ export function NotesPreview() {
         <View className="flex-row items-center justify-between">
           <Text className="text-sm font-semibold text-foreground">Meeting Notes</Text>
         </View>
-        <Text className="mt-1 text-xs text-muted-foreground" numberOfLines={1}>Action items from today's standup</Text>
+        <Text className="mt-1 text-xs text-muted-foreground" numberOfLines={1}>{"Action items from today's standup"}</Text>
       </Animated.View>
       <Animated.View style={s3} className="rounded-xl border border-border bg-blue-100 p-3 dark:bg-blue-900/30">
         <View className="flex-row items-center justify-between">

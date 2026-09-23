@@ -9,4 +9,3 @@ export const getAppVersion = (): string => {
 };
 
 export const DB_NAME = "app_data";
-export const DB_VERSION = 1;

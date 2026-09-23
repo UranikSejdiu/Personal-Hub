@@ -7,10 +7,8 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
-import { useThemeColors } from "../../lib/theme";
 
 export function SavingsPreview() {
-  const colors = useThemeColors();
   const progress = useSharedValue(0);
   const itemSlide = useSharedValue(0);
 
@@ -23,7 +21,7 @@ export function SavingsPreview() {
       withTiming(1, { duration: 1200, easing: Easing.out(Easing.ease) }),
       -1, true
     );
-  }, []);
+  }, [progress, itemSlide]);
 
   const barStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,

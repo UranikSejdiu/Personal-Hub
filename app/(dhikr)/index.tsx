@@ -62,7 +62,9 @@ export default function CounterScreen() {
 
   const activeDhikr = dhikrs.find((d) => d.id === selectedId) ?? dhikrs[0] ?? null;
   const activeDhikrRef = useRef(activeDhikr);
-  activeDhikrRef.current = activeDhikr;
+  useEffect(() => {
+    activeDhikrRef.current = activeDhikr;
+  }, [activeDhikr]);
 
   const selectDhikr = useCallback((id: number) => {
     setSelectedId(id);
@@ -72,14 +74,16 @@ export default function CounterScreen() {
   // Queued write: we fire optimistic UI immediately and let the DB flush
   // sequentially via a ref-based mutex — rapid taps are never dropped.
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingIncrementsRef = useRef(new Map<number, number>());
 
   const handleTap = useCallback(() => {
     const dhikr = activeDhikrRef.current;
     if (!dhikr) return;
 
     const limit = dhikr.daily_limit;
+    const pending = pendingIncrementsRef.current.get(dhikr.id) ?? 0;
     const alreadyAtLimit =
-      limit != null && limit > 0 && dhikr.daily_count >= limit;
+      limit != null && limit > 0 && dhikr.daily_count + pending >= limit;
 
     if (alreadyAtLimit) {
       haptics.warning();
@@ -90,6 +94,7 @@ export default function CounterScreen() {
     }
 
     let hitLimit = false;
+    pendingIncrementsRef.current.set(dhikr.id, pending + 1);
 
     void haptics.light();
 
@@ -118,7 +123,20 @@ export default function CounterScreen() {
     // Queue the DB write so concurrent calls execute sequentially.
     writeQueueRef.current = writeQueueRef.current.then(async () => {
       try {
-        await incrementDhikr(dhikr.id);
+        const accepted = await incrementDhikr(dhikr.id);
+        if (!accepted) {
+          setDhikrs((prev) =>
+            prev.map((d) =>
+              d.id === dhikr.id
+                ? { ...d, daily_count: Math.max(0, d.daily_count - 1), total_count: Math.max(0, d.total_count - 1) }
+                : d
+            )
+          );
+          haptics.warning();
+          setShowLimitWarning(true);
+          if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+          limitTimerRef.current = setTimeout(() => setShowLimitWarning(false), 2000);
+        }
       } catch {
         // Revert optimistic update on failure using functional state to avoid race conditions.
         setDhikrs((prev) =>
@@ -129,6 +147,10 @@ export default function CounterScreen() {
           )
         );
         toast.error(t("errorLoadingData"));
+      } finally {
+        const remaining = (pendingIncrementsRef.current.get(dhikr.id) ?? 1) - 1;
+        if (remaining > 0) pendingIncrementsRef.current.set(dhikr.id, remaining);
+        else pendingIncrementsRef.current.delete(dhikr.id);
       }
     });
   }, [haptics, t]);
@@ -136,12 +158,16 @@ export default function CounterScreen() {
   const handleReset = useCallback(async () => {
     if (!activeDhikr) return;
     haptics.warning();
-    try {
-      await resetDhikr(activeDhikr.id);
-      await refresh();
-    } catch {
-      toast.error(t("errorResettingDhikr"));
-    }
+    const id = activeDhikr.id;
+    writeQueueRef.current = writeQueueRef.current.then(async () => {
+      try {
+        await resetDhikr(id);
+        await refresh();
+      } catch {
+        toast.error(t("errorResettingDhikr"));
+      }
+    });
+    await writeQueueRef.current;
   }, [activeDhikr, haptics, refresh, t]);
 
   const cycle = useCallback(

@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView } from "react-native";
+import { View, Text, Pressable, TextInput, KeyboardAvoidingView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Trash2, ArrowLeft, Pin, PinOff } from "lucide-react-native";
 import {
+  Trash2,
+  ArrowLeft,
+  Pin,
+  PinOff,
   Bold,
   Italic,
   Strikethrough,
@@ -127,8 +130,6 @@ export default function NotesEditorScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    setLoading(true);
-
     getNote(Number(id))
       .then((n) => {
         if (cancelled) return;
@@ -158,15 +159,18 @@ export default function NotesEditorScreen() {
     };
   }, [id, t]);
 
-  useEffect(() => {
-    if (id) return;
-    setNoteId(null);
-    setTitle("");
-    setContent("");
-    setColor("default");
-    setIsPinned(false);
-    setIsDirty(false);
-  }, [id]);
+  const [prevId, setPrevId] = useState(id);
+  if (prevId !== id) {
+    setPrevId(id);
+    if (!id) {
+      setNoteId(null);
+      setTitle("");
+      setContent("");
+      setColor("default");
+      setIsPinned(false);
+      setIsDirty(false);
+    }
+  }
 
   const handleBack = useCallback(() => {
     if (!isDirty) {

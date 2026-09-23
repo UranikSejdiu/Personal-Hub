@@ -198,7 +198,7 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
     if (env.tables.loans) {
       const r = env.tables.loans as Record<string, unknown>;
       await db.execute(
-        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, cc_balance, cc_apr, cc_payment, cc_months_paid) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           Number(r.loan_amount) || 0,
           Number(r.loan_rate) || 0,
@@ -207,10 +207,12 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
           (r.loan_start_date as string | null) ?? null,
           Number(r.loan_payment_day) || 1,
           Number(r.loan_months_paid) || 0,
+          String(r.loan_name ?? ""),
           Number(r.cc_balance) || 0,
           Number(r.cc_apr) || 0,
           Number(r.cc_payment) || 0,
           Number(r.cc_months_paid) || 0,
+          String(r.cc_name ?? ""),
         ]
       );
     }

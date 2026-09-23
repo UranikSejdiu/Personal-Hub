@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { TextInput, View, Text } from "react-native";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
@@ -30,11 +30,12 @@ export function NumberInput({
   const [isFocused, setIsFocused] = useState(false);
   const colors = useThemeColors();
 
-  useEffect(() => {
-    if (!isFocused) {
-      setText(value === 0 ? "" : String(value));
-    }
-  }, [value, isFocused]);
+  const displayText = isFocused ? text : value === 0 ? "" : String(value);
+
+  const handleFocus = useCallback(() => {
+    setText(value === 0 ? "" : String(value));
+    setIsFocused(true);
+  }, [value]);
 
   const handleChange = useCallback(
     (input: string) => {
@@ -66,9 +67,9 @@ export function NumberInput({
   return (
     <View className={cn("flex-row items-center gap-1", className)}>
       <TextInput
-        value={text}
+        value={displayText}
         onChangeText={handleChange}
-        onFocus={() => setIsFocused(true)}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         placeholder={placeholder}
         keyboardType="decimal-pad"

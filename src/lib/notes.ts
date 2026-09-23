@@ -2,7 +2,6 @@ import * as db from "./db";
 import { NOTE_COLORS, NOTE_TEXT_COLORS, type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
-import { isLexicalJson, extractLexicalLines } from "./lexicalPreview";
 
 export type { Note };
 
@@ -22,19 +21,6 @@ export function getNoteTextColorClass(color: NoteColor, isDark: boolean): string
   const entry = NOTE_TEXT_COLORS[color];
   if (!entry) return "text-foreground";
   return isDark ? entry.dark : entry.light;
-}
-
-export function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /**
@@ -108,9 +94,10 @@ async function ensurePlainTextBackfill(): Promise<void> {
 export async function searchNotes(query: string): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
-  const pattern = `%${normalized}%`;
+  const escaped = normalized.replace(/[\\%_]/g, "\\$&");
+  const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes WHERE plain_text LIKE ? OR title LIKE ? ORDER BY is_pinned DESC, updated_at DESC",
+    "SELECT * FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY is_pinned DESC, updated_at DESC",
     [pattern, pattern]
   );
   return rows.map(toNote);

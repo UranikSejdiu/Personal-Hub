@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
+import { View, Text, Pressable, TextInput, FlatList, StyleSheet, type ListRenderItemInfo } from "react-native";
 import { FileText, Plus, Search, XCircle, Pin } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
+import { useI18n, type TKey } from "../../src/lib/i18n";
 import {
   loadNotes,
   searchNotes,
@@ -16,6 +16,11 @@ import { NOTE_TEXT_HEX } from "../../src/constants/theme";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 
+const styles = StyleSheet.create({
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
+});
+
 function splitIntoColumns(items: Note[], count: number): Note[][] {
   const cols: Note[][] = Array.from({ length: count }, () => []);
   for (const item of items) {
@@ -24,6 +29,21 @@ function splitIntoColumns(items: Note[], count: number): Note[][] {
   }
   return cols;
 }
+
+function zipColumnsToRows(cols: Note[][]): (Note | null)[][] {
+  const maxLen = Math.max(0, ...cols.map((c) => c.length));
+  const rows: (Note | null)[][] = [];
+  for (let i = 0; i < maxLen; i++) {
+    // Preserve column slots (null = empty) so a single note stays half-width,
+    // matching the original two-column masonry layout.
+    rows.push(cols.map((c) => c[i] ?? null));
+  }
+  return rows;
+}
+
+type NotesListRow =
+  | { type: "section"; key: string; labelKey: TKey; spacedTop?: boolean }
+  | { type: "notes"; key: string; notes: (Note | null)[] };
 
 const NoteCard = React.memo(function NoteCard({
   note,
@@ -95,7 +115,6 @@ export default function NotesListScreen() {
   const isDark = theme === "dark";
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loadError, setLoadError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -106,7 +125,6 @@ export default function NotesListScreen() {
 
   const load = useCallback(async (query?: string) => {
     try {
-      setLoadError(null);
       const q = query ?? searchQuery;
       if (q.trim()) {
         setNotes(await searchNotes(q.trim()));
@@ -115,10 +133,9 @@ export default function NotesListScreen() {
       }
     } catch {
       setNotes([]);
-      setLoadError("Failed to load notes");
       toast.error(t("errorLoadingData"));
     }
-  }, [searchQuery]);
+  }, [searchQuery, t]);
 
   const debouncedSearch = useCallback(
     (query: string) => {
@@ -162,21 +179,84 @@ export default function NotesListScreen() {
 
   const hasPinned = pinnedNotes.length > 0;
 
-  const renderCard = useCallback(
-    (note: Note) => (
-      <NoteCard
-        key={note.id}
-        note={note}
-        isDark={isDark}
-        onPress={() => handleNotePress(note)}
-      />
+  const listData = useMemo<NotesListRow[]>(() => {
+    if (notes.length === 0) return [];
+    const data: NotesListRow[] = [];
+    const pushRows = (cols: Note[][], prefix: string) => {
+      for (const row of zipColumnsToRows(cols)) {
+        data.push({
+          type: "notes",
+          key: `${prefix}-${row.map((n, i) => (n ? n.id : `e${i}`)).join("_")}`,
+          notes: row,
+        });
+      }
+    };
+    if (hasPinned) {
+      data.push({ type: "section", key: "section-pinned", labelKey: "notesPinned" });
+      pushRows(pinnedCols, "pinned");
+      data.push({ type: "section", key: "section-others", labelKey: "notesOthers", spacedTop: true });
+      pushRows(otherCols, "other");
+    } else {
+      data.push({ type: "section", key: "section-all", labelKey: "notesTitle" });
+      pushRows(otherCols, "other");
+    }
+    return data;
+  }, [notes.length, hasPinned, pinnedCols, otherCols]);
+
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<NotesListRow>) => {
+      if (item.type === "section") {
+        return (
+          <Text
+            className={`mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground ${
+              item.spacedTop ? "mt-4" : ""
+            }`}
+          >
+            {t(item.labelKey)}
+          </Text>
+        );
+      }
+      return (
+        <View className="flex-row gap-2">
+          {item.notes.map((note, i) =>
+            note ? (
+              <View key={note.id} className="flex-1">
+                <NoteCard
+                  note={note}
+                  isDark={isDark}
+                  onPress={() => handleNotePress(note)}
+                />
+              </View>
+            ) : (
+              <View key={`empty-${i}`} className="flex-1" />
+            )
+          )}
+        </View>
+      );
+    },
+    [t, isDark, handleNotePress]
+  );
+
+  const listEmpty = useMemo(
+    () => (
+      <View className="items-center gap-3 py-20">
+        <FileText size={40} color={colors.mutedForeground} />
+        <Text className="text-sm text-muted-foreground">
+          {searchQuery ? t("notesNoResults") : t("notesEmpty")}
+        </Text>
+        {!searchQuery && (
+          <Text className="text-xs text-muted-foreground">
+            {t("notesEmptyHint")}
+          </Text>
+        )}
+      </View>
     ),
-    [isDark, handleNotePress]
+    [colors.mutedForeground, searchQuery, t]
   );
 
   return (
     <View className="flex-1 bg-background">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+      <View className="w-full max-w-md self-center gap-4 p-4 pb-0">
         <View className="flex-row items-center justify-between">
           <Text className="text-base font-semibold text-foreground">
             {t("notesTitle")}
@@ -219,58 +299,18 @@ export default function NotesListScreen() {
             </Pressable>
           )}
         </View>
-
-        {notes.length === 0 ? (
-          <View className="items-center gap-3 py-20">
-            <FileText size={40} color={colors.mutedForeground} />
-            <Text className="text-sm text-muted-foreground">
-              {searchQuery ? t("notesNoResults") : t("notesEmpty")}
-            </Text>
-            {!searchQuery && (
-              <Text className="text-xs text-muted-foreground">
-                {t("notesEmptyHint")}
-              </Text>
-            )}
-          </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {hasPinned && (
-              <View className="mb-4">
-                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {t("notesPinned")}
-                </Text>
-                <View className="flex-row gap-2">
-                  {pinnedCols.map((col, i) => (
-                    <View key={i} className="flex-1">
-                      {col.map(renderCard)}
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <View>
-              {hasPinned && (
-                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {t("notesOthers")}
-                </Text>
-              )}
-              {!hasPinned && (
-                <Text className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {t("notesTitle")}
-                </Text>
-              )}
-              <View className="flex-row gap-2">
-                {otherCols.map((col, i) => (
-                  <View key={i} className="flex-1">
-                    {col.map(renderCard)}
-                  </View>
-                ))}
-              </View>
-            </View>
-          </ScrollView>
-        )}
       </View>
+
+      <FlatList
+        className="w-full max-w-md self-center"
+        data={listData}
+        keyExtractor={(item) => item.key}
+        renderItem={renderItem}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        style={styles.list}
+      />
     </View>
   );
 }

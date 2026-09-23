@@ -7,10 +7,16 @@ export default function Index() {
   const [seen, setSeen] = useState(true);
 
   useEffect(() => {
-    hasSeenTutorial().then((v) => {
-      setSeen(v);
-      setChecked(true);
-    });
+    hasSeenTutorial()
+      .then((v) => {
+        setSeen(v);
+        setChecked(true);
+      })
+      .catch(() => {
+        // Keychain read failed — default `seen` stays true (go to budget)
+        // instead of blocking the app on a permanent null render.
+        setChecked(true);
+      });
   }, []);
 
   if (!checked) return null;

@@ -19,7 +19,7 @@ export function SettingsPreview() {
       withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
       -1, true
     );
-  }, []);
+  }, [highlight]);
 
   const h1 = useAnimatedStyle(() => ({ backgroundColor: `rgba(${highlight.value > 0.5 ? "59,130,246" : "0,0,0"}, ${highlight.value > 0.5 ? 0.08 : 0})` }));
   const h2 = useAnimatedStyle(() => ({ backgroundColor: `rgba(${highlight.value > 0.5 ? "0,0,0" : "59,130,246"}, ${highlight.value > 0.5 ? 0 : 0.08})` }));

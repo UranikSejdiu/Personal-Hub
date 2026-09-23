@@ -20,7 +20,7 @@ export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
   if (loans.loan_amount <= 0 && loans.loan_term <= 0) return null;
 
   const loanMonthsPaid = loans.loan_months_paid;
-  const isPaid = loanMonthsPaid >= loans.loan_term;
+  const isPaid = loans.loan_term > 0 && loanMonthsPaid >= loans.loan_term;
   const hasSchedule =
     loans.loan_start_date !== null &&
     loans.loan_start_date.length > 0 &&

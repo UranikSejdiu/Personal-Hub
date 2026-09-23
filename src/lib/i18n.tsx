@@ -20,7 +20,6 @@ const dict = {
     appNotes: "Notes",
     switchApp: "Ndërro aplikacion",
     navDashboard: "Paneli",
-    navBudget: "Buxheti",
     navSavings: "Kursimet",
     navLoans: "Kreditë",
     navSettings: "Konfigurimet",
@@ -28,12 +27,11 @@ const dict = {
     navDhikrList: "Dhikret",
     navNotes: "Shënimet",
 
-    hubTitle: "Personal Hub",
-
     dashboardTitle: "Paneli Kryesor",
     recentMonths: "Muajt e Fundit",
     loading: "Duke u ngarkuar…",
     retry: "Provo përsëri",
+    dbInitFailed: "Dështoi inicializimi i bazës së të dhënave.",
     noBudgetsSaved: "Nuk ka buxhete të ruajtura ende.",
     incomeColon: "Të Ardhurat:",
     plannedColon: "Planifikuar:",
@@ -48,7 +46,6 @@ const dict = {
     tabSavings: "Kursimet",
 
     budgetTitle: "Buxheti Mujor",
-    valuesInEur: "Vlerat në EUR",
     savingAuto: "Duke u ruajtur automatikisht...",
     saveFailed: "Dështoi ruajtja.",
     deleteFailed: "Dështoi fshirja.",
@@ -142,7 +139,6 @@ const dict = {
     settingsGeneral: "Të Përgjithshme",
     settingsBudget: "Buxheti",
     settingsBackupSync: "Rezervimi & Sinkronizimi",
-    backupComingSoon: "Funksioni i rezervimit dhe sinkronizimit do të vijë shumë shpejt.",
     settingsAbout: "Rreth Aplikacionit",
     appName: "Personal Hub",
     backToHub: "Kthehu te Paneli",
@@ -179,7 +175,6 @@ const dict = {
     deleteConfirmBody:
       'Të fshihet "{name}"? Të gjitha numërimet do të humbasin.',
     delete: "Fshi",
-    settings: "Konfigurimet",
     resetLabel: "Rivendos",
     limitReached: "Limiti ditor u arrit",
     confirm: "Konfirmo",
@@ -199,15 +194,7 @@ const dict = {
     noDhikrYet: "Nuk ka Dhikr ende",
     addFirstDhikr: "Shto dhikrin e parë për të filluar numërimin",
     addDhikrBtn: "Shto Dhikr",
-    today: "Sot",
-    hapticsSection: "VIBRIMI",
-    justNow: "Sapo",
-    minutesAgo: "{count} min më parë",
-    hoursAgo: "{count} orë më parë",
-    yesterday: "Dje",
-    daysAgo: "{count} ditë më parë",
 
-    savingsGoalSection: "QËLLIMI I KURSIMEVE",
     salaryLabel: "Rroga",
     savingsGoalLabel: "Kursimet Mujore",
     goalMetBadge: "Qëllimi u arrit!",
@@ -244,16 +231,10 @@ const dict = {
     errorDeletingSavings: "Dështoi fshirja e hyrjes.",
     goalAmount: "Shuma e Qëllimit",
     savedLabel: "Kursyer:",
-    autoDepositsLabel: "Depozitat Automatike",
-    add: "Shto",
-    noAutoDeposits: "Nuk ka depozita automatike",
-    autoDeposit: "Depozitë Automatike",
-    transactionsLabel: "Transaksionet",
-    noTransactions: "Nuk ka transaksione",
+
     transaction: "Transaksion",
     totalSaved: "Totali i Kursyer",
     totalSpent: "Totali i Shpenzuar",
-    totalDeposits: "Totali i Depozitave",
 
     checkForUpdates: "Kontrollo për përditësime",
     checkingForUpdates: "Duke kontrolluar për përditësime...",
@@ -304,8 +285,6 @@ const dict = {
 
     reorderHandle: "Zvarrit për të renditur",
     saveReorder: "Ruaj",
-    moveUp: "Lëviz lart",
-    moveDown: "Lëviz poshtë",
     reorderSaved: "Renditja u ruajt.",
     previousDhikr: "I mëparshmi",
     nextDhikr: "Tjetri",
@@ -317,18 +296,6 @@ const dict = {
     exitApp: "Dil",
     clear: "Pastro",
 
-    mJan: "Janar",
-    mFeb: "Shkurt",
-    mMar: "Mars",
-    mApr: "Prill",
-    mMay: "Maj",
-    mJun: "Qershor",
-    mJul: "Korrik",
-    mAug: "Gusht",
-    mSep: "Shtator",
-    mOct: "Tetor",
-    mNov: "Nëntor",
-    mDec: "Dhjetor",
     msJan: "Jan",
     msFeb: "Shk",
     msMar: "Mar",
@@ -371,7 +338,6 @@ const dict = {
     appNotes: "Notes",
     switchApp: "Switch app",
     navDashboard: "Dashboard",
-    navBudget: "Budget",
     navSavings: "Savings",
     navLoans: "Loans",
     navSettings: "Settings",
@@ -379,12 +345,11 @@ const dict = {
     navDhikrList: "Dhikrs",
     navNotes: "Notes",
 
-    hubTitle: "Personal Hub",
-
     dashboardTitle: "Main Dashboard",
     recentMonths: "Recent Months",
     loading: "Loading…",
     retry: "Retry",
+    dbInitFailed: "Failed to initialize database.",
     noBudgetsSaved: "No saved budgets yet.",
     incomeColon: "Income:",
     plannedColon: "Planned:",
@@ -399,7 +364,6 @@ const dict = {
     tabSavings: "Savings",
 
     budgetTitle: "Monthly Budget",
-    valuesInEur: "Values in EUR",
     savingAuto: "Saving automatically...",
     saveFailed: "Failed to save.",
     deleteFailed: "Failed to delete.",
@@ -493,7 +457,6 @@ const dict = {
     settingsGeneral: "General",
     settingsBudget: "Budget",
     settingsBackupSync: "Backup & Sync",
-    backupComingSoon: "Backup & sync is coming soon.",
     settingsAbout: "About",
     appName: "Personal Hub",
     backToHub: "Back to hub",
@@ -529,7 +492,6 @@ const dict = {
     deleteConfirmTitle: "Delete",
     deleteConfirmBody: 'Delete "{name}"? All counts will be lost.',
     delete: "Delete",
-    settings: "Settings",
     resetLabel: "Reset",
     limitReached: "Daily limit reached",
     confirm: "Confirm",
@@ -549,16 +511,8 @@ const dict = {
     noDhikrYet: "No dhikr yet",
     addFirstDhikr: "Add your first dhikr to begin counting",
     addDhikrBtn: "Add Dhikr",
-    today: "Today",
-    hapticsSection: "HAPTICS",
-    justNow: "Just now",
-    minutesAgo: "{count}m ago",
-    hoursAgo: "{count}h ago",
-    yesterday: "Yesterday",
-    daysAgo: "{count}d ago",
 
-    savingsGoalSection: "SAVINGS GOAL",
-    salaryLabel: "Salary",
+    salaryLabel: "Rroga",
     savingsGoalLabel: "Monthly Savings Target",
     goalMetBadge: "Goal Met!",
     goalColon: "Goal:",
@@ -593,16 +547,10 @@ const dict = {
     errorDeletingSavings: "Failed to delete entry.",
     goalAmount: "Goal Amount",
     savedLabel: "Saved:",
-    autoDepositsLabel: "Auto Deposits",
-    add: "Add",
-    noAutoDeposits: "No auto deposits",
-    autoDeposit: "Auto Deposit",
-    transactionsLabel: "Transactions",
-    noTransactions: "No transactions",
+
     transaction: "Transaction",
     totalSaved: "Total Saved",
     totalSpent: "Total Spent",
-    totalDeposits: "Total Deposits",
 
     checkForUpdates: "Check for updates",
     checkingForUpdates: "Checking for updates...",
@@ -653,8 +601,6 @@ const dict = {
 
     reorderHandle: "Drag to reorder",
     saveReorder: "Save",
-    moveUp: "Move up",
-    moveDown: "Move down",
     reorderSaved: "Order saved.",
     previousDhikr: "Previous",
     nextDhikr: "Next",
@@ -666,18 +612,6 @@ const dict = {
     exitApp: "Exit",
     clear: "Clear",
 
-    mJan: "January",
-    mFeb: "February",
-    mMar: "March",
-    mApr: "April",
-    mMay: "May",
-    mJun: "June",
-    mJul: "July",
-    mAug: "August",
-    mSep: "September",
-    mOct: "October",
-    mNov: "November",
-    mDec: "December",
     msJan: "Jan",
     msFeb: "Feb",
     msMar: "Mar",
@@ -749,14 +683,21 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
-    const stored = SecureStore.getItem(LANG_KEY);
-    if (stored === "en" || stored === "sq") return stored;
+    try {
+      const stored = SecureStore.getItem(LANG_KEY);
+      if (stored === "en" || stored === "sq") return stored;
+    } catch {
+      // SecureStore unavailable (keychain failure) — fall through to default.
+    }
     return DEFAULT_LANG;
   });
 
   const setLang = useCallback((next: Lang) => {
     setLangState(next);
-    SecureStore.setItem(LANG_KEY, next);
+    void SecureStore.setItemAsync(LANG_KEY, next).catch((err) => {
+      // Non-critical: language applies in-memory; persist failure only affects restart.
+      console.warn("[i18n] failed to persist language:", err);
+    });
   }, []);
 
   const t = useCallback(

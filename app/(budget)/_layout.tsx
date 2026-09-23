@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Tabs, useRouter } from "expo-router";
+import { toast } from "sonner-native";
 import { PillNav, type PillNavTab } from "../../src/components/PillNav";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
@@ -19,6 +20,11 @@ export default function BudgetLayout() {
   const { t } = useI18n();
   const { handleAppSelect } = useAppSwitching("budget");
 
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
   useEffect(() => {
     void loadSavingsGoal()
       .then((sg) => {
@@ -26,7 +32,9 @@ export default function BudgetLayout() {
           void ensureMonthlyAutoDeposit(sg.goal_amount);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        toast.error(tRef.current("errorLoadingData"));
+      });
   }, []);
 
   return (

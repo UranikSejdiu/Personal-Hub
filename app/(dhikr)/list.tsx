@@ -152,8 +152,12 @@ export default function DhikrListScreen() {
   const [modal, setModal] = useState<ModalState>({ visible: false });
 
   const refresh = useCallback(() => {
-    void loadDhikrs().then(setDhikrs).catch(() => {});
-  }, []);
+    void loadDhikrs()
+      .then(setDhikrs)
+      .catch(() => {
+        toast.error(t("errorLoadingData"));
+      });
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {

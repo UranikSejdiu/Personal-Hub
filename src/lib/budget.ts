@@ -174,6 +174,36 @@ export async function removeRecurringExpense(id: number): Promise<void> {
   await db.execute("DELETE FROM recurring_expenses WHERE id = ?", [id]);
 }
 
+export async function setExpenseRecurring(
+  expenseId: number,
+  category: string,
+  amount: number,
+  recurring: boolean
+): Promise<void> {
+  await db.withTransaction(async () => {
+    await db.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
+      recurring ? 1 : 0,
+      expenseId,
+    ]);
+    if (recurring) {
+      await db.execute(
+        "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
+        [category, amount]
+      );
+      return;
+    }
+    const template = await db.get<Record<string, unknown>>(
+      "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? ORDER BY id LIMIT 1",
+      [category, amount]
+    );
+    if (template) {
+      await db.execute("DELETE FROM recurring_expenses WHERE id = ?", [
+        Number(template.id),
+      ]);
+    }
+  });
+}
+
 export async function populateRecurringExpenses(
   budgetId: number
 ): Promise<void> {

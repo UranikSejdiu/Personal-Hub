@@ -7,10 +7,8 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
-import { useThemeColors } from "../../lib/theme";
 
 export function DashboardPreview() {
-  const colors = useThemeColors();
   const progress = useSharedValue(0);
   const expandHeight = useSharedValue(0);
 
@@ -23,7 +21,7 @@ export function DashboardPreview() {
       withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       -1, true
     );
-  }, []);
+  }, [progress, expandHeight]);
 
   const barStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,

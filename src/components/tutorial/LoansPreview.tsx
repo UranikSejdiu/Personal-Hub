@@ -21,7 +21,7 @@ export function LoansPreview() {
       withTiming(1, { duration: 1000, easing: Easing.out(Easing.ease) }),
       -1, true
     );
-  }, []);
+  }, [progress, tableSlide]);
 
   const barStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,
