@@ -87,8 +87,20 @@ export function contentToMarkdown(content: string): string {
 
 export function contentToEditorHtml(content: string): string {
   if (!content) return "<p></p>";
-  if (/<[a-z][\s\S]*>/i.test(content)) return content;
+  if (/<[a-z][\s\S]*>/i.test(content)) return normalizeHtmlForEditor(content);
   return markdownToHtml(contentToMarkdown(content));
+}
+
+/**
+ * Map legacy TipTap/ProseMirror note HTML onto the Enriched HTML
+ * checkbox format (`ul[data-type="checkbox"]` + `li[checked]`).
+ * The native normalizer already rewrites `data-checked`, but it does not
+ * recognize TipTap's `taskList` type, so checklists would load as bullets.
+ */
+function normalizeHtmlForEditor(html: string): string {
+  return html
+    .replace(/data-type=(["'])taskList\1/gi, 'data-type="checkbox"')
+    .replace(/data-type=(["'])taskItem\1/gi, "");
 }
 
 export function markdownToHtml(markdown: string): string {
@@ -104,20 +116,28 @@ export function markdownToHtml(markdown: string): string {
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
     const task = line.match(/^- \[([ xX])\]\s+(.*)$/);
     const checklist = line.match(/^[☐✓]\s+(.*)$/);
     const bullet = line.match(/^(?:[-*•])\s+(.*)$/);
     const ordered = line.match(/^\d+[.)]\s+(.*)$/);
 
+    if (heading) {
+      closeList();
+      const level = heading[1].length;
+      html.push(`<h${level}>${inlineMarkdownToHtml(heading[2])}</h${level}>`);
+      continue;
+    }
+
     if (task || checklist) {
       if (listType !== "task") {
         closeList();
-        html.push('<ul data-type="taskList">');
+        html.push('<ul data-type="checkbox">');
         listType = "task";
       }
       const checked = task ? task[1].toLowerCase() === "x" : line.startsWith("✓");
       const text = task ? task[2] : checklist?.[1] ?? "";
-      html.push(`<li data-checked="${checked}"><p>${inlineMarkdownToHtml(text)}</p></li>`);
+      html.push(`<li${checked ? " checked" : ""}>${inlineMarkdownToHtml(text)}</li>`);
       continue;
     }
 
@@ -154,6 +174,28 @@ function inlineMarkdownToHtml(value: string): string {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/~~(.+?)~~/g, "<s>$1</s>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+/**
+ * Rewrite Enriched checkbox lists into TipTap-style `data-checked` items so
+ * the shared markdown converter can emit `- [x]` / `- [ ]` previews/search text.
+ */
+function normalizeCheckboxHtmlForMarkdown(html: string): string {
+  return html.replace(
+    /<ul\b[^>]*data-type=["']checkbox["'][^>]*>([\s\S]*?)<\/ul>/gi,
+    (_match, inner: string) => {
+      const items = inner.replace(
+        /<li\b([^>]*)>([\s\S]*?)<\/li>/gi,
+        (_li, attrs: string, content: string) => {
+          const checked =
+            /(?:^|\s)checked(?:\s|=|$)/i.test(attrs) ||
+            /data-checked=["']true["']/i.test(attrs);
+          return `<li data-checked="${checked}">${content}</li>`;
+        }
+      );
+      return `<ul data-type="taskList">${items}</ul>`;
+    }
+  );
 }
 
 function escapeHtml(value: string): string {
@@ -195,7 +237,8 @@ function blocksToMarkdown(blocks: BlockLegacy[]): string {
 }
 
 function htmlToMarkdown(html: string): string {
-  const withOrderedNumbers = html.replace(
+  const withCheckboxes = normalizeCheckboxHtmlForMarkdown(html);
+  const withOrderedNumbers = withCheckboxes.replace(
     /<ol[^>]*>([\s\S]*?)<\/ol>/gi,
     (match, inner: string) => {
       let n = 0;
@@ -203,12 +246,17 @@ function htmlToMarkdown(html: string): string {
     }
   );
   return withOrderedNumbers
+    .replace(
+      /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi,
+      (_match, level: string, content: string) =>
+        `${"#".repeat(Number(level))} ${content}\n`
+    )
     .replace(/<li[^>]*data-checked=["']true["'][^>]*>/gi, "- [x] ")
     .replace(/<li[^>]*data-checked=["']false["'][^>]*>/gi, "- [ ] ")
     .replace(/<li[^>]*>/gi, "- ")
     .replace(/<\/li>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h[1-6])>/gi, "\n")
+    .replace(/<\/(p|div)>/gi, "\n")
     .replace(/<(strong|b)>/gi, "**")
     .replace(/<\/(strong|b)>/gi, "**")
     .replace(/<(em|i)>/gi, "*")

@@ -13,7 +13,12 @@ import {
   ListOrdered,
   CheckSquare,
 } from "../../src/components/AppIcons";
-import { RichText, useEditorBridge } from "@10play/tentap-editor";
+import { EnrichedTextInput } from "react-native-enriched-html";
+import type {
+  EnrichedTextInputInstance,
+  HtmlStyle,
+  OnChangeStateEvent,
+} from "react-native-enriched-html";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -38,34 +43,58 @@ type LoadTarget =
   | { kind: "invalid" }
   | { kind: "note"; id: number };
 
+type StyleStateKey = Exclude<keyof OnChangeStateEvent, "alignment">;
+
 type FormatButton = {
   type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
   labelKey: "notesBold" | "notesItalic" | "notesStrikethrough" | "notesBulletList" | "notesNumberedList" | "notesChecklist";
   icon: typeof Bold;
-  action: "toggleBold" | "toggleItalic" | "toggleStrike" | "toggleBulletList" | "toggleOrderedList" | "toggleTaskList";
+  stateKey: StyleStateKey;
+  toggle: (editor: EnrichedTextInputInstance) => void;
 };
 
 const FORMAT_BUTTONS: FormatButton[] = [
-  { type: "bold", labelKey: "notesBold", icon: Bold, action: "toggleBold" },
-  { type: "italic", labelKey: "notesItalic", icon: Italic, action: "toggleItalic" },
+  {
+    type: "bold",
+    labelKey: "notesBold",
+    icon: Bold,
+    stateKey: "bold",
+    toggle: (editor) => editor.toggleBold(),
+  },
+  {
+    type: "italic",
+    labelKey: "notesItalic",
+    icon: Italic,
+    stateKey: "italic",
+    toggle: (editor) => editor.toggleItalic(),
+  },
   {
     type: "strikethrough",
     labelKey: "notesStrikethrough",
     icon: Strikethrough,
-    action: "toggleStrike",
+    stateKey: "strikeThrough",
+    toggle: (editor) => editor.toggleStrikeThrough(),
   },
-  { type: "bullet", labelKey: "notesBulletList", icon: List, action: "toggleBulletList" },
+  {
+    type: "bullet",
+    labelKey: "notesBulletList",
+    icon: List,
+    stateKey: "unorderedList",
+    toggle: (editor) => editor.toggleUnorderedList(),
+  },
   {
     type: "numbered",
     labelKey: "notesNumberedList",
     icon: ListOrdered,
-    action: "toggleOrderedList",
+    stateKey: "orderedList",
+    toggle: (editor) => editor.toggleOrderedList(),
   },
   {
     type: "checklist",
     labelKey: "notesChecklist",
     icon: CheckSquare,
-    action: "toggleTaskList",
+    stateKey: "checkboxList",
+    toggle: (editor) => editor.toggleCheckboxList(false),
   },
 ];
 
@@ -76,19 +105,9 @@ export default function NotesEditorScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
+  const editorRef = useRef<EnrichedTextInputInstance>(null);
   const suppressChangeRef = useRef(true);
-  const editor = useEditorBridge({
-    initialContent: "<p></p>",
-    avoidIosKeyboard: true,
-    onChange: () => {
-      if (!suppressChangeRef.current) setIsDirty(true);
-    },
-  });
-  const editorRef = useRef(editor);
-
-  useEffect(() => {
-    editorRef.current = editor;
-  }, [editor]);
+  const [styleState, setStyleState] = useState<OnChangeStateEvent | null>(null);
 
   const [noteId, setNoteId] = useState<number | null>(() => {
     const parsed = id ? Number(id) : null;
@@ -105,23 +124,30 @@ export default function NotesEditorScreen() {
   const [loading, setLoading] = useState(() => loadTarget.kind === "note");
   const [asyncLoadFailed, setAsyncLoadFailed] = useState(false);
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
+  const [initialHtml, setInitialHtml] = useState("<p></p>");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
 
+  const htmlStyle = useMemo<HtmlStyle>(
+    () => ({
+      h1: { fontSize: 28, bold: true },
+      h2: { fontSize: 22, bold: true },
+      h3: { fontSize: 18, bold: true },
+      blockquote: { borderColor: colors.border, color: colors.mutedForeground },
+      codeblock: { backgroundColor: colors.muted, color: colors.foreground },
+      code: { backgroundColor: colors.muted, color: colors.foreground },
+      a: { color: colors.primary },
+      ul: { bulletColor: colors.foreground },
+      ol: { markerColor: colors.foreground },
+      ulCheckbox: { boxColor: colors.primary, boxSize: 18 },
+    }),
+    [colors.border, colors.mutedForeground, colors.muted, colors.foreground, colors.primary]
+  );
+
   useEffect(() => {
-    if (loadTarget.kind === "invalid") {
-      return;
-    }
-    if (loadTarget.kind === "new") {
-      suppressChangeRef.current = true;
-      editorRef.current.setContent("<p></p>");
-      requestAnimationFrame(() => {
-        suppressChangeRef.current = false;
-      });
-      return;
-    }
+    if (loadTarget.kind !== "note") return;
 
     let cancelled = false;
     suppressChangeRef.current = true;
@@ -132,19 +158,16 @@ export default function NotesEditorScreen() {
           setNoteId(note.id);
           setTitle(note.title);
           setIsPinned(note.is_pinned);
-          editorRef.current.setContent(contentToEditorHtml(note.content));
+          setInitialHtml(contentToEditorHtml(note.content));
         } else {
           setNoteId(null);
           setTitle("");
           setIsPinned(false);
-          editorRef.current.setContent("<p></p>");
+          setInitialHtml("<p></p>");
           setAsyncLoadFailed(true);
         }
         setIsDirty(false);
         setLoading(false);
-        requestAnimationFrame(() => {
-          suppressChangeRef.current = false;
-        });
       })
       .catch(() => {
         if (cancelled) return;
@@ -158,6 +181,23 @@ export default function NotesEditorScreen() {
       cancelled = true;
     };
   }, [loadTarget, t]);
+
+  useEffect(() => {
+    if (loading || loadFailed) return;
+    suppressChangeRef.current = true;
+    const frame = requestAnimationFrame(() => {
+      suppressChangeRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loading, loadFailed, initialHtml]);
+
+  const handleChangeHtml = useCallback(() => {
+    if (!suppressChangeRef.current) setIsDirty(true);
+  }, []);
+
+  const handleChangeState = useCallback((event: { nativeEvent: OnChangeStateEvent }) => {
+    setStyleState(event.nativeEvent);
+  }, []);
 
   const handleBack = useCallback(() => {
     if (!isDirty) {
@@ -202,9 +242,11 @@ export default function NotesEditorScreen() {
 
   const handleSave = useCallback(async () => {
     if (isSaving || loadFailed) return;
+    const editor = editorRef.current;
+    if (!editor) return;
     setIsSaving(true);
     try {
-      const content = await editorRef.current.getHTML();
+      const content = await editor.getHTML();
       if (noteId) {
         await updateNote(noteId, { title, content, is_pinned: isPinned });
       } else {
@@ -243,53 +285,6 @@ export default function NotesEditorScreen() {
     setIsPinned((previous) => !previous);
     setIsDirty(true);
   }, [haptics]);
-
-  useEffect(() => {
-    editorRef.current.setPlaceholder(t("notesContentPlaceholder"));
-  }, [t]);
-
-  const editorCss = useMemo(() => {
-    const background = colors.card;
-    const foreground = colors.foreground;
-    return `
-      .ProseMirror {
-        background-color: ${background};
-        color: ${foreground};
-        caret-color: ${foreground};
-      }
-      .ProseMirror:focus { outline: none; }
-      ::selection { background-color: ${colors.primary}; color: ${colors.primaryForeground}; }
-      .is-editor-empty:first-child::before { color: ${colors.mutedForeground}; }
-      ul[data-type="taskList"] input[type="checkbox"] { accent-color: ${colors.primary}; }
-      blockquote { border-left-color: ${colors.border}; }
-      hr { border-color: ${colors.border}; }
-      pre, code { background-color: ${colors.muted}; color: ${foreground}; }
-    `;
-  }, [colors.card, colors.foreground, colors.primary, colors.primaryForeground, colors.mutedForeground, colors.border, colors.muted]);
-
-  const [cssApplyTick, setCssApplyTick] = useState(0);
-
-  const handleEditorLoad = useCallback(() => {
-    setCssApplyTick((n) => n + 1);
-  }, []);
-
-  useEffect(() => {
-    const webview = editorRef.current.webviewRef.current;
-    if (!webview) return;
-    const css = editorCss;
-    webview.injectJavaScript(`
-      (function () {
-        var el = document.getElementById("ph-editor-theme");
-        if (!el) {
-          el = document.createElement("style");
-          el.id = "ph-editor-theme";
-          document.head.appendChild(el);
-        }
-        el.textContent = ${JSON.stringify(css)};
-      })();
-      true;
-    `);
-  }, [editorCss, cssApplyTick]);
 
   if (loading) {
     return (
@@ -358,9 +353,11 @@ export default function NotesEditorScreen() {
                 ) : null}
                 <Pressable
                   onPress={handleSave}
-                  className="rounded-lg bg-primary px-4 py-2"
+                  disabled={isSaving}
+                  className={`rounded-lg px-4 py-2 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
                   accessibilityRole="button"
                   accessibilityLabel={t("save")}
+                  accessibilityState={{ disabled: isSaving }}
                 >
                   <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
                 </Pressable>
@@ -368,20 +365,34 @@ export default function NotesEditorScreen() {
             </View>
 
             <View className="flex-row items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5">
-              {FORMAT_BUTTONS.map((button) => (
-                <Pressable
-                  key={button.type}
-                  onPress={() => {
-                    editor[button.action]();
-                    void haptics.light();
-                  }}
-                  className="h-9 w-9 items-center justify-center rounded-lg bg-muted"
-                  accessibilityRole="button"
-                  accessibilityLabel={t(button.labelKey)}
-                >
-                  <button.icon size={18} color={colors.foreground} />
-                </Pressable>
-              ))}
+              {FORMAT_BUTTONS.map((button) => {
+                const state = styleState?.[button.stateKey];
+                const active = state?.isActive ?? false;
+                const blocked = state?.isBlocking ?? false;
+                return (
+                  <Pressable
+                    key={button.type}
+                    onPress={() => {
+                      const editor = editorRef.current;
+                      if (!editor || blocked) return;
+                      button.toggle(editor);
+                      void haptics.light();
+                    }}
+                    disabled={blocked}
+                    className={`h-9 w-9 items-center justify-center rounded-lg ${
+                      active ? "bg-primary" : blocked ? "bg-muted/40" : "bg-muted"
+                    }`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(button.labelKey)}
+                    accessibilityState={{ selected: active, disabled: blocked }}
+                  >
+                    <button.icon
+                      size={18}
+                      color={active ? colors.primaryForeground : colors.foreground}
+                    />
+                  </Pressable>
+                );
+              })}
             </View>
 
             <TextInput
@@ -397,10 +408,24 @@ export default function NotesEditorScreen() {
             />
 
             <View className="min-h-[240px] flex-1 overflow-hidden rounded-xl border border-border bg-card">
-              <RichText
-                editor={editor}
-                style={{ flex: 1, minHeight: 240, backgroundColor: colors.card }}
-                onLoad={handleEditorLoad}
+              <EnrichedTextInput
+                ref={editorRef}
+                defaultValue={initialHtml}
+                placeholder={t("notesContentPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                htmlStyle={htmlStyle}
+                style={{
+                  flex: 1,
+                  minHeight: 240,
+                  backgroundColor: colors.card,
+                  color: colors.foreground,
+                  fontSize: 16,
+                }}
+                scrollEnabled
+                onChangeHtml={handleChangeHtml}
+                onChangeState={handleChangeState}
               />
             </View>
           </View>
