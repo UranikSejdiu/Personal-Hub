@@ -286,7 +286,7 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
     if (env.tables.loans) {
       const r = env.tables.loans as Record<string, unknown>;
       await db.execute(
-        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.loan_amount as number,
           r.loan_rate as number,
