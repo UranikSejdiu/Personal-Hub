@@ -1,0 +1,206 @@
+diff --git a/node_modules/react-native-enriched-html/android/src/main/java/com/swmansion/enriched/textinput/utils/Utils.kt b/node_modules/react-native-enriched-html/android/src/main/java/com/swmansion/enriched/textinput/utils/Utils.kt
+index 57f265b..a830fc9 100644
+--- a/node_modules/react-native-enriched-html/android/src/main/java/com/swmansion/enriched/textinput/utils/Utils.kt
++++ b/node_modules/react-native-enriched-html/android/src/main/java/com/swmansion/enriched/textinput/utils/Utils.kt
+@@ -6,6 +6,7 @@ import android.text.Spannable
+ import android.text.Spanned
+ import android.util.Log
+ import android.view.MotionEvent
++import android.view.ViewConfiguration
+ import android.widget.TextView
+ import com.swmansion.enriched.common.EnrichedSpanFlags
+ import com.swmansion.enriched.textinput.spans.EnrichedInputCheckboxListSpan
+@@ -31,73 +32,143 @@ fun jsonStringToStringMap(json: String): Map<String, String> {
+ // Sets a touch listener on TextView which is responsible for detecting touches on checkbox icons
+ // We don't use ClickableSpan because it works fine only when LinkMovementMethod is set on TextView
+ // Which breaks text selection and other features
++//
++// Keep-style controlled gesture:
++// - Once ACTION_DOWN lands in the checkbox hit zone, this listener owns MOVE/UP/CANCEL
++// - Drag beyond touch slop cancels the toggle (never falls through to text selection)
++// - Toggle always collapses any existing selection so text never stays highlighted
+ @SuppressLint("ClickableViewAccessibility")
+ fun TextView.setCheckboxClickListener() {
+-  var isDownOnCheckbox = false
++  // ownsGesture: once DOWN lands in the checkbox zone, consume the whole stream
++  // toggleCandidate: still eligible to toggle on UP (cleared if finger drifts past slop)
++  var ownsGesture = false
++  var toggleCandidate = false
++  var downX = 0f
++  var downY = 0f
++
++  // Extra hit slop around the leading-margin checkbox zone (finger accuracy)
++  val checkboxHitSlop = 16
+ 
+   setOnTouchListener { v, event ->
+     val tv = v as TextView
+-    val layout = tv.layout ?: return@setOnTouchListener false
+-    val spannable = tv.text as? Spanned ?: return@setOnTouchListener false
+-
+-    // Get touch coordinates relative to the text content
+-    val x = event.x.toInt() - tv.totalPaddingLeft + tv.scrollX
+-    val y = event.y.toInt() - tv.totalPaddingTop + tv.scrollY
+-
+-    // Identify the line and whether it's the first line of the span
+-    val line = layout.getLineForVertical(y)
+-    val lineStart = layout.getLineStart(line)
+-
+-    // Find spans for specific line
+-    val spans = spannable.getSpans(lineStart, lineStart, EnrichedInputCheckboxListSpan::class.java)
+-    if (spans.isEmpty()) return@setOnTouchListener false
+ 
+-    // There should be only one span per line as we don't support nested lists
+-    val span = spans[0]
+-    val isFirstLine = spannable.getSpanStart(span) == lineStart
+-    val marginWidth = span.getLeadingMargin(true)
+-
+-    // Check if touch is on checkbox icon area (which is in the leading margin on the first line)
+-    val isInHotZone = isFirstLine && x in 0..marginWidth
+-
+-    when (event.action) {
+-      MotionEvent.ACTION_DOWN -> {
+-        if (isInHotZone) {
+-          isDownOnCheckbox = true
++    if (ownsGesture) {
++      when (event.actionMasked) {
++        MotionEvent.ACTION_MOVE -> {
++          val systemSlop = ViewConfiguration.get(tv.context).scaledTouchSlop.toFloat()
++          val dx = event.x - downX
++          val dy = event.y - downY
++          if (dx * dx + dy * dy > systemSlop * systemSlop) {
++            // Dragged off the checkbox: cancel toggle, but keep owning the gesture
++            toggleCandidate = false
++          }
+           return@setOnTouchListener true
+         }
+-      }
+ 
+-      MotionEvent.ACTION_UP -> {
+-        if (isDownOnCheckbox && isInHotZone) {
+-          val spannable = tv.text as? Spannable
+-          if (spannable != null) {
+-            val start = spannable.getSpanStart(span)
+-            val end = spannable.getSpanEnd(span)
+-            val flags = spannable.getSpanFlags(span)
+-            span.isChecked = !span.isChecked
+-
+-            // Reapply span so changes are visible without need to redraw entire TextView
+-            spannable.removeSpan(span)
+-            spannable.setSpan(span, start, end, EnrichedSpanFlags.forSpan(span, flags))
+-
+-            // For focused input, ensure cursor is active for affected paragraph
+-            if (tv.isFocused) {
+-              val currentCursor = Selection.getSelectionEnd(spannable)
+-              if (currentCursor < start || currentCursor > end) {
+-                Selection.setSelection(spannable, end)
++        MotionEvent.ACTION_UP -> {
++          val shouldToggle = toggleCandidate
++          ownsGesture = false
++          toggleCandidate = false
++
++          if (shouldToggle) {
++            val layout = tv.layout
++            val spannable = tv.text as? Spannable
++            if (layout != null && spannable != null) {
++              val x = event.x.toInt() - tv.totalPaddingLeft + tv.scrollX
++              val y = event.y.toInt() - tv.totalPaddingTop + tv.scrollY
++              val line = layout.getLineForVertical(y)
++              val lineStart = layout.getLineStart(line)
++              val spans = spannable.getSpans(
++                lineStart,
++                lineStart,
++                EnrichedInputCheckboxListSpan::class.java
++              )
++
++              if (spans.isNotEmpty()) {
++                val span = spans[0]
++                val isFirstLine = spannable.getSpanStart(span) == lineStart
++                val marginWidth = span.getLeadingMargin(true)
++                val isInHotZone = isFirstLine &&
++                  x in -checkboxHitSlop..(marginWidth + checkboxHitSlop)
++
++                if (isInHotZone) {
++                  val start = spannable.getSpanStart(span)
++                  val end = spannable.getSpanEnd(span)
++                  val flags = spannable.getSpanFlags(span)
++                  span.isChecked = !span.isChecked
++
++                  // Reapply span so changes are visible without need to redraw entire TextView
++                  spannable.removeSpan(span)
++                  spannable.setSpan(span, start, end, EnrichedSpanFlags.forSpan(span, flags))
++
++                  // Always collapse selection on the checkbox line so text never stays highlighted
++                  val selStart = Selection.getSelectionStart(spannable)
++                  val selEnd = Selection.getSelectionEnd(spannable)
++                  if (selStart != selEnd || selStart < start || selEnd > end) {
++                    Selection.setSelection(spannable, end)
++                  }
++                }
+               }
+             }
+           }
++          return@setOnTouchListener true
++        }
+ 
+-          isDownOnCheckbox = false
++        MotionEvent.ACTION_CANCEL -> {
++          ownsGesture = false
++          toggleCandidate = false
+           return@setOnTouchListener true
+         }
+-        isDownOnCheckbox = false
++
++        else -> return@setOnTouchListener true
+       }
++    }
++
++    when (event.actionMasked) {
++      MotionEvent.ACTION_DOWN -> {
++        val layout = tv.layout ?: return@setOnTouchListener false
++        val spannable = tv.text as? Spanned ?: return@setOnTouchListener false
++
++        val x = event.x.toInt() - tv.totalPaddingLeft + tv.scrollX
++        val y = event.y.toInt() - tv.totalPaddingTop + tv.scrollY
++
++        val line = layout.getLineForVertical(y)
++        val lineStart = layout.getLineStart(line)
++        val lineTop = layout.getLineTop(line) - checkboxHitSlop
++        val lineBottom = layout.getLineBottom(line) + checkboxHitSlop
++
++        val spans = spannable.getSpans(
++          lineStart,
++          lineStart,
++          EnrichedInputCheckboxListSpan::class.java
++        )
++        if (spans.isEmpty()) return@setOnTouchListener false
++
++        val span = spans[0]
++        val isFirstLine = spannable.getSpanStart(span) == lineStart
++        val marginWidth = span.getLeadingMargin(true)
+ 
+-      MotionEvent.ACTION_CANCEL -> {
+-        isDownOnCheckbox = false
++        val isInHotZone = isFirstLine &&
++          x in -checkboxHitSlop..(marginWidth + checkboxHitSlop) &&
++          y in lineTop..lineBottom
++
++        if (isInHotZone) {
++          ownsGesture = true
++          toggleCandidate = true
++          downX = event.x
++          downY = event.y
++
++          // Clear any existing selection so a prior highlight never sticks through the toggle
++          val editable = tv.text as? Spannable
++          if (editable != null) {
++            val selStart = Selection.getSelectionStart(editable)
++            val selEnd = Selection.getSelectionEnd(editable)
++            if (selStart != selEnd) {
++              Selection.setSelection(editable, spannable.getSpanStart(span))
++            }
++          }
++          return@setOnTouchListener true
++        }
+       }
+     }
+ 

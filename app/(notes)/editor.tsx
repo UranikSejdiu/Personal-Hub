@@ -141,7 +141,12 @@ export default function NotesEditorScreen() {
       a: { color: colors.primary },
       ul: { bulletColor: colors.foreground },
       ol: { markerColor: colors.foreground },
-      ulCheckbox: { boxColor: colors.primary, boxSize: 18 },
+      ulCheckbox: {
+        boxColor: colors.primary,
+        boxSize: 22,
+        gapWidth: 12,
+        marginLeft: 4,
+      },
     }),
     [colors.border, colors.mutedForeground, colors.muted, colors.foreground, colors.primary]
   );
