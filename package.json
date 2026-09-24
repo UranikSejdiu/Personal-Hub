@@ -1,6 +1,6 @@
 {
   "name": "uraniks-hub",
-  "version": "1.14.7",
+  "version": "1.14.8",
   "main": "expo-router/entry",
   "dependencies": {
     "@10play/tentap-editor": "^1.0.1",
