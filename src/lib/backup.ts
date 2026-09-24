@@ -262,9 +262,15 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
 
   // Keep a restorable copy before the first destructive statement. If it cannot
   // be created, abort rather than proceeding without the safety copy.
-  await exportBackupToFile();
+  try {
+    await exportBackupToFile();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Safety backup failed: ${reason}`);
+  }
 
-  await db.withTransaction(async () => {
+  try {
+    await db.withTransaction(async () => {
     // Clear in FK-safe order
     await db.execute("DELETE FROM expenses");
     await db.execute("DELETE FROM budgets");
@@ -421,7 +427,11 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
         ]
       );
     }
-  });
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Restore failed: ${reason}`);
+  }
 }
 
 export async function readJsonFromFileUri(uri: string): Promise<string> {

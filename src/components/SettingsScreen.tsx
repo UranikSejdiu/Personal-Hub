@@ -195,8 +195,9 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                 goalRef.current = sg.goal_amount;
                 salaryRef.current = sg.salary;
               }
-            } catch {
-              toast.error(t("importFailed"));
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : String(error);
+              toast.error(t("importFailedReason", { reason }));
               setConfirmAction(null);
             } finally {
               setBackupBusy(false);
@@ -204,8 +205,9 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
           })();
         },
       });
-    } catch {
-      toast.error(t("importFailed"));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      toast.error(t("importFailedReason", { reason }));
     }
   }, [backupBusy, t, activeAppId]);
 
