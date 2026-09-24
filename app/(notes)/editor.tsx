@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { View, Text, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Trash2,
@@ -129,6 +137,18 @@ export default function NotesEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const htmlStyle = useMemo<HtmlStyle>(
     () => ({
@@ -322,9 +342,9 @@ export default function NotesEditorScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={insets.top + 48}
       >
-        <View className="flex-1 bg-background">
-          <View className="w-full max-w-md flex-1 self-center gap-3 p-4 pb-8">
-            <View className="flex-row items-center justify-between">
+        <View className="flex-1 flex-col bg-background">
+          <View className="w-full max-w-md flex-1 self-center">
+            <View className="flex-row items-center justify-between px-4 pt-3 pb-1">
               <Pressable
                 onPress={handleBack}
                 className="p-1"
@@ -369,7 +389,46 @@ export default function NotesEditorScreen() {
               </View>
             </View>
 
-            <View className="flex-row items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5">
+            <TextInput
+              value={title}
+              onChangeText={(value) => {
+                setTitle(value);
+                setIsDirty(true);
+              }}
+              placeholder={t("notesUntitled")}
+              placeholderTextColor={colors.mutedForeground}
+              className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
+              multiline
+            />
+
+            <View className="mt-1 min-h-[240px] flex-1">
+              <EnrichedTextInput
+                ref={editorRef}
+                defaultValue={initialHtml}
+                placeholder={t("notesContentPlaceholder")}
+                placeholderTextColor={colors.mutedForeground}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                htmlStyle={htmlStyle}
+                style={{
+                  flex: 1,
+                  minHeight: 240,
+                  backgroundColor: "transparent",
+                  color: colors.foreground,
+                  fontSize: 16,
+                }}
+                scrollEnabled
+                onChangeHtml={handleChangeHtml}
+                onChangeState={handleChangeState}
+              />
+            </View>
+          </View>
+
+          <View
+            className="w-full border-t border-border bg-background"
+            style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}
+          >
+            <View className="w-full max-w-md flex-row items-center justify-center gap-1 self-center px-2 py-1.5">
               {FORMAT_BUTTONS.map((button) => {
                 const state = styleState?.[button.stateKey];
                 const active = state?.isActive ?? false;
@@ -398,40 +457,6 @@ export default function NotesEditorScreen() {
                   </Pressable>
                 );
               })}
-            </View>
-
-            <TextInput
-              value={title}
-              onChangeText={(value) => {
-                setTitle(value);
-                setIsDirty(true);
-              }}
-              placeholder={t("notesUntitled")}
-              placeholderTextColor={colors.mutedForeground}
-              className="rounded-xl border border-border bg-card px-4 py-3 text-lg font-bold text-foreground"
-              multiline
-            />
-
-            <View className="min-h-[240px] flex-1 overflow-hidden rounded-xl border border-border bg-card">
-              <EnrichedTextInput
-                ref={editorRef}
-                defaultValue={initialHtml}
-                placeholder={t("notesContentPlaceholder")}
-                placeholderTextColor={colors.mutedForeground}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
-                htmlStyle={htmlStyle}
-                style={{
-                  flex: 1,
-                  minHeight: 240,
-                  backgroundColor: colors.card,
-                  color: colors.foreground,
-                  fontSize: 16,
-                }}
-                scrollEnabled
-                onChangeHtml={handleChangeHtml}
-                onChangeState={handleChangeState}
-              />
             </View>
           </View>
         </View>
