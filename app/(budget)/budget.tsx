@@ -63,6 +63,85 @@ export default function BudgetScreen() {
   } | null>(null);
   const loadRequestRef = useRef(0);
   const saveQueueRef = useRef(Promise.resolve());
+  const expenseTimersRef = useRef(
+    new Map<number, ReturnType<typeof setTimeout>>()
+  );
+  const expensePendingRef = useRef(
+    new Map<
+      number,
+      {
+        fields: Partial<Pick<Expense, "category" | "amount">>;
+        prevExpense: Expense | undefined;
+      }
+    >()
+  );
+  const expenseQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const flushExpenseUpdate = useCallback(async (id: number) => {
+    const pending = expensePendingRef.current.get(id);
+    expensePendingRef.current.delete(id);
+    if (!pending) return;
+    try {
+      await updateExpense(id, pending.fields);
+    } catch {
+      try {
+        if (budgetIdRef.current !== null) {
+          setExpenses(await listExpenses(budgetIdRef.current));
+        }
+      } catch {
+        // Keep optimistic values when reload also fails; user sees the toast.
+      }
+      toast.error(tRef.current("errorUpdatingExpense"));
+    }
+  }, []);
+
+  const scheduleExpenseUpdate = useCallback(
+    (
+      id: number,
+      fields: Partial<Pick<Expense, "category" | "amount">>,
+      prevExpense: Expense | undefined
+    ) => {
+      const existing = expensePendingRef.current.get(id);
+      expensePendingRef.current.set(id, {
+        fields: { ...(existing?.fields ?? {}), ...fields },
+        prevExpense: existing?.prevExpense ?? prevExpense,
+      });
+      const timer = expenseTimersRef.current.get(id);
+      if (timer) clearTimeout(timer);
+      expenseTimersRef.current.set(
+        id,
+        setTimeout(() => {
+          expenseTimersRef.current.delete(id);
+          expenseQueueRef.current = expenseQueueRef.current.then(() =>
+            flushExpenseUpdate(id)
+          );
+        }, 400)
+      );
+    },
+    [flushExpenseUpdate]
+  );
+
+  const cancelExpenseUpdate = useCallback((id: number) => {
+    const timer = expenseTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      expenseTimersRef.current.delete(id);
+    }
+    expensePendingRef.current.delete(id);
+  }, []);
+
+  const flushAllExpenseUpdates = useCallback(async () => {
+    for (const timer of expenseTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    expenseTimersRef.current.clear();
+    for (const id of [...expensePendingRef.current.keys()]) {
+      expenseQueueRef.current = expenseQueueRef.current.then(() =>
+        flushExpenseUpdate(id)
+      );
+    }
+    await expenseQueueRef.current;
+  }, [flushExpenseUpdate]);
 
   useEffect(() => {
     if (prevMonthRef.current === month) return;
@@ -77,7 +156,8 @@ export default function BudgetScreen() {
     persistedRef.current = "";
     pendingSaveRef.current = null;
     setSavingsGoal(0);
-  }, [month]);
+    void flushAllExpenseUpdates();
+  }, [month, flushAllExpenseUpdates]);
 
   const previousMonth = addMonths(month, -1);
   const previousMonthLabel = monthLabelShort(lang, previousMonth);
@@ -281,23 +361,38 @@ export default function BudgetScreen() {
   }, [ensureBudget, haptics, t]);
 
   const handleUpdateExpense = useCallback(
-    async (id: number, fields: Partial<Pick<Expense, "category" | "amount" | "paid">>) => {
+    async (
+      id: number,
+      fields: Partial<Pick<Expense, "category" | "amount" | "paid">>
+    ) => {
       const prevExpense = expenses.find((e) => e.id === id);
       setExpenses((prev) =>
         prev.map((e) => (e.id === id ? { ...e, ...fields } : e))
       );
-      try {
-        await updateExpense(id, fields);
-      } catch {
-        if (prevExpense) {
-          setExpenses((prev) =>
-            prev.map((e) => (e.id === id ? prevExpense : e))
-          );
+
+      const textFields: Partial<Pick<Expense, "category" | "amount">> = {};
+      if (fields.category !== undefined) textFields.category = fields.category;
+      if (fields.amount !== undefined) textFields.amount = fields.amount;
+      if (Object.keys(textFields).length > 0) {
+        scheduleExpenseUpdate(id, textFields, prevExpense);
+      }
+
+      if (fields.paid !== undefined) {
+        try {
+          await updateExpense(id, { paid: fields.paid });
+        } catch {
+          if (prevExpense) {
+            setExpenses((prev) =>
+              prev.map((e) =>
+                e.id === id ? { ...e, paid: prevExpense.paid } : e
+              )
+            );
+          }
+          toast.error(t("errorUpdatingExpense"));
         }
-        toast.error(t("errorUpdatingExpense"));
       }
     },
-    [expenses, t]
+    [expenses, t, scheduleExpenseUpdate]
   );
 
   const handleToggleRecurring = useCallback(
@@ -324,6 +419,7 @@ export default function BudgetScreen() {
 
   const handleRemoveExpense = useCallback(
     async (id: number) => {
+      cancelExpenseUpdate(id);
       const prevExpenses = expenses;
       const target = expenses.find((e) => e.id === id);
       setExpenses((curr) => curr.filter((e) => e.id !== id));
@@ -349,7 +445,7 @@ export default function BudgetScreen() {
         toast.error(t("errorRemovingExpense"));
       }
     },
-    [expenses, t, haptics]
+    [expenses, t, haptics, cancelExpenseUpdate]
   );
 
   const handleCopyPrevious = useCallback(async () => {
@@ -360,6 +456,7 @@ export default function BudgetScreen() {
         saveTimerRef.current = null;
       }
       await flushSave();
+      await flushAllExpenseUpdates();
       const result = await copyBudgetFromMonth(previousMonth, month);
       setBudget(result.budget);
       budgetIdRef.current = result.budget.id;
@@ -376,7 +473,13 @@ export default function BudgetScreen() {
     } catch {
       toast.error(t("noPreviousMonthFound"));
     }
-  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushSave]);
+  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushSave, flushAllExpenseUpdates]);
+
+  useEffect(() => {
+    return () => {
+      void flushAllExpenseUpdates();
+    };
+  }, [flushAllExpenseUpdates]);
 
   if (loading || !loans || !budget) {
     if (loadError) {

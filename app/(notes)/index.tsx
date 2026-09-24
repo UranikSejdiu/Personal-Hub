@@ -7,13 +7,10 @@ import { useI18n, type TKey } from "../../src/lib/i18n";
 import {
   loadNotes,
   searchNotes,
-  getNoteTextColorClass,
-  getNoteColorClass,
   type Note,
 } from "../../src/lib/notes";
 import { getPreviewSegments } from "../../src/lib/noteContent";
-import { NOTE_TEXT_HEX } from "../../src/constants/theme";
-import { useTheme, useThemeColors } from "../../src/lib/theme";
+import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 
 const styles = StyleSheet.create({
@@ -34,8 +31,6 @@ function zipColumnsToRows(cols: Note[][]): (Note | null)[][] {
   const maxLen = Math.max(0, ...cols.map((c) => c.length));
   const rows: (Note | null)[][] = [];
   for (let i = 0; i < maxLen; i++) {
-    // Preserve column slots (null = empty) so a single note stays half-width,
-    // matching the original two-column masonry layout.
     rows.push(cols.map((c) => c[i] ?? null));
   }
   return rows;
@@ -47,19 +42,14 @@ type NotesListRow =
 
 const NoteCard = React.memo(function NoteCard({
   note,
-  isDark,
   onPress,
   untitledLabel,
 }: {
   note: Note;
-  isDark: boolean;
-  onPress: () => void;
+  onPress: (noteId: number) => void;
   untitledLabel: string;
 }) {
-  const textColorClass = getNoteTextColorClass(note.color, isDark);
   const colors = useThemeColors();
-  const bgColorClass = getNoteColorClass(note.color, isDark);
-  const previewColor = NOTE_TEXT_HEX[note.color][isDark ? "dark" : "light"];
 
   const previewLines = useMemo(() => {
     if (!note.content) return [];
@@ -68,24 +58,29 @@ const NoteCard = React.memo(function NoteCard({
 
   return (
     <Pressable
-      onPress={onPress}
-      className={`relative mb-2 rounded-lg border border-border/50 p-3 ${bgColorClass}`}
+      onPress={() => onPress(note.id)}
+      className="relative mb-2 rounded-lg border border-border/50 bg-card p-3"
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}
     >
-      {note.is_pinned ? (
-        <View className="absolute top-2 right-2">
-          <Pin size={12} color={colors.mutedForeground} />
-        </View>
-      ) : null}
-      {note.title ? (
+      <View className="flex-row items-start justify-between gap-2">
         <Text
           numberOfLines={2}
-          className={`text-base font-medium ${textColorClass}`}
+          className="flex-1 text-base font-medium text-foreground"
         >
-          {note.title}
+          {note.title || untitledLabel}
         </Text>
-      ) : null}
+        {note.is_pinned ? (
+          <View
+            className="mt-0.5 shrink-0"
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="Pinned"
+          >
+            <Pin size={14} color={colors.foreground} />
+          </View>
+        ) : null}
+      </View>
       {previewLines.length > 0 ? (
         <View style={{ marginTop: 6 }}>
           {previewLines.map((line, i) => (
@@ -93,11 +88,7 @@ const NoteCard = React.memo(function NoteCard({
               key={i}
               numberOfLines={1}
               ellipsizeMode="tail"
-              style={{
-                fontSize: 13,
-                lineHeight: 18,
-                color: previewColor,
-              }}
+              className="text-[13px] leading-[18px] text-muted-foreground"
             >
               {line.map((segment, segmentIndex) => (
                 <Text
@@ -105,7 +96,7 @@ const NoteCard = React.memo(function NoteCard({
                   style={{
                     fontWeight: segment.bold ? "700" : undefined,
                     fontStyle: segment.italic ? "italic" : undefined,
-                    textDecorationLine: segment.strikethrough ? "line-through" : "none",
+                    textDecorationLine: segment.strikethrough ? "line-through" : undefined,
                   }}
                 >
                   {segment.text}
@@ -122,10 +113,8 @@ const NoteCard = React.memo(function NoteCard({
 export default function NotesListScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { theme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const isDark = theme !== "light";
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,9 +170,9 @@ export default function NotesListScreen() {
   }, [router]);
 
   const handleNotePress = useCallback(
-    (note: Note) => {
+    (noteId: number) => {
       void haptics.light();
-      router.push({ pathname: "/(notes)/editor", params: { id: note.id } });
+      router.push({ pathname: "/(notes)/editor", params: { id: noteId } });
     },
     [router, haptics]
   );
@@ -246,9 +235,8 @@ export default function NotesListScreen() {
               <View key={note.id} className="flex-1">
                 <NoteCard
                   note={note}
-                   isDark={isDark}
-                   untitledLabel={t("notesUntitled")}
-                  onPress={() => handleNotePress(note)}
+                  untitledLabel={t("notesUntitled")}
+                  onPress={handleNotePress}
                 />
               </View>
             ) : (
@@ -258,7 +246,7 @@ export default function NotesListScreen() {
         </View>
       );
     },
-    [t, isDark, handleNotePress]
+    [t, handleNotePress]
   );
 
   const listEmpty = useMemo(
@@ -312,9 +300,9 @@ export default function NotesListScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable
-               onPress={clearSearch}
+              onPress={clearSearch}
               accessibilityRole="button"
-               accessibilityLabel={t("clear")}
+              accessibilityLabel={t("clear")}
             >
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
@@ -331,6 +319,10 @@ export default function NotesListScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         style={styles.list}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews
       />
     </View>
   );

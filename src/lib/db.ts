@@ -121,6 +121,10 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 
       await database.execAsync("CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);");
 
+      await database.execAsync(
+        "UPDATE notes SET color = 'default' WHERE color != 'default';"
+      );
+
       await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     });
 

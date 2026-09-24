@@ -15,12 +15,25 @@ export function getPreviewSegments(content: string, maxLines = 3): PreviewSegmen
     .slice(0, maxLines)
     .map((line) => {
       const task = line.match(/^- \[([ xX])\]\s+(.*)$/);
-      const legacyTask = line.match(/^([☐✓○])\s+(.*)$/);
+      const legacyTask = line.match(/^([☐✓○•])\s+(.*)$/);
+      const orderedTask = line.match(/^(\d+)\.\s+(.*)$/);
       if (task) {
         return parseInlineMarkdown(`${task[1].toLowerCase() === "x" ? "✓" : "☐"} ${task[2]}`);
       }
       if (legacyTask) {
-        return parseInlineMarkdown(`${legacyTask[1] === "○" ? "☐" : legacyTask[1]} ${legacyTask[2]}`);
+        const prefix = legacyTask[1] === "○" ? "☐" : legacyTask[1];
+        return parseInlineMarkdown(`${prefix} ${legacyTask[2]}`);
+      }
+      if (orderedTask) {
+        return parseInlineMarkdown(`${orderedTask[1]}. ${orderedTask[2]}`);
+      }
+      const heading = line.match(/^#{1,6}\s+(.*)$/);
+      if (heading) {
+        return parseInlineMarkdown(heading[1]);
+      }
+      const bullet = line.match(/^[-*]\s+(.*)$/);
+      if (bullet) {
+        return parseInlineMarkdown(`• ${bullet[1]}`);
       }
       return parseInlineMarkdown(line);
     });
@@ -28,19 +41,22 @@ export function getPreviewSegments(content: string, maxLines = 3): PreviewSegmen
 
 export function parseInlineMarkdown(line: string): PreviewSegment[] {
   const segments: PreviewSegment[] = [];
-  const pattern = /(\*\*|~~|\*)(.+?)\1/g;
+  const pattern = /(\*\*\*|~~|\*\*|\*)(.+?)\1/g;
   let cursor = 0;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(line)) !== null) {
     if (match.index > cursor) segments.push({ text: line.slice(cursor, match.index) });
     const marker = match[1];
-    segments.push({
-      text: match[2],
-      bold: marker === "**",
-      italic: marker === "*",
-      strikethrough: marker === "~~",
-    });
+    if (marker === "***") {
+      segments.push({ text: match[2], bold: true, italic: true });
+    } else if (marker === "**") {
+      segments.push({ text: match[2], bold: true });
+    } else if (marker === "*") {
+      segments.push({ text: match[2], italic: true });
+    } else {
+      segments.push({ text: match[2], strikethrough: true });
+    }
     cursor = match.index + match[0].length;
   }
 

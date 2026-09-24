@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -79,10 +80,13 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     void runCheck();
   }, [runCheck]);
 
+  const value = useMemo(
+    () => ({ hasUpdate, latest, currentVersion, checking, refresh: runCheck }),
+    [hasUpdate, latest, currentVersion, checking, runCheck]
+  );
+
   return (
-    <UpdateContext.Provider
-      value={{ hasUpdate, latest, currentVersion, checking, refresh: runCheck }}
-    >
+    <UpdateContext.Provider value={value}>
       {children}
     </UpdateContext.Provider>
   );

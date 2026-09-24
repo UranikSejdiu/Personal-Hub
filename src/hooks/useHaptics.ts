@@ -28,6 +28,7 @@ export async function setHapticsEnabled(enabled: boolean): Promise<void> {
 
 export function useHaptics() {
   useEffect(() => {
+    if (settingsLoaded) return;
     void getHapticsEnabled().catch(() => {
       // Haptics are optional; retain the safe disabled default when storage is unavailable.
       cachedEnabled = false;

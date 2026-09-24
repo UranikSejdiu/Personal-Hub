@@ -34,15 +34,32 @@ function extractNodeText(node: LexicalNode): string[] {
   }
 
   if (node.type === "listitem") {
-    const prefix = node.checked ? "✓ " : "○ ";
     const text = (node.children ?? [])
       .flatMap((c: LexicalNode) => extractNodeText(c))
       .join("");
-    return [prefix + text];
+    if (typeof node.checked === "boolean") {
+      return [`${node.checked ? "✓" : "☐"} ${text}`];
+    }
+    return [text];
   }
 
   if (node.type === "list") {
-    return (node.children ?? []).flatMap((c: LexicalNode) => extractNodeText(c));
+    const listType = node.listType ?? "";
+    const isTask = listType === "check";
+    const children = node.children ?? [];
+    if (listType === "number") {
+      return children.flatMap((c: LexicalNode, index: number) => {
+        const lines = extractNodeText(c);
+        return lines.map((line) => `${index + 1}. ${line}`);
+      });
+    }
+    if (isTask) {
+      return children.flatMap((c: LexicalNode) => extractNodeText(c));
+    }
+    return children.flatMap((c: LexicalNode) => {
+      const lines = extractNodeText(c);
+      return lines.map((line) => `• ${line}`);
+    });
   }
 
   if (node.type === "paragraph" || node.type === "heading") {

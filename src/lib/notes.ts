@@ -1,5 +1,5 @@
 import * as db from "./db";
-import { NOTE_COLORS, NOTE_TEXT_COLORS, type NoteColor } from "../constants/theme";
+import { type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
 
@@ -9,18 +9,6 @@ const VALID_NOTE_COLORS: NoteColor[] = ["default", "yellow", "green", "blue", "p
 
 function isValidNoteColor(color: string): color is NoteColor {
   return (VALID_NOTE_COLORS as string[]).includes(color);
-}
-
-export function getNoteColorClass(color: NoteColor, isDark: boolean): string {
-  const entry = NOTE_COLORS[color];
-  if (!entry) return "bg-card";
-  return isDark ? entry.dark : entry.light;
-}
-
-export function getNoteTextColorClass(color: NoteColor, isDark: boolean): string {
-  const entry = NOTE_TEXT_COLORS[color];
-  if (!entry) return "text-foreground";
-  return isDark ? entry.dark : entry.light;
 }
 
 /**
@@ -46,10 +34,12 @@ function toNote(row: Record<string, unknown>): Note {
   };
 }
 
+const LIST_COLUMNS = "id, title, content, is_pinned, color, created_at, updated_at";
+
 export async function loadNotes(): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes ORDER BY is_pinned DESC, updated_at DESC"
+    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY is_pinned DESC, updated_at DESC`
   );
   return rows.map(toNote);
 }
@@ -97,7 +87,7 @@ export async function searchNotes(query: string): Promise<Note[]> {
   const escaped = normalized.replace(/[\\%_]/g, "\\$&");
   const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY is_pinned DESC, updated_at DESC",
+    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY is_pinned DESC, updated_at DESC`,
     [pattern, pattern]
   );
   return rows.map(toNote);
@@ -113,7 +103,7 @@ export async function getNote(id: number): Promise<Note | undefined> {
 }
 
 export async function createNote(
-  fields: Pick<Note, "title" | "content" | "color" | "is_pinned">
+  fields: Pick<Note, "title" | "content" | "is_pinned">
 ): Promise<Note> {
   const result = await db.execute(
     "INSERT INTO notes (title, content, is_pinned, color, plain_text) VALUES (?, ?, ?, ?, ?)",
@@ -121,7 +111,7 @@ export async function createNote(
       fields.title,
       fields.content,
       fields.is_pinned ? 1 : 0,
-      fields.color,
+      "default",
       getPlainTextFromContent(fields.content),
     ]
   );
@@ -135,7 +125,7 @@ export async function createNote(
 
 export async function updateNote(
   id: number,
-  fields: Partial<Pick<Note, "title" | "content" | "is_pinned" | "color">>
+  fields: Partial<Pick<Note, "title" | "content" | "is_pinned">>
 ): Promise<void> {
   const sets: string[] = [];
   const values: (string | number)[] = [];
@@ -152,10 +142,6 @@ export async function updateNote(
   if (fields.is_pinned !== undefined) {
     sets.push("is_pinned = ?");
     values.push(fields.is_pinned ? 1 : 0);
-  }
-  if (fields.color !== undefined) {
-    sets.push("color = ?");
-    values.push(fields.color);
   }
   if (sets.length === 0) return;
   sets.push("updated_at = datetime('now')");

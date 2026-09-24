@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackHandler, Pressable, Text, View } from "react-native";
@@ -22,20 +22,25 @@ function RootLayoutInner() {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
   const [showExitDialog, setShowExitDialog] = useState(false);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        if (pathname.includes("/settings")) return false;
+        if (pathnameRef.current.includes("/settings")) return false;
         if (router.canGoBack()) return false;
         setShowExitDialog(true);
         return true;
       }
     );
     return () => subscription.remove();
-  }, [router, pathname]);
+  }, [router]);
 
   return (
     <View

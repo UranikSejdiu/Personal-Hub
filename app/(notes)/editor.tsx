@@ -22,11 +22,8 @@ import {
   createNote,
   updateNote,
   deleteNote,
-  getNoteColorClass,
-  getNoteTextColorClass,
 } from "../../src/lib/notes";
-import { type NoteColor } from "../../src/constants/theme";
-import { useTheme, useThemeColors } from "../../src/lib/theme";
+import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { contentToEditorHtml } from "../../src/lib/noteContent";
@@ -40,17 +37,6 @@ type LoadTarget =
   | { kind: "new" }
   | { kind: "invalid" }
   | { kind: "note"; id: number };
-
-const COLOR_OPTIONS: NoteColor[] = [
-  "default",
-  "yellow",
-  "green",
-  "blue",
-  "pink",
-  "purple",
-  "orange",
-  "red",
-];
 
 type FormatButton = {
   type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
@@ -87,10 +73,8 @@ export default function NotesEditorScreen() {
   const { t } = useI18n();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { theme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const isDark = theme !== "light";
   const insets = useSafeAreaInsets();
   const suppressChangeRef = useRef(true);
   const editor = useEditorBridge({
@@ -100,13 +84,17 @@ export default function NotesEditorScreen() {
       if (!suppressChangeRef.current) setIsDirty(true);
     },
   });
+  const editorRef = useRef(editor);
+
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   const [noteId, setNoteId] = useState<number | null>(() => {
     const parsed = id ? Number(id) : null;
     return parsed !== null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   });
   const [title, setTitle] = useState("");
-  const [color, setColor] = useState<NoteColor>("default");
   const [isPinned, setIsPinned] = useState(false);
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
@@ -128,7 +116,7 @@ export default function NotesEditorScreen() {
     }
     if (loadTarget.kind === "new") {
       suppressChangeRef.current = true;
-      editor.setContent("<p></p>");
+      editorRef.current.setContent("<p></p>");
       requestAnimationFrame(() => {
         suppressChangeRef.current = false;
       });
@@ -143,15 +131,13 @@ export default function NotesEditorScreen() {
         if (note) {
           setNoteId(note.id);
           setTitle(note.title);
-          setColor(note.color);
           setIsPinned(note.is_pinned);
-          editor.setContent(contentToEditorHtml(note.content));
+          editorRef.current.setContent(contentToEditorHtml(note.content));
         } else {
           setNoteId(null);
           setTitle("");
-          setColor("default");
           setIsPinned(false);
-          editor.setContent("<p></p>");
+          editorRef.current.setContent("<p></p>");
           setAsyncLoadFailed(true);
         }
         setIsDirty(false);
@@ -171,7 +157,7 @@ export default function NotesEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [editor, loadTarget, t]);
+  }, [loadTarget, t]);
 
   const handleBack = useCallback(() => {
     if (!isDirty) {
@@ -218,11 +204,11 @@ export default function NotesEditorScreen() {
     if (isSaving || loadFailed) return;
     setIsSaving(true);
     try {
-      const content = await editor.getHTML();
+      const content = await editorRef.current.getHTML();
       if (noteId) {
-        await updateNote(noteId, { title, content, color, is_pinned: isPinned });
+        await updateNote(noteId, { title, content, is_pinned: isPinned });
       } else {
-        const created = await createNote({ title, content, color, is_pinned: isPinned });
+        const created = await createNote({ title, content, is_pinned: isPinned });
         setNoteId(created.id);
       }
       setIsDirty(false);
@@ -233,7 +219,7 @@ export default function NotesEditorScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [color, editor, haptics, isPinned, isSaving, loadFailed, noteId, router, t, title]);
+  }, [haptics, isPinned, isSaving, loadFailed, noteId, router, t, title]);
 
   const handleDelete = useCallback(() => {
     if (noteId) setConfirmState({ kind: "delete" });
@@ -258,23 +244,9 @@ export default function NotesEditorScreen() {
     setIsDirty(true);
   }, [haptics]);
 
-  const colorLabels = useMemo(
-    () => ({
-      default: t("notesColorDefault"),
-      yellow: t("notesColorYellow"),
-      green: t("notesColorGreen"),
-      blue: t("notesColorBlue"),
-      pink: t("notesColorPink"),
-      purple: t("notesColorPurple"),
-      orange: t("notesColorOrange"),
-      red: t("notesColorRed"),
-    }),
-    [t]
-  );
-
   useEffect(() => {
-    editor.setPlaceholder(t("notesContentPlaceholder"));
-  }, [editor, t]);
+    editorRef.current.setPlaceholder(t("notesContentPlaceholder"));
+  }, [t]);
 
   const editorCss = useMemo(() => {
     const background = colors.card;
@@ -302,7 +274,7 @@ export default function NotesEditorScreen() {
   }, []);
 
   useEffect(() => {
-    const webview = editor.webviewRef.current;
+    const webview = editorRef.current.webviewRef.current;
     if (!webview) return;
     const css = editorCss;
     webview.injectJavaScript(`
@@ -317,7 +289,7 @@ export default function NotesEditorScreen() {
       })();
       true;
     `);
-  }, [editor, editorCss, cssApplyTick]);
+  }, [editorCss, cssApplyTick]);
 
   if (loading) {
     return (
@@ -364,7 +336,7 @@ export default function NotesEditorScreen() {
               <View className="flex-row items-center gap-2">
                 <Pressable
                   onPress={handleTogglePin}
-                  className="p-2"
+                  className="p-3"
                   accessibilityRole="button"
                   accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
                 >
@@ -377,7 +349,7 @@ export default function NotesEditorScreen() {
                 {noteId ? (
                   <Pressable
                     onPress={handleDelete}
-                    className="p-2"
+                    className="p-3"
                     accessibilityRole="button"
                     accessibilityLabel={t("notesDelete")}
                   >
@@ -393,24 +365,6 @@ export default function NotesEditorScreen() {
                   <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
                 </Pressable>
               </View>
-            </View>
-
-            <View className="flex-row items-center gap-2">
-              {COLOR_OPTIONS.map((option) => (
-                <Pressable
-                  key={option}
-                  onPress={() => {
-                    setColor(option);
-                    setIsDirty(true);
-                  }}
-                  className={`h-7 w-7 rounded-full border-2 ${
-                    color === option ? "border-primary" : "border-border"
-                  } ${getNoteColorClass(option, isDark)}`}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: color === option }}
-                  accessibilityLabel={colorLabels[option]}
-                />
-              ))}
             </View>
 
             <View className="flex-row items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5">
@@ -438,7 +392,7 @@ export default function NotesEditorScreen() {
               }}
               placeholder={t("notesUntitled")}
               placeholderTextColor={colors.mutedForeground}
-              className={`rounded-xl border border-border bg-card px-4 py-3 text-lg font-bold ${getNoteTextColorClass(color, isDark)}`}
+              className="rounded-xl border border-border bg-card px-4 py-3 text-lg font-bold text-foreground"
               multiline
             />
 
