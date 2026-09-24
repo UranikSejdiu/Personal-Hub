@@ -73,29 +73,6 @@
   --chart-5: 27 87% 70%;
 }
 
-.tawheed {
-  --background: 160 35% 7%;
-  --foreground: 42 65% 92%;
-  --card: 160 30% 10%;
-  --card-foreground: 42 65% 92%;
-  --primary: 43 78% 52%;
-  --primary-foreground: 160 35% 7%;
-  --secondary: 160 25% 17%;
-  --secondary-foreground: 42 65% 92%;
-  --muted: 160 25% 17%;
-  --muted-foreground: 42 20% 68%;
-  --accent: 160 25% 17%;
-  --accent-foreground: 42 65% 92%;
-  --destructive: 0 72% 58%;
-  --destructive-foreground: 42 65% 92%;
-  --success: 145 55% 45%;
-  --success-foreground: 160 35% 7%;
-  --surface: 160 25% 17%;
-  --border: 160 20% 24%;
-  --input: 160 20% 24%;
-  --ring: 43 78% 52%;
-}
-
 .accent-green {
   --primary: 142 71% 36%;
   --primary-foreground: 0 0% 100%;

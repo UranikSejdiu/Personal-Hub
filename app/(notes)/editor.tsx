@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { View, Text, Pressable, TextInput, KeyboardAvoidingView } from "react-native";
+import { View, Text, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Trash2,
@@ -36,6 +36,11 @@ type ConfirmState =
   | { kind: "delete" }
   | null;
 
+type LoadTarget =
+  | { kind: "new" }
+  | { kind: "invalid" }
+  | { kind: "note"; id: number };
+
 const COLOR_OPTIONS: NoteColor[] = [
   "default",
   "yellow",
@@ -49,30 +54,30 @@ const COLOR_OPTIONS: NoteColor[] = [
 
 type FormatButton = {
   type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
-  label: string;
+  labelKey: "notesBold" | "notesItalic" | "notesStrikethrough" | "notesBulletList" | "notesNumberedList" | "notesChecklist";
   icon: typeof Bold;
   action: "toggleBold" | "toggleItalic" | "toggleStrike" | "toggleBulletList" | "toggleOrderedList" | "toggleTaskList";
 };
 
 const FORMAT_BUTTONS: FormatButton[] = [
-  { type: "bold", label: "Bold", icon: Bold, action: "toggleBold" },
-  { type: "italic", label: "Italic", icon: Italic, action: "toggleItalic" },
+  { type: "bold", labelKey: "notesBold", icon: Bold, action: "toggleBold" },
+  { type: "italic", labelKey: "notesItalic", icon: Italic, action: "toggleItalic" },
   {
     type: "strikethrough",
-    label: "Strikethrough",
+    labelKey: "notesStrikethrough",
     icon: Strikethrough,
     action: "toggleStrike",
   },
-  { type: "bullet", label: "Bullet list", icon: List, action: "toggleBulletList" },
+  { type: "bullet", labelKey: "notesBulletList", icon: List, action: "toggleBulletList" },
   {
     type: "numbered",
-    label: "Numbered list",
+    labelKey: "notesNumberedList",
     icon: ListOrdered,
     action: "toggleOrderedList",
   },
   {
     type: "checklist",
-    label: "Checklist",
+    labelKey: "notesChecklist",
     icon: CheckSquare,
     action: "toggleTaskList",
   },
@@ -96,18 +101,32 @@ export default function NotesEditorScreen() {
     },
   });
 
-  const [noteId, setNoteId] = useState<number | null>(id ? Number(id) : null);
+  const [noteId, setNoteId] = useState<number | null>(() => {
+    const parsed = id ? Number(id) : null;
+    return parsed !== null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  });
   const [title, setTitle] = useState("");
   const [color, setColor] = useState<NoteColor>("default");
   const [isPinned, setIsPinned] = useState(false);
-  const [loading, setLoading] = useState(!!id);
+  const loadTarget = useMemo<LoadTarget>(() => {
+    if (id == null || id === "") return { kind: "new" };
+    const parsed = Number(id);
+    if (!Number.isInteger(parsed) || parsed <= 0) return { kind: "invalid" };
+    return { kind: "note", id: parsed };
+  }, [id]);
+  const [loading, setLoading] = useState(() => loadTarget.kind === "note");
+  const [asyncLoadFailed, setAsyncLoadFailed] = useState(false);
+  const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
 
   useEffect(() => {
-    if (!id) {
+    if (loadTarget.kind === "invalid") {
+      return;
+    }
+    if (loadTarget.kind === "new") {
       suppressChangeRef.current = true;
       editor.setContent("<p></p>");
       requestAnimationFrame(() => {
@@ -118,7 +137,7 @@ export default function NotesEditorScreen() {
 
     let cancelled = false;
     suppressChangeRef.current = true;
-    getNote(Number(id))
+    getNote(loadTarget.id)
       .then((note) => {
         if (cancelled) return;
         if (note) {
@@ -133,6 +152,7 @@ export default function NotesEditorScreen() {
           setColor("default");
           setIsPinned(false);
           editor.setContent("<p></p>");
+          setAsyncLoadFailed(true);
         }
         setIsDirty(false);
         setLoading(false);
@@ -143,6 +163,7 @@ export default function NotesEditorScreen() {
       .catch(() => {
         if (cancelled) return;
         setLoading(false);
+        setAsyncLoadFailed(true);
         suppressChangeRef.current = false;
         toast.error(t("errorLoadingData"));
       });
@@ -150,7 +171,7 @@ export default function NotesEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [editor, id, t]);
+  }, [editor, loadTarget, t]);
 
   const handleBack = useCallback(() => {
     if (!isDirty) {
@@ -194,7 +215,7 @@ export default function NotesEditorScreen() {
   }, [router]);
 
   const handleSave = useCallback(async () => {
-    if (isSaving) return;
+    if (isSaving || loadFailed) return;
     setIsSaving(true);
     try {
       const content = await editor.getHTML();
@@ -212,7 +233,7 @@ export default function NotesEditorScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [color, editor, haptics, isPinned, isSaving, noteId, router, t, title]);
+  }, [color, editor, haptics, isPinned, isSaving, loadFailed, noteId, router, t, title]);
 
   const handleDelete = useCallback(() => {
     if (noteId) setConfirmState({ kind: "delete" });
@@ -251,6 +272,53 @@ export default function NotesEditorScreen() {
     [t]
   );
 
+  useEffect(() => {
+    editor.setPlaceholder(t("notesContentPlaceholder"));
+  }, [editor, t]);
+
+  const editorCss = useMemo(() => {
+    const background = colors.card;
+    const foreground = colors.foreground;
+    return `
+      .ProseMirror {
+        background-color: ${background};
+        color: ${foreground};
+        caret-color: ${foreground};
+      }
+      .ProseMirror:focus { outline: none; }
+      ::selection { background-color: ${colors.primary}; color: ${colors.primaryForeground}; }
+      .is-editor-empty:first-child::before { color: ${colors.mutedForeground}; }
+      ul[data-type="taskList"] input[type="checkbox"] { accent-color: ${colors.primary}; }
+      blockquote { border-left-color: ${colors.border}; }
+      hr { border-color: ${colors.border}; }
+      pre, code { background-color: ${colors.muted}; color: ${foreground}; }
+    `;
+  }, [colors.card, colors.foreground, colors.primary, colors.primaryForeground, colors.mutedForeground, colors.border, colors.muted]);
+
+  const [cssApplyTick, setCssApplyTick] = useState(0);
+
+  const handleEditorLoad = useCallback(() => {
+    setCssApplyTick((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    const webview = editor.webviewRef.current;
+    if (!webview) return;
+    const css = editorCss;
+    webview.injectJavaScript(`
+      (function () {
+        var el = document.getElementById("ph-editor-theme");
+        if (!el) {
+          el = document.createElement("style");
+          el.id = "ph-editor-theme";
+          document.head.appendChild(el);
+        }
+        el.textContent = ${JSON.stringify(css)};
+      })();
+      true;
+    `);
+  }, [editor, editorCss, cssApplyTick]);
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -259,11 +327,27 @@ export default function NotesEditorScreen() {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
+        <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="rounded-lg bg-primary px-4 py-2"
+          accessibilityRole="button"
+          accessibilityLabel={t("cancel")}
+        >
+          <Text className="text-sm font-medium text-primary-foreground">{t("cancel")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <>
       <KeyboardAvoidingView
         className="flex-1 bg-background"
-        behavior="padding"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={insets.top + 48}
       >
         <View className="flex-1 bg-background">
@@ -339,7 +423,7 @@ export default function NotesEditorScreen() {
                   }}
                   className="h-9 w-9 items-center justify-center rounded-lg bg-muted"
                   accessibilityRole="button"
-                  accessibilityLabel={button.label}
+                  accessibilityLabel={t(button.labelKey)}
                 >
                   <button.icon size={18} color={colors.foreground} />
                 </Pressable>
@@ -362,6 +446,7 @@ export default function NotesEditorScreen() {
               <RichText
                 editor={editor}
                 style={{ flex: 1, minHeight: 240, backgroundColor: colors.card }}
+                onLoad={handleEditorLoad}
               />
             </View>
           </View>
@@ -393,7 +478,10 @@ export default function NotesEditorScreen() {
         }
         cancelLabel={t("cancel")}
         destructive={confirmState?.kind === "delete"}
-        onClose={() => setConfirmState(null)}
+        onClose={() => {
+          pendingRemoveActionRef.current = null;
+          setConfirmState(null);
+        }}
         onConfirm={confirmState?.kind === "delete" ? handleConfirmDelete : handleConfirmDiscard}
       />
     </>

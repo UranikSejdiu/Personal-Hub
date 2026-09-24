@@ -3,340 +3,14 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
-import * as SecureStore from "expo-secure-store";
 
-export type Lang = "en" | "sq";
+export type Lang = "en";
 
-const LANG_KEY = "app_lang";
-const DEFAULT_LANG: Lang = "sq";
+const DEFAULT_LANG: Lang = "en";
 
 const dict = {
-  sq: {
-    appBudget: "Buxheti",
-    appDhikr: "Dhikr",
-    appNotes: "Notes",
-    switchApp: "Ndërro aplikacion",
-    navDashboard: "Paneli",
-    navSavings: "Kursimet",
-    navLoans: "Kreditë",
-    navSettings: "Konfigurimet",
-    navCounter: "Numëruesi",
-    navDhikrList: "Dhikret",
-    navNotes: "Shënimet",
-
-    dashboardTitle: "Paneli Kryesor",
-    recentMonths: "Muajt e Fundit",
-    loading: "Duke u ngarkuar…",
-    retry: "Provo përsëri",
-    dbInitFailed: "Dështoi inicializimi i bazës së të dhënave.",
-    noBudgetsSaved: "Nuk ka buxhete të ruajtura ende.",
-    incomeColon: "Të Ardhurat:",
-    plannedColon: "Planifikuar:",
-    remainsColon: "Mbetet:",
-    paidColon: "Paguar:",
-    actuallyRemainsColon: "Faktikisht Mbetet:",
-    deleteMonthConfirm: "Fshini buxhetin e muajit {month}?",
-    newBudget: "Buxhet i Ri",
-    newBudgetCreated: "Buxheti u krijua për {month}",
-    tabBudget: "Buxheti",
-    tabLoans: "Kreditë",
-    tabSavings: "Kursimet",
-
-    budgetTitle: "Buxheti Mujor",
-    savingAuto: "Duke u ruajtur automatikisht...",
-    saveFailed: "Dështoi ruajtja.",
-    deleteFailed: "Dështoi fshirja.",
-    errorLoadingData: "Dështoi ngarkimi i të dhënave.",
-    errorSavingData: "Dështoi ruajtja e të dhënave.",
-    errorDeletingBudget: "Dështoi fshirja e buxhetit.",
-    errorCreatingBudget: "Dështoi krijimi i buxhetit.",
-    errorReordering: "Dështoi renditja.",
-    errorDeletingDhikr: "Dështoi fshirja e dhikrit.",
-    errorResettingDhikr: "Dështoi rivendosja e dhikrit.",
-    errorAddingExpense: "Dështoi shtimi i shpenzimit.",
-    errorUpdatingExpense: "Dështoi përditësimi i shpenzimit.",
-    errorRemovingExpense: "Dështoi heqja e shpenzimit.",
-    errorUpdatingLoan: "Dështoi përditësimi i kredisë.",
-    errorUpdatingCc: "Dështoi përditësimi i kartelës së kreditit.",
-
-    sectionLoanPayment: "1. Pagesa e Kredisë",
-    progress: "Progresi",
-    remainingShort: "mbetur",
-    monthsCount: "{paid} / {total} muaj",
-    monthsLeft: "{count} mbetur",
-    paid: "Shlyer",
-    remainingBalanceLabel: "Bilanci i Mbetur",
-    monthlyPayment: "Pagesa Mujore",
-    loanFullyPaid: "Kredia është shlyer plotësisht",
-
-    sectionCreditCard: "2. Kartela e Kreditit",
-    cardFullyPaid: "Kartela është shlyer plotësisht",
-    ccWarning:
-      "Paralajmërim: Pagesa mujore ({payment}) është më e vogël se interesi ({interest}). Borxhi nuk do të shlyhet kurrë!",
-
-    sectionExpenses: "3. Shpenzime të Personalizuara Mujore",
-    addRow: "Shto Rresht",
-    addCategoryPlaceholder: "Shto kategorinë…",
-    category: "Kategoria",
-    totalExpensesPlanned: "Totali i Shpenzimeve (Planifikuar)",
-    totalPaid: "Totali i Paguar",
-    copyFromPreviousMonth: "Kopjo nga muaji i kaluar",
-    copyFromPreviousMonthDesc: "Kopjo shpenzimet nga {month}",
-    copiedFromPreviousMonth: "U kopjuan të dhënat nga {month}",
-    noPreviousMonthFound: "Nuk u gjet asnjë buxhet paraprak",
-    recurringToggle: "Përsëritëse",
-
-    sectionSummary: "4. Përmbledhja Mujore",
-    monthlyIncome: "Të Ardhurat Mujore (pas tatimit)",
-    planned: "Planifikuar",
-    actualLabel: "Aktual",
-    loanPaymentLabel: "Pagesa e Kredisë",
-    ccPaymentLabel: "Kartela e Kreditit",
-    totalCustomExpenses: "Shpenzimet",
-    totalMonthlyOutflow: "DALJA TOTALE MUJORE",
-    remainingSavings: "MBETJA / KURSIMET",
-    paidExpenses: "Shpenzimet e Paguara",
-
-    loansTitle: "Kreditë dhe Kartelat",
-    save: "Ruaj",
-    savedSuccess: "U ruajt me sukses",
-    loanSection: "Kredia",
-    loanName: "Emri i Kredisë",
-    loanNamePlaceholder: "p.sh. Kredi për Shtëpi",
-    loanAmount: "Shuma e Kredisë (€)",
-    loanRate: "Norma e Interesit (%/vit)",
-    loanTerm: "Afati (muaj)",
-    optionalPayment: "Pagesa Mujore (opsionale)",
-    startDate: "Data e Fillimit",
-    paymentDay: "Dita e Pagesës",
-    monthsPaid: "Muaj të Paguar",
-    loanMonthsPaid: "Muaj të Paguar",
-    loanPaymentDay: "Dita e Pagesës",
-    loanStartDate: "Data e Fillimit",
-    ccPayment: "Pagesa e Kartelës",
-    ccMonthsPaid: "Muaj të Paguar",
-    scheduleTitle: "Oraret e Shlyerjes",
-    totalInterest: "Interesi Total",
-    totalCost: "Kostoja Totale",
-    firstPayment: "Pagesa e Parë",
-    dateCol: "Data",
-    paymentCol: "Pagesa",
-    principalCol: "Kryegjëja",
-    interestCol: "Interesi",
-    balanceCol: "Bilanci",
-    ccSection: "Kartela e Kreditit",
-    ccName: "Emri i Kartelës",
-    ccNamePlaceholder: "p.sh. Visa Platinum",
-    ccBalance: "Bilanci (€)",
-    ccApr: "APR (%/vit)",
-    ccMonthlyPayment: "Pagesa Mujore",
-    monthsToPayoff: "Muaj Deri në Shlyerje",
-    never: "Kurrë",
-
-    settingsTitle: "Konfigurimet",
-    settingsGeneral: "Të Përgjithshme",
-    settingsBudget: "Buxheti",
-    settingsBackupSync: "Rezervimi & Sinkronizimi",
-    settingsAbout: "Rreth Aplikacionit",
-    appName: "Personal Hub",
-    backToHub: "Kthehu te Paneli",
-    appearanceSection: "PAMJA",
-    languageSection: "GJUHA",
-    themeLight: "E çelët",
-    themeDark: "E errët",
-    themeTawheed: "Teuhid",
-    themeLabel: "Tema",
-    accentLabel: "Ngjyra e theksit",
-    accent_blue: "Blu",
-    accent_green: "Gjelbër",
-    accent_purple: "Purpurt",
-    accent_teal: "Teal",
-    accent_orange: "Portokalli",
-    accent_pink: "Rozë",
-    languageLabel: "Gjuha",
-    hapticsLabel: "Vibrimi gjatë prekjes",
-    exportData: "Eksporto të dhënat",
-    exportSuccess: "Të dhënat u eksportuan me sukses",
-    exportFailed: "Dështoi eksportimi.",
-    importData: "Importo të dhënat",
-    importSuccess: "Të dhënat u importuan me sukses",
-    importFailed: "Dështoi importimi.",
-    importFailedReason: "Importimi dështoi: {reason}",
-    importInvalidFile: "Skedari nuk është i validueshëm.",
-    version: "Verzioni",
-    aboutDescription: "Personal Hub - Aplikacion offline për buxhet, dhikr dhe shënime.",
-
-    myDhikrs: "Dhikret e mia",
-    newBtn: "I ri",
-    noDhikrsAdded: "Asnjë dhikr nuk është shtuar",
-    tapToCount: "Shtyp për të numëruar",
-    tapNewToCreate: "Kliko '+ I ri' për të krijuar një",
-    deleteConfirmTitle: "Fshi",
-    deleteConfirmBody:
-      'Të fshihet "{name}"? Të gjitha numërimet do të humbasin.',
-    delete: "Fshi",
-    resetLabel: "Rivendos",
-    limitReached: "Limiti ditor u arrit",
-    confirm: "Konfirmo",
-    total: "Totali",
-    editDhikr: "Ndrysho Dhikr",
-    openDhikr: "Hap Dhikr",
-    newDhikr: "Dhikr i ri",
-    nameLabel: "EMRI",
-    namePlaceholder: "psh. SubhanAllah",
-    limitLabel: "LIMITI DITOR (opsional)",
-    limitPlaceholder: "psh. 100",
-    saveBtn: "Ruaj",
-    errorNoName: "Ju lutem shkruani një emër",
-    errorLimitPositive: "Limiti duhet të jetë numër pozitiv",
-    goalComplete: "Qëllimi ditor u arrit!",
-    resetDhikrConfirm: "Rikthe këtë dhikr në 0?",
-    noDhikrYet: "Nuk ka Dhikr ende",
-    addFirstDhikr: "Shto dhikrin e parë për të filluar numërimin",
-    addDhikrBtn: "Shto Dhikr",
-
-    salaryLabel: "Rroga",
-    savingsGoalLabel: "Kursimet Mujore",
-    goalMetBadge: "Qëllimi u arrit!",
-    goalColon: "Qëllimi:",
-    savingsTitle: "Kursimet",
-    savingsBalanceLabel: "Bilanci",
-    savingsTotalSaved: "Totali i kursyer",
-    savingsTotalSpent: "Shpenzuar nga kursimet",
-    monthlyTargetColon: "Objektivi i këtij muaji:",
-    savingsNewEntry: "Hyrje e Re",
-    savingsEditEntry: "Ndrysho Hyrjen",
-    savingsEntryType: "Lloji",
-    savingsTypeDeposit: "Depozitë",
-    savingsTypePurchase: "Blerje",
-    savingsDescriptionLabel: "Përshkrimi (opsional)",
-    savingsAmountLabel: "Shuma (€)",
-    savingsDateLabel: "Data",
-    savingsNoEntries: "Nuk ka hyrje ende.",
-    savingsNoEntriesHint:
-      'Shtypni "Hyrje e Re" për të regjistruar të parën.',
-    savingsAutoBadge: "Auto",
-    savingsMonthlyDepositDesc: "Kursime mujore",
-    savingsAutoEditTitle: "Ndrysho Depozitën Automatike",
-    savingsAutoDescriptionLabel: "Përshkrimi (opsional)",
-    activityLabel: "Aktiviteti",
-    closeYearLabel: "Mbyll vitin",
-    closeYearConfirm: "Mbyll {year}? Kursimet neto: {amount}. Do të krijohet hyrje në {nextYear}.",
-    closingBalance: "Bilanci mbyllës {year}",
-    deleteSavingsEntryConfirm: "Fshini këtë hyrje?",
-    savingsErrorAmount: "Ju lutem shkruani një shumë më të madhe se zero.",
-    savingsErrorDate: "Ju lutem zgjidhni një datë.",
-    errorAddingSavings: "Dështoi shtimi i hyrjes.",
-    errorUpdatingSavings: "Dështoi përditësimi i hyrjes.",
-    errorDeletingSavings: "Dështoi fshirja e hyrjes.",
-    goalAmount: "Shuma e Qëllimit",
-    savedLabel: "Kursyer:",
-
-    transaction: "Transaksion",
-    totalSaved: "Totali i Kursyer",
-    totalSpent: "Totali i Shpenzuar",
-
-    checkForUpdates: "Kontrollo për përditësime",
-    checkingForUpdates: "Duke kontrolluar për përditësime...",
-    updatesTitle: "Përditësimet",
-    currentVersion: "Versioni aktual",
-    updateAvailable: "Përditësim i disponibil",
-    updateAvailableToast: "Version i ri {version} është i disponibil.",
-    updateUpToDate: "Jeni të përditësuar",
-    updateCheckFailed: "Dështoi kontrollimi për përditësime",
-    updateNoReleases: "Nuk u gjetën versione",
-    changelog: "Ndryshimet",
-    newVersionReady: "Version i ri {version} është gati për instalim.",
-    downloadAndInstall: "Shkarko dhe Instalo",
-    installNow: "Instalo tani",
-    playProtectHint: "Nëse Play Protect shfaq 'Scan app', shtypni Scan → Instalo gjithsesi",
-    updateInstallerOpened: "Instaluesi i përditësimit u hap",
-    newUpdateAvailable: "Përditësim i ri i disponueshëm",
-    downloadingUpdate: "Duke shkarkuar... {percent}%",
-    updatePermissionNeeded: "Nevojitet leje për instalim",
-    updateAllowInstalls: "Ju lutem lejoni instalimin e aplikacioneve të panjohur",
-
-    notesTitle: "Shënimet",
-    notesUntitled: "Pa titër",
-    notesSearchPlaceholder: "Kërko shënime...",
-    notesNew: "Shënim i Ri",
-    notesDelete: "Fshi shënimin",
-    notesDeleteConfirm: "Të fshihet ky shënim?",
-    notesPin: "Fixo",
-    notesUnpin: "Hiq fiksimit",
-    notesColor: "Ngjyra e shënimit",
-    notesColorDefault: "E parazgjedhur",
-    notesColorYellow: "E verdhë",
-    notesColorGreen: "E gjelbër",
-    notesColorBlue: "Blu",
-    notesColorPink: "E rozë",
-    notesColorPurple: "E purpurt",
-    notesColorOrange: "Portokalli",
-    notesColorRed: "E kuqe",
-    notesEmpty: "Nuk ka shënime ende",
-    notesEmptyHint: "Shtypni + për të krijuar shënimin e parë",
-    notesNoResults: "Nuk u gjetën shënime",
-    notesPinned: "Të fiksuara",
-    flaticonAttribution: "Ikonat UIcons nga Flaticon",
-    linkOpenFailed: "Dështoi hapja e lidhjes.",
-    notesOthers: "Të tjerat",
-    notesContentPlaceholder: "Shkruani përmbajtjen e shënimit...",
-    notesUnsavedChanges: "Keni ndryshime të paruajtura. Doni të largoheni?",
-    discardChangesTitle: "Hiqni ndryshimet?",
-    discard: "Hiq ndryshimet",
-
-    reorderHandle: "Zvarrit për të renditur",
-    saveReorder: "Ruaj",
-    reorderSaved: "Renditja u ruajt.",
-    previousDhikr: "I mëparshmi",
-    nextDhikr: "Tjetri",
-    expand: "Zgjero",
-    collapse: "Tkurre",
-    cancel: "Anulo",
-    exitTitle: "Largo aplikacionin?",
-    exitMessage: "Jeni i sigurt që doni të dilni nga aplikacioni?",
-    exitApp: "Dil",
-    clear: "Pastro",
-
-    msJan: "Jan",
-    msFeb: "Shk",
-    msMar: "Mar",
-    msApr: "Pri",
-    msMay: "Maj",
-    msJun: "Qer",
-    msJul: "Kor",
-    msAug: "Gus",
-    msSep: "Sht",
-    msOct: "Tet",
-    msNov: "Nën",
-    msDec: "Dhj",
-
-    filterAll: "Të gjitha",
-    importConfirmMessage: "Kjo do të zëvendësojë të gjitha të dhënat aktuale me kopjen e rezervuar. Doni të vazhdoni?",
-
-    tutorialWelcome: "Mirë se vini në Personal Hub",
-    tutorialWelcomeDesc: "Paneli juaj personal gjithçka-në-një.",
-    tutorialDashboard: "Paneli Mujor",
-    tutorialDashboardDesc: "Ndjekni të ardhurat vs shpenzimet çdo muaj. Shtypni për të parë detajet.",
-    tutorialSavings: "Gjurmuesi i Kursimeve",
-    tutorialSavingsDesc: "Vendosni një qëllim kursimi, regjistroni depozitat dhe blerjet, shikoni përparimin.",
-    tutorialLoans: "Kredi & Kartela",
-    tutorialLoansDesc: "Menaxhoni kreditë dhe kartelat me llogaritje automatike të pagesave.",
-    tutorialDhikr: "Numëruesi i Dhikrit",
-    tutorialDhikrDesc: "Shtypni për të numëruar përkujtimin tuaj ditor. Vendosni qëllime dhe fitoni fishekzjarre.",
-    tutorialNotes: "Shënimet",
-    tutorialNotesDesc: "Shkruani shënime me tekst të pasur, ngjyra, fiksim dhe kërkim.",
-    tutorialSettings: "Konfigurimet",
-    tutorialSettingsDesc: "Personalizoni temën, ngjyrën, gjuhën dhe rezervoni të dhënat tuaja.",
-    tutorialGetStarted: "Fillo",
-    tutorialNext: "Tjetër →",
-    tutorialSkip: "Kalo",
-    tutorialShowAgain: "Shfaq Udhëzuesin",
-  },
-
   en: {
     appBudget: "Budget",
     appDhikr: "Dhikr",
@@ -467,10 +141,8 @@ const dict = {
     appName: "Personal Hub",
     backToHub: "Back to hub",
     appearanceSection: "APPEARANCE",
-    languageSection: "LANGUAGE",
     themeLight: "Light",
     themeDark: "Dark",
-    themeTawheed: "Tawheed",
     themeLabel: "Theme",
     accentLabel: "Accent color",
     accent_blue: "Blue",
@@ -479,7 +151,6 @@ const dict = {
     accent_teal: "Teal",
     accent_orange: "Orange",
     accent_pink: "Pink",
-    languageLabel: "Language",
     hapticsLabel: "Vibration feedback",
     exportData: "Export data",
     exportSuccess: "Data exported successfully",
@@ -520,7 +191,7 @@ const dict = {
     addFirstDhikr: "Add your first dhikr to begin counting",
     addDhikrBtn: "Add Dhikr",
 
-    salaryLabel: "Rroga",
+    salaryLabel: "Salary",
     savingsGoalLabel: "Monthly Savings Target",
     goalMetBadge: "Goal Met!",
     goalColon: "Goal:",
@@ -608,6 +279,12 @@ const dict = {
     notesUnsavedChanges: "You have unsaved changes. Leave anyway?",
     discardChangesTitle: "Discard changes?",
     discard: "Discard changes",
+    notesBold: "Bold",
+    notesItalic: "Italic",
+    notesStrikethrough: "Strikethrough",
+    notesBulletList: "Bullet list",
+    notesNumberedList: "Numbered list",
+    notesChecklist: "Checklist",
 
     reorderHandle: "Drag to reorder",
     saveReorder: "Save",
@@ -651,7 +328,7 @@ const dict = {
     tutorialNotes: "Notes",
     tutorialNotesDesc: "Write rich-text notes with colors, pinning, and search.",
     tutorialSettings: "Settings",
-    tutorialSettingsDesc: "Customize your theme, accent color, language, and backup your data.",
+    tutorialSettingsDesc: "Customize your theme and accent color, and back up your data.",
     tutorialGetStarted: "Get Started",
     tutorialNext: "Next →",
     tutorialSkip: "Skip",
@@ -659,7 +336,7 @@ const dict = {
   },
 } as const;
 
-export type TKey = keyof (typeof dict)["sq"];
+export type TKey = keyof (typeof dict)["en"];
 
 const MONTHS_SHORT = [
   "msJan",
@@ -680,40 +357,20 @@ export function monthLabelShort(lang: Lang, key: string): string {
   const month = Number(key.slice(5, 7));
   if (!Number.isInteger(month) || month < 1 || month > 12) return key;
   const year = key.slice(0, 4);
-  return `${dict[lang][MONTHS_SHORT[month - 1]]} ${year}`;
+  return `${dict.en[MONTHS_SHORT[month - 1]]} ${year}`;
 }
 
 interface I18nContextValue {
   lang: Lang;
-  setLang: (lang: Lang) => void;
   t: (key: TKey, vars?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    try {
-      const stored = SecureStore.getItem(LANG_KEY);
-      if (stored === "en" || stored === "sq") return stored;
-    } catch {
-      // SecureStore unavailable (keychain failure) — fall through to default.
-    }
-    return DEFAULT_LANG;
-  });
-
-  const setLang = useCallback((next: Lang) => {
-    setLangState(next);
-    void SecureStore.setItemAsync(LANG_KEY, next).catch((err) => {
-      // Non-critical: language applies in-memory; persist failure only affects restart.
-      console.warn("[i18n] failed to persist language:", err);
-    });
-  }, []);
-
   const t = useCallback(
     (key: TKey, vars?: Record<string, string | number>): string => {
-      let text: string =
-        (dict[lang][key] ?? dict[DEFAULT_LANG][key] ?? key) as string;
+      let text: string = dict.en[key];
       if (vars) {
         for (const [k, v] of Object.entries(vars)) {
           text = text.replaceAll(`{${k}}`, String(v));
@@ -721,12 +378,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
       return text;
     },
-    [lang]
+    []
   );
 
   const value = useMemo(
-    () => ({ lang, setLang, t }),
-    [lang, setLang, t]
+    () => ({ lang: DEFAULT_LANG, t }),
+    [t]
   );
 
   return (

@@ -9,10 +9,10 @@ import { loadSavingsGoal } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 
 const BUDGET_TABS: PillNavTab[] = [
-  { id: "index", label: "Paneli", icon: "view-dashboard" },
-  { id: "savings", label: "Kursimet", icon: "piggy-bank" },
-  { id: "loans", label: "Kreditë", icon: "calculator" },
-  { id: "settings", label: "Konfigurimet", icon: "cog" },
+  { id: "index", label: "Dashboard", icon: "view-dashboard" },
+  { id: "savings", label: "Savings", icon: "piggy-bank" },
+  { id: "loans", label: "Loans", icon: "calculator" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export default function BudgetLayout() {

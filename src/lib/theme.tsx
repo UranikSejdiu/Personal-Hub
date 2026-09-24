@@ -20,7 +20,6 @@ import type { TKey } from "./i18n";
 export const THEMES: { value: ThemeName; labelKey: TKey }[] = [
   { value: "light", labelKey: "themeLight" },
   { value: "dark", labelKey: "themeDark" },
-  { value: "tawheed", labelKey: "themeTawheed" },
 ];
 
 const THEME_KEY = "app_theme";
@@ -41,7 +40,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
     try {
       const stored = SecureStore.getItem(THEME_KEY);
-      if (stored === "light" || stored === "dark" || stored === "tawheed") return stored;
+      if (stored === "light" || stored === "dark") return stored;
+      if (stored === "tawheed") {
+        void SecureStore.setItemAsync(THEME_KEY, "dark").catch((err) => {
+          console.warn("[theme] failed to migrate tawheed preference:", err);
+        });
+        return "dark";
+      }
     } catch {
       // SecureStore unavailable (keychain failure) — fall through to system scheme.
     }

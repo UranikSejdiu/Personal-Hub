@@ -100,7 +100,7 @@ The existing hub architecture includes:
 - Expo Router tab & stack navigation
 - native gesture-driven swipe navigation
 - Android hardware back-button handling
-- cross-platform theme engine (Light, Dark, Tawheed Dark)
+- cross-platform theme engine (Light, Dark)
 
 Do not create a parallel architecture when the existing architecture already provides the required functionality.
 
@@ -345,19 +345,16 @@ Maintain consistency in spacing, typography, border radii, shadows, and color to
 The application supports:
 - Light
 - Dark
-- Tawheed Dark
 
 Every UI change must be checked against all supported themes using NativeWind dark mode variants (`dark:`). Ensure text contrast, backgrounds, borders, icons, and input fields render cleanly across all themes without hardcoded hex colors that bypass theme tokens.
 
 24. INTERNATIONALIZATION
 The application supports:
-- Albanian (`sq`)
-- English (`en`)
+- English (`en`) only
 
-User-facing text must use the existing i18n translation system (`i18next` / `expo-localization`).
+User-facing text must use the existing i18n translation system (`src/lib/i18n.tsx`).
 When adding new text:
-- Add translation keys to both `sq` and `en` JSON dictionaries.
-- Never leave a feature translated in only one language.
+- Add translation keys to the `en` dictionary.
 - Do not hardcode UI text strings inside components.
 
 25. NAVIGATION (Expo Router)
@@ -373,7 +370,7 @@ When adding a new app or module:
 1. Create its screen routes in `app/(hub)/[appId]/`.
 2. Define layout options (`Stack.Screen`, `Tabs.Screen`).
 3. Register the module metadata in `src/hub/registry.ts`.
-4. Add translation strings (`sq`, `en`).
+4. Add translation strings (`en`).
 5. Verify navigation, back stack behavior, and tab state persistence.
 
 26. STATE MANAGEMENT
@@ -504,7 +501,7 @@ The project must compile without TypeScript or bundle build errors.
 Verify behavior across expected scenarios:
 - **Happy Path:** Expected data & navigation flow.
 - **Edge Cases:** Empty data states, malformed input, offline mode, app restart/resume.
-- **Environment:** iOS & Android physical/emulator devices, dark/light/Tawheed themes, Albanian/English languages.
+- **Environment:** iOS & Android physical/emulator devices, dark/light themes, English UI.
 
 40. DEBUGGING PROCESS
 Follow a structured flow:
@@ -557,12 +554,12 @@ Never:
 - store sensitive tokens in unencrypted `AsyncStorage`
 - destroy local SQLite user data unexpectedly
 - break offline-first capabilities
-- commit untranslated UI strings
-- break dark/Tawheed mode contrast
+- introduce untranslated (non-English) UI strings
+- break dark mode contrast
 
 48. QUALITY STANDARD
 Ensure your code passes all quality checks:
-`Works → Correct → Safe → Architectural → Clean → Strongly Typed → Handled Errors → Theme Compliant → Multi-language → Mobile Performant → Typecheck Clean`
+`Works → Correct → Safe → Architectural → Clean → Strongly Typed → Handled Errors → Theme Compliant → English UI → Mobile Performant → Typecheck Clean`
 
 49. FINAL PRINCIPLE
 Ask: *"What is the cleanest, safest, most maintainable way to solve this correctly within the existing Expo / React Native architecture?"*

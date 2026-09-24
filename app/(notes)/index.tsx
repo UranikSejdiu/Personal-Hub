@@ -129,6 +129,7 @@ export default function NotesListScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeqRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -137,14 +138,14 @@ export default function NotesListScreen() {
   }, []);
 
   const load = useCallback(async (query?: string) => {
+    const seq = ++searchSeqRef.current;
     try {
       const q = query ?? searchQuery;
-      if (q.trim()) {
-        setNotes(await searchNotes(q.trim()));
-      } else {
-        setNotes(await loadNotes());
-      }
+      const result = q.trim() ? await searchNotes(q.trim()) : await loadNotes();
+      if (seq !== searchSeqRef.current) return;
+      setNotes(result);
     } catch {
+      if (seq !== searchSeqRef.current) return;
       setNotes([]);
       toast.error(t("errorLoadingData"));
     }

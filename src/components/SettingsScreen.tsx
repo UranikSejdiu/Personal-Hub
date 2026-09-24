@@ -51,7 +51,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   const router = useRouter();
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const { theme, setTheme, accent, setAccent } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
@@ -322,29 +322,6 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                     {accent === name && (
                       <View className="h-2.5 w-2.5 rounded-full bg-white" />
                     )}
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View className="rounded-xl border border-border bg-card p-4">
-              <Text className="mb-3 text-sm font-semibold text-foreground">{t("languageLabel")}</Text>
-              <View className="flex-row gap-2">
-                {(["sq", "en"] as const).map((l) => (
-                  <Pressable
-                    key={l}
-                    onPress={() => { void haptics.light(); setLang(l); }}
-                    className={`flex-1 rounded-lg border p-3 ${
-                      lang === l ? "border-primary bg-primary/10" : "border-border"
-                    }`}
-                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: lang === l }}
-                    accessibilityLabel={l === "sq" ? "Shqip" : "English"}
-                  >
-                    <Text className={`text-center text-sm ${lang === l ? "font-semibold text-primary" : "text-foreground"}`}>
-                      {l === "sq" ? "Shqip" : "English"}
-                    </Text>
                   </Pressable>
                 ))}
               </View>

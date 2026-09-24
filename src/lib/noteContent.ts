@@ -156,17 +156,22 @@ interface BlockLegacy {
 }
 
 function blocksToMarkdown(blocks: BlockLegacy[]): string {
+  let orderedCounter = 0;
   return blocks
     .map((block) => {
       const text = block.text ?? "";
       switch (block.type) {
         case "checklist":
+          orderedCounter = 0;
           return (block.checked ? "✓ " : "☐ ") + text;
         case "bullet":
+          orderedCounter = 0;
           return "• " + text;
         case "numbered":
-          return "1. " + text;
+          orderedCounter += 1;
+          return `${orderedCounter}. ${text}`;
         default:
+          orderedCounter = 0;
           return text;
       }
     })
@@ -174,7 +179,14 @@ function blocksToMarkdown(blocks: BlockLegacy[]): string {
 }
 
 function htmlToMarkdown(html: string): string {
-  return html
+  const withOrderedNumbers = html.replace(
+    /<ol[^>]*>([\s\S]*?)<\/ol>/gi,
+    (match, inner: string) => {
+      let n = 0;
+      return inner.replace(/<li[^>]*>/gi, () => `${++n}. `);
+    }
+  );
+  return withOrderedNumbers
     .replace(/<li[^>]*data-checked=["']true["'][^>]*>/gi, "- [x] ")
     .replace(/<li[^>]*data-checked=["']false["'][^>]*>/gi, "- [ ] ")
     .replace(/<li[^>]*>/gi, "- ")
@@ -189,9 +201,12 @@ function htmlToMarkdown(html: string): string {
     .replace(/<\/(s|del|strike)>/gi, "~~")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#34;/g, '"')
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

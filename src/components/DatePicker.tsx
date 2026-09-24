@@ -19,13 +19,13 @@ function parseValue(v: string | null): Date | null {
 }
 
 export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const colors = useThemeColors();
   const today = useMemo(() => new Date(), []);
 
   const [display, setDisplay] = useState<Date>(parseValue(value) ?? today);
 
-  const locale = lang === "sq" ? "sq-AL" : "en-US";
+  const locale = "en-US";
 
   const weekdays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) =>

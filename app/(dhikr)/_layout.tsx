@@ -5,9 +5,9 @@ import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 
 const DHIKR_TABS: PillNavTab[] = [
-  { id: "index", label: "Numëruesi", icon: "star-four-points" },
-  { id: "list", label: "Dhikret", icon: "format-list-numbered" },
-  { id: "settings", label: "Konfigurimet", icon: "cog" },
+  { id: "index", label: "Counter", icon: "star-four-points" },
+  { id: "list", label: "Dhikrs", icon: "format-list-numbered" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export default function DhikrLayout() {
