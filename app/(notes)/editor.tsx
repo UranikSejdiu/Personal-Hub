@@ -20,12 +20,16 @@ import {
   List,
   ListOrdered,
   CheckSquare,
+  Plus,
 } from "../../src/components/AppIcons";
 import { EnrichedTextInput } from "react-native-enriched-html";
 import type {
   EnrichedTextInputInstance,
   HtmlStyle,
+  OnChangeSelectionEvent,
   OnChangeStateEvent,
+  OnChangeTextEvent,
+  TextShortcut,
 } from "react-native-enriched-html";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
@@ -39,7 +43,8 @@ import {
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { contentToEditorHtml } from "../../src/lib/noteContent";
+import { contentToEditorHtml, appendCheckboxItem } from "../../src/lib/noteContent";
+import { withAlpha } from "../../src/lib/utils";
 
 type ConfirmState =
   | { kind: "discard"; action: "back" | "pending" }
@@ -60,6 +65,12 @@ type FormatButton = {
   stateKey: StyleStateKey;
   toggle: (editor: EnrichedTextInputInstance) => void;
 };
+
+const TEXT_SHORTCUTS: TextShortcut[] = [
+  { trigger: "- ", style: "unordered_list" },
+  { trigger: "1. ", style: "ordered_list" },
+  { trigger: "[] ", style: "checkbox_list" },
+];
 
 const FORMAT_BUTTONS: FormatButton[] = [
   {
@@ -138,6 +149,9 @@ export default function NotesEditorScreen() {
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const plainTextRef = useRef("");
+  const [isAddingItem, setIsAddingItem] = useState(false);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -159,13 +173,13 @@ export default function NotesEditorScreen() {
       codeblock: { backgroundColor: colors.muted, color: colors.foreground },
       code: { backgroundColor: colors.muted, color: colors.foreground },
       a: { color: colors.primary },
-      ul: { bulletColor: colors.foreground },
-      ol: { markerColor: colors.foreground },
+      ul: { bulletColor: colors.mutedForeground, bulletSize: 6, gapWidth: 12, marginLeft: 4 },
+      ol: { gapWidth: 12, marginLeft: 4, markerFontWeight: "500", markerColor: colors.mutedForeground },
       ulCheckbox: {
         boxColor: colors.primary,
-        boxSize: 22,
-        gapWidth: 12,
-        marginLeft: 4,
+        boxSize: 18,
+        gapWidth: 8,
+        marginLeft: 2,
       },
     }),
     [colors.border, colors.mutedForeground, colors.muted, colors.foreground, colors.primary]
@@ -223,6 +237,51 @@ export default function NotesEditorScreen() {
   const handleChangeState = useCallback((event: { nativeEvent: OnChangeStateEvent }) => {
     setStyleState(event.nativeEvent);
   }, []);
+
+  const handleChangeSelection = useCallback(
+    (event: { nativeEvent: OnChangeSelectionEvent }) => {
+      selectionRef.current = {
+        start: event.nativeEvent.start,
+        end: event.nativeEvent.end,
+      };
+    },
+    []
+  );
+
+  const handleChangeText = useCallback((event: { nativeEvent: OnChangeTextEvent }) => {
+    plainTextRef.current = event.nativeEvent.value;
+  }, []);
+
+  const handleAddListItem = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || isAddingItem || isSaving) return;
+    setIsAddingItem(true);
+    try {
+      const currentHtml = await editor.getHTML();
+      const nextHtml = appendCheckboxItem(currentHtml);
+      if (!nextHtml) return;
+
+      const text = plainTextRef.current;
+      const caret = selectionRef.current?.start ?? text.length;
+      const lineBreak = text.indexOf("\n", caret);
+      const lineEnd = lineBreak === -1 ? text.length : lineBreak;
+      const nextCaret = lineEnd + 1;
+
+      editor.setValue(nextHtml);
+      if (nextCaret <= text.length) {
+        editor.setSelection(nextCaret, nextCaret);
+      }
+      editor.focus();
+      setIsDirty(true);
+      void haptics.light();
+    } catch {
+      toast.error(t("notesAddItemFailed"));
+    } finally {
+      setIsAddingItem(false);
+    }
+  }, [haptics, isAddingItem, isSaving, t]);
+
+  const showAddItem = styleState?.checkboxList.isActive === true && !isSaving;
 
   const handleBack = useCallback(() => {
     if (!isDirty) {
@@ -413,16 +472,41 @@ export default function NotesEditorScreen() {
                 style={{
                   flex: 1,
                   minHeight: 240,
+                  paddingHorizontal: 16,
+                  paddingTop: 4,
+                  paddingBottom: 24,
                   backgroundColor: "transparent",
                   color: colors.foreground,
                   fontSize: 16,
                 }}
                 scrollEnabled
+                textShortcuts={TEXT_SHORTCUTS}
                 onChangeHtml={handleChangeHtml}
                 onChangeState={handleChangeState}
+                onChangeSelection={handleChangeSelection}
+                onChangeText={handleChangeText}
               />
             </View>
           </View>
+
+          {showAddItem ? (
+            <Pressable
+              onPress={() => {
+                void handleAddListItem();
+              }}
+              disabled={isAddingItem}
+              className="w-full max-w-md min-h-[44px] flex-row items-center gap-2 self-center px-4"
+              android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
+              accessibilityRole="button"
+              accessibilityLabel={t("notesAddItem")}
+              accessibilityState={{ disabled: isAddingItem }}
+            >
+              <Plus size={16} color={colors.mutedForeground} />
+              <Text className="text-sm text-muted-foreground">
+                {t("notesAddItem")}
+              </Text>
+            </Pressable>
+          ) : null}
 
           <View
             className="w-full border-t border-border bg-background"

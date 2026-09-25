@@ -276,6 +276,8 @@ const dict = {
     notesBulletList: "Bullet list",
     notesNumberedList: "Numbered list",
     notesChecklist: "Checklist",
+    notesAddItem: "Add item",
+    notesAddItemFailed: "Could not add item",
 
     reorderHandle: "Drag to reorder",
     saveReorder: "Save",

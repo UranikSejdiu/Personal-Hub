@@ -91,6 +91,26 @@ export function contentToEditorHtml(content: string): string {
   return markdownToHtml(contentToMarkdown(content));
 }
 
+const CHECKBOX_LIST_OPEN = /<ul\b[^>]*\bdata-type=(["'])checkbox\1[^>]*>/gi;
+
+/**
+ * Append an empty unchecked item to the last checkbox list in the given HTML.
+ * Returns `null` when the document has no checkbox list.
+ */
+export function appendCheckboxItem(html: string): string | null {
+  if (!html) return null;
+  let lastOpenEnd = -1;
+  let match: RegExpExecArray | null;
+  CHECKBOX_LIST_OPEN.lastIndex = 0;
+  while ((match = CHECKBOX_LIST_OPEN.exec(html)) !== null) {
+    lastOpenEnd = match.index + match[0].length;
+  }
+  if (lastOpenEnd === -1) return null;
+  const closeIndex = html.toLowerCase().indexOf("</ul>", lastOpenEnd);
+  if (closeIndex === -1) return null;
+  return `${html.slice(0, closeIndex)}<li></li>${html.slice(closeIndex)}`;
+}
+
 /**
  * Map legacy TipTap/ProseMirror note HTML onto the Enriched HTML
  * checkbox format (`ul[data-type="checkbox"]` + `li[checked]`).
