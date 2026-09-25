@@ -1,17 +1,17 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { FileText, Plus, Search, XCircle, Pin } from "../../src/components/AppIcons";
+import { FileText, Plus, Search, XCircle, Pin } from "../../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n, type TKey } from "../../src/lib/i18n";
+import { useI18n, type TKey } from "../../../src/lib/i18n";
 import {
   loadNotes,
   searchNotes,
   type Note,
-} from "../../src/lib/notes";
-import { getPreviewSegments } from "../../src/lib/noteContent";
-import { useThemeColors } from "../../src/lib/theme";
-import { useHaptics } from "../../src/hooks/useHaptics";
+} from "../../../src/lib/notes";
+import { getPreviewSegments } from "../../../src/lib/noteContent";
+import { useThemeColors } from "../../../src/lib/theme";
+import { useHaptics } from "../../../src/hooks/useHaptics";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },

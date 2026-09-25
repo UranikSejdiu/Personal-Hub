@@ -1,51 +1,20 @@
-import { Tabs, useRouter } from "expo-router";
-import { PillNav, type PillNavTab } from "../../src/components/PillNav";
+import { Stack } from "expo-router";
 import { HubHeader } from "../../src/components/HubHeader";
-import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 
-const NOTES_TABS: PillNavTab[] = [
-  { id: "index", label: "Notes", icon: "note-text" },
-  { id: "settings", label: "Settings", icon: "cog" },
-];
-
 export default function NotesLayout() {
-  const router = useRouter();
-  const { t } = useI18n();
   const { handleAppSelect } = useAppSwitching("notes");
 
   return (
     <>
       <HubHeader activeAppId="notes" onAppSelect={handleAppSelect} />
-      <Tabs
+      <Stack
         screenOptions={{ headerShown: false }}
-        tabBar={({ state }) => {
-          const routeName = state.routes[state.index].name;
-          const isSubScreen = !NOTES_TABS.some((tab) => tab.id === routeName);
-          if (isSubScreen) return null;
-          return (
-            <PillNav
-              tabs={NOTES_TABS.map((tab) => ({
-                ...tab,
-                label: t(
-                  tab.id === "index" ? "navNotes" : "navSettings"
-                ),
-              }))}
-              activeTabId={routeName}
-              onTabPress={(tabId) => {
-                const index = state.routes.findIndex((r) => r.name === tabId);
-                if (index !== -1) {
-                  router.push(`/(notes)/${tabId === "index" ? "" : tabId}`);
-                }
-              }}
-            />
-          );
-        }}
+        initialRouteName="(tabs)"
       >
-        <Tabs.Screen name="index" options={{ title: t("navNotes") }} />
-        <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
-        <Tabs.Screen name="editor" options={{ href: null }} />
-      </Tabs>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="editor" />
+      </Stack>
     </>
   );
 }
