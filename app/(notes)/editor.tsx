@@ -4,6 +4,7 @@ import {
   Text,
   Pressable,
   TextInput,
+  ScrollView,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
@@ -26,6 +27,7 @@ import { EnrichedTextInput } from "react-native-enriched-html";
 import type {
   EnrichedTextInputInstance,
   HtmlStyle,
+  OnChangeHtmlEvent,
   OnChangeSelectionEvent,
   OnChangeStateEvent,
   OnChangeTextEvent,
@@ -47,6 +49,8 @@ import {
   contentToEditorHtml,
   appendCheckboxItem,
   insertCheckboxItemAtLine,
+  applyCheckedStrikethrough,
+  parseCheckedStates,
 } from "../../src/lib/noteContent";
 import { withAlpha } from "../../src/lib/utils";
 
@@ -129,7 +133,6 @@ export default function NotesEditorScreen() {
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const editorRef = useRef<EnrichedTextInputInstance>(null);
-  const suppressChangeRef = useRef(true);
   const [styleState, setStyleState] = useState<OnChangeStateEvent | null>(null);
 
   const [noteId, setNoteId] = useState<number | null>(() => {
@@ -148,7 +151,6 @@ export default function NotesEditorScreen() {
   const [asyncLoadFailed, setAsyncLoadFailed] = useState(false);
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
   const [initialHtml, setInitialHtml] = useState("<p></p>");
-  const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
@@ -156,6 +158,18 @@ export default function NotesEditorScreen() {
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const plainTextRef = useRef("");
   const [isAddingItem, setIsAddingItem] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  // Snapshot of the last persisted/loaded state, used to decide whether there
+  // are actually unsaved changes instead of a fragile dirty flag.
+  const savedSnapshotRef = useRef<{ title: string; html: string; pinned: boolean } | null>(null);
+  const checkedStatesRef = useRef<boolean[] | null>(null);
+  const titleRef = useRef(title);
+  const pinnedRef = useRef(isPinned);
+
+  useEffect(() => {
+    titleRef.current = title;
+    pinnedRef.current = isPinned;
+  }, [title, isPinned]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -193,7 +207,8 @@ export default function NotesEditorScreen() {
     if (loadTarget.kind !== "note") return;
 
     let cancelled = false;
-    suppressChangeRef.current = true;
+    savedSnapshotRef.current = null;
+    checkedStatesRef.current = null;
     getNote(loadTarget.id)
       .then((note) => {
         if (cancelled) return;
@@ -201,7 +216,7 @@ export default function NotesEditorScreen() {
           setNoteId(note.id);
           setTitle(note.title);
           setIsPinned(note.is_pinned);
-          setInitialHtml(contentToEditorHtml(note.content));
+          setInitialHtml(applyCheckedStrikethrough(contentToEditorHtml(note.content)));
         } else {
           setNoteId(null);
           setTitle("");
@@ -209,14 +224,12 @@ export default function NotesEditorScreen() {
           setInitialHtml("<p></p>");
           setAsyncLoadFailed(true);
         }
-        setIsDirty(false);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
         setLoading(false);
         setAsyncLoadFailed(true);
-        suppressChangeRef.current = false;
         toast.error(t("errorLoadingData"));
       });
 
@@ -225,17 +238,68 @@ export default function NotesEditorScreen() {
     };
   }, [loadTarget, t]);
 
+  // Capture the editor's normalized HTML once it is ready so change checks
+  // compare against the real serialized form, not the pre-parse default.
   useEffect(() => {
     if (loading || loadFailed) return;
-    suppressChangeRef.current = true;
+    let cancelled = false;
     const frame = requestAnimationFrame(() => {
-      suppressChangeRef.current = false;
+      const editor = editorRef.current;
+      if (!editor || savedSnapshotRef.current) return;
+      void editor
+        .getHTML()
+        .then((html) => {
+          if (cancelled || savedSnapshotRef.current) return;
+          savedSnapshotRef.current = {
+            title: titleRef.current,
+            html,
+            pinned: pinnedRef.current,
+          };
+          checkedStatesRef.current = parseCheckedStates(html);
+        })
+        .catch(() => {
+          // Non-critical: the snapshot is captured on the first change instead.
+        });
     });
-    return () => cancelAnimationFrame(frame);
-  }, [loading, loadFailed, initialHtml]);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [loading, loadFailed, noteId, initialHtml]);
 
-  const handleChangeHtml = useCallback(() => {
-    if (!suppressChangeRef.current) setIsDirty(true);
+  const handleChangeHtml = useCallback((event: { nativeEvent: OnChangeHtmlEvent }) => {
+    const value = event.nativeEvent.value;
+
+    if (!savedSnapshotRef.current) {
+      savedSnapshotRef.current = {
+        title: titleRef.current,
+        html: value,
+        pinned: pinnedRef.current,
+      };
+      checkedStatesRef.current = parseCheckedStates(value);
+      return;
+    }
+
+    // The native checkbox span has no checked-text style, so mirror the checked
+    // state with `<s>` whenever a box is toggled. Only act on real toggles so
+    // typing never triggers a setValue (and the resulting echo is a no-op).
+    const states = parseCheckedStates(value);
+    const previous = checkedStatesRef.current;
+    checkedStatesRef.current = states;
+
+    const toggled =
+      previous !== null &&
+      states.length === previous.length &&
+      states.some((checked, index) => checked !== previous[index]);
+    if (!toggled) return;
+
+    const normalized = applyCheckedStrikethrough(value);
+    const editor = editorRef.current;
+    if (editor && normalized !== value) {
+      const selection = selectionRef.current;
+      editor.setValue(normalized);
+      if (selection) editor.setSelection(selection.start, selection.end);
+    }
   }, []);
 
   const handleChangeState = useCallback((event: { nativeEvent: OnChangeStateEvent }) => {
@@ -284,8 +348,9 @@ export default function NotesEditorScreen() {
         editor.setSelection(nextCaret, nextCaret);
       }
       editor.focus();
-      setIsDirty(true);
       void haptics.light();
+      // Keep the newly inserted line (and the Add item row) visible.
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     } catch {
       toast.error(t("notesAddItemFailed"));
     } finally {
@@ -296,15 +361,28 @@ export default function NotesEditorScreen() {
   const showAddItem = styleState?.checkboxList.isActive === true && !isSaving;
 
   const handleBack = useCallback(() => {
-    if (!isDirty) {
-      router.back();
-      return;
+    router.back();
+  }, [router]);
+
+  const isDirtyNow = useCallback(async (): Promise<boolean> => {
+    const snapshot = savedSnapshotRef.current;
+    const editor = editorRef.current;
+    if (!snapshot || !editor) return false;
+    try {
+      const html = await editor.getHTML();
+      return (
+        titleRef.current !== snapshot.title ||
+        pinnedRef.current !== snapshot.pinned ||
+        html !== snapshot.html
+      );
+    } catch {
+      return false;
     }
-    setConfirmState({ kind: "discard", action: "back" });
-  }, [isDirty, router]);
+  }, []);
 
   const navigation = useNavigation();
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
+  const checkingRemoveRef = useRef(false);
   useEffect(() => {
     const unsubscribe = navigation.addListener(
       "beforeRemove",
@@ -312,17 +390,28 @@ export default function NotesEditorScreen() {
         preventDefault: () => void;
         data: { action: { type: string } };
       }) => {
-        if (!isDirty || allowRemoveRef.current) return;
+        if (allowRemoveRef.current) return;
         event.preventDefault();
-        pendingRemoveActionRef.current = () => {
-          allowRemoveRef.current = true;
-          navigation.dispatch(event.data.action as never);
-        };
-        setConfirmState({ kind: "discard", action: "pending" });
+        if (checkingRemoveRef.current) return;
+        const action = event.data.action;
+        checkingRemoveRef.current = true;
+        void isDirtyNow().then((dirty) => {
+          checkingRemoveRef.current = false;
+          if (!dirty) {
+            allowRemoveRef.current = true;
+            navigation.dispatch(action as never);
+            return;
+          }
+          pendingRemoveActionRef.current = () => {
+            allowRemoveRef.current = true;
+            navigation.dispatch(action as never);
+          };
+          setConfirmState({ kind: "discard", action: "pending" });
+        });
       }
     );
     return unsubscribe;
-  }, [isDirty, navigation]);
+  }, [isDirtyNow, navigation]);
 
   const handleConfirmDiscard = useCallback(() => {
     const pending = pendingRemoveActionRef.current;
@@ -349,7 +438,8 @@ export default function NotesEditorScreen() {
         const created = await createNote({ title, content, is_pinned: isPinned });
         setNoteId(created.id);
       }
-      setIsDirty(false);
+      savedSnapshotRef.current = { title, html: content, pinned: isPinned };
+      checkedStatesRef.current = parseCheckedStates(content);
       allowRemoveRef.current = true;
       void haptics.success();
       router.back();
@@ -380,7 +470,6 @@ export default function NotesEditorScreen() {
   const handleTogglePin = useCallback(() => {
     void haptics.light();
     setIsPinned((previous) => !previous);
-    setIsDirty(true);
   }, [haptics]);
 
   if (loading) {
@@ -415,112 +504,120 @@ export default function NotesEditorScreen() {
         keyboardVerticalOffset={insets.top + 48}
       >
         <View className="flex-1 flex-col bg-background">
-          <View className="w-full max-w-md flex-1 self-center">
-            <View className="flex-row items-center justify-between px-4 pt-3 pb-1">
+          {/* Fixed header */}
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
+            <Pressable
+              onPress={handleBack}
+              className="p-1"
+              accessibilityRole="button"
+              accessibilityLabel={t("cancel")}
+            >
+              <ArrowLeft size={24} color={colors.foreground} />
+            </Pressable>
+            <View className="flex-row items-center gap-2">
               <Pressable
-                onPress={handleBack}
-                className="p-1"
+                onPress={handleTogglePin}
+                className="p-3"
                 accessibilityRole="button"
-                accessibilityLabel={t("cancel")}
+                accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
               >
-                <ArrowLeft size={24} color={colors.foreground} />
+                {isPinned ? (
+                  <Pin size={20} color={colors.foreground} />
+                ) : (
+                  <PinOff size={20} color={colors.mutedForeground} />
+                )}
               </Pressable>
-              <View className="flex-row items-center gap-2">
+              {noteId ? (
                 <Pressable
-                  onPress={handleTogglePin}
+                  onPress={handleDelete}
                   className="p-3"
                   accessibilityRole="button"
-                  accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
+                  accessibilityLabel={t("notesDelete")}
                 >
-                  {isPinned ? (
-                    <Pin size={20} color={colors.foreground} />
-                  ) : (
-                    <PinOff size={20} color={colors.mutedForeground} />
-                  )}
+                  <Trash2 size={20} color={colors.destructive} />
                 </Pressable>
-                {noteId ? (
-                  <Pressable
-                    onPress={handleDelete}
-                    className="p-3"
-                    accessibilityRole="button"
-                    accessibilityLabel={t("notesDelete")}
-                  >
-                    <Trash2 size={20} color={colors.destructive} />
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  onPress={handleSave}
-                  disabled={isSaving}
-                  className={`rounded-lg px-4 py-2 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("save")}
-                  accessibilityState={{ disabled: isSaving }}
-                >
-                  <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <TextInput
-              value={title}
-              onChangeText={(value) => {
-                setTitle(value);
-                setIsDirty(true);
-              }}
-              placeholder={t("notesUntitled")}
-              placeholderTextColor={colors.mutedForeground}
-              className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
-              multiline
-            />
-
-            <View className="mt-1 min-h-[240px] flex-1">
-              <EnrichedTextInput
-                ref={editorRef}
-                defaultValue={initialHtml}
-                placeholder={t("notesContentPlaceholder")}
-                placeholderTextColor={colors.mutedForeground}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
-                htmlStyle={htmlStyle}
-                style={{
-                  flex: 1,
-                  minHeight: 240,
-                  paddingHorizontal: 16,
-                  paddingTop: 4,
-                  paddingBottom: 24,
-                  backgroundColor: "transparent",
-                  color: colors.foreground,
-                  fontSize: 16,
-                }}
-                scrollEnabled
-                textShortcuts={TEXT_SHORTCUTS}
-                onChangeHtml={handleChangeHtml}
-                onChangeState={handleChangeState}
-                onChangeSelection={handleChangeSelection}
-                onChangeText={handleChangeText}
-              />
+              ) : null}
+              <Pressable
+                onPress={handleSave}
+                disabled={isSaving}
+                className={`rounded-lg px-4 py-2 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
+                accessibilityRole="button"
+                accessibilityLabel={t("save")}
+                accessibilityState={{ disabled: isSaving }}
+              >
+                <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
+              </Pressable>
             </View>
           </View>
 
-          {showAddItem ? (
-            <Pressable
-              onPress={() => {
-                void handleAddListItem();
-              }}
-              disabled={isAddingItem}
-              className="w-full max-w-md min-h-[44px] flex-row items-center gap-2 self-center px-4"
-              android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
-              accessibilityRole="button"
-              accessibilityLabel={t("notesAddItem")}
-              accessibilityState={{ disabled: isAddingItem }}
-            >
-              <Plus size={16} color={colors.mutedForeground} />
-              <Text className="text-sm text-muted-foreground">
-                {t("notesAddItem")}
-              </Text>
-            </Pressable>
-          ) : null}
+          {/* Note body: the editor grows with its content so the Add item row
+              sits directly under the checklist instead of at the screen bottom. */}
+          <ScrollView
+            ref={scrollRef}
+            className="flex-1"
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="w-full max-w-md self-center">
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder={t("notesUntitled")}
+                placeholderTextColor={colors.mutedForeground}
+                className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
+                multiline
+              />
 
+              <View className="mt-1 min-h-[240px]">
+                <EnrichedTextInput
+                  ref={editorRef}
+                  defaultValue={initialHtml}
+                  placeholder={t("notesContentPlaceholder")}
+                  placeholderTextColor={colors.mutedForeground}
+                  selectionColor={colors.primary}
+                  cursorColor={colors.primary}
+                  htmlStyle={htmlStyle}
+                  style={{
+                    minHeight: 240,
+                    paddingHorizontal: 16,
+                    paddingTop: 4,
+                    paddingBottom: 24,
+                    backgroundColor: "transparent",
+                    color: colors.foreground,
+                    fontSize: 16,
+                  }}
+                  scrollEnabled={false}
+                  textShortcuts={TEXT_SHORTCUTS}
+                  onChangeHtml={handleChangeHtml}
+                  onChangeState={handleChangeState}
+                  onChangeSelection={handleChangeSelection}
+                  onChangeText={handleChangeText}
+                />
+              </View>
+
+              {showAddItem ? (
+                <Pressable
+                  onPress={() => {
+                    void handleAddListItem();
+                  }}
+                  disabled={isAddingItem}
+                  className="min-h-[44px] flex-row items-center gap-2 px-4"
+                  android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("notesAddItem")}
+                  accessibilityState={{ disabled: isAddingItem }}
+                >
+                  <Plus size={16} color={colors.mutedForeground} />
+                  <Text className="text-sm text-muted-foreground">
+                    {t("notesAddItem")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </ScrollView>
+
+          {/* Pinned toolbar — rides above the software keyboard. */}
           <View
             className="w-full border-t border-border bg-background"
             style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}

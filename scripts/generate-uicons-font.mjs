@@ -29,7 +29,7 @@ const iconSources = {
   GripVertical: "grip-vertical",
   ArrowLeft: "arrow-left",
   Pin: "thumbtack",
-  PinOff: "map-marker-slash",
+  PinOff: "thumbtack",
   Bold: "bold",
   Italic: "italic",
   Strikethrough: "strikethrough",

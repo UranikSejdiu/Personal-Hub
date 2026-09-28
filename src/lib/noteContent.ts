@@ -216,6 +216,102 @@ export function insertCheckboxItemAtLine(html: string, lineIndex: number): strin
   return `${html.slice(0, block.closeEnd)}<li></li>${html.slice(block.closeEnd)}`;
 }
 
+interface CheckboxItemRange {
+  checked: boolean;
+  contentStart: number;
+  contentEnd: number;
+}
+
+function findLiClose(html: string, from: number): { start: number; end: number } | null {
+  let depth = 1;
+  const re = /<(\/?)li\b[^>]*>/gi;
+  re.lastIndex = from;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    if (match[1] === "/") {
+      depth -= 1;
+      if (depth === 0) return { start: match.index, end: re.lastIndex };
+    } else {
+      depth += 1;
+    }
+  }
+  return null;
+}
+
+/** Every direct `<li>` inside a checkbox list, in document order. */
+function collectCheckboxItems(html: string): CheckboxItemRange[] {
+  const items: CheckboxItemRange[] = [];
+  const tagRe = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
+  const listStack: boolean[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRe.exec(html)) !== null) {
+    const closing = match[1] === "/";
+    const name = match[2].toLowerCase();
+    const attrs = match[3];
+
+    if (name === "ul" || name === "ol") {
+      if (closing) listStack.pop();
+      else listStack.push(name === "ul" && /data-type\s*=\s*(["'])checkbox\1/i.test(attrs));
+      continue;
+    }
+
+    const inCheckbox = listStack.length > 0 && listStack[listStack.length - 1] === true;
+    if (name === "li" && !closing && inCheckbox) {
+      const contentStart = tagRe.lastIndex;
+      const close = findLiClose(html, contentStart);
+      if (!close) break;
+      const checked =
+        /(?:^|\s)checked(?:\s|=|$)/i.test(attrs) ||
+        /data-checked\s*=\s*["']true["']/i.test(attrs);
+      items.push({ checked, contentStart, contentEnd: close.start });
+      tagRe.lastIndex = close.end;
+    }
+  }
+
+  return items;
+}
+
+/** Checked/unchecked state of each checkbox item, in document order. */
+export function parseCheckedStates(html: string): boolean[] {
+  return collectCheckboxItems(html).map((item) => item.checked);
+}
+
+function stripStrikeTags(inner: string): string {
+  return inner.replace(/<\/?s\b[^>]*>/gi, "");
+}
+
+function stripOuterStrike(inner: string): string {
+  const open = inner.match(/^(\s*)<s\b[^>]*>/i);
+  if (!open) return inner;
+  const tagStart = open[1].length;
+  const afterOpen = open[0].length;
+  const closeIdx = inner.lastIndexOf("</s>");
+  if (closeIdx === -1 || inner.toLowerCase().indexOf("</s>") !== closeIdx) return inner;
+  return inner.slice(0, tagStart) + inner.slice(afterOpen, closeIdx) + inner.slice(closeIdx + 4);
+}
+
+/**
+ * Wrap checked checkbox item text in `<s>` and unwrap unchecked items, since
+ * the native editor has no checked-text style of its own. Intended to run over
+ * the editor's HTML output; idempotent for checked items and preserves all
+ * other markup.
+ */
+export function applyCheckedStrikethrough(html: string): string {
+  const items = collectCheckboxItems(html);
+  if (items.length === 0) return html;
+
+  let out = "";
+  let last = 0;
+  for (const item of items) {
+    const inner = html.slice(item.contentStart, item.contentEnd);
+    const next = item.checked ? `<s>${stripStrikeTags(inner)}</s>` : stripOuterStrike(inner);
+    out += html.slice(last, item.contentStart) + next;
+    last = item.contentEnd;
+  }
+  return out + html.slice(last);
+}
+
 /**
  * Map legacy TipTap/ProseMirror note HTML onto the Enriched HTML
  * checkbox format (`ul[data-type="checkbox"]` + `li[checked]`).
