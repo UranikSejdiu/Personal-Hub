@@ -19,7 +19,6 @@ export const UICON_GLYPHS = {
   "GripVertical": "",
   "ArrowLeft": "",
   "Pin": "ﶕ",
-  "PinOff": "ﶕ",
   "Bold": "",
   "Italic": "",
   "Strikethrough": "ﴇ",

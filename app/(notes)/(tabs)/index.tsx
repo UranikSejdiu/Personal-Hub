@@ -80,7 +80,7 @@ const NoteCard = React.memo(function NoteCard({
             accessibilityRole="image"
             accessibilityLabel="Pinned"
           >
-            <Pin size={14} color={colors.foreground} />
+            <Pin size={14} color={colors.primary} />
           </View>
         ) : null}
       </View>

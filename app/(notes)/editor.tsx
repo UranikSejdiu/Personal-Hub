@@ -5,16 +5,13 @@ import {
   Pressable,
   TextInput,
   ScrollView,
-  KeyboardAvoidingView,
-  Keyboard,
-  Platform,
 } from "react-native";
+import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Trash2,
   ArrowLeft,
   Pin,
-  PinOff,
   Bold,
   Italic,
   Strikethrough,
@@ -154,7 +151,7 @@ export default function NotesEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const plainTextRef = useRef("");
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -170,17 +167,6 @@ export default function NotesEditorScreen() {
     titleRef.current = title;
     pinnedRef.current = isPinned;
   }, [title, isPinned]);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   const htmlStyle = useMemo<HtmlStyle>(
     () => ({
@@ -500,8 +486,8 @@ export default function NotesEditorScreen() {
     <>
       <KeyboardAvoidingView
         className="flex-1 bg-background"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={insets.top + 48}
+        behavior="padding"
+        automaticOffset
       >
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
@@ -521,11 +507,7 @@ export default function NotesEditorScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
               >
-                {isPinned ? (
-                  <Pin size={20} color={colors.foreground} />
-                ) : (
-                  <PinOff size={20} color={colors.mutedForeground} />
-                )}
+                <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
               </Pressable>
               {noteId ? (
                 <Pressable

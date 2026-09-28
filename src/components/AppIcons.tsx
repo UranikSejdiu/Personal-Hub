@@ -1,4 +1,4 @@
-import { Text, View, type TextStyle } from "react-native";
+import { Text, type TextStyle } from "react-native";
 import { UICON_GLYPHS, type UiconName } from "../constants/uicons";
 
 export interface AppIconProps {
@@ -40,39 +40,6 @@ export const Pencil = createIcon("Pencil");
 export const GripVertical = createIcon("GripVertical");
 export const ArrowLeft = createIcon("ArrowLeft");
 export const Pin = createIcon("Pin");
-
-export function PinOff({ size = 24, color = "#000000", className }: AppIconProps) {
-  const lineHeight = size * 1.15;
-  const slashThickness = Math.max(1.5, size * 0.09);
-  return (
-    <View
-      className={className}
-      style={{ width: size, height: lineHeight, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text
-        style={{
-          color,
-          fontFamily: "Uicons",
-          fontSize: size,
-          lineHeight,
-          textAlign: "center",
-        }}
-      >
-        {UICON_GLYPHS.Pin}
-      </Text>
-      <View
-        style={{
-          position: "absolute",
-          width: size * 0.95,
-          height: slashThickness,
-          borderRadius: slashThickness / 2,
-          backgroundColor: color,
-          transform: [{ rotate: "-45deg" }],
-        }}
-      />
-    </View>
-  );
-}
 export const Bold = createIcon("Bold");
 export const Italic = createIcon("Italic");
 export const Strikethrough = createIcon("Strikethrough");

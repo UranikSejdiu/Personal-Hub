@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
 import { useFonts } from "expo-font";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
 import { ThemeProvider, useTheme } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
@@ -159,15 +160,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <I18nProvider>
-            <UpdateProvider>
-              <BootstrapGate />
-            </UpdateProvider>
-          </I18nProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+      <KeyboardProvider preserveEdgeToEdge>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <I18nProvider>
+              <UpdateProvider>
+                <BootstrapGate />
+              </UpdateProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
