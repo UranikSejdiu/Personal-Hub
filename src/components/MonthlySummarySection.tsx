@@ -63,7 +63,7 @@ export function MonthlySummarySection({
 
       <View className="mb-3 gap-1.5">
         <Text className="text-sm text-muted-foreground">{t("monthlyIncome")}</Text>
-        <NumberInput value={budget.income} onChange={onIncomeChange} min={0} placeholder="0.00" />
+        <NumberInput value={budget.income} onChange={onIncomeChange} min={0} decimals={2} placeholder="0.00" />
       </View>
 
       {hasData && (

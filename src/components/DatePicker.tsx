@@ -127,8 +127,8 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
           </View>
 
           <View className="flex-row py-2">
-            {weekdays.map((d) => (
-              <Text key={d} className="flex-1 text-center text-xs uppercase text-muted-foreground">
+            {weekdays.map((d, i) => (
+              <Text key={i} className="flex-1 text-center text-xs uppercase text-muted-foreground">
                 {d}
               </Text>
             ))}

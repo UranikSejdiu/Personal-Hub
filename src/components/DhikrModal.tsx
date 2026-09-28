@@ -27,11 +27,11 @@ export function DhikrModal({ mode, dhikr, onClose, onSave, haptics }: Props) {
       setError(t("errorNoName"));
       return;
     }
-    const lim = limit > 0 ? limit : null;
-    if (lim !== null && (Number.isNaN(lim) || lim <= 0)) {
+    if (Number.isNaN(limit) || limit < 0) {
       setError(t("errorLimitPositive"));
       return;
     }
+    const lim = limit > 0 ? limit : null;
     setError("");
     setSaving(true);
     try {
@@ -48,7 +48,7 @@ export function DhikrModal({ mode, dhikr, onClose, onSave, haptics }: Props) {
         await onSave({ ...dhikr, name: name.trim(), daily_limit: lim });
       }
     } catch {
-      setError(t("errorLoadingData"));
+      setError(t("errorSavingData"));
     } finally {
       setSaving(false);
     }

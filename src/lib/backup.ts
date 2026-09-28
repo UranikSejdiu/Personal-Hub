@@ -8,6 +8,45 @@ import { NOTE_COLORS } from "../constants/theme";
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
 
+const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
+
+// The expo-file-system `File` type does not surface `write`/`text` in its
+// public typings on this SDK, so the access is centralised here.
+async function writeTextFile(file: File, contents: string): Promise<void> {
+  const target = file as unknown as { write?: (c: string) => void | Promise<void> };
+  if (typeof target.write !== "function") throw new Error("File write not supported");
+  await target.write(contents);
+}
+
+async function readTextFile(file: File): Promise<string> {
+  const source = file as unknown as { text?: () => Promise<string> };
+  if (typeof source.text !== "function") throw new Error("Cannot read file");
+  return source.text();
+}
+
+function safetyBackupFile(): File {
+  return new File(Paths.cache, SAFETY_BACKUP_NAME);
+}
+
+async function createSafetyBackup(): Promise<void> {
+  const envelope = await buildBackupEnvelope();
+  const file = safetyBackupFile();
+  try {
+    if (file.exists) await file.delete();
+  } catch {
+    // A leftover file is overwritten below; ignore cleanup failures.
+  }
+  await writeTextFile(file, JSON.stringify(envelope, null, 2));
+}
+
+export async function hasSafetyBackup(): Promise<boolean> {
+  try {
+    return safetyBackupFile().exists;
+  } catch {
+    return false;
+  }
+}
+
 export interface BackupEnvelope {
   meta: {
     format: typeof BACKUP_FORMAT;
@@ -120,7 +159,13 @@ function validateDhikr(row: Record<string, unknown>): string | null {
 
 function validateNote(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "title") || !requiredString(row, "content") || !optionalString(row, "plain_text")) return "note text fields invalid";
-  if (!isInteger(row.is_pinned) || typeof row.color !== "string" || !(row.color in NOTE_COLORS)) return "note fields invalid";
+  if (
+    !isInteger(row.is_pinned) ||
+    typeof row.color !== "string" ||
+    !Object.prototype.hasOwnProperty.call(NOTE_COLORS, row.color)
+  ) {
+    return "note fields invalid";
+  }
   if (!requiredString(row, "created_at") || !requiredString(row, "updated_at")) return "note dates invalid";
   return null;
 }
@@ -218,14 +263,7 @@ export async function exportBackupToFile(): Promise<string> {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const name = `personal-hub-backup-${ts}.json`;
   const file = new File(Paths.cache, name);
-  // File.write is available on new FS API; fallback to legacy if needed
-  const anyFile = file as unknown as { write: (c: string) => Promise<void>; text?: () => Promise<string> };
-  if (typeof anyFile.write === "function") {
-    await anyFile.write(json);
-  } else {
-    // Should not happen, but guard
-    throw new Error("File write not supported");
-  }
+  await writeTextFile(file, json);
   return file.uri;
 }
 
@@ -245,7 +283,44 @@ export async function exportAndShareBackup(): Promise<string> {
   return uri;
 }
 
+let importInProgress = false;
+
 export async function importBackupFromJson(jsonStr: string): Promise<void> {
+  if (importInProgress) {
+    throw new Error("An import is already in progress");
+  }
+  importInProgress = true;
+  try {
+    await performImport(jsonStr, { skipSafetyBackup: false });
+  } finally {
+    importInProgress = false;
+  }
+}
+
+/**
+ * Restore the snapshot written automatically before the last import. Used to
+ * recover if an import corrupted or emptied the database.
+ */
+export async function restoreSafetyBackup(): Promise<void> {
+  if (importInProgress) {
+    throw new Error("An import is already in progress");
+  }
+  const file = safetyBackupFile();
+  if (!file.exists) throw new Error("No safety backup available");
+  const jsonStr = await readTextFile(file);
+  importInProgress = true;
+  try {
+    await performImport(jsonStr, { skipSafetyBackup: true });
+  } finally {
+    importInProgress = false;
+  }
+}
+
+interface ImportOptions {
+  skipSafetyBackup: boolean;
+}
+
+async function performImport(jsonStr: string, options: ImportOptions): Promise<void> {
   // Quick SQLite header guard: if user picked a .db file, first bytes are "SQLite format 3"
   if (jsonStr.startsWith("SQLite format 3")) {
     throw new Error("Invalid backup: SQLite file selected instead of JSON");
@@ -262,11 +337,13 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
 
   // Keep a restorable copy before the first destructive statement. If it cannot
   // be created, abort rather than proceeding without the safety copy.
-  try {
-    await exportBackupToFile();
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`Safety backup failed: ${reason}`);
+  if (!options.skipSafetyBackup) {
+    try {
+      await createSafetyBackup();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Safety backup failed: ${reason}`);
+    }
   }
 
   try {
@@ -428,6 +505,14 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
       );
     }
     });
+    if (!options.skipSafetyBackup) {
+      // Import committed — the safety copy is no longer needed.
+      try {
+        await safetyBackupFile().delete();
+      } catch {
+        // Best-effort cleanup; a stale safety copy is harmless.
+      }
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Restore failed: ${reason}`);
@@ -435,16 +520,9 @@ export async function importBackupFromJson(jsonStr: string): Promise<void> {
 }
 
 export async function readJsonFromFileUri(uri: string): Promise<string> {
-  // Use new File API
   const file = new File(uri);
-  const anyFile = file as unknown as { text: () => Promise<string>; exists: boolean };
-  if (!anyFile.exists) throw new Error("File not found");
-  // Expo FS File.text() reads utf8
-  if (typeof anyFile.text === "function") {
-    const content = await anyFile.text();
-    // SQLite header guard
-    if (content.startsWith("SQLite format 3")) throw new Error("Invalid backup: SQLite file");
-    return content;
-  }
-  throw new Error("Cannot read file");
+  if (!file.exists) throw new Error("File not found");
+  const content = await readTextFile(file);
+  if (content.startsWith("SQLite format 3")) throw new Error("Invalid backup: SQLite file");
+  return content;
 }

@@ -45,7 +45,9 @@ export default function CounterScreen() {
       const savedId = await getSelectedDhikrId();
       if (rows.length > 0) {
         const valid = savedId != null && rows.some((d) => d.id === savedId);
-        setSelectedId(valid ? savedId! : rows[0].id);
+        const nextId = valid ? savedId! : rows[0].id;
+        setSelectedId(nextId);
+        if (!valid) void setSelectedDhikrId(nextId);
       } else {
         setSelectedId(null);
       }
@@ -81,9 +83,11 @@ export default function CounterScreen() {
     if (!dhikr) return;
 
     const limit = dhikr.daily_limit;
-    const pending = pendingIncrementsRef.current.get(dhikr.id) ?? 0;
+    // The optimistic state update is the source of truth for the displayed
+    // count. `pendingIncrementsRef` only tracks queued DB writes, so adding it
+    // here would double-count rapid taps and reach the limit early.
     const alreadyAtLimit =
-      limit != null && limit > 0 && dhikr.daily_count + pending >= limit;
+      limit != null && limit > 0 && dhikr.daily_count >= limit;
 
     if (alreadyAtLimit) {
       haptics.warning();
@@ -93,26 +97,25 @@ export default function CounterScreen() {
       return;
     }
 
-    let hitLimit = false;
-    pendingIncrementsRef.current.set(dhikr.id, pending + 1);
+    pendingIncrementsRef.current.set(
+      dhikr.id,
+      (pendingIncrementsRef.current.get(dhikr.id) ?? 0) + 1
+    );
 
     void haptics.light();
 
+    const willHitLimit =
+      limit != null && limit > 0 && dhikr.daily_count + 1 >= limit;
+
     setDhikrs((prev) =>
-      prev.map((d) => {
-        if (d.id !== dhikr.id) return d;
-
-        const newDaily = d.daily_count + 1;
-        const newTotal = d.total_count + 1;
-        const atLimit = limit != null && limit > 0 && newDaily >= limit;
-
-        if (atLimit) hitLimit = true;
-
-        return { ...d, daily_count: newDaily, total_count: newTotal };
-      })
+      prev.map((d) =>
+        d.id === dhikr.id
+          ? { ...d, daily_count: d.daily_count + 1, total_count: d.total_count + 1 }
+          : d
+      )
     );
 
-    if (hitLimit) {
+    if (willHitLimit) {
       haptics.success();
       toast.success(t("goalComplete"));
       setShowFireworks(true);
@@ -146,7 +149,7 @@ export default function CounterScreen() {
               : d
           )
         );
-        toast.error(t("errorLoadingData"));
+        toast.error(t("errorSavingData"));
       } finally {
         const remaining = (pendingIncrementsRef.current.get(dhikr.id) ?? 1) - 1;
         if (remaining > 0) pendingIncrementsRef.current.set(dhikr.id, remaining);

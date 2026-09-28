@@ -92,22 +92,26 @@ export default function Fireworks({
 }) {
   const [particles] = useState(() => buildParticles());
   const doneRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!doneRef.current) {
         doneRef.current = true;
-        onComplete();
+        onCompleteRef.current();
       }
     }, 1150);
     return () => clearTimeout(timer);
-  }, [onComplete]);
+  }, []);
 
   return (
     <View
       style={styles.overlay}
       className="absolute inset-0 items-center justify-center"
-      pointerEvents="none"
     >
       <View style={styles.center}>
         {particles.map((p) => (
@@ -121,6 +125,7 @@ export default function Fireworks({
 const styles = StyleSheet.create({
   overlay: {
     zIndex: 50,
+    pointerEvents: "none",
   },
   center: {
     position: "relative",

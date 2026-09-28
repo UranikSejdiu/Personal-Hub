@@ -21,8 +21,11 @@ const styles = StyleSheet.create({
 function splitIntoColumns(items: Note[], count: number): Note[][] {
   const cols: Note[][] = Array.from({ length: count }, () => []);
   for (const item of items) {
-    cols[0].push(item);
-    cols.sort((a, b) => a.length - b.length);
+    let target = 0;
+    for (let i = 1; i < cols.length; i++) {
+      if (cols[i].length < cols[target].length) target = i;
+    }
+    cols[target].push(item);
   }
   return cols;
 }
@@ -119,6 +122,7 @@ export default function NotesListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
+  const searchRef = useRef("");
 
   useEffect(() => {
     return () => {
@@ -126,11 +130,11 @@ export default function NotesListScreen() {
     };
   }, []);
 
-  const load = useCallback(async (query?: string) => {
+  const load = useCallback(async (query: string) => {
     const seq = ++searchSeqRef.current;
     try {
-      const q = query ?? searchQuery;
-      const result = q.trim() ? await searchNotes(q.trim()) : await loadNotes();
+      const q = query.trim();
+      const result = q ? await searchNotes(q) : await loadNotes();
       if (seq !== searchSeqRef.current) return;
       setNotes(result);
     } catch {
@@ -138,7 +142,7 @@ export default function NotesListScreen() {
       setNotes([]);
       toast.error(t("errorLoadingData"));
     }
-  }, [searchQuery, t]);
+  }, [t]);
 
   const debouncedSearch = useCallback(
     (query: string) => {
@@ -156,12 +160,13 @@ export default function NotesListScreen() {
       debounceRef.current = null;
     }
     setSearchQuery("");
+    searchRef.current = "";
     void load("");
   }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      void load();
+      void load(searchRef.current);
     }, [load])
   );
 
@@ -292,6 +297,7 @@ export default function NotesListScreen() {
             value={searchQuery}
             onChangeText={(v) => {
               setSearchQuery(v);
+              searchRef.current = v;
               debouncedSearch(v);
             }}
             placeholder={t("notesSearchPlaceholder")}

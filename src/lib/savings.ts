@@ -72,7 +72,6 @@ export interface AutoDepositUpdate {
 }
 
 export async function updateAutoDeposit(
-  originalMonth: string,
   month: string,
   fields: AutoDepositUpdate
 ): Promise<void> {
@@ -87,9 +86,7 @@ export async function updateAutoDeposit(
     values.push(sanitizeAmount(fields.amount));
   }
   if (sets.length === 0) return;
-  sets.unshift("month = ?");
-  values.unshift(month);
-  values.push(originalMonth);
+  values.push(month);
   await db.execute(
     `UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`,
     values
@@ -209,7 +206,7 @@ export async function getSavingsSummary(): Promise<SavingsSummary> {
     // Only count auto-deposits and transactions AFTER the latest closing date.
     const [autoRow, txRow] = await Promise.all([
       db.get<Record<string, unknown>>(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month > ?",
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month >= ?",
         [latestClosingDate.slice(0, 7)]
       ),
       db.get<Record<string, unknown>>(

@@ -43,7 +43,11 @@ import {
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { contentToEditorHtml, appendCheckboxItem } from "../../src/lib/noteContent";
+import {
+  contentToEditorHtml,
+  appendCheckboxItem,
+  insertCheckboxItemAtLine,
+} from "../../src/lib/noteContent";
 import { withAlpha } from "../../src/lib/utils";
 
 type ConfirmState =
@@ -258,17 +262,25 @@ export default function NotesEditorScreen() {
     setIsAddingItem(true);
     try {
       const currentHtml = await editor.getHTML();
-      const nextHtml = appendCheckboxItem(currentHtml);
-      if (!nextHtml) return;
-
       const text = plainTextRef.current;
-      const caret = selectionRef.current?.start ?? text.length;
+      const rawCaret = selectionRef.current?.start ?? text.length;
+      // A checkbox list implies content, so an empty plain-text buffer means the
+      // onChangeText ref has not been populated yet and line mapping is unsafe.
+      const stale = text.length === 0 || rawCaret > text.length;
+      const caret = Math.min(rawCaret, text.length);
       const lineBreak = text.indexOf("\n", caret);
       const lineEnd = lineBreak === -1 ? text.length : lineBreak;
-      const nextCaret = lineEnd + 1;
+      const lineIndex = (text.slice(0, caret).match(/\n/g) ?? []).length;
+
+      const inserted = stale ? null : insertCheckboxItemAtLine(currentHtml, lineIndex);
+      const nextHtml = inserted ?? appendCheckboxItem(currentHtml);
+      if (!nextHtml) return;
 
       editor.setValue(nextHtml);
-      if (nextCaret <= text.length) {
+      if (inserted) {
+        // Place the caret inside the newly inserted line. Fallback appends at
+        // the end of the document and relies on setValue focusing the end.
+        const nextCaret = lineEnd + 1;
         editor.setSelection(nextCaret, nextCaret);
       }
       editor.focus();
@@ -338,6 +350,7 @@ export default function NotesEditorScreen() {
         setNoteId(created.id);
       }
       setIsDirty(false);
+      allowRemoveRef.current = true;
       void haptics.success();
       router.back();
     } catch {

@@ -140,7 +140,7 @@ function BootstrapGate() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     "Urbanist-Regular": require("../assets/fonts/Urbanist-Regular.ttf"),
     "Urbanist-Medium": require("../assets/fonts/Urbanist-Medium.ttf"),
     "Urbanist-SemiBold": require("../assets/fonts/Urbanist-SemiBold.ttf"),
@@ -148,7 +148,14 @@ export default function RootLayout() {
     Uicons: require("../assets/fonts/uicons-regular-rounded.ttf"),
   });
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    if (fontError) {
+      // Fall back to system fonts instead of blocking the splash forever.
+      console.warn("[fonts] failed to load custom fonts:", fontError);
+    }
+  }, [fontError]);
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

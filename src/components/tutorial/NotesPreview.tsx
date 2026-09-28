@@ -7,8 +7,10 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
+import { useI18n } from "../../lib/i18n";
 
 export function NotesPreview() {
+  const { t } = useI18n();
   const slide1 = useSharedValue(0);
   const slide2 = useSharedValue(0);
   const slide3 = useSharedValue(0);
@@ -36,7 +38,7 @@ export function NotesPreview() {
     <View className="mx-4 gap-3">
       <View className="flex-row items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
         <Text className="text-xs text-muted-foreground">🔍</Text>
-        <Text className="text-xs text-muted-foreground">Search notes...</Text>
+        <Text className="text-xs text-muted-foreground">{t("notesSearchPlaceholder")}</Text>
       </View>
       <Animated.View style={s1} className="rounded-xl border border-border bg-card p-3">
         <View className="flex-row items-center justify-between">

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Keyboard, TextInput } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { Landmark, CreditCard, Save, ChevronRight } from "../../src/components/AppIcons";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -25,13 +26,15 @@ export default function LoansScreen() {
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadLoans()
-      .then((l) => { if (!cancelled) setLoans(l); })
-      .catch(() => { if (!cancelled) toast.error(t("errorLoadingData")); });
-    return () => { cancelled = true; };
-  }, [t]);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      loadLoans()
+        .then((l) => { if (!cancelled) setLoans(l); })
+        .catch(() => { if (!cancelled) toast.error(t("errorLoadingData")); });
+      return () => { cancelled = true; };
+    }, [t])
+  );
 
   useEffect(() => {
     return () => {

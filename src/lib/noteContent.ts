@@ -95,7 +95,8 @@ const CHECKBOX_LIST_OPEN = /<ul\b[^>]*\bdata-type=(["'])checkbox\1[^>]*>/gi;
 
 /**
  * Append an empty unchecked item to the last checkbox list in the given HTML.
- * Returns `null` when the document has no checkbox list.
+ * Returns `null` when the document has no checkbox list. Used as a fallback
+ * when the caret cannot be mapped to a specific checkbox item.
  */
 export function appendCheckboxItem(html: string): string | null {
   if (!html) return null;
@@ -106,9 +107,113 @@ export function appendCheckboxItem(html: string): string | null {
     lastOpenEnd = match.index + match[0].length;
   }
   if (lastOpenEnd === -1) return null;
-  const closeIndex = html.toLowerCase().indexOf("</ul>", lastOpenEnd);
+  const closeIndex = findListClose(html, lastOpenEnd);
   if (closeIndex === -1) return null;
   return `${html.slice(0, closeIndex)}<li></li>${html.slice(closeIndex)}`;
+}
+
+interface HtmlBlock {
+  kind: "li" | "paragraph" | "heading" | "break";
+  checkbox: boolean;
+  closeEnd: number;
+}
+
+/**
+ * The native serializer emits exactly one block element per plain-text line
+ * (`<li>`, `<p>`, `<h1..6>`, or `<br>` for empty lines), in document order.
+ * This walks the HTML and records each block so a plain-text line index can be
+ * mapped back to its element.
+ */
+function collectHtmlBlocks(html: string): HtmlBlock[] {
+  const blocks: HtmlBlock[] = [];
+  const tagRe = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
+  const listStack: boolean[] = [];
+  let liDepth = 0;
+  let openLi: HtmlBlock | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRe.exec(html)) !== null) {
+    const closing = match[1] === "/";
+    const name = match[2].toLowerCase();
+    const attrs = match[3];
+
+    if (name === "ul" || name === "ol") {
+      if (closing) {
+        listStack.pop();
+      } else {
+        listStack.push(name === "ul" && /data-type\s*=\s*(["'])checkbox\1/i.test(attrs));
+      }
+      continue;
+    }
+
+    if (name === "li") {
+      if (closing) {
+        liDepth = Math.max(0, liDepth - 1);
+        if (liDepth === 0 && openLi) {
+          openLi.closeEnd = tagRe.lastIndex;
+          openLi = null;
+        }
+      } else {
+        if (liDepth === 0) {
+          const block: HtmlBlock = {
+            kind: "li",
+            checkbox: listStack[listStack.length - 1] === true,
+            closeEnd: -1,
+          };
+          blocks.push(block);
+          openLi = block;
+        }
+        liDepth += 1;
+      }
+      continue;
+    }
+
+    if (liDepth > 0) continue;
+
+    if (closing) continue;
+
+    if (name === "br") {
+      blocks.push({ kind: "break", checkbox: false, closeEnd: tagRe.lastIndex });
+      continue;
+    }
+
+    if (name === "p" || /^h[1-6]$/.test(name)) {
+      const closeRe = new RegExp(`</${name}\\s*>`, "i");
+      const rest = html.slice(tagRe.lastIndex);
+      const closeMatch = closeRe.exec(rest);
+      blocks.push({
+        kind: name === "p" ? "paragraph" : "heading",
+        checkbox: false,
+        closeEnd: closeMatch ? tagRe.lastIndex + closeMatch.index + closeMatch[0].length : tagRe.lastIndex,
+      });
+    }
+  }
+
+  return blocks;
+}
+
+function findListClose(html: string, from: number): number {
+  let depth = 1;
+  const re = /<\/?ul\b[^>]*>/gi;
+  re.lastIndex = from;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    depth += match[0][1] === "/" ? -1 : 1;
+    if (depth === 0) return match.index;
+  }
+  return -1;
+}
+
+/**
+ * Insert an empty unchecked item immediately after the checkbox item on the
+ * given plain-text line (mirrors Google Keep's "Add item"). Returns `null`
+ * when that line is not a checkbox item.
+ */
+export function insertCheckboxItemAtLine(html: string, lineIndex: number): string | null {
+  if (!html || lineIndex < 0) return null;
+  const block = collectHtmlBlocks(html)[lineIndex];
+  if (!block || block.kind !== "li" || !block.checkbox || block.closeEnd < 0) return null;
+  return `${html.slice(0, block.closeEnd)}<li></li>${html.slice(block.closeEnd)}`;
 }
 
 /**
@@ -135,7 +240,10 @@ export function markdownToHtml(markdown: string): string {
   };
 
   for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
+    // Leading indentation is stripped so indented list markers are still parsed
+    // as list items instead of leaking into a literal paragraph. Nested lists
+    // are flattened, matching the native editor's own normalizer.
+    const line = rawLine.trim();
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     const task = line.match(/^- \[([ xX])\]\s+(.*)$/);
     const checklist = line.match(/^[☐✓]\s+(.*)$/);
@@ -182,7 +290,7 @@ export function markdownToHtml(markdown: string): string {
     }
 
     closeList();
-    if (line.trim()) html.push(`<p>${inlineMarkdownToHtml(line)}</p>`);
+    if (line) html.push(`<p>${inlineMarkdownToHtml(line)}</p>`);
   }
 
   closeList();
@@ -201,21 +309,44 @@ function inlineMarkdownToHtml(value: string): string {
  * the shared markdown converter can emit `- [x]` / `- [ ]` previews/search text.
  */
 function normalizeCheckboxHtmlForMarkdown(html: string): string {
-  return html.replace(
-    /<ul\b[^>]*data-type=["']checkbox["'][^>]*>([\s\S]*?)<\/ul>/gi,
-    (_match, inner: string) => {
-      const items = inner.replace(
-        /<li\b([^>]*)>([\s\S]*?)<\/li>/gi,
-        (_li, attrs: string, content: string) => {
-          const checked =
-            /(?:^|\s)checked(?:\s|=|$)/i.test(attrs) ||
-            /data-checked=["']true["']/i.test(attrs);
-          return `<li data-checked="${checked}">${content}</li>`;
-        }
-      );
-      return `<ul data-type="taskList">${items}</ul>`;
+  const tagRe = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
+  const listStack: boolean[] = [];
+  let out = "";
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRe.exec(html)) !== null) {
+    out += html.slice(last, match.index);
+    last = tagRe.lastIndex;
+    const closing = match[1] === "/";
+    const name = match[2].toLowerCase();
+    const attrs = match[3];
+
+    if (name === "ul" || name === "ol") {
+      if (closing) {
+        listStack.pop();
+        out += match[0];
+      } else {
+        const isCheckbox = name === "ul" && /data-type\s*=\s*(["'])checkbox\1/i.test(attrs);
+        listStack.push(isCheckbox);
+        out += isCheckbox ? '<ul data-type="taskList">' : match[0];
+      }
+      continue;
     }
-  );
+
+    const inCheckbox = listStack.length > 0 && listStack[listStack.length - 1] === true;
+    if (name === "li" && !closing && inCheckbox) {
+      const checked =
+        /(?:^|\s)checked(?:\s|=|$)/i.test(attrs) ||
+        /data-checked\s*=\s*["']true["']/i.test(attrs);
+      out += `<li data-checked="${checked}">`;
+      continue;
+    }
+
+    out += match[0];
+  }
+
+  return out + html.slice(last);
 }
 
 function escapeHtml(value: string): string {

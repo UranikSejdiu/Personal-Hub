@@ -12,7 +12,13 @@ import { getAppVersion } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
 import { ensureMonthlyAutoDeposit } from "../lib/savings";
-import { exportAndShareBackup, importBackupFromJson, readJsonFromFileUri } from "../lib/backup";
+import {
+  exportAndShareBackup,
+  importBackupFromJson,
+  hasSafetyBackup,
+  restoreSafetyBackup,
+  readJsonFromFileUri,
+} from "../lib/backup";
 import { NumberInput } from "./NumberInput";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
@@ -20,6 +26,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
 import { setTutorialSeen } from "../lib/tutorial";
+import { resetPlainTextBackfill } from "../lib/notes";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
 
@@ -28,7 +35,7 @@ interface ConfirmAction {
   message: string;
   confirmLabel?: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
@@ -134,6 +141,15 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
     [scheduleGoalSave]
   );
 
+  const reloadBudgetGoal = useCallback(async () => {
+    if (activeAppId !== "budget") return;
+    const sg = await loadSavingsGoal();
+    setGoalAmount(sg.goal_amount);
+    setSalary(sg.salary);
+    goalRef.current = sg.goal_amount;
+    salaryRef.current = sg.salary;
+  }, [activeAppId]);
+
   const toggleHaptics = useCallback(async (val: boolean) => {
     setHapticsOn(val);
     try {
@@ -181,35 +197,60 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
         message: t("importConfirmMessage"),
         confirmLabel: t("importData"),
         destructive: true,
-        onConfirm: () => {
-          void (async () => {
-            setBackupBusy(true);
-            try {
-              await importBackupFromJson(json);
-              toast.success(t("importSuccess"));
-              setConfirmAction(null);
-              if (activeAppId === "budget") {
-                const sg = await loadSavingsGoal();
-                setGoalAmount(sg.goal_amount);
-                setSalary(sg.salary);
-                goalRef.current = sg.goal_amount;
-                salaryRef.current = sg.salary;
-              }
-            } catch (error) {
-              const reason = error instanceof Error ? error.message : String(error);
-              toast.error(t("importFailedReason", { reason }));
-              setConfirmAction(null);
-            } finally {
-              setBackupBusy(false);
+        onConfirm: async () => {
+          // Cancel any pending debounced goal save so it cannot overwrite the
+          // freshly imported data.
+          if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+          }
+          setBackupBusy(true);
+          try {
+            await importBackupFromJson(json);
+            resetPlainTextBackfill();
+            toast.success(t("importSuccess"));
+            setConfirmAction(null);
+            await reloadBudgetGoal();
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            toast.error(t("importFailedReason", { reason }));
+            setConfirmAction(null);
+            if (await hasSafetyBackup()) {
+              setConfirmAction({
+                title: t("importRecoveryTitle"),
+                message: t("importRecoveryMessage"),
+                confirmLabel: t("restoreSafetyBackup"),
+                destructive: true,
+                onConfirm: async () => {
+                  setBackupBusy(true);
+                  try {
+                    await restoreSafetyBackup();
+                    resetPlainTextBackfill();
+                    toast.success(t("importSuccess"));
+                    await reloadBudgetGoal();
+                  } catch (recoveryError) {
+                    const recoveryReason =
+                      recoveryError instanceof Error
+                        ? recoveryError.message
+                        : String(recoveryError);
+                    toast.error(t("importFailedReason", { reason: recoveryReason }));
+                  } finally {
+                    setConfirmAction(null);
+                    setBackupBusy(false);
+                  }
+                },
+              });
             }
-          })();
+          } finally {
+            setBackupBusy(false);
+          }
         },
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       toast.error(t("importFailedReason", { reason }));
     }
-  }, [backupBusy, t, activeAppId]);
+  }, [backupBusy, t, reloadBudgetGoal]);
 
   if (!activeSection) {
     return (

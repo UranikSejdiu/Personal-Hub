@@ -186,10 +186,16 @@ export async function setExpenseRecurring(
       expenseId,
     ]);
     if (recurring) {
-      await db.execute(
-        "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
+      const existingTemplate = await db.get<Record<string, unknown>>(
+        "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? LIMIT 1",
         [category, amount]
       );
+      if (!existingTemplate) {
+        await db.execute(
+          "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
+          [category, amount]
+        );
+      }
       return;
     }
     const template = await db.get<Record<string, unknown>>(
@@ -216,9 +222,13 @@ export async function populateRecurringExpenses(
   const existingKeys = new Set(
     existing.map((r) => `${String(r.category)}::${Number(r.amount)}::${Number(r.is_recurring)}`)
   );
-  const toInsert = recurring.filter(
-    (r) => !existingKeys.has(`${r.category}::${r.amount}::1`)
-  );
+  const seenKeys = new Set<string>();
+  const toInsert = recurring.filter((r) => {
+    const key = `${r.category}::${r.amount}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return !existingKeys.has(`${key}::1`);
+  });
   if (toInsert.length === 0) return;
   await db.withTransaction(async () => {
     for (const exp of toInsert) {

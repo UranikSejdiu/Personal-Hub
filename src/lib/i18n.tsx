@@ -160,6 +160,9 @@ const dict = {
     importFailed: "Import failed.",
     importFailedReason: "Import failed: {reason}",
     importInvalidFile: "Invalid file.",
+    importRecoveryTitle: "Restore previous data?",
+    importRecoveryMessage: "The import failed. Your previous data was backed up automatically and can be restored.",
+    restoreSafetyBackup: "Restore previous data",
     version: "Version",
     aboutDescription: "Personal Hub - Offline app for budget, dhikr and notes.",
 

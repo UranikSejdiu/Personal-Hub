@@ -178,11 +178,38 @@ export async function execute(
   };
 }
 
+let transactionDepth = 0;
+
+/**
+ * Run `fn` inside a transaction. Reentrant: when called while a transaction is
+ * already open (for example `deleteBudget` wrapping `incrementLoanMonthsPaid`),
+ * the inner call uses a SAVEPOINT instead of issuing a nested `BEGIN`, which
+ * SQLite rejects. `expo-sqlite`'s `withTransactionAsync` always issues a raw
+ * `BEGIN`, so it cannot be nested — hence the manual savepoint handling.
+ */
 export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
   const database = await getDb();
-  let result: T | undefined;
-  await database.withTransactionAsync(async () => {
-    result = await fn();
-  });
-  return result as T;
+  const isRoot = transactionDepth === 0;
+  const savepoint = `sp_${transactionDepth}`;
+
+  if (isRoot) await database.execAsync("BEGIN");
+  else await database.execAsync(`SAVEPOINT ${savepoint};`);
+  transactionDepth += 1;
+
+  try {
+    const result = await fn();
+    if (isRoot) await database.execAsync("COMMIT");
+    else await database.execAsync(`RELEASE ${savepoint};`);
+    return result;
+  } catch (error) {
+    try {
+      if (isRoot) await database.execAsync("ROLLBACK");
+      else await database.execAsync(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint};`);
+    } catch {
+      // Preserve the original error if the rollback itself fails.
+    }
+    throw error;
+  } finally {
+    transactionDepth -= 1;
+  }
 }

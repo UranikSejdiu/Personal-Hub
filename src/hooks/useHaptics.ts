@@ -8,7 +8,9 @@ let cachedEnabled: boolean | null = null;
 let settingsLoaded = false;
 
 export function isHapticsEnabled(): boolean {
-  if (!settingsLoaded) return false;
+  // Default to enabled until the stored preference is read, so haptics that
+  // fire during the initial load window are not silently dropped.
+  if (!settingsLoaded) return true;
   return cachedEnabled === null ? true : cachedEnabled;
 }
 
@@ -30,9 +32,8 @@ export function useHaptics() {
   useEffect(() => {
     if (settingsLoaded) return;
     void getHapticsEnabled().catch(() => {
-      // Haptics are optional; retain the safe disabled default when storage is unavailable.
-      cachedEnabled = false;
-      settingsLoaded = true;
+      // Leave settingsLoaded false so a later mount retries; controls stay
+      // enabled by default in the meantime.
     });
   }, []);
   const light = useCallback(async () => {

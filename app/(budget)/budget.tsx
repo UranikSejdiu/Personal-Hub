@@ -244,11 +244,13 @@ export default function BudgetScreen() {
         }
       } catch (err) {
         if (pending.month === activeMonthRef.current) {
-          pendingSaveRef.current = pending;
+          // Keep the failed state for a later retry, but never clobber a newer
+          // pending save that was queued while this one was in flight.
+          if (!pendingSaveRef.current) pendingSaveRef.current = pending;
           setSaveError(err instanceof Error ? err.message : tRef.current("saveFailed"));
         }
       } finally {
-        if (pending.month === activeMonthRef.current && !pendingSaveRef.current) setIsSaving(false);
+        if (pending.month === activeMonthRef.current) setIsSaving(false);
       }
     });
     await saveQueueRef.current;
@@ -292,7 +294,9 @@ export default function BudgetScreen() {
   }, [flushSave]);
 
   const ensureBudget = useCallback(async (): Promise<Budget> => {
-    if (budget) return budget;
+    // `id === 0` is the unsaved placeholder created by loadData for a month
+    // with no row yet; it must be persisted before expenses can reference it.
+    if (budget && budget.id !== 0) return budget;
     const seedIncome = salaryRef.current;
     const b = await saveBudget(month, seedIncome, false, false);
     setBudget(b);

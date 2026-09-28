@@ -46,6 +46,14 @@ export async function loadNotes(): Promise<Note[]> {
 
 let backfillPromise: Promise<void> | null = null;
 
+/**
+ * Invalidate the cached backfill so imported notes with an empty `plain_text`
+ * are reindexed. Call after a restore replaces the notes table.
+ */
+export function resetPlainTextBackfill(): void {
+  backfillPromise = null;
+}
+
 async function ensurePlainTextBackfill(): Promise<void> {
   if (backfillPromise) return backfillPromise;
   backfillPromise = (async () => {

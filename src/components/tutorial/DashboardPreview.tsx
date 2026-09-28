@@ -7,8 +7,10 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
+import { useI18n } from "../../lib/i18n";
 
 export function DashboardPreview() {
+  const { t } = useI18n();
   const progress = useSharedValue(0);
   const expandHeight = useSharedValue(0);
 
@@ -40,15 +42,15 @@ export function DashboardPreview() {
       </View>
       <Animated.View style={contentStyle} className="mt-2 gap-1 overflow-hidden">
         <View className="flex-row justify-between">
-          <Text className="text-xs text-muted-foreground">Income:</Text>
+          <Text className="text-xs text-muted-foreground">{t("incomeColon")}</Text>
           <Text className="text-xs font-medium text-foreground">€2,500</Text>
         </View>
         <View className="flex-row justify-between">
-          <Text className="text-xs text-muted-foreground">Planned:</Text>
+          <Text className="text-xs text-muted-foreground">{t("plannedColon")}</Text>
           <Text className="text-xs font-medium text-foreground">€2,380</Text>
         </View>
         <View className="flex-row justify-between">
-          <Text className="text-xs text-muted-foreground">Remaining:</Text>
+          <Text className="text-xs text-muted-foreground">{t("remainsColon")}</Text>
           <Text className="text-xs font-medium text-foreground">€120</Text>
         </View>
       </Animated.View>

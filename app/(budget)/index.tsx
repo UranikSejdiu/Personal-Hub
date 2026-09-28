@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
 import { Trash2, Plus, ChevronDown } from "../../src/components/AppIcons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
@@ -49,23 +49,25 @@ export default function DashboardScreen() {
     }
   }, [t]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const loans = await loadLoans();
-        const data = await listMonthSummaries(loans);
-        if (!cancelled) setSummaries(data);
-      } catch {
-        if (!cancelled) toast.error(t("errorLoadingData"));
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const loans = await loadLoans();
+          const data = await listMonthSummaries(loans);
+          if (!cancelled) setSummaries(data);
+        } catch {
+          if (!cancelled) toast.error(t("errorLoadingData"));
+        } finally {
+          if (!cancelled) setLoaded(true);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [t])
+  );
 
   const toggleMonth = useCallback((month: string) => {
     setExpandedMonths((prev) => {
@@ -113,7 +115,7 @@ export default function DashboardScreen() {
         openBudgetMonth(nextMonth);
         return;
       }
-      const prevBudget = await loadBudget(addMonths(now, -1));
+      const prevBudget = await loadBudget(addMonths(nextMonth, -1));
       const { salary } = await loadSavingsGoal();
       const seedIncome = prevBudget && prevBudget.income > 0 ? prevBudget.income : salary;
       const budget = await saveBudget(nextMonth, seedIncome, false, false);

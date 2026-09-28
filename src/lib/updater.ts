@@ -141,18 +141,31 @@ function isCheckResult(value: unknown): value is CheckResult {
 
 async function resolveDownloadUrl(url: string, versionName: string): Promise<string> {
   if (!isExpectedAssetUrl(url, versionName)) throw new Error("Unexpected APK download URL");
-  const response = await fetch(url, { method: "HEAD", redirect: "manual" });
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("location");
-    if (!location) throw new Error("APK download redirect did not provide a URL");
-    const redirected = new URL(location, url);
-    if (redirected.protocol !== "https:" || !GITHUB_ASSET_HOSTS.has(redirected.hostname)) {
-      throw new Error("APK download redirected to an unexpected host");
+
+  // React Native does not support `redirect: "manual"`, so follow redirects and
+  // validate the final URL that fetch reports instead. A failed probe falls back
+  // to the already-validated github.com URL, which is safe to fetch directly.
+  let finalUrl = url;
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    if (response.status !== 0 && !response.ok) {
+      throw new Error(`APK download URL check failed (${response.status})`);
     }
-    return redirected.toString();
+    if (response.url) finalUrl = response.url;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("APK download URL check failed")) {
+      throw error;
+    }
+    return url;
   }
-  if (!response.ok) throw new Error(`APK download URL check failed (${response.status})`);
-  return url;
+
+  const resolved = new URL(finalUrl, url);
+  const hostAllowed =
+    resolved.hostname === "github.com" || GITHUB_ASSET_HOSTS.has(resolved.hostname);
+  if (resolved.protocol !== "https:" || !hostAllowed) {
+    throw new Error("APK download redirected to an unexpected host");
+  }
+  return finalUrl;
 }
 
 async function saveCheckCache(result: CheckResult): Promise<void> {
@@ -179,7 +192,11 @@ export async function checkForUpdate(): Promise<CheckResult> {
   const currentVersion = await getCurrentVersion();
   const cachedOrError = async (): Promise<CheckResult> => {
     const cached = await loadCheckCache();
-    return cached && cached.status !== "error" ? cached : { status: "error", currentVersion };
+    // Only replay the cache for the version currently installed; otherwise a
+    // stale "update available" could point at a version the user already has.
+    return cached && cached.status !== "error" && cached.currentVersion === currentVersion
+      ? cached
+      : { status: "error", currentVersion };
   };
   try {
     const controller = new AbortController();

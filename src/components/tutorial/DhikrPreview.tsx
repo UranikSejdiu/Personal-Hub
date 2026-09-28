@@ -9,9 +9,11 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { useThemeColors } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 
 export function DhikrPreview() {
   const colors = useThemeColors();
+  const { t } = useI18n();
   const count = useSharedValue(0);
   const ripple = useSharedValue(1);
 
@@ -49,7 +51,7 @@ export function DhikrPreview() {
       </Animated.View>
       <View className="flex-row items-center gap-3">
         <View className="rounded-full bg-success/15 px-3 py-1">
-          <Text className="text-xs font-semibold text-success">Goal Complete</Text>
+          <Text className="text-xs font-semibold text-success">{t("goalComplete")}</Text>
         </View>
       </View>
     </View>

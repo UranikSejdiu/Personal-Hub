@@ -76,35 +76,39 @@ export default function SavingsScreen() {
   useEffect(() => { tRef.current = t; }, [t]);
 
   const loadData = useCallback(async () => {
-    const [sg, ads, txs, sum] = await Promise.all([
-      loadSavingsGoal(),
-      listAutoDeposits(),
-      listTransactions(),
-      getSavingsSummary(),
-    ]);
-    setGoalAmount(sg.goal_amount);
-    setSummary(sum);
+    try {
+      const [sg, ads, txs, sum] = await Promise.all([
+        loadSavingsGoal(),
+        listAutoDeposits(),
+        listTransactions(),
+        getSavingsSummary(),
+      ]);
+      setGoalAmount(sg.goal_amount);
+      setSummary(sum);
 
-    const autoEntries: SavingsEntry[] = ads.map((ad) => ({
-      id: `auto:${ad.month}`,
-      kind: "auto" as const,
-      type: "deposit" as const,
-      description: ad.description || ad.month,
-      amount: ad.amount,
-      date: ad.month,
-      rawMonth: ad.month,
-    }));
-    const txEntries: SavingsEntry[] = txs.map((tx) => ({
-      id: `tx:${tx.id}`,
-      kind: "tx" as const,
-      type: tx.type,
-      description: tx.description || tRef.current("transaction"),
-      amount: tx.amount,
-      date: tx.date,
-      rawTx: tx,
-    }));
-    const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
-    setEntries(merged);
+      const autoEntries: SavingsEntry[] = ads.map((ad) => ({
+        id: `auto:${ad.month}`,
+        kind: "auto" as const,
+        type: "deposit" as const,
+        description: ad.description || ad.month,
+        amount: ad.amount,
+        date: ad.month,
+        rawMonth: ad.month,
+      }));
+      const txEntries: SavingsEntry[] = txs.map((tx) => ({
+        id: `tx:${tx.id}`,
+        kind: "tx" as const,
+        type: tx.type,
+        description: tx.description || tRef.current("transaction"),
+        amount: tx.amount,
+        date: tx.date,
+        rawTx: tx,
+      }));
+      const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
+      setEntries(merged);
+    } catch {
+      toast.error(tRef.current("errorLoadingData"));
+    }
   }, []);
 
   useFocusEffect(
@@ -250,7 +254,7 @@ export default function SavingsScreen() {
   );
 
   const handleSave = useCallback(async () => {
-    const parsed = parseFloat(formAmount);
+    const parsed = parseFloat(formAmount.replace(",", "."));
     if (Number.isNaN(parsed) || parsed <= 0) {
       setModalError(t("savingsErrorAmount"));
       return;
@@ -263,7 +267,7 @@ export default function SavingsScreen() {
     try {
       if (editingKind === "auto") {
         if (!editingMonth) throw new Error("Missing auto-deposit month");
-        await updateAutoDeposit(editingMonth, formDate, {
+        await updateAutoDeposit(editingMonth, {
           description: formDesc,
           amount: parsed,
         });
@@ -299,7 +303,8 @@ export default function SavingsScreen() {
         void (async () => {
           try {
             if (editingKind === "auto") {
-              await deleteAutoDeposit(formDate);
+              if (!editingMonth) throw new Error("Missing auto-deposit month");
+              await deleteAutoDeposit(editingMonth);
             } else if (editingId !== null) {
               await deleteTransaction(editingId);
             }
@@ -313,7 +318,7 @@ export default function SavingsScreen() {
         })();
       },
     });
-  }, [editingId, editingKind, formDate, t, loadData]);
+  }, [editingId, editingKind, editingMonth, t, loadData]);
 
   const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
   const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
@@ -571,12 +576,14 @@ export default function SavingsScreen() {
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
-              <View>
-                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
-                <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
-                  <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
-                </Pressable>
-              </View>
+              {editingKind !== "auto" && (
+                <View>
+                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
+                  <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
+                    <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
             <View className="mt-5 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (

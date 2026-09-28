@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -41,17 +42,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try {
       const stored = SecureStore.getItem(THEME_KEY);
       if (stored === "light" || stored === "dark") return stored;
-      if (stored === "tawheed") {
-        void SecureStore.setItemAsync(THEME_KEY, "dark").catch((err) => {
-          console.warn("[theme] failed to migrate tawheed preference:", err);
-        });
-        return "dark";
-      }
+      if (stored === "tawheed") return "dark";
     } catch {
       // SecureStore unavailable (keychain failure) — fall through to system scheme.
     }
     return systemScheme === "dark" ? "dark" : "light";
   });
+
+  // Migration side effect must not run during render (initializers stay pure).
+  useEffect(() => {
+    try {
+      if (SecureStore.getItem(THEME_KEY) === "tawheed") {
+        void SecureStore.setItemAsync(THEME_KEY, "dark").catch((err) => {
+          console.warn("[theme] failed to migrate tawheed preference:", err);
+        });
+      }
+    } catch {
+      // SecureStore unavailable — nothing to migrate.
+    }
+  }, []);
   const [accent, setAccentState] = useState<AccentName>(() => {
     try {
       const stored = SecureStore.getItem(ACCENT_KEY);
