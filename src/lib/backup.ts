@@ -256,18 +256,18 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 }
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
-  return db.withTransaction(async () => {
+  return db.withTransaction(async (tx) => {
     const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes] =
       await Promise.all([
-        db.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
-        db.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
-        db.query<Record<string, unknown>>("SELECT * FROM budgets ORDER BY month"),
-        db.query<Record<string, unknown>>("SELECT * FROM expenses ORDER BY id"),
-        db.query<Record<string, unknown>>("SELECT * FROM recurring_expenses ORDER BY id"),
-        db.query<Record<string, unknown>>("SELECT * FROM savings_auto_deposits ORDER BY month"),
-        db.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
-        db.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
-        db.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
+        tx.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
+        tx.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
+        tx.query<Record<string, unknown>>("SELECT * FROM budgets ORDER BY month"),
+        tx.query<Record<string, unknown>>("SELECT * FROM expenses ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM recurring_expenses ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM savings_auto_deposits ORDER BY month"),
+        tx.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
       ]);
 
     return {
@@ -383,22 +383,22 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
   }
 
   try {
-    await db.withTransaction(async () => {
+    await db.withTransaction(async (tx) => {
     // Clear in FK-safe order
-    await db.execute("DELETE FROM expenses");
-    await db.execute("DELETE FROM budgets");
-    await db.execute("DELETE FROM recurring_expenses");
-    await db.execute("DELETE FROM savings_auto_deposits");
-    await db.execute("DELETE FROM savings_transactions");
-    await db.execute("DELETE FROM dhikrs");
-    await db.execute("DELETE FROM notes");
-    await db.execute("DELETE FROM loans");
-    await db.execute("DELETE FROM savings_goals");
+    await tx.execute("DELETE FROM expenses");
+    await tx.execute("DELETE FROM budgets");
+    await tx.execute("DELETE FROM recurring_expenses");
+    await tx.execute("DELETE FROM savings_auto_deposits");
+    await tx.execute("DELETE FROM savings_transactions");
+    await tx.execute("DELETE FROM dhikrs");
+    await tx.execute("DELETE FROM notes");
+    await tx.execute("DELETE FROM loans");
+    await tx.execute("DELETE FROM savings_goals");
 
     // Restore singletons
     if (env.tables.loans) {
       const r = env.tables.loans as Record<string, unknown>;
-      await db.execute(
+      await tx.execute(
         `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.loan_amount as number,
@@ -420,7 +420,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
     if (env.tables.savingsGoal) {
       const r = env.tables.savingsGoal as Record<string, unknown>;
-      await db.execute(`INSERT INTO savings_goals (id, goal_amount, salary) VALUES (1, ?, ?)`, [
+      await tx.execute(`INSERT INTO savings_goals (id, goal_amount, salary) VALUES (1, ?, ?)`, [
         r.goal_amount as number,
         r.salary as number,
       ]);
@@ -431,7 +431,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     for (const b of env.tables.budgets) {
       const row = b as Record<string, unknown>;
       const month = row.month as string;
-      const res = await db.execute(
+      const res = await tx.execute(
         `INSERT INTO budgets (month, income, loan_paid, cc_paid, updated_at) VALUES (?, ?, ?, ?, ?)`,
         [
           month,
@@ -444,7 +444,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       // get inserted id via lastId or lookup
       let newId = res.lastId;
       if (!newId) {
-        const found = await db.get<Record<string, unknown>>("SELECT id FROM budgets WHERE month = ?", [month]);
+        const found = await tx.get<Record<string, unknown>>("SELECT id FROM budgets WHERE month = ?", [month]);
         newId = typeof found?.id === "number" ? found.id : 0;
       }
       if (newId) monthToId.set(month, newId);
@@ -469,7 +469,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
         if (month) targetBudgetId = monthToId.get(month) ?? null;
       }
       if (!targetBudgetId) throw new Error("Invalid backup: expense references a missing budget");
-      await db.execute(
+      await tx.execute(
         `INSERT INTO expenses (budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?)`,
         [
           targetBudgetId,
@@ -483,7 +483,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
     for (const r of env.tables.recurringExpenses) {
       const row = r as Record<string, unknown>;
-      await db.execute(`INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)`, [
+      await tx.execute(`INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)`, [
         String(row.category ?? ""),
         row.amount as number,
       ]);
@@ -492,7 +492,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     for (const r of env.tables.autoDeposits) {
       const row = r as Record<string, unknown>;
       const month = row.month as string;
-      await db.execute(`INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)`, [
+      await tx.execute(`INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)`, [
         month,
         row.amount as number,
         String(row.description ?? ""),
@@ -503,7 +503,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = r as Record<string, unknown>;
       const t = row.type as "deposit" | "purchase";
       const date = row.date as string;
-      await db.execute(
+      await tx.execute(
         `INSERT INTO savings_transactions (type, description, amount, date) VALUES (?, ?, ?, ?)`,
         [t, row.description as string, row.amount as number, date]
       );
@@ -511,7 +511,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
     for (const r of env.tables.dhikrs) {
       const row = r as Record<string, unknown>;
-      await db.execute(
+      await tx.execute(
         `INSERT INTO dhikrs (name, total_count, daily_count, daily_limit, last_reset_date, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           row.name as string,
@@ -527,7 +527,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
     for (const r of env.tables.notes) {
       const row = r as Record<string, unknown>;
-      await db.execute(
+      await tx.execute(
         `INSERT INTO notes (title, content, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           row.title as string,

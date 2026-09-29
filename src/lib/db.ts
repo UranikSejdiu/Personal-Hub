@@ -7,7 +7,7 @@ type BindValue = string | number | null | Uint8Array;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
-let transactionQueue: Promise<void> = Promise.resolve();
+let writeQueue: Promise<void> = Promise.resolve();
 
 const SCHEMA_VERSION = 3;
 
@@ -195,55 +195,141 @@ export async function query<T = Record<string, unknown>>(
   sql: string,
   values?: unknown[]
 ): Promise<T[]> {
-  const database = await getDb();
-  const params = (values ?? []) as BindValue[];
-  return database.getAllAsync<T>(sql, ...params);
+  return defaultExecutor.query<T>(sql, values);
 }
 
 export async function get<T = Record<string, unknown>>(
   sql: string,
   values?: unknown[]
 ): Promise<T | undefined> {
-  const database = await getDb();
-  const params = (values ?? []) as BindValue[];
-  const result = await database.getFirstAsync<T>(sql, ...params);
-  return result ?? undefined;
+  return defaultExecutor.get<T>(sql, values);
 }
 
 export async function execute(
   sql: string,
   values?: unknown[]
 ): Promise<{ changes: number; lastId: number }> {
-  const database = await getDb();
-  const params = (values ?? []) as BindValue[];
-  const result = await database.runAsync(sql, ...params);
-  return {
-    changes: result.changes,
-    lastId: result.lastInsertRowId,
-  };
+  return defaultExecutor.execute(sql, values);
 }
 
 /**
- * Serialize top-level transactions. The callback must use query/get/execute
- * directly and must not call `withTransaction` itself; SQLite does not support
- * nested `BEGIN` transactions.
+ * A connection-scoped query surface. The default executor sends writes through
+ * the serialization queue; the executor handed to a transaction writes directly
+ * on that transaction's own connection.
  */
-export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  const database = await getDb();
-  const previous = transactionQueue;
+export interface DbExecutor {
+  query<T = Record<string, unknown>>(sql: string, values?: unknown[]): Promise<T[]>;
+  get<T = Record<string, unknown>>(sql: string, values?: unknown[]): Promise<T | undefined>;
+  execute(sql: string, values?: unknown[]): Promise<{ changes: number; lastId: number }>;
+}
+
+function createExecutor(
+  connection: SQLite.SQLiteDatabase,
+  serializeWrites: boolean
+): DbExecutor {
+  const runWrite = async (
+    sql: string,
+    values?: unknown[]
+  ): Promise<{ changes: number; lastId: number }> => {
+    const params = (values ?? []) as BindValue[];
+    const result = await connection.runAsync(sql, ...params);
+    return { changes: result.changes, lastId: result.lastInsertRowId };
+  };
+
+  return {
+    async query<T = Record<string, unknown>>(sql: string, values?: unknown[]): Promise<T[]> {
+      const params = (values ?? []) as BindValue[];
+      return connection.getAllAsync<T>(sql, ...params);
+    },
+    async get<T = Record<string, unknown>>(
+      sql: string,
+      values?: unknown[]
+    ): Promise<T | undefined> {
+      const params = (values ?? []) as BindValue[];
+      const result = await connection.getFirstAsync<T>(sql, ...params);
+      return result ?? undefined;
+    },
+    execute(sql: string, values?: unknown[]) {
+      if (!serializeWrites) return runWrite(sql, values);
+      return enqueueWrite(() => runWrite(sql, values));
+    },
+  };
+}
+
+let defaultExecutorInternal: DbExecutor | null = null;
+
+async function resolveDefaultExecutor(): Promise<DbExecutor> {
+  if (defaultExecutorInternal) return defaultExecutorInternal;
+  defaultExecutorInternal = createExecutor(await getDb(), true);
+  return defaultExecutorInternal;
+}
+
+/**
+ * Stable handle to the default connection. Safe to use as a default argument:
+ * it resolves the underlying executor lazily on first use.
+ */
+export const defaultExecutor: DbExecutor = {
+  async query<T = Record<string, unknown>>(
+    sql: string,
+    values?: unknown[]
+  ): Promise<T[]> {
+    return (await resolveDefaultExecutor()).query<T>(sql, values);
+  },
+  async get<T = Record<string, unknown>>(
+    sql: string,
+    values?: unknown[]
+  ): Promise<T | undefined> {
+    return (await resolveDefaultExecutor()).get<T>(sql, values);
+  },
+  async execute(sql: string, values?: unknown[]) {
+    return (await resolveDefaultExecutor()).execute(sql, values);
+  },
+};
+
+/**
+ * Serialize every write and every transaction onto one queue. Reads are not
+ * serialized: in WAL mode they do not block, and a reader cannot observe a
+ * half-written row because writers never run concurrently with each other.
+ *
+ * Without this queue a write issued while a transaction is open would join that
+ * transaction on the shared connection and be rolled back with it, silently
+ * losing the write. See {@link withTransaction}.
+ */
+function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
+  const previous = writeQueue;
   let release!: () => void;
-  transactionQueue = new Promise<void>((resolve) => {
+  writeQueue = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await previous;
+  return (async () => {
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  })();
+}
 
-  let result: T | undefined;
-  try {
-    await database.withTransactionAsync(async () => {
-      result = await fn();
+/**
+ * Run `fn` inside an exclusive transaction.
+ *
+ * Every statement in the callback must go through the executor it receives
+ * (`tx`). `withExclusiveTransactionAsync` uses a connection of its own, so a
+ * stray statement on the default helpers would run outside the transaction —
+ * and, because writes are queued behind it, would deadlock. Transactions and
+ * single writes are serialized together by `enqueueWrite`, so an unrelated write
+ * can never be captured by this transaction and rolled back with it.
+ */
+export async function withTransaction<T>(
+  fn: (tx: DbExecutor) => Promise<T>
+): Promise<T> {
+  const database = await getDb();
+  return enqueueWrite(async () => {
+    let result: T | undefined;
+    await database.withExclusiveTransactionAsync(async (txn) => {
+      result = await fn(createExecutor(txn, false));
     });
     return result as T;
-  } finally {
-    release();
-  }
+  });
 }

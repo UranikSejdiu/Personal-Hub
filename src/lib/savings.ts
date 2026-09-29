@@ -129,11 +129,12 @@ async function insertTransaction(
   type: SavingsEntryType,
   description: string,
   amount: number,
-  date: string
+  date: string,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<SavingsTransaction> {
   const sanitized = sanitizeAmount(amount);
   const trimmed = description.trim();
-  const result = await db.execute(
+  const result = await exec.execute(
     "INSERT INTO savings_transactions (type, description, amount, date) VALUES (?, ?, ?, ?)",
     [type, trimmed, sanitized, date]
   );
@@ -298,13 +299,13 @@ export async function closeYear(
   year: number,
   closingDescription: string
 ): Promise<CloseYearResult> {
-  return db.withTransaction(async () => {
+  return db.withTransaction(async (tx) => {
     const nextYear = year + 1;
     const carryForwardDate = `${nextYear}-01-01`;
 
     // Keep the existence check, totals, and carry-forward insert atomic so
     // repeated/concurrent requests cannot close the same year twice.
-    const existing = await db.get<Record<string, unknown>>(
+    const existing = await tx.get<Record<string, unknown>>(
       "SELECT id FROM savings_transactions WHERE date = ? AND (description LIKE ? OR description = ? OR description = ? OR description = ?) LIMIT 1",
       [carryForwardDate, `${CLOSING_MARKER}%`, closingDescription, "Bilanci mbyllës", "Closing balance"]
     );
@@ -313,13 +314,13 @@ export async function closeYear(
     // Reject out-of-order closes: find every year with real activity, then the
     // earliest one that has no carry-forward marker dated Jan 1 of the next year.
     const [activityRows, markerRows] = await Promise.all([
-      db.query<Record<string, unknown>>(
+      tx.query<Record<string, unknown>>(
         `SELECT substr(month, 1, 4) AS year FROM savings_auto_deposits
          UNION
          SELECT substr(date, 1, 4) AS year FROM savings_transactions
           WHERE description NOT LIKE ? AND description NOT LIKE '%Bilanci mbyllës%' AND description NOT LIKE '%Closing balance%'`
       ),
-      db.query<Record<string, unknown>>(
+      tx.query<Record<string, unknown>>(
         `SELECT substr(date, 1, 4) AS year FROM savings_transactions
           WHERE description LIKE ? OR description LIKE '%Bilanci mbyllës%' OR description LIKE '%Closing balance%'`,
         [`${CLOSING_MARKER}%`]
@@ -345,11 +346,11 @@ export async function closeYear(
 
     const like = `${year}-%`;
     const [autoRow, txRow] = await Promise.all([
-      db.get<Record<string, unknown>>(
+      tx.get<Record<string, unknown>>(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month LIKE ?",
         [like]
       ),
-      db.get<Record<string, unknown>>(
+      tx.get<Record<string, unknown>>(
         `SELECT
            COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
            COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
@@ -369,7 +370,8 @@ export async function closeYear(
       type,
       `${CLOSING_MARKER} ${closingDescription}`,
       amount,
-      carryForwardDate
+      carryForwardDate,
+      tx
     );
     return { net, created };
   });

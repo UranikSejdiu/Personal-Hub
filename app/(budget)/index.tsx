@@ -91,23 +91,26 @@ export default function DashboardScreen() {
     const month = monthToDelete;
     setMonthToDelete(null);
     try {
-      await withTransaction(async () => {
-        const budget = await loadBudget(month);
+      await withTransaction(async (tx) => {
+        const budget = await loadBudget(month, tx);
         if (budget?.loan_paid || budget?.cc_paid) {
-          const loans = await loadLoans();
-          await saveLoans({
-            ...loans,
-            loan_months_paid: budget.loan_paid
-              ? loans.loan_term > 0
-                ? Math.max(0, Math.min(loans.loan_term, loans.loan_months_paid - 1))
-                : Math.max(0, loans.loan_months_paid - 1)
-              : loans.loan_months_paid,
-            cc_months_paid: budget.cc_paid
-              ? Math.max(0, loans.cc_months_paid - 1)
-              : loans.cc_months_paid,
-          });
+          const loans = await loadLoans(tx);
+          await saveLoans(
+            {
+              ...loans,
+              loan_months_paid: budget.loan_paid
+                ? loans.loan_term > 0
+                  ? Math.max(0, Math.min(loans.loan_term, loans.loan_months_paid - 1))
+                  : Math.max(0, loans.loan_months_paid - 1)
+                : loans.loan_months_paid,
+              cc_months_paid: budget.cc_paid
+                ? Math.max(0, loans.cc_months_paid - 1)
+                : loans.cc_months_paid,
+            },
+            tx
+          );
         }
-        await deleteBudget(month);
+        await deleteBudget(month, tx);
       });
       await refresh();
       haptics.success();

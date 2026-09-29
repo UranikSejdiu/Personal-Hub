@@ -111,9 +111,9 @@ export async function resetDhikr(id: number): Promise<void> {
 }
 
 export async function reorderDhikrs(order: number[]): Promise<void> {
-  await withTransaction(async () => {
+  await withTransaction(async (tx) => {
     for (let i = 0; i < order.length; i++) {
-      await db.execute("UPDATE dhikrs SET sort_order = ? WHERE id = ?", [
+      await tx.execute("UPDATE dhikrs SET sort_order = ? WHERE id = ?", [
         i,
         order[i],
       ]);

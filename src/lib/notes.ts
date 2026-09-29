@@ -125,9 +125,10 @@ export async function getNote(id: number): Promise<Note | undefined> {
 }
 
 export async function createNote(
-  fields: Pick<Note, "title" | "content" | "is_pinned">
+  fields: Pick<Note, "title" | "content" | "is_pinned">,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<Note> {
-  const result = await db.execute(
+  const result = await exec.execute(
     "INSERT INTO notes (title, content, is_pinned, color, plain_text) VALUES (?, ?, ?, ?, ?)",
     [
       fields.title,
@@ -137,7 +138,7 @@ export async function createNote(
       getPlainTextFromContent(fields.content),
     ]
   );
-  const created = await db.get<Record<string, unknown>>(
+  const created = await exec.get<Record<string, unknown>>(
     "SELECT * FROM notes WHERE id = ?",
     [result.lastId]
   );
@@ -174,6 +175,9 @@ export async function updateNote(
   );
 }
 
-export async function deleteNote(id: number): Promise<void> {
-  await db.execute("DELETE FROM notes WHERE id = ?", [id]);
+export async function deleteNote(
+  id: number,
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<void> {
+  await exec.execute("DELETE FROM notes WHERE id = ?", [id]);
 }

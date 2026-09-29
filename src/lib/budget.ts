@@ -28,8 +28,10 @@ export function addMonths(key: string, delta: number): string {
 // Loans (single global profile)
 // ---------------------------------------------------------------------------
 
-export async function loadLoans(): Promise<Loans> {
-  const row = await db.get<Record<string, unknown>>(
+export async function loadLoans(
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<Loans> {
+  const row = await exec.get<Record<string, unknown>>(
     "SELECT * FROM loans WHERE id = 1"
   );
   if (!row) return { ...EMPTY_LOANS };
@@ -50,8 +52,11 @@ export async function loadLoans(): Promise<Loans> {
   };
 }
 
-export async function saveLoans(loans: Loans): Promise<void> {
-  await db.execute(
+export async function saveLoans(
+  loans: Loans,
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<void> {
+  await exec.execute(
     `INSERT INTO loans (
       id, loan_amount, loan_rate, loan_term, loan_payment,
       loan_start_date, loan_payment_day, loan_months_paid, loan_name,
@@ -103,8 +108,8 @@ export async function applyLoanPaidToggle(
   month: string,
   newLoanPaid: boolean
 ): Promise<{ loans: Loans; budget: Budget }> {
-  return db.withTransaction(async () => {
-    const loans = await loadLoans();
+  return db.withTransaction(async (tx) => {
+    const loans = await loadLoans(tx);
     const term = loans.loan_term;
     const fullyPaid = term > 0 && loans.loan_months_paid >= term;
     let monthsPaid = loans.loan_months_paid;
@@ -114,11 +119,11 @@ export async function applyLoanPaidToggle(
       monthsPaid = Math.max(0, monthsPaid - 1);
     }
     const updatedLoans = { ...loans, loan_months_paid: monthsPaid };
-    await saveLoans(updatedLoans);
+    await saveLoans(updatedLoans, tx);
 
-    const budget = await loadBudget(month);
+    const budget = await loadBudget(month, tx);
     if (!budget) throw new Error("Budget not found for month.");
-    await saveBudget(month, budget.income, newLoanPaid, budget.cc_paid);
+    await saveBudget(month, budget.income, newLoanPaid, budget.cc_paid, tx);
     return { loans: updatedLoans, budget };
   });
 }
@@ -128,18 +133,18 @@ export async function applyCcPaidToggle(
   month: string,
   newCcPaid: boolean
 ): Promise<{ loans: Loans; budget: Budget }> {
-  return db.withTransaction(async () => {
-    const loans = await loadLoans();
+  return db.withTransaction(async (tx) => {
+    const loans = await loadLoans(tx);
     const monthsPaid = Math.max(
       0,
       loans.cc_months_paid + (newCcPaid ? 1 : -1)
     );
     const updatedLoans = { ...loans, cc_months_paid: monthsPaid };
-    await saveLoans(updatedLoans);
+    await saveLoans(updatedLoans, tx);
 
-    const budget = await loadBudget(month);
+    const budget = await loadBudget(month, tx);
     if (!budget) throw new Error("Budget not found for month.");
-    await saveBudget(month, budget.income, budget.loan_paid, newCcPaid);
+    await saveBudget(month, budget.income, budget.loan_paid, newCcPaid, tx);
     return { loans: updatedLoans, budget };
   });
 }
@@ -148,8 +153,10 @@ export async function applyCcPaidToggle(
 // Savings goal (single global profile)
 // ---------------------------------------------------------------------------
 
-export async function loadSavingsGoal(): Promise<SavingsGoal> {
-  const row = await db.get<Record<string, unknown>>(
+export async function loadSavingsGoal(
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<SavingsGoal> {
+  const row = await exec.get<Record<string, unknown>>(
     "SELECT * FROM savings_goals WHERE id = 1"
   );
   if (!row) return { goal_amount: 0, salary: 0 };
@@ -161,9 +168,10 @@ export async function loadSavingsGoal(): Promise<SavingsGoal> {
 
 export async function saveSavingsGoal(
   goalAmount: number,
-  salary: number
+  salary: number,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
-  await db.execute(
+  await exec.execute(
     `INSERT INTO savings_goals (id, goal_amount, salary)
      VALUES (1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
@@ -211,30 +219,30 @@ export async function setExpenseRecurring(
   amount: number,
   recurring: boolean
 ): Promise<void> {
-  await db.withTransaction(async () => {
-    await db.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
+  await db.withTransaction(async (tx) => {
+    await tx.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
       recurring ? 1 : 0,
       expenseId,
     ]);
     if (recurring) {
-      const existingTemplate = await db.get<Record<string, unknown>>(
+      const existingTemplate = await tx.get<Record<string, unknown>>(
         "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? LIMIT 1",
         [category, amount]
       );
       if (!existingTemplate) {
-        await db.execute(
+        await tx.execute(
           "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
           [category, amount]
         );
       }
       return;
     }
-    const template = await db.get<Record<string, unknown>>(
+    const template = await tx.get<Record<string, unknown>>(
       "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? ORDER BY id LIMIT 1",
       [category, amount]
     );
     if (template) {
-      await db.execute("DELETE FROM recurring_expenses WHERE id = ?", [
+      await tx.execute("DELETE FROM recurring_expenses WHERE id = ?", [
         Number(template.id),
       ]);
     }
@@ -261,9 +269,9 @@ export async function populateRecurringExpenses(
     return !existingKeys.has(`${key}::1`);
   });
   if (toInsert.length === 0) return;
-  await db.withTransaction(async () => {
+  await db.withTransaction(async (tx) => {
     for (const exp of toInsert) {
-      await db.execute(
+      await tx.execute(
         "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, 1)",
         [budgetId, exp.category, exp.amount]
       );
@@ -275,8 +283,11 @@ export async function populateRecurringExpenses(
 // Per-month budget
 // ---------------------------------------------------------------------------
 
-export async function loadBudget(month: string): Promise<Budget | null> {
-  const row = await db.get<Record<string, unknown>>(
+export async function loadBudget(
+  month: string,
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<Budget | null> {
+  const row = await exec.get<Record<string, unknown>>(
     "SELECT * FROM budgets WHERE month = ? LIMIT 1",
     [month]
   );
@@ -295,9 +306,10 @@ export async function saveBudget(
   month: string,
   income: number,
   loanPaid: boolean,
-  ccPaid: boolean
+  ccPaid: boolean,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<Budget> {
-  await db.execute(
+  await exec.execute(
     `INSERT INTO budgets (month, income, loan_paid, cc_paid)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(month) DO UPDATE SET
@@ -307,21 +319,27 @@ export async function saveBudget(
        updated_at = datetime('now')`,
     [month, income, loanPaid ? 1 : 0, ccPaid ? 1 : 0]
   );
-  const saved = await loadBudget(month);
+  const saved = await loadBudget(month, exec);
   if (!saved) throw new Error("Failed to save budget.");
   return saved;
 }
 
-export async function deleteBudget(month: string): Promise<void> {
-  await db.execute("DELETE FROM budgets WHERE month = ?", [month]);
+export async function deleteBudget(
+  month: string,
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<void> {
+  await exec.execute("DELETE FROM budgets WHERE month = ?", [month]);
 }
 
 // ---------------------------------------------------------------------------
 // Expenses
 // ---------------------------------------------------------------------------
 
-export async function listExpenses(budgetId: number): Promise<Expense[]> {
-  const rows = await db.query<Record<string, unknown>>(
+export async function listExpenses(
+  budgetId: number,
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<Expense[]> {
+  const rows = await exec.query<Record<string, unknown>>(
     "SELECT * FROM expenses WHERE budget_id = ? ORDER BY id",
     [budgetId]
   );
@@ -339,9 +357,10 @@ export async function addExpense(
   budgetId: number,
   category: string,
   amount: number,
-  isRecurring: boolean = false
+  isRecurring: boolean = false,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<Expense> {
-  const result = await db.execute(
+  const result = await exec.execute(
     "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, ?)",
     [budgetId, category, amount, isRecurring ? 1 : 0]
   );
@@ -358,7 +377,8 @@ export async function addExpense(
 
 export async function updateExpense(
   id: number,
-  fields: Partial<Pick<Expense, "category" | "amount" | "paid" | "is_recurring">>
+  fields: Partial<Pick<Expense, "category" | "amount" | "paid" | "is_recurring">>,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
   const sets: string[] = [];
   const values: (number | string)[] = [];
@@ -380,7 +400,7 @@ export async function updateExpense(
   }
   if (sets.length === 0) return;
   values.push(id);
-  await db.execute(
+  await exec.execute(
     `UPDATE expenses SET ${sets.join(", ")} WHERE id = ?`,
     values
   );
@@ -443,9 +463,9 @@ export async function copyBudgetFromMonth(
   );
   if (toCopy.length > 0 && targetBudget) {
     const targetId = targetBudget.id;
-    await db.withTransaction(async () => {
+    await db.withTransaction(async (tx) => {
       for (const exp of toCopy) {
-        await db.execute(
+        await tx.execute(
           "INSERT INTO expenses (budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?)",
           [
             targetId,

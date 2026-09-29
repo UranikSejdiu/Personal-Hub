@@ -156,33 +156,43 @@ export async function seedSampleData(): Promise<void> {
   const months: string[] = [];
   const noteIds: number[] = [];
 
-  await db.withTransaction(async () => {
-    await saveLoans(SAMPLE_LOANS);
-    await saveSavingsGoal(SAMPLE_SAVINGS.goal_amount, SAMPLE_SAVINGS.salary);
+  await db.withTransaction(async (tx) => {
+    await saveLoans(SAMPLE_LOANS, tx);
+    await saveSavingsGoal(SAMPLE_SAVINGS.goal_amount, SAMPLE_SAVINGS.salary, tx);
 
     for (const month of SAMPLE_MONTHS) {
       const key = sampleMonthKey(month);
-      const budget = await saveBudget(key, month.income, month.loanPaid, month.ccPaid);
+      const budget = await saveBudget(
+        key,
+        month.income,
+        month.loanPaid,
+        month.ccPaid,
+        tx
+      );
       for (const expense of sampleExpenses(month)) {
         const created = await addExpense(
           budget.id,
           expense.category,
           expense.amount,
-          expense.is_recurring
+          expense.is_recurring,
+          tx
         );
         if (expense.paid) {
-          await updateExpense(created.id, { paid: true });
+          await updateExpense(created.id, { paid: true }, tx);
         }
       }
       months.push(key);
     }
 
     for (const note of SAMPLE_NOTES) {
-      const created = await createNote({
-        title: note.title,
-        content: note.content,
-        is_pinned: note.is_pinned,
-      });
+      const created = await createNote(
+        {
+          title: note.title,
+          content: note.content,
+          is_pinned: note.is_pinned,
+        },
+        tx
+      );
       noteIds.push(created.id);
     }
   });
@@ -202,38 +212,38 @@ export async function clearSampleData(): Promise<boolean> {
   const record = await readRecord();
   if (!record || record.state !== "seeded") return false;
 
-  await db.withTransaction(async () => {
+  await db.withTransaction(async (tx) => {
     for (const noteId of record.noteIds) {
-      const note = await db.get<{ id: number }>("SELECT id FROM notes WHERE id = ?", [noteId]);
-      if (note) await deleteNote(noteId);
+      const note = await tx.get<{ id: number }>("SELECT id FROM notes WHERE id = ?", [noteId]);
+      if (note) await deleteNote(noteId, tx);
     }
 
     for (const month of record.months) {
-      const budget = await db.get<{ id: number }>(
+      const budget = await tx.get<{ id: number }>(
         "SELECT id FROM budgets WHERE month = ?",
         [month]
       );
-      if (budget) await deleteBudget(month);
+      if (budget) await deleteBudget(month, tx);
     }
 
     if (record.months.length > 0) {
       const placeholders = record.months.map(() => "?").join(", ");
-      await db.execute(
+      await tx.execute(
         `DELETE FROM savings_auto_deposits WHERE month IN (${placeholders})`,
         record.months
       );
     }
 
-    if (loansMatchSample(await loadLoans())) {
-      await saveLoans({ ...EMPTY_LOANS });
+    if (loansMatchSample(await loadLoans(tx))) {
+      await saveLoans({ ...EMPTY_LOANS }, tx);
     }
 
-    const goal = await loadSavingsGoal();
+    const goal = await loadSavingsGoal(tx);
     if (
       goal.goal_amount === SAMPLE_SAVINGS.goal_amount &&
       goal.salary === SAMPLE_SAVINGS.salary
     ) {
-      await saveSavingsGoal(0, 0);
+      await saveSavingsGoal(0, 0, tx);
     }
   });
 
