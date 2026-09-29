@@ -221,5 +221,6 @@ export function creditCardPayoff(
     if (remaining <= 0) break;
   }
 
+  if (remaining > 0) return { months: Infinity, totalInterest: Infinity };
   return { months, totalInterest: interest };
 }

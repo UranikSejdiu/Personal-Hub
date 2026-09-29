@@ -80,7 +80,7 @@ function isValidMonth(v: unknown): boolean {
 function isValidDate(v: unknown): boolean {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const date = new Date(`${v}T00:00:00Z`);
-  return date.toISOString().slice(0, 10) === v;
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === v;
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -89,6 +89,10 @@ function isFiniteNumber(v: unknown): v is number {
 
 function isInteger(v: unknown): v is number {
   return isFiniteNumber(v) && Number.isInteger(v);
+}
+
+function isBinaryFlag(v: unknown): v is 0 | 1 {
+  return v === 0 || v === 1;
 }
 
 function requiredString(row: Record<string, unknown>, key: string): boolean {
@@ -105,8 +109,18 @@ function optionalId(row: Record<string, unknown>): boolean {
 
 function validateLoans(row: Record<string, unknown>): string | null {
   if (row.id !== undefined && row.id !== 1) return "loans.id must be 1";
-  for (const key of ["loan_amount", "loan_rate", "loan_term", "loan_payment", "loan_payment_day", "loan_months_paid", "cc_balance", "cc_apr", "cc_payment", "cc_months_paid"]) {
+  for (const key of ["loan_amount", "loan_rate", "loan_payment", "cc_balance", "cc_apr", "cc_payment"]) {
     if (!isFiniteNumber(row[key])) return `loans.${key} invalid`;
+    if (row[key] < 0) return `loans.${key} must be non-negative`;
+  }
+  for (const key of ["loan_term", "loan_payment_day", "loan_months_paid", "cc_months_paid"]) {
+    if (!isInteger(row[key])) return `loans.${key} invalid`;
+  }
+  if (Number(row.loan_term) < 0 || Number(row.loan_months_paid) < 0 || Number(row.cc_months_paid) < 0) {
+    return "loans month counts must be non-negative";
+  }
+  if (Number(row.loan_payment_day) < 1 || Number(row.loan_payment_day) > 31) {
+    return "loans.loan_payment_day invalid";
   }
   if (row.loan_start_date !== null && row.loan_start_date !== undefined && !isValidDate(row.loan_start_date)) return "loans.loan_start_date invalid";
   if (!optionalString(row, "loan_name") || !optionalString(row, "cc_name")) return "loans names invalid";
@@ -116,36 +130,40 @@ function validateLoans(row: Record<string, unknown>): string | null {
 function validateSavingsGoal(row: Record<string, unknown>): string | null {
   if (row.id !== undefined && row.id !== 1) return "savingsGoal.id must be 1";
   if (!isFiniteNumber(row.goal_amount) || !isFiniteNumber(row.salary)) return "savingsGoal numeric fields invalid";
+  if (row.goal_amount < 0 || row.salary < 0) return "savingsGoal amounts must be non-negative";
   return null;
 }
 
 function validateBudget(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !isValidMonth(row.month) || !isFiniteNumber(row.income)) return "budget fields invalid";
-  if (row.loan_paid !== undefined && !isInteger(row.loan_paid)) return "budget.loan_paid invalid";
-  if (row.cc_paid !== undefined && !isInteger(row.cc_paid)) return "budget.cc_paid invalid";
+  if (row.income < 0) return "budget.income must be non-negative";
+  if (row.loan_paid !== undefined && !isBinaryFlag(row.loan_paid)) return "budget.loan_paid invalid";
+  if (row.cc_paid !== undefined && !isBinaryFlag(row.cc_paid)) return "budget.cc_paid invalid";
   if (!optionalString(row, "updated_at")) return "budget.updated_at invalid";
   return null;
 }
 
 function validateExpense(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "category") || !isFiniteNumber(row.amount)) return "expense fields invalid";
-  if (row.budget_id !== undefined && !isInteger(row.budget_id)) return "expense.budget_id invalid";
+  if (row.amount < 0) return "expense.amount must be non-negative";
+  if (row.budget_id !== undefined && (!isInteger(row.budget_id) || row.budget_id <= 0)) return "expense.budget_id invalid";
   if (row.budget_month !== undefined && !isValidMonth(row.budget_month)) return "expense.budget_month invalid";
   if (row.budget_id === undefined && row.budget_month === undefined) return "expense has no budget reference";
-  for (const key of ["paid", "is_recurring"]) if (row[key] !== undefined && !isInteger(row[key])) return `expense.${key} invalid`;
+  for (const key of ["paid", "is_recurring"]) if (row[key] !== undefined && !isBinaryFlag(row[key])) return `expense.${key} invalid`;
   return null;
 }
 
 function validateRecurringExpense(row: Record<string, unknown>): string | null {
-  return !optionalId(row) || !requiredString(row, "category") || !isFiniteNumber(row.amount) ? "recurring expense fields invalid" : null;
+  return !optionalId(row) || !requiredString(row, "category") || !isFiniteNumber(row.amount) || row.amount < 0 ? "recurring expense fields invalid" : null;
 }
 
 function validateAutoDeposit(row: Record<string, unknown>): string | null {
-  return !isValidMonth(row.month) || !isFiniteNumber(row.amount) || !optionalString(row, "description") ? "auto deposit fields invalid" : null;
+  return !isValidMonth(row.month) || !isFiniteNumber(row.amount) || row.amount < 0 || !optionalString(row, "description") ? "auto deposit fields invalid" : null;
 }
 
 function validateTransaction(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || (row.type !== "deposit" && row.type !== "purchase") || !requiredString(row, "description") || !isFiniteNumber(row.amount)) return "transaction fields invalid";
+  if (row.amount < 0) return "transaction.amount must be non-negative";
   if (!isValidDate(row.date) && !isValidMonth(row.date)) return "transaction.date invalid";
   return null;
 }
@@ -153,6 +171,7 @@ function validateTransaction(row: Record<string, unknown>): string | null {
 function validateDhikr(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "name") || !isInteger(row.total_count) || !isInteger(row.daily_count) || !isInteger(row.sort_order)) return "dhikr fields invalid";
   if (row.daily_limit !== null && !isInteger(row.daily_limit)) return "dhikr.daily_limit invalid";
+  if (Number(row.total_count) < 0 || Number(row.daily_count) < 0 || Number(row.sort_order) < 0) return "dhikr counts and sort order must be non-negative";
   if (!isValidDate(row.last_reset_date) || !requiredString(row, "created_at")) return "dhikr dates invalid";
   return null;
 }
@@ -160,7 +179,7 @@ function validateDhikr(row: Record<string, unknown>): string | null {
 function validateNote(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "title") || !requiredString(row, "content") || !optionalString(row, "plain_text")) return "note text fields invalid";
   if (
-    !isInteger(row.is_pinned) ||
+    !isBinaryFlag(row.is_pinned) ||
     typeof row.color !== "string" ||
     !Object.prototype.hasOwnProperty.call(NOTE_COLORS, row.color)
   ) {
@@ -222,39 +241,41 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 }
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
-  const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes] =
-    await Promise.all([
-      db.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
-      db.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
-      db.query<Record<string, unknown>>("SELECT * FROM budgets ORDER BY month"),
-      db.query<Record<string, unknown>>("SELECT * FROM expenses ORDER BY id"),
-      db.query<Record<string, unknown>>("SELECT * FROM recurring_expenses ORDER BY id"),
-      db.query<Record<string, unknown>>("SELECT * FROM savings_auto_deposits ORDER BY month"),
-      db.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
-      db.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
-      db.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
-    ]);
+  return db.withTransaction(async () => {
+    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes] =
+      await Promise.all([
+        db.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
+        db.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
+        db.query<Record<string, unknown>>("SELECT * FROM budgets ORDER BY month"),
+        db.query<Record<string, unknown>>("SELECT * FROM expenses ORDER BY id"),
+        db.query<Record<string, unknown>>("SELECT * FROM recurring_expenses ORDER BY id"),
+        db.query<Record<string, unknown>>("SELECT * FROM savings_auto_deposits ORDER BY month"),
+        db.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
+        db.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
+        db.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
+      ]);
 
-  return {
-    meta: {
-      format: BACKUP_FORMAT,
-      version: BACKUP_VERSION,
-      appVersion: getAppVersion(),
-      exportedAt: new Date().toISOString(),
-      platform: Platform.OS,
-    },
-    tables: {
-      loans: loansRow ?? null,
-      savingsGoal: savingsGoalRow ?? null,
-      budgets,
-      expenses,
-      recurringExpenses,
-      autoDeposits,
-      transactions,
-      dhikrs,
-      notes,
-    },
-  };
+    return {
+      meta: {
+        format: BACKUP_FORMAT,
+        version: BACKUP_VERSION,
+        appVersion: getAppVersion(),
+        exportedAt: new Date().toISOString(),
+        platform: Platform.OS,
+      },
+      tables: {
+        loans: loansRow ?? null,
+        savingsGoal: savingsGoalRow ?? null,
+        budgets,
+        expenses,
+        recurringExpenses,
+        autoDeposits,
+        transactions,
+        dhikrs,
+        notes,
+      },
+    };
+  });
 }
 
 export async function exportBackupToFile(): Promise<string> {
@@ -370,7 +391,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
           r.loan_term as number,
           r.loan_payment as number,
           (r.loan_start_date as string | null) ?? null,
-          Number(r.loan_payment_day) || 1,
+          r.loan_payment_day as number,
           r.loan_months_paid as number,
           String(r.loan_name ?? ""),
           r.cc_balance as number,

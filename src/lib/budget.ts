@@ -93,10 +93,11 @@ export async function saveLoans(loans: Loans): Promise<void> {
 export async function incrementLoanMonthsPaid(delta: number): Promise<Loans> {
   return db.withTransaction(async () => {
     const loans = await loadLoans();
-    const newMonthsPaid = Math.max(
-      0,
-      Math.min(loans.loan_term, loans.loan_months_paid + delta)
-    );
+    const updatedMonths = loans.loan_months_paid + delta;
+    const newMonthsPaid =
+      loans.loan_term > 0
+        ? Math.max(0, Math.min(loans.loan_term, updatedMonths))
+        : Math.max(0, updatedMonths);
     const updated = { ...loans, loan_months_paid: newMonthsPaid };
     await saveLoans(updated);
     return updated;
@@ -365,6 +366,13 @@ export async function copyBudgetFromMonth(
 ): Promise<{ budget: Budget; expenses: Expense[] }> {
   const sourceBudget = await loadBudget(sourceMonth);
   if (!sourceBudget) {
+    const existingTarget = await loadBudget(targetMonth);
+    if (existingTarget) {
+      return {
+        budget: existingTarget,
+        expenses: await listExpenses(existingTarget.id),
+      };
+    }
     const targetBudget = await saveBudget(targetMonth, 0, false, false);
     return { budget: targetBudget, expenses: [] };
   }

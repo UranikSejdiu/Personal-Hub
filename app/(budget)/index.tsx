@@ -11,14 +11,13 @@ import {
   addMonths,
   currentMonth,
   deleteBudget,
-  incrementCcMonthsPaid,
-  incrementLoanMonthsPaid,
   listMonthSummaries,
   loadBudget,
   loadLoans,
   loadSavingsGoal,
   populateRecurringExpenses,
   saveBudget,
+  saveLoans,
   type MonthSummary,
 } from "../../src/lib/budget";
 import { withTransaction } from "../../src/lib/db";
@@ -93,8 +92,20 @@ export default function DashboardScreen() {
     try {
       await withTransaction(async () => {
         const budget = await loadBudget(month);
-        if (budget?.loan_paid) await incrementLoanMonthsPaid(-1);
-        if (budget?.cc_paid) await incrementCcMonthsPaid(-1);
+        if (budget?.loan_paid || budget?.cc_paid) {
+          const loans = await loadLoans();
+          await saveLoans({
+            ...loans,
+            loan_months_paid: budget.loan_paid
+              ? loans.loan_term > 0
+                ? Math.max(0, Math.min(loans.loan_term, loans.loan_months_paid - 1))
+                : Math.max(0, loans.loan_months_paid - 1)
+              : loans.loan_months_paid,
+            cc_months_paid: budget.cc_paid
+              ? Math.max(0, loans.cc_months_paid - 1)
+              : loans.cc_months_paid,
+          });
+        }
         await deleteBudget(month);
       });
       await refresh();

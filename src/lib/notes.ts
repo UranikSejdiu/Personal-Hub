@@ -2,6 +2,7 @@ import * as db from "./db";
 import { type NoteColor } from "../constants/theme";
 import { type Note } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
+import { isLexicalJson } from "./lexicalPreview";
 
 export type { Note };
 
@@ -75,7 +76,9 @@ async function ensurePlainTextBackfill(): Promise<void> {
         "SELECT id, content, plain_text FROM notes WHERE plain_text != '' AND plain_text LIKE '%\"root\"%' AND plain_text LIKE '%\"children\"%'"
       );
       for (const row of polluted) {
-        const plain = getPlainTextFromContent(String(row.content));
+        const content = String(row.content);
+        if (!isLexicalJson(content)) continue;
+        const plain = getPlainTextFromContent(content);
         await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
           plain,
           Number(row.id),

@@ -72,6 +72,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const goalSaveInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     const onBack = () => {
@@ -107,19 +108,27 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
 
   const scheduleGoalSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
+    saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
       setSaving(true);
-      try {
-        await saveSavingsGoal(goalRef.current, salaryRef.current);
-        if (goalRef.current > 0) {
-          await ensureMonthlyAutoDeposit(goalRef.current);
+      const saveTask = (async () => {
+        try {
+          await saveSavingsGoal(goalRef.current, salaryRef.current);
+          if (goalRef.current > 0) {
+            await ensureMonthlyAutoDeposit(goalRef.current);
+          }
+        } catch {
+          toast.error(t("saveFailed"));
+        } finally {
+          setSaving(false);
         }
-      } catch {
-        toast.error(t("saveFailed"));
-      } finally {
-        setSaving(false);
-      }
+      })();
+      goalSaveInFlightRef.current = saveTask;
+      void saveTask.then(() => {
+        if (goalSaveInFlightRef.current === saveTask) {
+          goalSaveInFlightRef.current = null;
+        }
+      });
     }, 800);
   }, [t]);
 
@@ -203,6 +212,9 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
           if (saveTimerRef.current) {
             clearTimeout(saveTimerRef.current);
             saveTimerRef.current = null;
+          }
+          if (goalSaveInFlightRef.current) {
+            await goalSaveInFlightRef.current;
           }
           setBackupBusy(true);
           try {

@@ -5,6 +5,7 @@ type BindValue = string | number | null | Uint8Array;
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let transactionQueue: Promise<void> = Promise.resolve();
 
 const SCHEMA_VERSION = 1;
 
@@ -102,8 +103,10 @@ const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (initPromise) return initPromise;
 
+  const openedDatabaseRef: { current: SQLite.SQLiteDatabase | null } = { current: null };
   initPromise = (async () => {
     const database = await SQLite.openDatabaseAsync(DB_NAME);
+    openedDatabaseRef.current = database;
     await database.execAsync("PRAGMA journal_mode = WAL;");
     await database.execAsync("PRAGMA foreign_keys = ON;");
 
@@ -137,6 +140,16 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
     return database;
   } catch (error) {
     initPromise = null;
+    const openedDatabase = openedDatabaseRef.current;
+    if (openedDatabase && db !== openedDatabase) {
+      try {
+        await openedDatabase.closeAsync();
+      } catch (closeError) {
+        // Preserve the initialization error while surfacing an unexpected
+        // failure to release the handle for diagnosis.
+        console.warn("[db] failed to close database after initialization error:", closeError);
+      }
+    }
     throw error;
   }
 }
@@ -178,38 +191,27 @@ export async function execute(
   };
 }
 
-let transactionDepth = 0;
-
 /**
- * Run `fn` inside a transaction. Reentrant: when called while a transaction is
- * already open (for example `deleteBudget` wrapping `incrementLoanMonthsPaid`),
- * the inner call uses a SAVEPOINT instead of issuing a nested `BEGIN`, which
- * SQLite rejects. `expo-sqlite`'s `withTransactionAsync` always issues a raw
- * `BEGIN`, so it cannot be nested — hence the manual savepoint handling.
+ * Serialize top-level transactions. The callback must use query/get/execute
+ * directly and must not call `withTransaction` itself; SQLite does not support
+ * nested `BEGIN` transactions.
  */
 export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
   const database = await getDb();
-  const isRoot = transactionDepth === 0;
-  const savepoint = `sp_${transactionDepth}`;
+  const previous = transactionQueue;
+  let release!: () => void;
+  transactionQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
 
-  if (isRoot) await database.execAsync("BEGIN");
-  else await database.execAsync(`SAVEPOINT ${savepoint};`);
-  transactionDepth += 1;
-
+  let result: T | undefined;
   try {
-    const result = await fn();
-    if (isRoot) await database.execAsync("COMMIT");
-    else await database.execAsync(`RELEASE ${savepoint};`);
-    return result;
-  } catch (error) {
-    try {
-      if (isRoot) await database.execAsync("ROLLBACK");
-      else await database.execAsync(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint};`);
-    } catch {
-      // Preserve the original error if the rollback itself fails.
-    }
-    throw error;
+    await database.withTransactionAsync(async () => {
+      result = await fn();
+    });
+    return result as T;
   } finally {
-    transactionDepth -= 1;
+    release();
   }
 }

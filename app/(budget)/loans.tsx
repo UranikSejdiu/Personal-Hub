@@ -70,7 +70,7 @@ export default function LoansScreen() {
     return creditCardPayoff(loans.cc_balance, loans.cc_apr, loans.cc_payment);
   }, [loans.cc_balance, loans.cc_apr, loans.cc_payment]);
 
-  const isLoanPaid = loans.loan_months_paid >= loans.loan_term;
+  const isLoanPaid = loans.loan_term > 0 && loans.loan_months_paid >= loans.loan_term;
   const loanProgress = isLoanPaid
     ? 100
     : loans.loan_term > 0

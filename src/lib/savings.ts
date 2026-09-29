@@ -255,44 +255,45 @@ export async function closeYear(
   year: number,
   closingDescription: string
 ): Promise<{ net: number; created: SavingsTransaction | null }> {
-  const nextYear = year + 1;
-  const carryForwardDate = `${nextYear}-01-01`;
+  return db.withTransaction(async () => {
+    const nextYear = year + 1;
+    const carryForwardDate = `${nextYear}-01-01`;
 
-  // Guard: prevent running closeYear twice for the same year — if a carry-forward
-  // transaction with this exact description already exists, bail out early.
-  const existing = await db.get<Record<string, unknown>>(
-    "SELECT id FROM savings_transactions WHERE date = ? AND (description LIKE ? OR description = ? OR description = ? OR description = ?) LIMIT 1",
-    [carryForwardDate, `${CLOSING_MARKER}%`, closingDescription, "Bilanci mbyllës", "Closing balance"]
-  );
-  if (existing) return { net: 0, created: null };
+    // Keep the existence check, totals, and carry-forward insert atomic so
+    // repeated/concurrent requests cannot close the same year twice.
+    const existing = await db.get<Record<string, unknown>>(
+      "SELECT id FROM savings_transactions WHERE date = ? AND (description LIKE ? OR description = ? OR description = ? OR description = ?) LIMIT 1",
+      [carryForwardDate, `${CLOSING_MARKER}%`, closingDescription, "Bilanci mbyllës", "Closing balance"]
+    );
+    if (existing) return { net: 0, created: null };
 
-  const prefix = `${year}-`;
-  const like = `${prefix}%`;
-  const [autoRow, txRow] = await Promise.all([
-    db.get<Record<string, unknown>>(
-      "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month LIKE ?",
-      [like]
-    ),
-    db.get<Record<string, unknown>>(
-      `SELECT
-         COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
-         COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
-       FROM savings_transactions WHERE date LIKE ?`,
-      [like]
-    ),
-  ]);
-  const autoTotal = Number(autoRow?.total) || 0;
-  const saved = Number(txRow?.saved) || 0;
-  const spent = Number(txRow?.spent) || 0;
-  const net = autoTotal + saved - spent;
-  if (net === 0) return { net: 0, created: null };
-  const type: SavingsEntryType = net > 0 ? "deposit" : "purchase";
-  const amount = Math.abs(net);
-  const created = await addTransaction(
-    type,
-    `${CLOSING_MARKER} ${closingDescription}`,
-    amount,
-    carryForwardDate
-  );
-  return { net, created };
+    const like = `${year}-%`;
+    const [autoRow, txRow] = await Promise.all([
+      db.get<Record<string, unknown>>(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month LIKE ?",
+        [like]
+      ),
+      db.get<Record<string, unknown>>(
+        `SELECT
+           COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
+           COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
+         FROM savings_transactions WHERE date LIKE ?`,
+        [like]
+      ),
+    ]);
+    const autoTotal = Number(autoRow?.total) || 0;
+    const saved = Number(txRow?.saved) || 0;
+    const spent = Number(txRow?.spent) || 0;
+    const net = autoTotal + saved - spent;
+    if (net === 0) return { net: 0, created: null };
+    const type: SavingsEntryType = net > 0 ? "deposit" : "purchase";
+    const amount = Math.abs(net);
+    const created = await addTransaction(
+      type,
+      `${CLOSING_MARKER} ${closingDescription}`,
+      amount,
+      carryForwardDate
+    );
+    return { net, created };
+  });
 }
