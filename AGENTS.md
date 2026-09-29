@@ -98,9 +98,11 @@ assets/           # Fonts, images, and native static resources
 The existing hub architecture includes:
 - app registration & module switching
 - Expo Router tab & stack navigation
-- native gesture-driven swipe navigation
+- a two-level navigation shell: `HubHeader` renders the `AppSwitcher` dropdown (top) to move between modules, and each module renders a `PillNav` tab bar (bottom) for its own sections
 - Android hardware back-button handling
 - cross-platform theme engine (Light, Dark)
+
+Module switching is a modal dropdown, not swipe navigation — do not assume gesture-driven navigation exists.
 
 Do not create a parallel architecture when the existing architecture already provides the required functionality.
 
@@ -209,7 +211,7 @@ Do not put complex SQL directly into a presentation component.
 
 11. DATABASE RULES (`expo-sqlite`)
 SQLite is a critical part of this application.
-Database access should use `expo-sqlite` via the established database abstraction (`src/lib/db/`).
+Database access should use `expo-sqlite` via the established database abstraction (`src/lib/db.ts`).
 Do not create random database connections throughout the application.
 
 Before changing database behavior:
@@ -336,6 +338,8 @@ Prefer existing components for:
 
 If a component needs customization, extend the existing component's props or variants rather than duplicating it.
 
+**Onboarding previews must reuse real components.** The tutorial under `src/components/tutorial/` renders the same components the app ships (`AppSwitcher`, `PillNav`, `BudgetMonthCard`, `NoteCard`, `LoanPaymentSection`, `CreditCardSection`) driven by the shared sample dataset in `src/lib/sampleDataset.ts`. Never hand-draw a mockup of a screen: a duplicate silently drifts from the real UI and teaches newcomers a layout the app does not have. Numeric previews must come from the real calculation (e.g. `computeMonthSummary`) for the same reason.
+
 22. STYLING (NativeWind v4)
 Use Tailwind classes via the `className` prop supported by NativeWind.
 Avoid arbitrary CSS/inline objects (`style={{ marginTop: 13 }}`) unless dynamic runtime calculation (e.g., animated values) requires it.
@@ -360,18 +364,17 @@ When adding new text:
 25. NAVIGATION (Expo Router)
 Use Expo Router for all screen transitions and layout management.
 Centralized capabilities include:
-- File-based route structure under `app/`
-- App switching & registration via `src/hub/`
-- Native Tab Bar and Stack Headers
-- Hardware Back Button integration on Android
+- File-based route structure under `app/`, one route group per module (`app/(budget)/`, `app/(dhikr)/`, `app/(notes)/`)
+- Module switching & registration via `src/hub/` (`registry.ts` holds the module list, `tabs.ts` holds each module's tab definitions)
+- Two-level shell: `HubHeader` + `AppSwitcher` at the top, `PillNav` at the bottom
+- Native Stack Headers and Hardware Back Button integration on Android
 - Route parameter typing and tab memory persistence
 
 When adding a new app or module:
-1. Create its screen routes in `app/(hub)/[appId]/`.
-2. Define layout options (`Stack.Screen`, `Tabs.Screen`).
-3. Register the module metadata in `src/hub/registry.ts`.
-4. Add translation strings (`en`).
-5. Verify navigation, back stack behavior, and tab state persistence.
+1. Create its route group in `app/(<module>)/` with a `_layout.tsx` that renders `HubHeader` and a `Tabs`/`PillNav` shell.
+2. Add the module's tabs to `src/hub/tabs.ts` and its metadata to `src/hub/registry.ts`.
+3. Add translation strings (`en`).
+4. Verify navigation, back stack behavior, and tab state persistence.
 
 26. STATE MANAGEMENT
 Avoid unnecessary global state.
@@ -414,13 +417,16 @@ Ensure accessible native elements:
 Keep files organized within standard repository structures:
 ```
 app/
-├── (auth)/
-├── (hub)/
+├── (budget)/
+├── (dhikr)/
+├── (notes)/
+├── (tutorial)/
 └── _layout.tsx
 src/
 ├── components/
-├── hub/
-├── lib/
+│   └── tutorial/    # Onboarding previews — reuse real components (see section 21)
+├── hub/             # Module registry and per-module tab definitions
+├── lib/             # Database, domain logic, sample dataset, native abstractions
 └── types/
 scripts/
 └── bump-version.js    # Version sync script (see section 33)
