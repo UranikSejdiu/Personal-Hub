@@ -1,19 +1,13 @@
 import { useEffect, useRef } from "react";
 import { Tabs, useRouter } from "expo-router";
 import { toast } from "sonner-native";
-import { PillNav, type PillNavTab } from "../../src/components/PillNav";
+import { PillNav } from "../../src/components/PillNav";
+import { BUDGET_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 import { loadSavingsGoal } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
-
-const BUDGET_TABS: PillNavTab[] = [
-  { id: "index", label: "Dashboard", icon: "view-dashboard" },
-  { id: "savings", label: "Savings", icon: "piggy-bank" },
-  { id: "loans", label: "Loans", icon: "calculator" },
-  { id: "settings", label: "Settings", icon: "cog" },
-];
 
 export default function BudgetLayout() {
   const router = useRouter();
@@ -48,18 +42,7 @@ export default function BudgetLayout() {
           if (isSubScreen) return null;
           return (
             <PillNav
-              tabs={BUDGET_TABS.map((tab) => ({
-                ...tab,
-               label: t(
-                 tab.id === "index"
-                   ? "navDashboard"
-                   : tab.id === "savings"
-                     ? "navSavings"
-                     : tab.id === "loans"
-                       ? "navLoans"
-                       : "navSettings"
-               ),
-              }))}
+              tabs={BUDGET_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
               activeTabId={routeName}
               onTabPress={(tabId) => {
                 const index = state.routes.findIndex((r) => r.name === tabId);

@@ -7,10 +7,20 @@ import Animated, {
   withTiming,
   Easing,
 } from "react-native-reanimated";
+import { useI18n } from "../../lib/i18n";
+import { SAMPLE_SAVINGS } from "../../lib/sampleDataset";
+import { formatCurrency } from "../../lib/utils";
+
+const DEPOSIT = 200;
+const PURCHASE = 50;
 
 export function SavingsPreview() {
+  const { t } = useI18n();
   const progress = useSharedValue(0);
   const itemSlide = useSharedValue(0);
+
+  const goal = SAMPLE_SAVINGS.goal_amount;
+  const saved = goal * 0.72;
 
   useEffect(() => {
     progress.value = withRepeat(
@@ -34,14 +44,14 @@ export function SavingsPreview() {
     <View className="mx-4 gap-3">
       <View className="rounded-xl border border-border bg-card p-4">
         <View className="flex-row items-center justify-between">
-          <Text className="text-sm font-medium text-foreground">Savings Goal</Text>
+          <Text className="text-sm font-medium text-foreground">{t("savingsGoal")}</Text>
           <View className="rounded-full bg-success/15 px-2 py-0.5">
             <Text className="text-[10px] font-semibold text-success">72%</Text>
           </View>
         </View>
         <View className="mt-2 flex-row justify-between">
-          <Text className="text-xs text-muted-foreground">Goal: €5,000</Text>
-          <Text className="text-xs font-medium text-success">€3,600</Text>
+          <Text className="text-xs text-muted-foreground">{t("savingsGoalOf", { amount: formatCurrency(goal) })}</Text>
+          <Text className="text-xs font-medium text-success">{formatCurrency(saved)}</Text>
         </View>
         <View className="mt-2 h-2.5 overflow-hidden rounded-full bg-border">
           <Animated.View style={barStyle} className="h-full rounded-full bg-success" />
@@ -50,16 +60,20 @@ export function SavingsPreview() {
       <Animated.View style={item1Style} className="flex-row items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
         <View className="flex-row items-center gap-2">
           <View className="h-2 w-2 rounded-full bg-success" />
-          <Text className="text-xs text-foreground">Monthly deposit</Text>
+          <Text className="text-xs text-foreground">{t("savingsMonthlyDeposit")}</Text>
         </View>
-        <Text className="text-xs font-medium text-success">+€200</Text>
+        <Text className="text-xs font-medium text-success">
+          +{formatCurrency(DEPOSIT)}
+        </Text>
       </Animated.View>
       <Animated.View style={item2Style} className="flex-row items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
         <View className="flex-row items-center gap-2">
           <View className="h-2 w-2 rounded-full bg-destructive" />
-          <Text className="text-xs text-foreground">Purchase</Text>
+          <Text className="text-xs text-foreground">{t("savingsPurchase")}</Text>
         </View>
-        <Text className="text-xs font-medium text-destructive">-€50</Text>
+        <Text className="text-xs font-medium text-destructive">
+          -{formatCurrency(PURCHASE)}
+        </Text>
       </Animated.View>
     </View>
   );

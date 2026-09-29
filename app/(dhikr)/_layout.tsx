@@ -1,14 +1,9 @@
 import { Tabs, useRouter } from "expo-router";
-import { PillNav, type PillNavTab } from "../../src/components/PillNav";
+import { PillNav } from "../../src/components/PillNav";
+import { DHIKR_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
-
-const DHIKR_TABS: PillNavTab[] = [
-  { id: "index", label: "Counter", icon: "star-four-points" },
-  { id: "list", label: "Dhikrs", icon: "format-list-numbered" },
-  { id: "settings", label: "Settings", icon: "cog" },
-];
 
 export default function DhikrLayout() {
   const router = useRouter();
@@ -22,16 +17,7 @@ export default function DhikrLayout() {
         screenOptions={{ headerShown: false }}
         tabBar={({ state }) => (
           <PillNav
-            tabs={DHIKR_TABS.map((tab) => ({
-              ...tab,
-              label: t(
-                tab.id === "index"
-                  ? "navCounter"
-                  : tab.id === "list"
-                    ? "navDhikrList"
-                    : "navSettings"
-              ),
-            }))}
+            tabs={DHIKR_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
             activeTabId={state.routes[state.index].name}
             onTabPress={(tabId) => {
               const index = state.routes.findIndex((r) => r.name === tabId);

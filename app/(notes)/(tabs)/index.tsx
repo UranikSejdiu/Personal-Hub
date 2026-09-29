@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable, TextInput, FlatList, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { FileText, Plus, Search, XCircle, Pin } from "../../../src/components/AppIcons";
+import { FileText, Plus, Search, XCircle } from "../../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, type TKey } from "../../../src/lib/i18n";
@@ -9,7 +9,7 @@ import {
   searchNotes,
   type Note,
 } from "../../../src/lib/notes";
-import { getPreviewSegments } from "../../../src/lib/noteContent";
+import { NoteCard } from "../../../src/components/NoteCard";
 import { useThemeColors } from "../../../src/lib/theme";
 import { useHaptics } from "../../../src/hooks/useHaptics";
 
@@ -42,76 +42,6 @@ function zipColumnsToRows(cols: Note[][]): (Note | null)[][] {
 type NotesListRow =
   | { type: "section"; key: string; labelKey: TKey; spacedTop?: boolean }
   | { type: "notes"; key: string; notes: (Note | null)[] };
-
-const NoteCard = React.memo(function NoteCard({
-  note,
-  onPress,
-  untitledLabel,
-}: {
-  note: Note;
-  onPress: (noteId: number) => void;
-  untitledLabel: string;
-}) {
-  const colors = useThemeColors();
-
-  const previewLines = useMemo(() => {
-    if (!note.content) return [];
-    return getPreviewSegments(note.content, 3);
-  }, [note.content]);
-
-  return (
-    <Pressable
-      onPress={() => onPress(note.id)}
-      className="relative mb-2 rounded-lg border border-border/50 bg-card p-3"
-      accessibilityRole="button"
-      accessibilityLabel={note.title || untitledLabel}
-    >
-      <View className="flex-row items-start justify-between gap-2">
-        <Text
-          numberOfLines={2}
-          className="flex-1 text-base font-medium text-foreground"
-        >
-          {note.title || untitledLabel}
-        </Text>
-        {note.is_pinned ? (
-          <View
-            className="mt-0.5 shrink-0"
-            accessible
-            accessibilityRole="image"
-            accessibilityLabel="Pinned"
-          >
-            <Pin size={14} color={colors.primary} />
-          </View>
-        ) : null}
-      </View>
-      {previewLines.length > 0 ? (
-        <View style={{ marginTop: 6 }}>
-          {previewLines.map((line, i) => (
-            <Text
-              key={i}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              className="text-[13px] leading-[18px] text-muted-foreground"
-            >
-              {line.map((segment, segmentIndex) => (
-                <Text
-                  key={`${i}-${segmentIndex}`}
-                  style={{
-                    fontWeight: segment.bold ? "700" : undefined,
-                    fontStyle: segment.italic ? "italic" : undefined,
-                    textDecorationLine: segment.strikethrough ? "line-through" : undefined,
-                  }}
-                >
-                  {segment.text}
-                </Text>
-              ))}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-    </Pressable>
-  );
-});
 
 export default function NotesListScreen() {
   const { t } = useI18n();

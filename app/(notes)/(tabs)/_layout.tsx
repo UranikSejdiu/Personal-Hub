@@ -1,11 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
-import { PillNav, type PillNavTab } from "../../../src/components/PillNav";
+import { PillNav } from "../../../src/components/PillNav";
+import { NOTES_TABS } from "../../../src/hub/tabs";
 import { useI18n } from "../../../src/lib/i18n";
-
-const NOTES_TABS: PillNavTab[] = [
-  { id: "index", label: "Notes", icon: "note-text" },
-  { id: "settings", label: "Settings", icon: "cog" },
-];
 
 export default function NotesTabsLayout() {
   const router = useRouter();
@@ -17,14 +13,9 @@ export default function NotesTabsLayout() {
       tabBar={({ state }) => {
         const routeName = state.routes[state.index].name;
         return (
-          <PillNav
-            tabs={NOTES_TABS.map((tab) => ({
-              ...tab,
-              label: t(
-                tab.id === "index" ? "navNotes" : "navSettings"
-              ),
-            }))}
-            activeTabId={routeName}
+            <PillNav
+              tabs={NOTES_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
+              activeTabId={routeName}
             onTabPress={(tabId) => {
               const index = state.routes.findIndex((r) => r.name === tabId);
               if (index !== -1) {

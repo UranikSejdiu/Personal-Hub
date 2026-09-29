@@ -467,18 +467,63 @@ export async function copyBudgetFromMonth(
 // Dashboard summary
 // ---------------------------------------------------------------------------
 
+/** Monthly loan instalment, honouring a manual override when one is set. */
+export function loanMonthlyPayment(loans: Loans): number {
+  if (loans.loan_amount <= 0 || loans.loan_term <= 0) return 0;
+  return loans.loan_payment > 0
+    ? loans.loan_payment
+    : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
+}
+
+/** Aggregated month figures the dashboard card renders. */
+export interface MonthSummaryInput {
+  month: string;
+  income: number;
+  loanPaid: boolean;
+  ccPaid: boolean;
+  totalExpenses: number;
+  paidExpenses: number;
+}
+
+/**
+ * Pure month aggregation shared by the dashboard and the onboarding tutorial, so
+ * both always agree on the numbers they show. Everything it needs arrives as an
+ * argument: it never touches storage.
+ */
+export function computeMonthSummary(
+  input: MonthSummaryInput,
+  loans: Loans,
+  goalAmount: number
+): MonthSummary {
+  const { month, income, loanPaid, ccPaid, totalExpenses, paidExpenses } = input;
+  const loanPayment = loanMonthlyPayment(loans);
+  const ccPayment = loans.cc_payment || 0;
+  const outflow = loanPayment + ccPayment + totalExpenses + goalAmount;
+  const actualOutflow =
+    (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + paidExpenses;
+  const actualRemaining = income - actualOutflow;
+  const goalProgress =
+    goalAmount > 0
+      ? Math.min(100, Math.max(0, (actualRemaining / goalAmount) * 100))
+      : 0;
+  return {
+    month,
+    income,
+    outflow,
+    remaining: income - outflow,
+    actualOutflow,
+    actualRemaining,
+    savingsGoal: goalAmount,
+    goalProgress,
+    goalMet: goalAmount > 0 && actualRemaining >= goalAmount,
+  };
+}
+
 export async function listMonthSummaries(
   loans: Loans
 ): Promise<MonthSummary[]> {
   const savingsGoal = await loadSavingsGoal();
   const goalAmt = savingsGoal.goal_amount;
-
-  const loanPayment =
-    loans.loan_amount > 0 && loans.loan_term > 0
-      ? loans.loan_payment > 0
-        ? loans.loan_payment
-        : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term)
-      : 0;
 
   const rows = await db.query<Record<string, unknown>>(
     `SELECT
@@ -494,32 +539,18 @@ export async function listMonthSummaries(
      ORDER BY b.month DESC`
   );
 
-  return rows.map((row) => {
-    const income = Number(row.income) || 0;
-    const totalExpenses = Number(row.total_expenses) || 0;
-    const paidExpenses = Number(row.paid_expenses) || 0;
-    const outflow =
-      loanPayment + loans.cc_payment + totalExpenses + goalAmt;
-    const actualOutflow =
-      (Number(row.loan_paid) === 1 ? loanPayment : 0) +
-      (Number(row.cc_paid) === 1 ? loans.cc_payment : 0) +
-      paidExpenses;
-    const actualRemaining = income - actualOutflow;
-    const goalProgress =
-      goalAmt > 0
-        ? Math.min(100, Math.max(0, (actualRemaining / goalAmt) * 100))
-        : 0;
-    const goalMet = goalAmt > 0 && actualRemaining >= goalAmt;
-    return {
-      month: String(row.month),
-      income,
-      outflow,
-      remaining: income - outflow,
-      actualOutflow,
-      actualRemaining,
-      savingsGoal: goalAmt,
-      goalProgress,
-      goalMet,
-    };
-  });
+  return rows.map((row) =>
+    computeMonthSummary(
+      {
+        month: String(row.month),
+        income: Number(row.income) || 0,
+        loanPaid: Number(row.loan_paid) === 1,
+        ccPaid: Number(row.cc_paid) === 1,
+        totalExpenses: Number(row.total_expenses) || 0,
+        paidExpenses: Number(row.paid_expenses) || 0,
+      },
+      loans,
+      goalAmt
+    )
+  );
 }

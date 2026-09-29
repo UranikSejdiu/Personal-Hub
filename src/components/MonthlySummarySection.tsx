@@ -3,8 +3,12 @@ import { View, Text } from "react-native";
 import { CircleCheck } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { pmt } from "../lib/calculations";
-import { type Budget, type Expense, type Loans } from "../lib/budget";
+import {
+  loanMonthlyPayment,
+  type Budget,
+  type Expense,
+  type Loans,
+} from "../lib/budget";
 import { formatCurrency } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
@@ -28,12 +32,7 @@ export function MonthlySummarySection({
   const colors = useThemeColors();
 
   const c = useMemo(() => {
-    const loanPayment =
-      loans.loan_amount <= 0 || loans.loan_term <= 0
-        ? 0
-        : loans.loan_payment > 0
-          ? loans.loan_payment
-          : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
+    const loanPayment = loanMonthlyPayment(loans);
     const ccPayment = loans.cc_payment || 0;
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const totalOutflow = loanPayment + ccPayment + totalExpenses + savingsGoal;

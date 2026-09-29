@@ -8,6 +8,7 @@ import { setTutorialSeen } from "../lib/tutorial";
 import { useHaptics } from "../hooks/useHaptics";
 import { withAlpha } from "../lib/utils";
 import { WelcomePreview } from "./tutorial/WelcomePreview";
+import { NavigationPreview } from "./tutorial/NavigationPreview";
 import { DashboardPreview } from "./tutorial/DashboardPreview";
 import { SavingsPreview } from "./tutorial/SavingsPreview";
 import { LoansPreview } from "./tutorial/LoansPreview";
@@ -25,6 +26,7 @@ interface TutorialPage {
 
 const PAGES: TutorialPage[] = [
   { titleKey: "tutorialWelcome", descKey: "tutorialWelcomeDesc", preview: WelcomePreview },
+  { titleKey: "tutorialNavigation", descKey: "tutorialNavigationDesc", preview: NavigationPreview },
   { titleKey: "tutorialDashboard", descKey: "tutorialDashboardDesc", preview: DashboardPreview },
   { titleKey: "tutorialSavings", descKey: "tutorialSavingsDesc", preview: SavingsPreview },
   { titleKey: "tutorialLoans", descKey: "tutorialLoansDesc", preview: LoansPreview },

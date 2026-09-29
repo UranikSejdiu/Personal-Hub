@@ -6,6 +6,7 @@ import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { useThemeColors } from "../../src/lib/theme";
+import { withAlpha } from "../../src/lib/utils";
 import {
   loadDhikrs,
   incrementDhikr,
@@ -215,6 +216,9 @@ export default function CounterScreen() {
         <Pressable
           onPress={handleOpenList}
           className="mt-4 flex-row items-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+          accessibilityRole="button"
+          accessibilityLabel={t("addDhikrBtn")}
+          android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
         >
           <Sparkles size={16} color={colors.primaryForeground} />
           <Text className="text-sm font-medium text-primary-foreground">

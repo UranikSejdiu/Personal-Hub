@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
-import { Trash2, Plus, ChevronDown } from "../../src/components/AppIcons";
+import { Plus } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 
@@ -21,7 +21,8 @@ import {
   type MonthSummary,
 } from "../../src/lib/budget";
 import { withTransaction } from "../../src/lib/db";
-import { formatCurrency, withAlpha } from "../../src/lib/utils";
+import { withAlpha } from "../../src/lib/utils";
+import { BudgetMonthCard } from "../../src/components/BudgetMonthCard";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
 export default function DashboardScreen() {
@@ -143,115 +144,16 @@ export default function DashboardScreen() {
   }, [creatingBudget, openBudgetMonth, refresh, lang, t, haptics]);
 
   const renderMonth = useCallback(
-    ({ item }: { item: MonthSummary }) => {
-      const expanded = expandedMonths.has(item.month);
-      return (
-        <View className="rounded-xl border border-border bg-card p-3">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2">
-              <Pressable
-                onPress={() => openBudgetMonth(item.month)}
-                accessibilityRole="button"
-                accessibilityLabel={monthLabelShort(lang, item.month)}
-              >
-                <Text className="font-medium text-foreground underline">
-                  {monthLabelShort(lang, item.month)}
-                </Text>
-              </Pressable>
-              <Text
-                className={`text-xs ${item.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
-              >
-                {formatCurrency(item.remaining)}
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-1">
-              <Pressable
-                onPress={() => toggleMonth(item.month)}
-                className="h-6 w-6 items-center justify-center rounded-md transition-colors"
-                accessibilityLabel={expanded ? t("collapse") : t("expand")}
-                accessibilityRole="button"
-                accessibilityState={{ expanded }}
-                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-              >
-                <View style={expanded ? styles.rotated : undefined}>
-                  <ChevronDown
-                    size={16}
-                    color={item.remaining < 0 ? colors.destructive : colors.mutedForeground}
-                  />
-                </View>
-              </Pressable>
-              <Pressable
-                onPress={() => setMonthToDelete(item.month)}
-                className="h-6 w-6 items-center justify-center rounded-md transition-colors"
-                accessibilityLabel={t("delete")}
-                accessibilityRole="button"
-                android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
-              >
-                <Trash2 size={14} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
-          </View>
-
-          {expanded && (
-            <View className="mt-2 gap-1">
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">{t("incomeColon")} </Text>
-                <Text className="font-medium text-foreground">
-                  {formatCurrency(item.income)}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">{t("plannedColon")} </Text>
-                <Text className="font-medium text-foreground">
-                  {formatCurrency(item.outflow)}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">{t("remainsColon")} </Text>
-                <Text
-                  className={item.remaining < 0 ? "text-destructive" : "font-medium text-foreground"}
-                >
-                  {formatCurrency(item.remaining)}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">{t("paidColon")} </Text>
-                <Text className="font-medium text-foreground">
-                  {formatCurrency(item.actualOutflow)}
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-muted-foreground">{t("actuallyRemainsColon")} </Text>
-                <Text className="font-medium text-foreground">
-                  {formatCurrency(item.actualRemaining)}
-                </Text>
-              </View>
-
-              {item.savingsGoal > 0 && (
-                <View className="mt-1 gap-1">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-xs text-muted-foreground">{t("goalColon")}</Text>
-                    <Text
-                      className={item.goalMet ? "text-success" : "font-medium text-foreground"}
-                    >
-                      {formatCurrency(Math.max(0, item.actualRemaining))} /{" "}
-                      {formatCurrency(item.savingsGoal)}
-                    </Text>
-                  </View>
-                  <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                    <View
-                      className={item.goalMet ? "bg-success" : "bg-primary"}
-                      style={{ width: `${item.goalProgress}%`, height: "100%" }}
-                    />
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-      );
-    },
-    [expandedMonths, lang, openBudgetMonth, t, toggleMonth, colors.destructive, colors.mutedForeground, colors.primary]
+    ({ item }: { item: MonthSummary }) => (
+      <BudgetMonthCard
+        summary={item}
+        expanded={expandedMonths.has(item.month)}
+        onOpen={() => openBudgetMonth(item.month)}
+        onToggleExpand={() => toggleMonth(item.month)}
+        onDelete={() => setMonthToDelete(item.month)}
+      />
+    ),
+    [expandedMonths, openBudgetMonth, toggleMonth]
   );
 
   return (
@@ -275,7 +177,25 @@ export default function DashboardScreen() {
         {!loaded ? (
           <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
         ) : summaries.length === 0 ? (
-          <Text className="text-sm text-muted-foreground">{t("noBudgetsSaved")}</Text>
+          <View className="items-center gap-2 rounded-xl border border-border bg-card px-5 py-8">
+            <Text className="text-center text-base font-semibold text-foreground">
+              {t("dashboardEmptyTitle")}
+            </Text>
+            <Text className="text-center text-sm text-muted-foreground">
+              {t("dashboardEmptyHint")}
+            </Text>
+            <Pressable
+              onPress={handleNewBudget}
+              disabled={creatingBudget}
+              className="mt-2 flex-row items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
+              accessibilityRole="button"
+              accessibilityLabel={t("newBudget")}
+              android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
+            >
+              <Plus size={16} color={colors.primaryForeground} />
+              <Text className="text-sm font-medium text-primary-foreground">{t("newBudget")}</Text>
+            </Pressable>
+          </View>
         ) : (
           <FlatList
             data={summaries}
@@ -305,8 +225,5 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  rotated: {
-    transform: [{ rotate: "180deg" }],
-  },
   listContent: { gap: 8 },
 });

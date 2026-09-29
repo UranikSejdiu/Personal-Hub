@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen, RotateCcw } from "./AppIcons";
+import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
@@ -26,6 +26,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
 import { setTutorialSeen } from "../lib/tutorial";
+import { clearSampleData, hasSampleData } from "../lib/sampleData";
 import { resetPlainTextBackfill } from "../lib/notes";
 
 type Section = "general" | "budget" | "backup" | "about" | null;
@@ -69,6 +70,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [canRestoreSafety, setCanRestoreSafety] = useState(false);
+const [sampleDataPresent, setSampleDataPresent] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
@@ -108,6 +110,12 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
         toast.error(t("errorLoadingData"));
       });
     }
+    void hasSampleData()
+      .then(setSampleDataPresent)
+      .catch(() => {
+        // A failed check only hides the optional reset action.
+        setSampleDataPresent(false);
+      });
   }, [activeAppId, t]);
 
   const flushGoalSave = useCallback(
@@ -199,6 +207,34 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
       setBackupBusy(false);
     }
   }, [t, reloadBudgetGoal]);
+
+  /** Remove the demo rows written on first run, so the app starts from scratch. */
+  const runClearSampleData = useCallback(async () => {
+    setBackupBusy(true);
+    try {
+      const removed = await clearSampleData();
+      if (removed) {
+        setSampleDataPresent(false);
+        toast.success(t("sampleDataCleared"));
+        await reloadBudgetGoal();
+      }
+    } catch {
+      toast.error(t("sampleDataClearFailed"));
+    } finally {
+      setBackupBusy(false);
+      setConfirmAction(null);
+    }
+  }, [t, reloadBudgetGoal]);
+
+  const handleClearSampleData = useCallback(() => {
+    setConfirmAction({
+      title: t("sampleDataClear"),
+      message: t("sampleDataClearConfirm"),
+      confirmLabel: t("sampleDataClear"),
+      destructive: true,
+      onConfirm: () => runClearSampleData(),
+    });
+  }, [t, runClearSampleData]);
 
   /** Offer the restore after an import that may have replaced the wrong file. */
   const handleRestoreSafety = useCallback(() => {
@@ -456,6 +492,32 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                 <ChevronRight size={20} color={colors.mutedForeground} />
               </View>
             </Pressable>
+
+            {sampleDataPresent ? (
+              <Pressable
+                onPress={handleClearSampleData}
+                disabled={backupBusy}
+                className="rounded-xl border border-border bg-card p-4 disabled:opacity-60"
+                android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
+                accessibilityRole="button"
+                accessibilityLabel={t("sampleDataClear")}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 flex-row items-center gap-3 pr-3">
+                    <Trash2 size={20} color={colors.destructive} />
+                    <View className="flex-1">
+                      <Text className="text-sm font-medium text-foreground">
+                        {t("sampleDataClear")}
+                      </Text>
+                      <Text className="mt-0.5 text-xs text-muted-foreground">
+                        {t("sampleDataDescription")}
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={colors.mutedForeground} />
+                </View>
+              </Pressable>
+            ) : null}
           </View>
         )}
 

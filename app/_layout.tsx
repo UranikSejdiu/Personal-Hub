@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
+import { seedSampleData } from "../src/lib/sampleData";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
@@ -86,6 +87,13 @@ function BootstrapGate() {
     (async () => {
       try {
         await initDatabase();
+        // Demo data for a first run, written before anything mounts so every
+        // screen picks it up on its first focus without a refresh signal. A
+        // failure here is never fatal: the app opens empty and the seed is
+        // retried on the next launch.
+        await seedSampleData().catch(() => {
+          // Non-critical — the app is fully usable without demo data.
+        });
         if (!cancelled) setDbReady(true);
       } catch (err) {
         if (!cancelled) {
