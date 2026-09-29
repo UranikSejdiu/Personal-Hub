@@ -31,7 +31,6 @@ export default function DashboardScreen() {
   const [summaries, setSummaries] = useState<MonthSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [monthToDelete, setMonthToDelete] = useState<string | null>(null);
-  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [creatingBudget, setCreatingBudget] = useState(false);
 
   const haptics = useHaptics();
@@ -68,15 +67,6 @@ export default function DashboardScreen() {
       };
     }, [t])
   );
-
-  const toggleMonth = useCallback((month: string) => {
-    setExpandedMonths((prev) => {
-      const next = new Set(prev);
-      if (next.has(month)) next.delete(month);
-      else next.add(month);
-      return next;
-    });
-  }, []);
 
   const openBudgetMonth = useCallback(
     (month: string) => {
@@ -150,13 +140,11 @@ export default function DashboardScreen() {
     ({ item }: { item: MonthSummary }) => (
       <BudgetMonthCard
         summary={item}
-        expanded={expandedMonths.has(item.month)}
         onOpen={() => openBudgetMonth(item.month)}
-        onToggleExpand={() => toggleMonth(item.month)}
         onDelete={() => setMonthToDelete(item.month)}
       />
     ),
-    [expandedMonths, openBudgetMonth, toggleMonth]
+    [openBudgetMonth]
   );
 
   return (

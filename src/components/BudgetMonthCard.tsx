@@ -1,3 +1,4 @@
+import { memo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Trash2, ChevronDown } from "./AppIcons";
 import { useI18n, monthLabelShort } from "../lib/i18n";
@@ -7,23 +8,28 @@ import type { MonthSummary } from "../types/budget";
 
 interface BudgetMonthCardProps {
   summary: MonthSummary;
-  expanded: boolean;
   onOpen: () => void;
-  onToggleExpand: () => void;
   onDelete: () => void;
+  /** Controlled expand state (used by the tutorial); the card manages its own otherwise. */
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
-export function BudgetMonthCard({
+export const BudgetMonthCard = memo(function BudgetMonthCard({
   summary,
-  expanded,
   onOpen,
-  onToggleExpand,
   onDelete,
+  expanded,
+  onToggleExpand,
 }: BudgetMonthCardProps) {
   const { t, lang } = useI18n();
   const colors = useThemeColors();
   const monthLabel = monthLabelShort(lang, summary.month);
   const isNegative = summary.remaining < 0;
+
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = expanded ?? internalExpanded;
+  const handleToggle = onToggleExpand ?? (() => setInternalExpanded((value) => !value));
 
   return (
     <View className="rounded-xl border border-border bg-card p-3">
@@ -42,14 +48,14 @@ export function BudgetMonthCard({
         </View>
         <View className="flex-row items-center gap-1">
           <Pressable
-            onPress={onToggleExpand}
+            onPress={handleToggle}
             className="h-6 w-6 items-center justify-center rounded-md transition-colors"
-            accessibilityLabel={expanded ? t("collapse") : t("expand")}
+            accessibilityLabel={isExpanded ? t("collapse") : t("expand")}
             accessibilityRole="button"
-            accessibilityState={{ expanded }}
+            accessibilityState={{ expanded: isExpanded }}
             android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
           >
-            <View style={expanded ? styles.rotated : undefined}>
+            <View style={isExpanded ? styles.rotated : undefined}>
               <ChevronDown
                 size={16}
                 color={isNegative ? colors.destructive : colors.mutedForeground}
@@ -68,7 +74,7 @@ export function BudgetMonthCard({
         </View>
       </View>
 
-      {expanded && (
+      {isExpanded && (
         <View className="mt-2 gap-1">
           <View className="flex-row justify-between">
             <Text className="text-muted-foreground">{t("incomeColon")} </Text>
@@ -120,7 +126,7 @@ export function BudgetMonthCard({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   rotated: {

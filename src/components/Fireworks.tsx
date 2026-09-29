@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
@@ -47,7 +47,7 @@ function buildParticles(): Particle[] {
   return particles;
 }
 
-function Rocket({ particle }: { particle: Particle }) {
+const Rocket = memo(function Rocket({ particle }: { particle: Particle }) {
   const progress = useSharedValue(0);
   const style = useAnimatedStyle(() => {
     const dx = Math.cos(particle.angle) * particle.distance * progress.value;
@@ -83,7 +83,7 @@ function Rocket({ particle }: { particle: Particle }) {
       ]}
     />
   );
-}
+});
 
 export default function Fireworks({
   onComplete,

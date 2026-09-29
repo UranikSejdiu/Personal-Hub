@@ -85,12 +85,16 @@ export default function TutorialScreen() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
       >
-        {PAGES.map((page) => {
+        {PAGES.map((page, index) => {
           const Preview = page.preview;
+          // Only mount the active and adjacent pages: the loans preview builds a
+          // full amortisation schedule and several previews run infinite
+          // animations, so rendering all eight up front wastes UI-thread time.
+          const active = Math.abs(index - currentPage) <= 1;
           return (
             <View key={page.titleKey} style={{ width: SCREEN_WIDTH }} className="flex-1 items-center justify-center px-6">
               <View className="w-full max-w-sm items-center">
-                <Preview />
+                {active ? <Preview /> : null}
                 <View className="mt-8 items-center gap-2 px-4">
                   <Text className="text-center text-xl font-bold text-foreground">
                     {t(page.titleKey)}

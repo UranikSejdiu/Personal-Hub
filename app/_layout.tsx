@@ -87,14 +87,13 @@ function BootstrapGate() {
     (async () => {
       try {
         await initDatabase();
-        // Demo data for a first run, written before anything mounts so every
-        // screen picks it up on its first focus without a refresh signal. A
-        // failure here is never fatal: the app opens empty and the seed is
-        // retried on the next launch.
-        await seedSampleData().catch(() => {
+        if (!cancelled) setDbReady(true);
+        // Demo data for a first run, seeded in the background so it never
+        // delays first paint. Screens reload on focus, so it is picked up
+        // whenever it lands; a failure is never fatal and retries next launch.
+        void seedSampleData().catch(() => {
           // Non-critical — the app is fully usable without demo data.
         });
-        if (!cancelled) setDbReady(true);
       } catch (err) {
         if (!cancelled) {
           setDbError(err instanceof Error ? err.message : String(err));
