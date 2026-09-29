@@ -35,10 +35,17 @@ export function dailyProgress(dhikr: Dhikr): number {
 
 export async function loadDhikrs(): Promise<Dhikr[]> {
   const today = todayDate();
-  await db.execute(
-    "UPDATE dhikrs SET daily_count = 0, last_reset_date = ? WHERE last_reset_date < ? AND daily_count > 0",
-    [today, today]
-  );
+  // Best-effort day rollover: a failed reset must never fail the read. Rows are
+  // also reset lazily inside incrementDhikr on the next tap, so a missed reset
+  // here only affects the stale daily_count display, not data.
+  try {
+    await db.execute(
+      "UPDATE dhikrs SET daily_count = 0, last_reset_date = ? WHERE last_reset_date < ? AND daily_count > 0",
+      [today, today]
+    );
+  } catch (error) {
+    console.warn("[dhikr] failed to roll over daily counts", error);
+  }
   const rows = await db.query<Record<string, unknown>>(
     "SELECT * FROM dhikrs ORDER BY sort_order ASC, created_at DESC"
   );

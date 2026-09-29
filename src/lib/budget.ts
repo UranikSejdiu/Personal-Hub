@@ -19,7 +19,15 @@ export function currentMonth(): string {
 }
 
 export function addMonths(key: string, delta: number): string {
-  const [year, month] = key.split("-").map(Number);
+  const match = /^(\d{4})-(\d{2})$/.exec(key);
+  const year = match ? Number(match[1]) : NaN;
+  const month = match ? Number(match[2]) : NaN;
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    // Malformed key: never emit "NaN-NaN" — fall back to the current month.
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth() + delta, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  }
   const date = new Date(year, month - 1 + delta, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }

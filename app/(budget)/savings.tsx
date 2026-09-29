@@ -278,6 +278,7 @@ export default function SavingsScreen() {
   );
 
   const handleSave = useCallback(async () => {
+    if (saving) return;
     const parsed = parseFloat(formAmount.replace(",", "."));
     if (Number.isNaN(parsed) || parsed <= 0) {
       setModalError(t("savingsErrorAmount"));
@@ -314,7 +315,7 @@ export default function SavingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics, saving]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null && editingKind !== "auto") return;

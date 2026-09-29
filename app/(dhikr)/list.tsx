@@ -204,12 +204,12 @@ export default function DhikrListScreen() {
             onPress: async () => {
               try {
                 await deleteDhikr(dhikr.id);
-                setDhikrs((prev) => {
-                  const remaining = prev.filter((d) => d.id !== dhikr.id);
-                  void clearSelectedDhikrIdIfMissing(remaining.map((d) => d.id)).catch(() => {
-                    toast.error(t("errorSavingData"));
-                  });
-                  return remaining;
+                const remaining = dhikrs.filter((d) => d.id !== dhikr.id);
+                setDhikrs(remaining);
+                void clearSelectedDhikrIdIfMissing(
+                  remaining.map((d) => d.id)
+                ).catch(() => {
+                  toast.error(t("errorSavingData"));
                 });
               } catch {
                 toast.error(t("errorDeletingDhikr"));
@@ -219,7 +219,7 @@ export default function DhikrListScreen() {
         ]
       );
     },
-    [t]
+    [t, dhikrs]
   );
 
   const handleDragEnd = useCallback(

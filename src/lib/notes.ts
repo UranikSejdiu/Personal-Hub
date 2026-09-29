@@ -96,8 +96,10 @@ async function ensurePlainTextBackfill(): Promise<void> {
         needsPollutedRepair = false;
       }
     } catch (error) {
-      backfillPromise = null;
-      throw error;
+      // Best-effort: a failed backfill write must never fail the read. Rows are
+      // still returned as-is and the backfill is retried on the next launch (or
+      // after a restore via resetPlainTextBackfill).
+      console.warn("[notes] plain_text backfill failed", error);
     }
   })();
   return backfillPromise;

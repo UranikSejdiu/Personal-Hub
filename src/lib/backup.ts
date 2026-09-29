@@ -187,6 +187,7 @@ function validateDhikr(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "name") || !isInteger(row.total_count) || !isInteger(row.daily_count) || !isInteger(row.sort_order)) return "dhikr fields invalid";
   if (row.daily_limit !== null && !isInteger(row.daily_limit)) return "dhikr.daily_limit invalid";
   if (Number(row.total_count) < 0 || Number(row.daily_count) < 0 || Number(row.sort_order) < 0) return "dhikr counts and sort order must be non-negative";
+  if (row.daily_limit !== null && Number(row.daily_limit) < 0) return "dhikr.daily_limit must be non-negative";
   if (!isValidDate(row.last_reset_date) || !requiredString(row, "created_at")) return "dhikr dates invalid";
   return null;
 }
@@ -341,11 +342,13 @@ export async function restoreSafetyBackup(): Promise<void> {
   if (importInProgress) {
     throw new Error("An import is already in progress");
   }
-  const file = safetyBackupFile();
-  if (!file.exists) throw new Error("No safety backup available");
-  const jsonStr = await readTextFile(file);
+  // Claim the mutex immediately: reading the file happens after, so two
+  // simultaneous restores must not both pass the guard above.
   importInProgress = true;
   try {
+    const file = safetyBackupFile();
+    if (!file.exists) throw new Error("No safety backup available");
+    const jsonStr = await readTextFile(file);
     await performImport(jsonStr, { skipSafetyBackup: true });
   } finally {
     importInProgress = false;

@@ -67,6 +67,7 @@ export default function BudgetScreen() {
   const latestSaveRef = useRef<PendingBudgetSave>(null);
   const saveInFlightRef = useRef(false);
   const scheduleSaveRef = useRef<() => void>(() => {});
+  const flushSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const loadRequestRef = useRef(0);
   const toggleInFlightRef = useRef(false);
   const saveQueueRef = useRef(Promise.resolve());
@@ -154,9 +155,14 @@ export default function BudgetScreen() {
     if (prevMonthRef.current === month) return;
     prevMonthRef.current = month;
     activeMonthRef.current = month;
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+    if (saveTimerRef.current || pendingSaveRef.current) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      // Flush the pending edit for the month we are leaving so a debounced
+      // change is not silently dropped by this in-place month switch.
+      void flushSaveRef.current();
     }
     budgetIdRef.current = null;
     salaryRef.current = 0;
@@ -288,7 +294,8 @@ export default function BudgetScreen() {
 
   useEffect(() => {
     scheduleSaveRef.current = scheduleSave;
-  }, [scheduleSave]);
+    flushSaveRef.current = flushSave;
+  }, [scheduleSave, flushSave]);
 
   useEffect(() => {
     if (!budget || !loans) return;

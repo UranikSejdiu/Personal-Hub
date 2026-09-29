@@ -258,7 +258,6 @@ export default function NotesListScreen() {
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}
-        removeClippedSubviews
       />
     </View>
   );

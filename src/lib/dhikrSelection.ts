@@ -22,8 +22,8 @@ export async function setSelectedDhikrId(id: number | null): Promise<void> {
       await AsyncStorage.setItem(SELECTED_ID_KEY, String(id));
     }
   } catch (error) {
+    // Best-effort: selection persistence degrades gracefully on storage failure.
     console.warn("[dhikr] failed to persist selected item", error);
-    throw error;
   }
 }
 
@@ -35,6 +35,5 @@ export async function clearSelectedDhikrIdIfMissing(validIds: number[]): Promise
     }
   } catch (error) {
     console.warn("[dhikr] failed to repair selected item", error);
-    throw error;
   }
 }

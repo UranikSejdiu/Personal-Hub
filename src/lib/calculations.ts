@@ -3,8 +3,11 @@ export function pmt(
   annualRate: number,
   months: number
 ): number {
-  if (months === 0) return 0;
-  if (annualRate === 0) return principal / months;
+  if (!Number.isFinite(principal) || !Number.isFinite(annualRate) || !Number.isFinite(months)) {
+    return 0;
+  }
+  if (principal <= 0 || months <= 0) return 0;
+  if (annualRate <= 0) return principal / months;
   const r = annualRate / 100 / 12;
   return (
     (principal * r * Math.pow(1 + r, months)) /
@@ -18,13 +21,22 @@ export function remainingBalance(
   totalMonths: number,
   paidMonths: number
 ): number {
-  if (totalMonths <= 0) return 0;
-  if (paidMonths >= totalMonths) return 0;
-  if (annualRate === 0) {
-    return principal - (principal / totalMonths) * paidMonths;
+  if (
+    !Number.isFinite(principal) ||
+    !Number.isFinite(annualRate) ||
+    !Number.isFinite(totalMonths) ||
+    !Number.isFinite(paidMonths)
+  ) {
+    return 0;
   }
-  const r = annualRate / 100 / 12;
-  const payment = pmt(principal, annualRate, totalMonths);
+  if (principal <= 0 || totalMonths <= 0) return 0;
+  if (paidMonths >= totalMonths) return 0;
+  const rate = annualRate > 0 ? annualRate : 0;
+  if (rate === 0) {
+    return Math.max(0, principal - (principal / totalMonths) * paidMonths);
+  }
+  const r = rate / 100 / 12;
+  const payment = pmt(principal, rate, totalMonths);
   const balance =
     (payment / r) * (1 - 1 / Math.pow(1 + r, totalMonths - paidMonths));
   return Math.max(0, Math.round(balance * 100) / 100);
@@ -192,11 +204,14 @@ export function creditCardPayoff(
   annualApr: number,
   monthlyPayment: number
 ): { months: number; totalInterest: number } {
+  if (!Number.isFinite(balance) || !Number.isFinite(annualApr) || !Number.isFinite(monthlyPayment)) {
+    return { months: Infinity, totalInterest: Infinity };
+  }
   if (balance <= 0) return { months: 0, totalInterest: 0 };
   if (monthlyPayment <= 0)
     return { months: Infinity, totalInterest: Infinity };
 
-  if (annualApr === 0) {
+  if (annualApr <= 0) {
     return {
       months: Math.ceil(balance / monthlyPayment),
       totalInterest: 0,
@@ -209,18 +224,20 @@ export function creditCardPayoff(
     return { months: Infinity, totalInterest: Infinity };
   }
 
-  let remaining = balance;
-  let months = 0;
-  let interest = 0;
-
-  while (remaining > 0 && months < 600) {
-    const monthInterest = remaining * monthlyRate;
-    interest += monthInterest;
-    remaining = remaining + monthInterest - monthlyPayment;
-    months++;
-    if (remaining <= 0) break;
-  }
-
-  if (remaining > 0) return { months: Infinity, totalInterest: Infinity };
-  return { months, totalInterest: interest };
+  // Closed form: months = -ln(1 - r·B/P) / ln(1 + r). The previous 600-iteration
+  // cap mislabelled long-but-payable debts as "Never"; this is exact and O(1).
+  // The genuinely never-payable case (payment <= interest) is handled above.
+  const months = Math.ceil(
+    Math.log(monthlyPayment / (monthlyPayment - balance * monthlyRate)) /
+      Math.log(1 + monthlyRate)
+  );
+  const paidMonths = Math.max(0, months - 1);
+  const growth = Math.pow(1 + monthlyRate, paidMonths);
+  const balanceAfter = balance * growth - (monthlyPayment * (growth - 1)) / monthlyRate;
+  const finalPayment = Math.max(0, balanceAfter * (1 + monthlyRate));
+  const totalInterest = Math.max(
+    0,
+    paidMonths * monthlyPayment + finalPayment - balance
+  );
+  return { months, totalInterest: Math.round(totalInterest * 100) / 100 };
 }
