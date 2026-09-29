@@ -4,6 +4,7 @@ import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { getAppVersion } from "../constants/config";
 import { NOTE_COLORS } from "../constants/theme";
+import { isClosingMarkerDescription } from "./savings";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -506,9 +507,13 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = r as Record<string, unknown>;
       const t = row.type as "deposit" | "purchase";
       const date = row.date as string;
+      // Derive the closing flag from the description rather than trusting the
+      // exported column, so backups written before v4 restore correctly.
+      const description = row.description as string;
+      const isClosing = isClosingMarkerDescription(description) ? 1 : 0;
       await tx.execute(
-        `INSERT INTO savings_transactions (type, description, amount, date) VALUES (?, ?, ?, ?)`,
-        [t, row.description as string, row.amount as number, date]
+        `INSERT INTO savings_transactions (type, description, amount, date, is_closing) VALUES (?, ?, ?, ?, ?)`,
+        [t, description, row.amount as number, date, isClosing]
       );
     }
 

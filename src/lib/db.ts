@@ -8,8 +8,9 @@ type BindValue = string | number | null | Uint8Array;
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
+let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -101,6 +102,7 @@ const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: 
   { table: "savings_auto_deposits", column: "description", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "loan_name", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "cc_name", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "savings_transactions", column: "is_closing", definition: "INTEGER NOT NULL DEFAULT 0" },
 ];
 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -160,8 +162,55 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         ]);
       }
 
+      // v4: an indexed closing marker for savings, and FTS5 search for notes.
+      await database.execAsync(
+        "CREATE INDEX IF NOT EXISTS idx_savings_tx_closing ON savings_transactions(is_closing);"
+      );
+      await database.execAsync(
+        `UPDATE savings_transactions SET is_closing = 1
+          WHERE is_closing = 0
+            AND (description LIKE '[system:closing]%'
+              OR description LIKE '%Bilanci mbyllës%'
+              OR description LIKE '%Closing balance%');`
+      );
+
+      // FTS5 is optional: some SQLite builds omit it. On failure the partial
+      // objects are dropped and note search falls back to LIKE, so a missing
+      // FTS5 can never break the app or leave half-synced triggers behind.
+      try {
+        await database.execAsync(
+          "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(title, plain_text, content='notes', content_rowid='id');"
+        );
+        await database.execAsync("INSERT INTO notes_fts(notes_fts) VALUES('rebuild');");
+        await database.execAsync(
+          "CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN " +
+            "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+        );
+        await database.execAsync(
+          "CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN " +
+            "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); END;"
+        );
+        await database.execAsync(
+          "CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN " +
+            "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); " +
+            "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+        );
+      } catch {
+        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ai;").catch(() => {});
+        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ad;").catch(() => {});
+        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_au;").catch(() => {});
+        await database.execAsync("DROP TABLE IF EXISTS notes_fts;").catch(() => {});
+      }
+
       await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     });
+
+    // Reflect reality on every launch: the migration above is version-gated, so
+    // the flag cannot be set only inside it.
+    const ftsTable = await database.getFirstAsync<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts';"
+    );
+    notesFtsEnabled = Boolean(ftsTable);
 
     return database;
   })();
@@ -189,6 +238,11 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
   return initDatabase();
+}
+
+/** Whether this database has FTS5 full-text search available for notes. */
+export function isNotesFtsEnabled(): boolean {
+  return notesFtsEnabled;
 }
 
 export async function query<T = Record<string, unknown>>(

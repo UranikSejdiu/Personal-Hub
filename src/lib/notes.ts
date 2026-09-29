@@ -108,6 +108,29 @@ async function ensurePlainTextBackfill(): Promise<void> {
 export async function searchNotes(query: string): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
+  if (!normalized) return loadNotes();
+
+  if (db.isNotesFtsEnabled()) {
+    // Token-prefix match: closer to the old substring behaviour while letting
+    // the FTS index do the work. Falls back to LIKE if the query is rejected.
+    const ftsQuery = normalized
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((token) => `"${token.replace(/"/g, '""')}"*`)
+      .join(" AND ");
+    try {
+      const rows = await db.query<Record<string, unknown>>(
+        `SELECT ${LIST_COLUMNS} FROM notes
+          WHERE id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)
+          ORDER BY is_pinned DESC, updated_at DESC`,
+        [ftsQuery]
+      );
+      return rows.map(toNote);
+    } catch {
+      // Malformed FTS query — fall through to the LIKE path below.
+    }
+  }
+
   const escaped = normalized.replace(/[\\%_]/g, "\\$&");
   const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(

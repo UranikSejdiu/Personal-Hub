@@ -134,9 +134,10 @@ async function insertTransaction(
 ): Promise<SavingsTransaction> {
   const sanitized = sanitizeAmount(amount);
   const trimmed = description.trim();
+  const isClosing = isClosingMarkerDescription(trimmed) ? 1 : 0;
   const result = await exec.execute(
-    "INSERT INTO savings_transactions (type, description, amount, date) VALUES (?, ?, ?, ?)",
-    [type, trimmed, sanitized, date]
+    "INSERT INTO savings_transactions (type, description, amount, date, is_closing) VALUES (?, ?, ?, ?, ?)",
+    [type, trimmed, sanitized, date, isClosing]
   );
   if (!result.lastId) throw new Error("Failed to add savings entry.");
   return {
@@ -215,9 +216,8 @@ export async function getSavingsSummary(): Promise<SavingsSummary> {
   // don't double-count data from already-closed years.
   const closingTxs = await db.query<Record<string, unknown>>(
     `SELECT id, amount, type, date FROM savings_transactions
-      WHERE description LIKE ? OR description LIKE '%Bilanci mbyllës%' OR description LIKE '%Closing balance%'
-      ORDER BY date DESC, id DESC LIMIT 1`,
-    [`${CLOSING_MARKER}%`]
+      WHERE is_closing = 1
+      ORDER BY date DESC, id DESC LIMIT 1`
   );
 
   let carryForwardNet = 0;
@@ -306,8 +306,8 @@ export async function closeYear(
     // Keep the existence check, totals, and carry-forward insert atomic so
     // repeated/concurrent requests cannot close the same year twice.
     const existing = await tx.get<Record<string, unknown>>(
-      "SELECT id FROM savings_transactions WHERE date = ? AND (description LIKE ? OR description = ? OR description = ? OR description = ?) LIMIT 1",
-      [carryForwardDate, `${CLOSING_MARKER}%`, closingDescription, "Bilanci mbyllës", "Closing balance"]
+      "SELECT id FROM savings_transactions WHERE date = ? AND is_closing = 1 LIMIT 1",
+      [carryForwardDate]
     );
     if (existing) return { net: 0, created: null };
 
@@ -318,12 +318,11 @@ export async function closeYear(
         `SELECT substr(month, 1, 4) AS year FROM savings_auto_deposits
          UNION
          SELECT substr(date, 1, 4) AS year FROM savings_transactions
-          WHERE description NOT LIKE ? AND description NOT LIKE '%Bilanci mbyllës%' AND description NOT LIKE '%Closing balance%'`
+          WHERE is_closing = 0`
       ),
       tx.query<Record<string, unknown>>(
         `SELECT substr(date, 1, 4) AS year FROM savings_transactions
-          WHERE description LIKE ? OR description LIKE '%Bilanci mbyllës%' OR description LIKE '%Closing balance%'`,
-        [`${CLOSING_MARKER}%`]
+          WHERE is_closing = 1`
       ),
     ]);
     const closedYears = new Set(
