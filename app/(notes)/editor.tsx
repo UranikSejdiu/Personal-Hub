@@ -539,8 +539,16 @@ export default function NotesEditorScreen() {
 
   return (
     <>
+      {/* `automaticOffset` caches the view's on-screen position from an async
+          `onLayout` measurement. A freshly pushed note is measured while the
+          screen is still animating in, and an empty note never changes layout
+          again, so the cached offset stays wrong and the toolbar hides behind
+          the keyboard. Loading a note (or typing) changes the layout and forces
+          a fresh measurement, which is why editing works. Toggling a 1px margin
+          when the keyboard opens re-triggers that measurement. */}
       <KeyboardAvoidingView
         className="flex-1 bg-background"
+        style={{ marginTop: keyboardVisible ? 1 : 0 }}
         behavior="padding"
         automaticOffset
       >
