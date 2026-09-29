@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
 
@@ -96,5 +96,11 @@ export function useHaptics() {
     }
   }, []);
 
-  return { light, medium, heavy, success, warning, error };
+  // Stable object identity: all callbacks are `useCallback([])`-stable, so
+  // consumers that list `haptics` in their dependency arrays do not re-create
+  // callbacks (and re-render memoized children) on every render.
+  return useMemo(
+    () => ({ light, medium, heavy, success, warning, error }),
+    [light, medium, heavy, success, warning, error]
+  );
 }

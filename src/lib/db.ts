@@ -1,5 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { DB_NAME } from "../constants/config";
+import { contentToMarkdown } from "./noteContent";
+import { isLexicalJson } from "./lexicalPreview";
 
 type BindValue = string | number | null | Uint8Array;
 
@@ -7,7 +9,7 @@ let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let transactionQueue: Promise<void> = Promise.resolve();
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -91,6 +93,7 @@ const SCHEMA_STATEMENTS: string[] = [
   );`,
   `CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(is_pinned);`,
   `CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);`,
+  `CREATE INDEX IF NOT EXISTS idx_notes_pin_updated ON notes(is_pinned, updated_at);`,
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
@@ -111,6 +114,17 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
     await database.execAsync("PRAGMA foreign_keys = ON;");
 
     await database.withTransactionAsync(async () => {
+      // Version-gate the migration so a released, already-upgraded database
+      // (user_version >= SCHEMA_VERSION) skips the idempotent work on every
+      // launch. Databases from older releases report a lower version, so they
+      // still take the full path once. Never write the version when nothing
+      // ran — a restored file from a newer app keeps its own header intact.
+      const versionRow = await database.getFirstAsync<{ user_version: number }>(
+        "PRAGMA user_version;"
+      );
+      const userVersion = versionRow?.user_version ?? 0;
+      if (userVersion >= SCHEMA_VERSION) return;
+
       for (const statement of SCHEMA_STATEMENTS) {
         await database.execAsync(statement);
       }
@@ -127,6 +141,24 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       await database.execAsync(
         "UPDATE notes SET color = 'default' WHERE color != 'default';"
       );
+
+      // v3: one-time repair of notes whose plain_text was polluted by raw
+      // Lexical JSON (legacy builds stored the editor document instead of its
+      // text). Runs at upgrade only — the runtime backfill no longer scans
+      // every note body on each launch.
+      const polluted = await database.getAllAsync<{ id: number; content: string }>(
+        `SELECT id, content FROM notes
+          WHERE plain_text != ''
+            AND plain_text LIKE '%"root"%'
+            AND plain_text LIKE '%"children"%';`
+      );
+      for (const row of polluted) {
+        if (!isLexicalJson(row.content)) continue;
+        await database.runAsync("UPDATE notes SET plain_text = ? WHERE id = ?", [
+          contentToMarkdown(row.content),
+          row.id,
+        ]);
+      }
 
       await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     });

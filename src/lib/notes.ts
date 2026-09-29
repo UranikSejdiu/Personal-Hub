@@ -35,7 +35,10 @@ function toNote(row: Record<string, unknown>): Note {
   };
 }
 
-const LIST_COLUMNS = "id, title, content, is_pinned, color, created_at, updated_at";
+// The list only renders a short preview, so ship a bounded slice of the
+// pre-derived plain text instead of every note's full content blob.
+const LIST_COLUMNS =
+  "id, title, substr(plain_text, 1, 600) AS content, is_pinned, color, created_at, updated_at";
 
 export async function loadNotes(): Promise<Note[]> {
   await ensurePlainTextBackfill();
@@ -46,6 +49,7 @@ export async function loadNotes(): Promise<Note[]> {
 }
 
 let backfillPromise: Promise<void> | null = null;
+let needsPollutedRepair = false;
 
 /**
  * Invalidate the cached backfill so imported notes with an empty `plain_text`
@@ -53,6 +57,9 @@ let backfillPromise: Promise<void> | null = null;
  */
 export function resetPlainTextBackfill(): void {
   backfillPromise = null;
+  // A restored backup can still carry legacy rows whose plain_text is raw
+  // Lexical JSON; that data never went through the schema migration.
+  needsPollutedRepair = true;
 }
 
 async function ensurePlainTextBackfill(): Promise<void> {
@@ -70,19 +77,23 @@ async function ensurePlainTextBackfill(): Promise<void> {
           Number(row.id),
         ]);
       }
-      // Pass 2: repair rows where plain_text was polluted by Lexical JSON
-      // (plain_text containing JSON key patterns like "root", "children", "type")
-      const polluted = await db.query<Record<string, unknown>>(
-        "SELECT id, content, plain_text FROM notes WHERE plain_text != '' AND plain_text LIKE '%\"root\"%' AND plain_text LIKE '%\"children\"%'"
-      );
-      for (const row of polluted) {
-        const content = String(row.content);
-        if (!isLexicalJson(content)) continue;
-        const plain = getPlainTextFromContent(content);
-        await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
-          plain,
-          Number(row.id),
-        ]);
+      // Pass 2 (only after a restore): repair rows where plain_text was
+      // polluted by Lexical JSON. Local databases are repaired once by the
+      // schema migration, so this scan is not repeated on every launch.
+      if (needsPollutedRepair) {
+        const polluted = await db.query<Record<string, unknown>>(
+          "SELECT id, content, plain_text FROM notes WHERE plain_text != '' AND plain_text LIKE '%\"root\"%' AND plain_text LIKE '%\"children\"%'"
+        );
+        for (const row of polluted) {
+          const content = String(row.content);
+          if (!isLexicalJson(content)) continue;
+          const plain = getPlainTextFromContent(content);
+          await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
+            plain,
+            Number(row.id),
+          ]);
+        }
+        needsPollutedRepair = false;
       }
     } catch (error) {
       backfillPromise = null;

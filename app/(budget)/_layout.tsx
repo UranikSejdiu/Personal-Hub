@@ -75,7 +75,14 @@ export default function BudgetLayout() {
         <Tabs.Screen name="savings" options={{ title: t("navSavings") }} />
         <Tabs.Screen name="loans" options={{ title: t("navLoans") }} />
         <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
-        <Tabs.Screen name="budget" options={{ href: null }} getId={({ params }) => params?.month ?? "current"} />
+        <Tabs.Screen
+          name="budget"
+          options={{ href: null }}
+          dangerouslySingular={(_name, params) => {
+            const month = params.month;
+            return (typeof month === "string" ? month : month?.[0]) ?? "current";
+          }}
+        />
       </Tabs>
     </>
   );

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Personal Hub is offline-first. The SQLite database must never reach cloud
+  backup: restoring an older copy over a newer schema corrupts user data, and
+  the data is already kept on-device. Auth tokens in SecureStore stay out too.
+-->
+<full-backup-content>
+  <exclude domain="database" path="."/>
+  <exclude domain="sharedpref" path="SecureStore"/>
+</full-backup-content>

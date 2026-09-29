@@ -17,8 +17,8 @@ import {
   listRecurringExpenses,
   removeRecurringExpense,
   copyBudgetFromMonth,
-  incrementLoanMonthsPaid,
-  incrementCcMonthsPaid,
+  applyLoanPaidToggle,
+  applyCcPaidToggle,
   currentMonth,
   addMonths,
   type Loans,
@@ -30,9 +30,17 @@ import { CreditCardSection } from "../../src/components/CreditCardSection";
 import { CustomExpensesSection } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 
+interface PendingBudgetSave {
+  month: string;
+  income: number;
+  loanPaid: boolean;
+  ccPaid: boolean;
+  current: string;
+}
+
 export default function BudgetScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
-  const initialMonth = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonth();
+  const initialMonth = monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
   const haptics = useHaptics();
   const month = initialMonth;
@@ -54,14 +62,13 @@ export default function BudgetScreen() {
   const salaryRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistedRef = useRef("");
-  const pendingSaveRef = useRef<{
-    month: string;
-    income: number;
-    loanPaid: boolean;
-    ccPaid: boolean;
-    current: string;
-  } | null>(null);
+  const pendingSaveRef = useRef<PendingBudgetSave>(null);
+  /** Most recent desired budget snapshot, used to detect concurrent edits. */
+  const latestSaveRef = useRef<PendingBudgetSave>(null);
+  const saveInFlightRef = useRef(false);
+  const scheduleSaveRef = useRef<() => void>(() => {});
   const loadRequestRef = useRef(0);
+  const toggleInFlightRef = useRef(false);
   const saveQueueRef = useRef(Promise.resolve());
   const expenseTimersRef = useRef(
     new Map<number, ReturnType<typeof setTimeout>>()
@@ -228,11 +235,13 @@ export default function BudgetScreen() {
   const flushSave = useCallback(async () => {
     const pending = pendingSaveRef.current;
     if (!pending || pending.current === persistedRef.current) {
+      pendingSaveRef.current = null;
       await saveQueueRef.current;
       setIsSaving(false);
       return;
     }
     pendingSaveRef.current = null;
+    saveInFlightRef.current = true;
     setIsSaving(true);
     saveQueueRef.current = saveQueueRef.current.then(async () => {
       try {
@@ -241,15 +250,27 @@ export default function BudgetScreen() {
           budgetIdRef.current = saved.id;
           persistedRef.current = pending.current;
           setSaveError(null);
+          // The user may have edited (or reverted) while this write was in
+          // flight; re-arm so the UI and the database converge.
+          const latest = latestSaveRef.current;
+          if (latest && latest.month === pending.month && latest.current !== pending.current) {
+            pendingSaveRef.current = { ...latest };
+            scheduleSaveRef.current();
+          }
         }
       } catch (err) {
         if (pending.month === activeMonthRef.current) {
-          // Keep the failed state for a later retry, but never clobber a newer
-          // pending save that was queued while this one was in flight.
-          if (!pendingSaveRef.current) pendingSaveRef.current = pending;
+          // Retry only when this snapshot is still the desired state. A newer
+          // snapshot is already queued or in flight, and re-queueing an older
+          // one here would overwrite it with stale data.
+          const latest = latestSaveRef.current;
+          if (!pendingSaveRef.current && latest && latest.current === pending.current) {
+            pendingSaveRef.current = pending;
+          }
           setSaveError(err instanceof Error ? err.message : tRef.current("saveFailed"));
         }
       } finally {
+        saveInFlightRef.current = false;
         if (pending.month === activeMonthRef.current) setIsSaving(false);
       }
     });
@@ -266,20 +287,36 @@ export default function BudgetScreen() {
   }, [flushSave]);
 
   useEffect(() => {
+    scheduleSaveRef.current = scheduleSave;
+  }, [scheduleSave]);
+
+  useEffect(() => {
     if (!budget || !loans) return;
     const current = JSON.stringify([
       budget.income,
       budget.loan_paid,
       budget.cc_paid,
     ]);
-    if (current === persistedRef.current) return;
-    pendingSaveRef.current = {
+    const snapshot = {
       month,
       income: budget.income,
       loanPaid: budget.loan_paid,
       ccPaid: budget.cc_paid,
       current,
     };
+    latestSaveRef.current = snapshot;
+    if (current === persistedRef.current) {
+      // Reverted to the last persisted value inside the debounce window:
+      // drop the pending write so the abandoned value is never saved.
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        if (!saveInFlightRef.current) setIsSaving(false);
+      }
+      pendingSaveRef.current = null;
+      return;
+    }
+    pendingSaveRef.current = snapshot;
     scheduleSave();
   }, [budget, loans, month, scheduleSave]);
 
@@ -320,37 +357,41 @@ export default function BudgetScreen() {
 
   const handleLoanToggle = useCallback(async () => {
     const prev = budget;
-    if (!prev) return;
+    if (!prev || toggleInFlightRef.current) return;
+    toggleInFlightRef.current = true;
     const newLoanPaid = !prev.loan_paid;
-    const delta = newLoanPaid ? 1 : -1;
     try {
       await ensureBudget();
-      const updatedLoans = await incrementLoanMonthsPaid(delta);
-      setLoans(updatedLoans);
+      const result = await applyLoanPaidToggle(month, newLoanPaid);
+      setLoans(result.loans);
       setBudget((b) => (b ? { ...b, loan_paid: newLoanPaid } : b));
       scheduleSave();
       void haptics.light();
     } catch {
       toast.error(t("errorUpdatingLoan"));
+    } finally {
+      toggleInFlightRef.current = false;
     }
-  }, [budget, ensureBudget, scheduleSave, t, haptics]);
+  }, [budget, month, ensureBudget, scheduleSave, t, haptics]);
 
   const handleCcToggle = useCallback(async () => {
     const prev = budget;
-    if (!prev) return;
+    if (!prev || toggleInFlightRef.current) return;
+    toggleInFlightRef.current = true;
     const newCcPaid = !prev.cc_paid;
-    const delta = newCcPaid ? 1 : -1;
     try {
       await ensureBudget();
-      const updatedLoans = await incrementCcMonthsPaid(delta);
-      setLoans(updatedLoans);
+      const result = await applyCcPaidToggle(month, newCcPaid);
+      setLoans(result.loans);
       setBudget((b) => (b ? { ...b, cc_paid: newCcPaid } : b));
       scheduleSave();
       void haptics.light();
     } catch {
       toast.error(t("errorUpdatingCc"));
+    } finally {
+      toggleInFlightRef.current = false;
     }
-  }, [budget, ensureBudget, scheduleSave, t, haptics]);
+  }, [budget, month, ensureBudget, scheduleSave, t, haptics]);
 
   const handleAddExpense = useCallback(async () => {
     try {

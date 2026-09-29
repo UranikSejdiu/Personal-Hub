@@ -48,6 +48,7 @@ import {
   insertCheckboxItemAtLine,
   applyCheckedStrikethrough,
   parseCheckedStates,
+  hasCheckboxMarkup,
 } from "../../src/lib/noteContent";
 import { withAlpha } from "../../src/lib/utils";
 
@@ -122,6 +123,25 @@ const FORMAT_BUTTONS: FormatButton[] = [
   },
 ];
 
+// The native editor emits onChangeState on every caret move and keystroke, and
+// the event object is always new. Keep the previous object when none of the
+// flags the toolbar actually renders have changed, so the screen does not
+// re-render for a no-op state event.
+function isSameFormatState(a: OnChangeStateEvent, b: OnChangeStateEvent): boolean {
+  for (const button of FORMAT_BUTTONS) {
+    const prev = a[button.stateKey];
+    const next = b[button.stateKey];
+    if (
+      prev.isActive !== next.isActive ||
+      prev.isBlocking !== next.isBlocking ||
+      prev.isConflicting !== next.isConflicting
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export default function NotesEditorScreen() {
   const { t } = useI18n();
   const router = useRouter();
@@ -189,6 +209,26 @@ export default function NotesEditorScreen() {
     [colors.border, colors.mutedForeground, colors.muted, colors.foreground, colors.primary]
   );
 
+  // Stable style objects: the inline literals were recreated on every render
+  // of this screen (which fires on each editor state event).
+  const editorStyle = useMemo(
+    () => ({
+      minHeight: 240,
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 24,
+      backgroundColor: "transparent",
+      color: colors.foreground,
+      fontSize: 16,
+    }),
+    [colors.foreground]
+  );
+
+  const toolbarStyle = useMemo(
+    () => ({ paddingBottom: keyboardVisible ? 0 : insets.bottom }),
+    [keyboardVisible, insets.bottom]
+  );
+
   useEffect(() => {
     if (loadTarget.kind !== "note") return;
 
@@ -241,7 +281,7 @@ export default function NotesEditorScreen() {
             html,
             pinned: pinnedRef.current,
           };
-          checkedStatesRef.current = parseCheckedStates(html);
+          checkedStatesRef.current = hasCheckboxMarkup(html) ? parseCheckedStates(html) : [];
         })
         .catch(() => {
           // Non-critical: the snapshot is captured on the first change instead.
@@ -262,15 +302,23 @@ export default function NotesEditorScreen() {
         html: value,
         pinned: pinnedRef.current,
       };
-      checkedStatesRef.current = parseCheckedStates(value);
+      checkedStatesRef.current = hasCheckboxMarkup(value) ? parseCheckedStates(value) : [];
       return;
     }
 
     // The native checkbox span has no checked-text style, so mirror the checked
     // state with `<s>` whenever a box is toggled. Only act on real toggles so
     // typing never triggers a setValue (and the resulting echo is a no-op).
-    const states = parseCheckedStates(value);
     const previous = checkedStatesRef.current;
+    // Fast path: skip the full-document parse when there is no checklist to
+    // track. onChangeHtml fires on every keystroke, so this matters for plain
+    // notes (typing lag on large documents).
+    if (!hasCheckboxMarkup(value) && (previous === null || previous.length === 0)) {
+      if (previous !== null) checkedStatesRef.current = [];
+      return;
+    }
+
+    const states = hasCheckboxMarkup(value) ? parseCheckedStates(value) : [];
     checkedStatesRef.current = states;
 
     const toggled =
@@ -289,7 +337,8 @@ export default function NotesEditorScreen() {
   }, []);
 
   const handleChangeState = useCallback((event: { nativeEvent: OnChangeStateEvent }) => {
-    setStyleState(event.nativeEvent);
+    const next = event.nativeEvent;
+    setStyleState((prev) => (prev !== null && isSameFormatState(prev, next) ? prev : next));
   }, []);
 
   const handleChangeSelection = useCallback(
@@ -560,15 +609,7 @@ export default function NotesEditorScreen() {
                   selectionColor={colors.primary}
                   cursorColor={colors.primary}
                   htmlStyle={htmlStyle}
-                  style={{
-                    minHeight: 240,
-                    paddingHorizontal: 16,
-                    paddingTop: 4,
-                    paddingBottom: 24,
-                    backgroundColor: "transparent",
-                    color: colors.foreground,
-                    fontSize: 16,
-                  }}
+                  style={editorStyle}
                   scrollEnabled={false}
                   textShortcuts={TEXT_SHORTCUTS}
                   onChangeHtml={handleChangeHtml}
@@ -602,7 +643,7 @@ export default function NotesEditorScreen() {
           {/* Pinned toolbar — rides above the software keyboard. */}
           <View
             className="w-full border-t border-border bg-background"
-            style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}
+            style={toolbarStyle}
           >
             <View className="w-full max-w-md flex-row items-center justify-center gap-1 self-center px-2 py-1.5">
               {FORMAT_BUTTONS.map((button) => {

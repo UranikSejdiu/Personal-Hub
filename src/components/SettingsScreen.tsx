@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen } from "./AppIcons";
+import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen, RotateCcw } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
@@ -68,6 +68,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
   const [salary, setSalary] = useState(0);
   const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [canRestoreSafety, setCanRestoreSafety] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
@@ -91,6 +92,12 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
     void getHapticsEnabled().then(setHapticsOn).catch(() => {
       toast.error(t("errorLoadingData"));
     });
+    void hasSafetyBackup()
+      .then(setCanRestoreSafety)
+      .catch(() => {
+        // A failed check only hides the optional restore action.
+        setCanRestoreSafety(false);
+      });
     if (activeAppId === "budget") {
       void loadSavingsGoal().then((sg) => {
         setGoalAmount(sg.goal_amount);
@@ -101,28 +108,30 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
         toast.error(t("errorLoadingData"));
       });
     }
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
   }, [activeAppId, t]);
+
+  const flushGoalSave = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) setSaving(true);
+      try {
+        await saveSavingsGoal(goalRef.current, salaryRef.current);
+        if (goalRef.current > 0) {
+          await ensureMonthlyAutoDeposit(goalRef.current);
+        }
+      } catch {
+        toast.error(t("saveFailed"));
+      } finally {
+        if (!options?.silent) setSaving(false);
+      }
+    },
+    [t]
+  );
 
   const scheduleGoalSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      setSaving(true);
-      const saveTask = (async () => {
-        try {
-          await saveSavingsGoal(goalRef.current, salaryRef.current);
-          if (goalRef.current > 0) {
-            await ensureMonthlyAutoDeposit(goalRef.current);
-          }
-        } catch {
-          toast.error(t("saveFailed"));
-        } finally {
-          setSaving(false);
-        }
-      })();
+      const saveTask = flushGoalSave();
       goalSaveInFlightRef.current = saveTask;
       void saveTask.then(() => {
         if (goalSaveInFlightRef.current === saveTask) {
@@ -130,7 +139,19 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
         }
       });
     }, 800);
-  }, [t]);
+  }, [flushGoalSave]);
+
+  // Unmount paths (hardware back, app switch) must flush a pending edit rather
+  // than drop it, otherwise the edited value silently disappears.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        void flushGoalSave({ silent: true });
+      }
+    };
+  }, [flushGoalSave]);
 
   const handleGoalChange = useCallback(
     (v: number) => {
@@ -158,6 +179,37 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
     goalRef.current = sg.goal_amount;
     salaryRef.current = sg.salary;
   }, [activeAppId]);
+
+  /** Restore the snapshot taken automatically before the last import. */
+  const runSafetyRestore = useCallback(async () => {
+    setBackupBusy(true);
+    try {
+      await restoreSafetyBackup();
+      resetPlainTextBackfill();
+      setCanRestoreSafety(false);
+      toast.success(t("importSuccess"));
+      setConfirmAction(null);
+      await reloadBudgetGoal();
+    } catch (recoveryError) {
+      const reason =
+        recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
+      toast.error(t("importFailedReason", { reason }));
+      setConfirmAction(null);
+    } finally {
+      setBackupBusy(false);
+    }
+  }, [t, reloadBudgetGoal]);
+
+  /** Offer the restore after an import that may have replaced the wrong file. */
+  const handleRestoreSafety = useCallback(() => {
+    setConfirmAction({
+      title: t("importRecoveryTitle"),
+      message: t("importRestoreHint"),
+      confirmLabel: t("restoreSafetyBackup"),
+      destructive: true,
+      onConfirm: () => runSafetyRestore(),
+    });
+  }, [t, runSafetyRestore]);
 
   const toggleHaptics = useCallback(async (val: boolean) => {
     setHapticsOn(val);
@@ -220,6 +272,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
           try {
             await importBackupFromJson(json);
             resetPlainTextBackfill();
+            setCanRestoreSafety(await hasSafetyBackup());
             toast.success(t("importSuccess"));
             setConfirmAction(null);
             await reloadBudgetGoal();
@@ -228,29 +281,13 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
             toast.error(t("importFailedReason", { reason }));
             setConfirmAction(null);
             if (await hasSafetyBackup()) {
+              setCanRestoreSafety(true);
               setConfirmAction({
                 title: t("importRecoveryTitle"),
                 message: t("importRecoveryMessage"),
                 confirmLabel: t("restoreSafetyBackup"),
                 destructive: true,
-                onConfirm: async () => {
-                  setBackupBusy(true);
-                  try {
-                    await restoreSafetyBackup();
-                    resetPlainTextBackfill();
-                    toast.success(t("importSuccess"));
-                    await reloadBudgetGoal();
-                  } catch (recoveryError) {
-                    const recoveryReason =
-                      recoveryError instanceof Error
-                        ? recoveryError.message
-                        : String(recoveryError);
-                    toast.error(t("importFailedReason", { reason: recoveryReason }));
-                  } finally {
-                    setConfirmAction(null);
-                    setBackupBusy(false);
-                  }
-                },
+                onConfirm: () => runSafetyRestore(),
               });
             }
           } finally {
@@ -262,7 +299,7 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
       const reason = error instanceof Error ? error.message : String(error);
       toast.error(t("importFailedReason", { reason }));
     }
-  }, [backupBusy, t, reloadBudgetGoal]);
+  }, [backupBusy, t, reloadBudgetGoal, runSafetyRestore]);
 
   if (!activeSection) {
     return (
@@ -484,6 +521,19 @@ export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
                 <Cloud size={16} color={colors.foreground} />
                 <Text className="text-sm font-medium text-foreground">{t("importData")}</Text>
               </Pressable>
+              {canRestoreSafety ? (
+                <Pressable
+                  onPress={() => { void haptics.light(); handleRestoreSafety(); }}
+                  disabled={backupBusy}
+                  className="flex-row items-center justify-center gap-2 rounded-lg border border-destructive px-4 py-2.5 disabled:opacity-60"
+                  android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("restoreSafetyBackup")}
+                >
+                  <RotateCcw size={16} color={colors.destructive} />
+                  <Text className="text-sm font-medium text-destructive">{t("restoreSafetyBackup")}</Text>
+                </Pressable>
+              ) : null}
               {backupBusy ? <Text className="text-center text-xs text-muted-foreground">{t("savingAuto")}</Text> : null}
             </View>
           </View>

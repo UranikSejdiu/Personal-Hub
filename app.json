@@ -51,8 +51,9 @@
           }
         }
       ],
-      "./plugins/withFilepathsXml",
+      "./plugins/withAndroidBackupRules",
       "./plugins/withInstallPermission",
+      "./plugins/withUnusedPermissions",
       "./plugins/withDarkSplash",
       "./plugins/withReleaseBuildConfig",
       "./plugins/withGradleProperties"

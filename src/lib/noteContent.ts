@@ -277,6 +277,14 @@ export function parseCheckedStates(html: string): boolean[] {
   return collectCheckboxItems(html).map((item) => item.checked);
 }
 
+/**
+ * Cheap, allocation-light check for checkbox-list markup, used to skip the
+ * full-document parse on the editor's per-keystroke `onChangeHtml` path.
+ */
+export function hasCheckboxMarkup(html: string): boolean {
+  return html.includes('data-type="checkbox"') || html.includes("data-type='checkbox'");
+}
+
 function stripStrikeTags(inner: string): string {
   return inner.replace(/<\/?s\b[^>]*>/gi, "");
 }

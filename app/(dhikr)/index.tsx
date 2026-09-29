@@ -165,13 +165,23 @@ export default function CounterScreen() {
     writeQueueRef.current = writeQueueRef.current.then(async () => {
       try {
         await resetDhikr(id);
-        await refresh();
+        // Patch local state instead of a full refresh so the reset does not
+        // clobber in-flight optimistic increments for other dhikrs.
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        setDhikrs((prev) =>
+          prev.map((d) =>
+            d.id === id
+              ? { ...d, daily_count: 0, total_count: 0, last_reset_date: todayStr }
+              : d
+          )
+        );
       } catch {
         toast.error(t("errorResettingDhikr"));
       }
     });
     await writeQueueRef.current;
-  }, [activeDhikr, haptics, refresh, t]);
+  }, [activeDhikr, haptics, t]);
 
   const cycle = useCallback(
     (dir: 1 | -1) => {

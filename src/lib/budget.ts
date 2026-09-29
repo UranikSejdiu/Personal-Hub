@@ -90,27 +90,57 @@ export async function saveLoans(loans: Loans): Promise<void> {
   );
 }
 
-export async function incrementLoanMonthsPaid(delta: number): Promise<Loans> {
+/**
+ * Flip this month's "loan payment" flag and the matching months counter in a
+ * single transaction so the pair can never drift apart if the app is
+ * backgrounded between the two writes.
+ *
+ * The counter is left untouched once the loan is fully paid: an increment that
+ * was clamped at `loan_term` must never be undone by a later decrement,
+ * otherwise a check/uncheck cycle permanently loses a recorded month.
+ */
+export async function applyLoanPaidToggle(
+  month: string,
+  newLoanPaid: boolean
+): Promise<{ loans: Loans; budget: Budget }> {
   return db.withTransaction(async () => {
     const loans = await loadLoans();
-    const updatedMonths = loans.loan_months_paid + delta;
-    const newMonthsPaid =
-      loans.loan_term > 0
-        ? Math.max(0, Math.min(loans.loan_term, updatedMonths))
-        : Math.max(0, updatedMonths);
-    const updated = { ...loans, loan_months_paid: newMonthsPaid };
-    await saveLoans(updated);
-    return updated;
+    const term = loans.loan_term;
+    const fullyPaid = term > 0 && loans.loan_months_paid >= term;
+    let monthsPaid = loans.loan_months_paid;
+    if (newLoanPaid) {
+      monthsPaid = term > 0 ? Math.min(term, monthsPaid + 1) : monthsPaid + 1;
+    } else if (!fullyPaid) {
+      monthsPaid = Math.max(0, monthsPaid - 1);
+    }
+    const updatedLoans = { ...loans, loan_months_paid: monthsPaid };
+    await saveLoans(updatedLoans);
+
+    const budget = await loadBudget(month);
+    if (!budget) throw new Error("Budget not found for month.");
+    await saveBudget(month, budget.income, newLoanPaid, budget.cc_paid);
+    return { loans: updatedLoans, budget };
   });
 }
 
-export async function incrementCcMonthsPaid(delta: number): Promise<Loans> {
+/** Same as {@link applyLoanPaidToggle} for the credit-card payment flag. */
+export async function applyCcPaidToggle(
+  month: string,
+  newCcPaid: boolean
+): Promise<{ loans: Loans; budget: Budget }> {
   return db.withTransaction(async () => {
     const loans = await loadLoans();
-    const newMonthsPaid = Math.max(0, loans.cc_months_paid + delta);
-    const updated = { ...loans, cc_months_paid: newMonthsPaid };
-    await saveLoans(updated);
-    return updated;
+    const monthsPaid = Math.max(
+      0,
+      loans.cc_months_paid + (newCcPaid ? 1 : -1)
+    );
+    const updatedLoans = { ...loans, cc_months_paid: monthsPaid };
+    await saveLoans(updatedLoans);
+
+    const budget = await loadBudget(month);
+    if (!budget) throw new Error("Budget not found for month.");
+    await saveBudget(month, budget.income, budget.loan_paid, newCcPaid);
+    return { loans: updatedLoans, budget };
   });
 }
 

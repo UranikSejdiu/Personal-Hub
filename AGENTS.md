@@ -425,7 +425,7 @@ src/
 scripts/
 └── bump-version.js    # Version sync script (see section 33)
 plugins/
-└── withFilepathsXml.js    # Expo config plugin for native file persistence
+└── *.js    # Expo config plugins (see section 34)
 ```
 Do not move existing files around without an architectural reason.
 
@@ -461,12 +461,17 @@ git push origin main --tags
 **When user says "bump version":** Run `node scripts/bump-version.js <version>` then `git push origin main --tags`. Do not manually edit version numbers in individual files.
 
 34. PREBUILD & NATIVE FILE PERSISTENCE
-`npx expo prebuild --clean` wipes the entire `android/` directory and regenerates it. This deletes any manually added native files (e.g., `filepaths.xml`, custom gradle properties).
+`npx expo prebuild --clean` wipes the entire `android/` directory and regenerates it. This deletes any manually added native files (e.g., custom res/xml files, custom gradle properties).
 
 **Config plugins** are used to persist native changes across prebuild runs. They are registered in `app.json` under `expo.plugins` and run automatically during prebuild.
 
 Current config plugins:
-- `plugins/withFilepathsXml.js` — Generates `android/app/src/main/res/xml/filepaths.xml` during prebuild. Required by `expo-file-system`'s `FileProvider` to generate `content://` URIs for APK install flow.
+- `plugins/withAndroidBackupRules.js` — Generates `res/xml/backup_rules.xml` + `res/xml/data_extraction_rules.xml` and points the manifest at them (`allowBackup` stays true). Excludes the SQLite `app_data` database and the `SecureStore` prefs from Android Auto Backup / device transfer, so user data never leaves the device and a stale cloud copy cannot overwrite a newer schema.
+- `plugins/withUnusedPermissions.js` — Strips permissions that the default Expo prebuild template injects into the generated manifest (currently `SYSTEM_ALERT_WINDOW`).
+- `plugins/withInstallPermission.js` — Ensures `REQUEST_INSTALL_PACKAGES` survives regeneration (needed for the in-app update installer).
+- `plugins/withDarkSplash.js`, `plugins/withReleaseBuildConfig.js`, `plugins/withGradleProperties.js` — Splash, release build flags, gradle properties.
+
+**`content://` URIs (APK install flow):** `expo-file-system` ships its own `FileProvider` (`${applicationId}.FileSystemFileProvider`) with `res/xml/file_system_provider_paths.xml`, which already covers `files/` and `cache/` — where the updater stores the APK. No custom `filepaths.xml` is needed (the old `withFilepathsXml` plugin registered an invalid `android.project` mod and was dead code).
 
 **Adding new native files:** Instead of manually adding files to `android/`, create a config plugin in `plugins/` that generates or modifies the file during prebuild. Register it in `app.json` plugins array.
 

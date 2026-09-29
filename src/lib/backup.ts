@@ -9,6 +9,9 @@ export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
+// Real backups are well under this; the cap keeps a hostile or mistaken file
+// from forcing a huge read plus JSON.parse before validation can reject it.
+const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
 // The expo-file-system `File` type does not surface `write`/`text` in its
 // public typings on this SDK, so the access is centralised here.
@@ -25,18 +28,30 @@ async function readTextFile(file: File): Promise<string> {
 }
 
 function safetyBackupFile(): File {
-  return new File(Paths.cache, SAFETY_BACKUP_NAME);
+  // Document storage, not cache: the OS may purge the cache directory under
+  // storage pressure and this file is the only way back from a bad import.
+  return new File(Paths.document, SAFETY_BACKUP_NAME);
+}
+
+function safetyBackupTempFile(): File {
+  return new File(Paths.document, `${SAFETY_BACKUP_NAME}.tmp`);
 }
 
 async function createSafetyBackup(): Promise<void> {
   const envelope = await buildBackupEnvelope();
-  const file = safetyBackupFile();
-  try {
-    if (file.exists) await file.delete();
-  } catch {
-    // A leftover file is overwritten below; ignore cleanup failures.
+  const temp = safetyBackupTempFile();
+  const target = safetyBackupFile();
+  // Write to a temporary file first, then move it over the previous snapshot,
+  // so a crash mid-write can never truncate or destroy the recovery copy.
+  if (temp.exists) {
+    try {
+      await temp.delete();
+    } catch {
+      // Overwritten below; a stale temp file is harmless.
+    }
   }
-  await writeTextFile(file, JSON.stringify(envelope, null, 2));
+  await writeTextFile(temp, JSON.stringify(envelope, null, 2));
+  await temp.move(target, { overwrite: true });
 }
 
 export async function hasSafetyBackup(): Promise<boolean> {
@@ -526,14 +541,9 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       );
     }
     });
-    if (!options.skipSafetyBackup) {
-      // Import committed — the safety copy is no longer needed.
-      try {
-        await safetyBackupFile().delete();
-      } catch {
-        // Best-effort cleanup; a stale safety copy is harmless.
-      }
-    }
+    // Keep the snapshot after a successful import: a schema-valid file can
+    // still be the wrong file, and this is the only in-app way back. It is
+    // replaced atomically when the next import starts.
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Restore failed: ${reason}`);
@@ -543,6 +553,10 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 export async function readJsonFromFileUri(uri: string): Promise<string> {
   const file = new File(uri);
   if (!file.exists) throw new Error("File not found");
+  const size = file.size;
+  if (size !== null && size > MAX_IMPORT_BYTES) {
+    throw new Error("Backup file is too large");
+  }
   const content = await readTextFile(file);
   if (content.startsWith("SQLite format 3")) throw new Error("Invalid backup: SQLite file");
   return content;

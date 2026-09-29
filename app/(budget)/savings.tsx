@@ -15,6 +15,7 @@ import {
   updateAutoDeposit,
   getSavingsSummary,
   closeYear,
+  isClosingMarkerDescription,
   type SavingsTransaction,
   type SavingsSummary,
   type SavingsEntryType,
@@ -135,6 +136,10 @@ export default function SavingsScreen() {
 
   const handleDeleteEntry = useCallback(
     (entry: SavingsEntry) => {
+      // Carry-forward markers are system rows: never editable or deletable.
+      if (entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description)) {
+        return;
+      }
       setConfirmAction({
         title: t("deleteConfirmTitle"),
         message: t("deleteSavingsEntryConfirm"),
@@ -205,6 +210,7 @@ export default function SavingsScreen() {
       if (entry.kind === "auto" && entry.rawMonth) {
         openEditAutoModal(entry.rawMonth, entry.description, entry.amount);
       } else if (entry.kind === "tx" && entry.rawTx) {
+        if (isClosingMarkerDescription(entry.rawTx.description)) return;
         openEditModal(entry.rawTx);
       }
     },
@@ -214,14 +220,21 @@ export default function SavingsScreen() {
   const handleCloseYear = useCallback(
     (year: number) => {
       const yearEntries = entries.filter((e) => Number(e.date.slice(0, 4)) === year);
+      const hasActivity = yearEntries.some(
+        (e) =>
+          e.kind === "auto" ||
+          (e.rawTx !== undefined && !isClosingMarkerDescription(e.rawTx.description))
+      );
+      if (!hasActivity) {
+        toast(t("savingsNoEntries"));
+        return;
+      }
+      // A net of exactly 0 is still closable: it writes a carry-forward marker
+      // so the year is marked done and later years are not blocked.
       let net = 0;
       for (const e of yearEntries) {
         if (e.type === "deposit") net += e.amount;
         else net -= e.amount;
-      }
-      if (net === 0) {
-        toast(t("savingsNoEntries"));
-        return;
       }
       const nextYear = year + 1;
       const desc = t("closingBalance", { year });
@@ -236,7 +249,18 @@ export default function SavingsScreen() {
         onConfirm: () => {
           void (async () => {
             try {
-              await closeYear(year, desc);
+              const result = await closeYear(year, desc);
+              if (result.blockedYear !== undefined) {
+                toast(t("closeYearBlocked", { year: result.blockedYear }));
+                setConfirmAction(null);
+                return;
+              }
+              if (!result.created) {
+                // Already closed, or no activity recorded for this year.
+                toast(t("closeYearNothing", { year }));
+                setConfirmAction(null);
+                return;
+              }
               await loadData();
               setSelectedYear(nextYear);
               setConfirmAction(null);
@@ -377,7 +401,8 @@ export default function SavingsScreen() {
     [filteredEntries.length, t, handleTapEntry, handleDeleteEntry, haptics, colors.mutedForeground]
   );
 
-  const listHeader = (
+  const listHeader = useMemo(
+    () => (
     <View className="gap-4">
       <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
@@ -477,9 +502,26 @@ export default function SavingsScreen() {
         )}
       </View>
     </View>
+    ),
+    [
+      t,
+      colors,
+      goalAmount,
+      goalMet,
+      goalProgress,
+      summary.balance,
+      filteredEntries.length,
+      availableYears,
+      selectedYear,
+      currentYear,
+      openCreateModal,
+      handleCloseYear,
+      haptics,
+    ]
   );
 
-  const listFooter = (
+  const listFooter = useMemo(
+    () => (
     <View className="gap-4">
       <View className="h-4 rounded-b-xl border-x border-b border-border bg-card" />
       <View className="rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
@@ -498,6 +540,8 @@ export default function SavingsScreen() {
         </View>
       </View>
     </View>
+    ),
+    [t, summary.totalSaved, summary.totalSpent, summary.balance]
   );
 
   return (

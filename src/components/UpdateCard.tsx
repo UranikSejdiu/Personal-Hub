@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Text, Pressable, AppState } from "react-native";
 import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
 import { toast } from "sonner-native";
@@ -18,6 +18,21 @@ export function UpdateCard() {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [needPermission, setNeedPermission] = useState(false);
   const pendingApkRef = useRef<File | null>(null);
+  const appStateSubRef = useRef<{ remove: () => void } | null>(null);
+  const mountedRef = useRef(true);
+
+  const clearAppStateListener = useCallback(() => {
+    appStateSubRef.current?.remove();
+    appStateSubRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearAppStateListener();
+    };
+  }, [clearAppStateListener]);
 
   const handleCheck = useCallback(async () => {
     const result = await refresh();
@@ -29,6 +44,21 @@ export function UpdateCard() {
       toast.error(t("updateCheckFailed"));
     }
   }, [refresh, t]);
+
+  const handleManualInstall = useCallback(async () => {
+    const apk = pendingApkRef.current;
+    if (!apk) return;
+    try {
+      await installApk(apk);
+      if (!mountedRef.current) return;
+      setNeedPermission(false);
+      toast.success(t("updateInstallerOpened"));
+    } catch {
+      if (!mountedRef.current) return;
+      toast(t("updatePermissionNeeded"));
+      openInstallSettings();
+    }
+  }, [t]);
 
   const handleInstall = useCallback(async () => {
     if (!latest) return;
@@ -42,8 +72,9 @@ export function UpdateCard() {
       pendingApkRef.current = apk;
       try {
         await installApk(apk);
+        // Keep the APK around so the user can retry from the "ready" state if
+        // they cancel the system installer dialog.
         setState("ready");
-        pendingApkRef.current = null;
         toast.success(t("updateInstallerOpened"));
       } catch {
         setNeedPermission(true);
@@ -51,22 +82,11 @@ export function UpdateCard() {
         toast(t("updatePermissionNeeded"));
         openInstallSettings();
 
-        const sub = AppState.addEventListener("change", (next) => {
-          if (next === "active" && pendingApkRef.current) {
-            const pending = pendingApkRef.current;
-            void (async () => {
-              try {
-                await installApk(pending);
-                pendingApkRef.current = null;
-                setNeedPermission(false);
-                toast.success(t("updateInstallerOpened"));
-              } catch {
-                // still no permission — user can tap manual button
-              }
-            })();
-          }
-          if (next !== "active") return;
-          sub.remove();
+        clearAppStateListener();
+        appStateSubRef.current = AppState.addEventListener("change", (next) => {
+          if (next !== "active" || !mountedRef.current) return;
+          clearAppStateListener();
+          void handleManualInstall();
         });
       }
     } catch (error) {
@@ -76,21 +96,7 @@ export function UpdateCard() {
     } finally {
       setDownloadProgress(null);
     }
-  }, [latest, t]);
-
-  const handleManualInstall = useCallback(async () => {
-    const apk = pendingApkRef.current;
-    if (!apk) return;
-    try {
-      await installApk(apk);
-      pendingApkRef.current = null;
-      setNeedPermission(false);
-      toast.success(t("updateInstallerOpened"));
-    } catch {
-      toast(t("updatePermissionNeeded"));
-      openInstallSettings();
-    }
-  }, [t]);
+  }, [latest, t, clearAppStateListener, handleManualInstall]);
 
   return (
     <View className="rounded-xl border border-border bg-card p-4 gap-3">
@@ -152,6 +158,18 @@ export function UpdateCard() {
             >
               <Download size={14} color="#fff" />
               <Text className="text-sm font-medium text-white">{t("downloadAndInstall")}</Text>
+            </Pressable>
+          )}
+
+          {state === "ready" && (
+            <Pressable
+              onPress={() => void handleManualInstall()}
+              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+              accessibilityRole="button"
+              accessibilityLabel={t("installNow")}
+            >
+              <Download size={14} color="#fff" />
+              <Text className="text-sm font-medium text-white">{t("installNow")}</Text>
             </Pressable>
           )}
 

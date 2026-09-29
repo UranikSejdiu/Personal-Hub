@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { View, Text, Pressable } from "react-native";
 import { CreditCard, Check } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
@@ -17,10 +18,16 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  if (loans.cc_balance <= 0 && loans.cc_payment <= 0) return null;
 
   const ccMonthsPaid = loans.cc_months_paid;
-  const payoff = creditCardPayoff(loans.cc_balance, loans.cc_apr, loans.cc_payment);
+  // Payoff simulates month-by-month interest until the balance clears.
+  const payoff = useMemo(
+    () => creditCardPayoff(loans.cc_balance, loans.cc_apr, loans.cc_payment),
+    [loans.cc_balance, loans.cc_apr, loans.cc_payment]
+  );
+
+  if (loans.cc_balance <= 0 && loans.cc_payment <= 0) return null;
+
   const totalMonths = payoff.months === Infinity ? 0 : payoff.months;
   const isPaid = totalMonths > 0 && ccMonthsPaid >= totalMonths;
   const progressPct =

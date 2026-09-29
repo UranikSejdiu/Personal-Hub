@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { View, Text, Pressable } from "react-native";
 import { Landmark, Check } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
@@ -17,27 +18,44 @@ export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  if (loans.loan_amount <= 0 && loans.loan_term <= 0) return null;
 
   const loanMonthsPaid = loans.loan_months_paid;
-  const isPaid = loans.loan_term > 0 && loanMonthsPaid >= loans.loan_term;
   const hasSchedule =
     loans.loan_start_date !== null &&
     loans.loan_start_date.length > 0 &&
     loans.loan_term > 0 &&
     loans.loan_amount > 0;
 
-  const scheduleInfo = hasSchedule
-    ? scheduleBalance(
-        loans.loan_amount,
-        loans.loan_rate,
-        loans.loan_term,
-        loans.loan_start_date ?? "",
-        loans.loan_payment_day,
-        loanMonthsPaid,
-        loans.loan_payment > 0 ? loans.loan_payment : undefined
-      )
-    : null;
+  // Building the full amortisation schedule allocates a row per term month;
+  // recompute it only when the loan inputs actually change.
+  const scheduleInfo = useMemo(
+    () =>
+      hasSchedule
+        ? scheduleBalance(
+            loans.loan_amount,
+            loans.loan_rate,
+            loans.loan_term,
+            loans.loan_start_date ?? "",
+            loans.loan_payment_day,
+            loanMonthsPaid,
+            loans.loan_payment > 0 ? loans.loan_payment : undefined
+          )
+        : null,
+    [
+      hasSchedule,
+      loans.loan_amount,
+      loans.loan_rate,
+      loans.loan_term,
+      loans.loan_start_date,
+      loans.loan_payment_day,
+      loans.loan_payment,
+      loanMonthsPaid,
+    ]
+  );
+
+  if (loans.loan_amount <= 0 && loans.loan_term <= 0) return null;
+
+  const isPaid = loans.loan_term > 0 && loanMonthsPaid >= loans.loan_term;
 
   const monthlyPayment = scheduleInfo
     ? scheduleInfo.payment
