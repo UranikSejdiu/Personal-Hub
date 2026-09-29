@@ -56,16 +56,6 @@ export function useHaptics() {
     }
   }, []);
 
-  const heavy = useCallback(async () => {
-    try {
-      if (isHapticsEnabled()) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      }
-    } catch {
-      // Native haptics can be unavailable on simulators and unsupported devices.
-    }
-  }, []);
-
   const success = useCallback(async () => {
     try {
       if (isHapticsEnabled()) {
@@ -86,21 +76,11 @@ export function useHaptics() {
     }
   }, []);
 
-  const error = useCallback(async () => {
-    try {
-      if (isHapticsEnabled()) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-    } catch {
-      // Native haptics can be unavailable on simulators and unsupported devices.
-    }
-  }, []);
-
   // Stable object identity: all callbacks are `useCallback([])`-stable, so
   // consumers that list `haptics` in their dependency arrays do not re-create
   // callbacks (and re-render memoized children) on every render.
   return useMemo(
-    () => ({ light, medium, heavy, success, warning, error }),
-    [light, medium, heavy, success, warning, error]
+    () => ({ light, medium, success, warning }),
+    [light, medium, success, warning]
   );
 }

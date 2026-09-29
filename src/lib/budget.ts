@@ -205,18 +205,6 @@ export async function listRecurringExpenses(): Promise<RecurringExpense[]> {
   }));
 }
 
-export async function addRecurringExpense(
-  category: string,
-  amount: number
-): Promise<RecurringExpense> {
-  const result = await db.execute(
-    "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
-    [category, amount]
-  );
-  if (!result.lastId) throw new Error("Failed to add recurring expense.");
-  return { id: result.lastId, category, amount };
-}
-
 export async function removeRecurringExpense(id: number): Promise<void> {
   await db.execute("DELETE FROM recurring_expenses WHERE id = ?", [id]);
 }

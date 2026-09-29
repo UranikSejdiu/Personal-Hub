@@ -4,7 +4,6 @@ import { UICON_GLYPHS, type UiconName } from "../constants/uicons";
 export interface AppIconProps {
   size?: number;
   color?: string;
-  strokeWidth?: number;
   className?: string;
 }
 

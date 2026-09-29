@@ -25,14 +25,6 @@ export function todayDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-export function dailyProgress(dhikr: Dhikr): number {
-  if (!dhikr.daily_limit || dhikr.daily_limit <= 0) return 0;
-  return Math.min(
-    100,
-    Math.round((dhikr.daily_count / dhikr.daily_limit) * 100)
-  );
-}
-
 export async function loadDhikrs(): Promise<Dhikr[]> {
   const today = todayDate();
   // Best-effort day rollover: a failed reset must never fail the read. Rows are
