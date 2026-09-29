@@ -307,8 +307,11 @@ export default function NotesEditorScreen() {
     }
 
     // The native checkbox span has no checked-text style, so mirror the checked
-    // state with `<s>` whenever a box is toggled. Only act on real toggles so
-    // typing never triggers a setValue (and the resulting echo is a no-op).
+    // state with `<s>`. Only act on a real toggle or on an item being added or
+    // removed, so typing never triggers a setValue (and the resulting echo is a
+    // no-op). Adding an item matters because the new line inherits the text
+    // span of the previous one, so an item created after a checked one is born
+    // struck-through and would keep that until a toggle reset it.
     const previous = checkedStatesRef.current;
     // Fast path: skip the full-document parse when there is no checklist to
     // track. onChangeHtml fires on every keystroke, so this matters for plain
@@ -325,7 +328,8 @@ export default function NotesEditorScreen() {
       previous !== null &&
       states.length === previous.length &&
       states.some((checked, index) => checked !== previous[index]);
-    if (!toggled) return;
+    const listResized = previous !== null && states.length !== previous.length;
+    if (!toggled && !listResized) return;
 
     const normalized = applyCheckedStrikethrough(value);
     const editor = editorRef.current;
@@ -466,7 +470,9 @@ export default function NotesEditorScreen() {
     if (!editor) return;
     setIsSaving(true);
     try {
-      const content = await editor.getHTML();
+      // Normalize before persisting so the stored HTML, the search index and
+      // the list preview can never show a struck-through unchecked item.
+      const content = applyCheckedStrikethrough(await editor.getHTML());
       if (noteId) {
         await updateNote(noteId, { title, content, is_pinned: isPinned });
       } else {

@@ -289,21 +289,13 @@ function stripStrikeTags(inner: string): string {
   return inner.replace(/<\/?s\b[^>]*>/gi, "");
 }
 
-function stripOuterStrike(inner: string): string {
-  const open = inner.match(/^(\s*)<s\b[^>]*>/i);
-  if (!open) return inner;
-  const tagStart = open[1].length;
-  const afterOpen = open[0].length;
-  const closeIdx = inner.lastIndexOf("</s>");
-  if (closeIdx === -1 || inner.toLowerCase().indexOf("</s>") !== closeIdx) return inner;
-  return inner.slice(0, tagStart) + inner.slice(afterOpen, closeIdx) + inner.slice(closeIdx + 4);
-}
-
 /**
- * Wrap checked checkbox item text in `<s>` and unwrap unchecked items, since
- * the native editor has no checked-text style of its own. Intended to run over
- * the editor's HTML output; idempotent for checked items and preserves all
- * other markup.
+ * Wrap checked checkbox item text in `<s>` and remove the strikethrough from
+ * unchecked items, since the native editor has no checked-text style of its
+ * own. Unchecked items are stripped unconditionally rather than unwrapping a
+ * single outer `<s>`, because an item created from a checked line can carry the
+ * strike span in more than one run. Intended to run over the editor's HTML
+ * output; idempotent for checked items and preserves all other markup.
  */
 export function applyCheckedStrikethrough(html: string): string {
   const items = collectCheckboxItems(html);
@@ -313,7 +305,7 @@ export function applyCheckedStrikethrough(html: string): string {
   let last = 0;
   for (const item of items) {
     const inner = html.slice(item.contentStart, item.contentEnd);
-    const next = item.checked ? `<s>${stripStrikeTags(inner)}</s>` : stripOuterStrike(inner);
+    const next = item.checked ? `<s>${stripStrikeTags(inner)}</s>` : stripStrikeTags(inner);
     out += html.slice(last, item.contentStart) + next;
     last = item.contentEnd;
   }
