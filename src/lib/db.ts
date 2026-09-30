@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -95,10 +95,21 @@ const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(is_pinned);`,
   `CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);`,
   `CREATE INDEX IF NOT EXISTS idx_notes_pin_updated ON notes(is_pinned, updated_at);`,
+  `CREATE TABLE IF NOT EXISTS note_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    text TEXT NOT NULL DEFAULT '',
+    checked INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_note_items_note ON note_items(note_id, position);`,
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
   { table: "notes", column: "plain_text", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "notes", column: "kind", definition: "TEXT NOT NULL DEFAULT 'text'" },
   { table: "savings_auto_deposits", column: "description", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "loan_name", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "cc_name", definition: "TEXT NOT NULL DEFAULT ''" },

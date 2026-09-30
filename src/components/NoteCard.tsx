@@ -1,9 +1,13 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { Pin } from "./AppIcons";
+import { CheckboxSquare } from "./CheckboxSquare";
 import { useThemeColors } from "../lib/theme";
+import { useI18n } from "../lib/i18n";
 import { getPreviewSegments } from "../lib/noteContent";
 import type { Note } from "../types/notes";
+
+const MAX_VISIBLE_CHECKLIST_ITEMS = 6;
 
 export const NoteCard = React.memo(function NoteCard({
   note,
@@ -11,19 +15,30 @@ export const NoteCard = React.memo(function NoteCard({
   untitledLabel,
 }: {
   note: Note;
-  onPress: (noteId: number) => void;
+  onPress: (note: Note) => void;
   untitledLabel: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useI18n();
 
   const previewLines = React.useMemo(() => {
     if (!note.content) return [];
     return getPreviewSegments(note.content, 3);
   }, [note.content]);
 
+  const checklistItems = note.kind === "checklist" ? note.items ?? [] : [];
+  const isChecklist = checklistItems.length > 0;
+  const activeItems = checklistItems.filter((item) => !item.checked);
+  const checkedCount = checklistItems.filter((item) => item.checked).length;
+  const visibleItems = activeItems.slice(0, MAX_VISIBLE_CHECKLIST_ITEMS);
+  const checkedLabel =
+    checkedCount === 1
+      ? t("notesCheckedItems", { count: checkedCount })
+      : t("notesCheckedItemsPlural", { count: checkedCount });
+
   return (
     <Pressable
-      onPress={() => onPress(note.id)}
+      onPress={() => onPress(note)}
       className="relative mb-2 rounded-lg border border-border/50 bg-card p-3"
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}
@@ -46,7 +61,30 @@ export const NoteCard = React.memo(function NoteCard({
           </View>
         ) : null}
       </View>
-      {previewLines.length > 0 ? (
+
+      {isChecklist ? (
+        <View style={{ marginTop: 6 }}>
+          {visibleItems.map((item) => (
+            <View key={item.id} className="flex-row items-start gap-2 py-0.5">
+              <View className="mt-0.5">
+                <CheckboxSquare checked={false} size="sm" />
+              </View>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                className="flex-1 text-[13px] leading-[18px] text-muted-foreground"
+              >
+                {item.text}
+              </Text>
+            </View>
+          ))}
+          {checkedCount > 0 ? (
+            <Text className="mt-1 text-[13px] leading-[18px] text-muted-foreground">
+              {`+ ${checkedLabel}`}
+            </Text>
+          ) : null}
+        </View>
+      ) : previewLines.length > 0 ? (
         <View style={{ marginTop: 6 }}>
           {previewLines.map((line, i) => (
             <Text

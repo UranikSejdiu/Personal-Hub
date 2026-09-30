@@ -59,6 +59,7 @@ const iconSources = {
   PiggyBank: "piggy-bank",
   Calculator: "calculator",
   Settings: "settings",
+  Sort: "angles-up-down",
 };
 
 const css = fs.readFileSync(cssPath, "utf8");

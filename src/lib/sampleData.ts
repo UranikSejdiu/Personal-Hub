@@ -10,7 +10,7 @@ import {
   saveSavingsGoal,
   updateExpense,
 } from "./budget";
-import { createNote, deleteNote } from "./notes";
+import { createChecklistNote, createNote, deleteNote } from "./notes";
 import {
   SAMPLE_LOANS,
   SAMPLE_MONTHS,
@@ -38,6 +38,7 @@ const CONTENT_TABLES = [
   "budgets",
   "expenses",
   "notes",
+  "note_items",
   "dhikrs",
   "savings_transactions",
   "savings_auto_deposits",
@@ -185,14 +186,21 @@ export async function seedSampleData(): Promise<void> {
     }
 
     for (const note of SAMPLE_NOTES) {
-      const created = await createNote(
-        {
-          title: note.title,
-          content: note.content,
-          is_pinned: note.is_pinned,
-        },
-        tx
-      );
+      const created =
+        note.kind === "checklist"
+          ? await createChecklistNote(
+              { title: note.title, is_pinned: note.is_pinned },
+              note.items ?? [],
+              tx
+            )
+          : await createNote(
+              {
+                title: note.title,
+                content: note.content,
+                is_pinned: note.is_pinned,
+              },
+              tx
+            );
       noteIds.push(created.id);
     }
   });

@@ -14,6 +14,7 @@ export default function NotesLayout() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editor" />
+        <Stack.Screen name="checklist" />
       </Stack>
     </>
   );

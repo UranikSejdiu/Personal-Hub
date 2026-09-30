@@ -48,6 +48,7 @@ export const UICON_GLYPHS = {
   "LayoutDashboard": "",
   "PiggyBank": "奔",
   "Calculator": "",
-  "Settings": "﯒"
+  "Settings": "﯒",
+  "Sort": "\uF15D"
 } as const;
 export type UiconName = keyof typeof UICON_GLYPHS;

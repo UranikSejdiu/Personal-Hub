@@ -1,0 +1,87 @@
+import { useEffect, useRef } from "react";
+import { Pressable, TextInput, View, type TextInput as TextInputType } from "react-native";
+import { GripVertical, X } from "./AppIcons";
+import { CheckboxSquare } from "./CheckboxSquare";
+import { cn } from "../lib/utils";
+import { useThemeColors } from "../lib/theme";
+import { useI18n } from "../lib/i18n";
+
+/** A checklist item in the editor's local, reorderable form. */
+export interface ChecklistEntry {
+  key: string;
+  text: string;
+  checked: boolean;
+}
+
+interface ChecklistItemRowProps {
+  item: ChecklistEntry;
+  isActive: boolean;
+  drag: () => void;
+  onToggle: (key: string) => void;
+  onChangeText: (key: string, text: string) => void;
+  onRemove: (key: string) => void;
+  registerInput: (key: string, ref: TextInputType | null) => void;
+}
+
+export function ChecklistItemRow({
+  item,
+  isActive,
+  drag,
+  onToggle,
+  onChangeText,
+  onRemove,
+  registerInput,
+}: ChecklistItemRowProps) {
+  const colors = useThemeColors();
+  const { t } = useI18n();
+  const inputRef = useRef<TextInputType>(null);
+
+  useEffect(() => {
+    registerInput(item.key, inputRef.current);
+    return () => registerInput(item.key, null);
+  }, [item.key, registerInput]);
+
+  return (
+    <View className={cn("flex-row items-start gap-1 px-3", isActive && "bg-muted/40")}>
+      <Pressable
+        onLongPress={drag}
+        delayLongPress={150}
+        className="h-10 w-8 items-center justify-center"
+        accessibilityRole="button"
+        accessibilityLabel={t("reorderHandle")}
+      >
+        <GripVertical size={18} color={colors.mutedForeground} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => onToggle(item.key)}
+        className="h-10 w-8 items-center justify-center"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: item.checked }}
+        accessibilityLabel={item.text || t("notesItemPlaceholder")}
+      >
+        <CheckboxSquare checked={item.checked} />
+      </Pressable>
+
+      <TextInput
+        ref={inputRef}
+        value={item.text}
+        onChangeText={(text) => onChangeText(item.key, text)}
+        placeholder={t("notesItemPlaceholder")}
+        placeholderTextColor={colors.mutedForeground}
+        multiline
+        scrollEnabled={false}
+        className="flex-1 py-2 text-base text-foreground"
+      />
+
+      <Pressable
+        onPress={() => onRemove(item.key)}
+        className="h-10 w-8 items-center justify-center"
+        accessibilityRole="button"
+        accessibilityLabel={t("notesItemDelete")}
+      >
+        <X size={18} color={colors.mutedForeground} />
+      </Pressable>
+    </View>
+  );
+}

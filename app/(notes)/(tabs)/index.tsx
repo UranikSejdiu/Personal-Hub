@@ -1,6 +1,15 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, Pressable, TextInput, FlatList, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { FileText, Plus, Search, XCircle } from "../../../src/components/AppIcons";
+import {
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  FlatList,
+  Modal,
+  StyleSheet,
+  type ListRenderItemInfo,
+} from "react-native";
+import { Check, FileText, LayoutGrid, List, Plus, Search, Sort, XCircle } from "../../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, type TKey } from "../../../src/lib/i18n";
@@ -8,15 +17,29 @@ import {
   loadNotes,
   searchNotes,
   type Note,
+  type NoteSort,
 } from "../../../src/lib/notes";
+import {
+  getNotesPreferences,
+  setNotesPreferences,
+  type NoteViewMode,
+} from "../../../src/lib/notesPreferences";
 import { NoteCard } from "../../../src/components/NoteCard";
+import { NoteTypeChooser } from "../../../src/components/NoteTypeChooser";
 import { useThemeColors } from "../../../src/lib/theme";
 import { useHaptics } from "../../../src/hooks/useHaptics";
+import type { NoteKind } from "../../../src/types/notes";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
 });
+
+const SORT_OPTIONS: { value: NoteSort; labelKey: TKey }[] = [
+  { value: "updated", labelKey: "notesSortUpdated" },
+  { value: "created", labelKey: "notesSortCreated" },
+  { value: "title", labelKey: "notesSortTitle" },
+];
 
 function splitIntoColumns(items: Note[], count: number): Note[][] {
   const cols: Note[][] = Array.from({ length: count }, () => []);
@@ -50,9 +73,19 @@ export default function NotesListScreen() {
   const haptics = useHaptics();
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
+  const [sort, setSort] = useState<NoteSort>("updated");
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+  const [chooserVisible, setChooserVisible] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
   const searchRef = useRef("");
+  const sortRef = useRef<NoteSort>("updated");
+  const viewModeRef = useRef<NoteViewMode>("grid");
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
 
   useEffect(() => {
     return () => {
@@ -60,25 +93,45 @@ export default function NotesListScreen() {
     };
   }, []);
 
-  const load = useCallback(async (query: string) => {
-    const seq = ++searchSeqRef.current;
-    try {
-      const q = query.trim();
-      const result = q ? await searchNotes(q) : await loadNotes();
-      if (seq !== searchSeqRef.current) return;
-      setNotes(result);
-    } catch {
-      if (seq !== searchSeqRef.current) return;
-      setNotes([]);
-      toast.error(t("errorLoadingData"));
-    }
-  }, [t]);
+  const load = useCallback(
+    async (query: string, nextSort: NoteSort) => {
+      const seq = ++searchSeqRef.current;
+      try {
+        const q = query.trim();
+        const result = q ? await searchNotes(q, nextSort) : await loadNotes(nextSort);
+        if (seq !== searchSeqRef.current) return;
+        setNotes(result);
+      } catch {
+        if (seq !== searchSeqRef.current) return;
+        setNotes([]);
+        toast.error(t("errorLoadingData"));
+      }
+    },
+    [t]
+  );
+
+  // Restore the persisted view mode and sort once, then load with them. The
+  // focus effect may have already loaded with the defaults — the sequence guard
+  // in `load` makes the later request win.
+  useEffect(() => {
+    let cancelled = false;
+    void getNotesPreferences().then((preferences) => {
+      if (cancelled) return;
+      setViewMode(preferences.viewMode);
+      setSort(preferences.sort);
+      sortRef.current = preferences.sort;
+      void load(searchRef.current, preferences.sort);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
 
   const debouncedSearch = useCallback(
     (query: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        void load(query);
+        void load(query, sortRef.current);
       }, 300);
     },
     [load]
@@ -91,23 +144,54 @@ export default function NotesListScreen() {
     }
     setSearchQuery("");
     searchRef.current = "";
-    void load("");
+    void load("", sortRef.current);
   }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      void load(searchRef.current);
+      void load(searchRef.current, sortRef.current);
     }, [load])
   );
 
   const handleNew = useCallback(() => {
-    router.push("/(notes)/editor");
-  }, [router]);
+    setChooserVisible(true);
+  }, []);
+
+  const handleSelectType = useCallback(
+    (kind: NoteKind) => {
+      setChooserVisible(false);
+      router.push(kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor");
+    },
+    [router]
+  );
+
+  const handleToggleView = useCallback(() => {
+    void haptics.light();
+    const next: NoteViewMode = viewMode === "grid" ? "list" : "grid";
+    setViewMode(next);
+    void setNotesPreferences({ viewMode: next, sort: sortRef.current });
+  }, [haptics, viewMode]);
+
+  const handleSelectSort = useCallback(
+    (next: NoteSort) => {
+      setSortMenuVisible(false);
+      if (next === sortRef.current) return;
+      void haptics.light();
+      sortRef.current = next;
+      setSort(next);
+      void setNotesPreferences({ viewMode: viewModeRef.current, sort: next });
+      void load(searchRef.current, next);
+    },
+    [haptics, load]
+  );
 
   const handleNotePress = useCallback(
-    (noteId: number) => {
+    (note: Note) => {
       void haptics.light();
-      router.push({ pathname: "/(notes)/editor", params: { id: noteId } });
+      router.push({
+        pathname: note.kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor",
+        params: { id: note.id },
+      });
     },
     [router, haptics]
   );
@@ -121,8 +205,9 @@ export default function NotesListScreen() {
     [notes]
   );
 
-  const pinnedCols = useMemo(() => splitIntoColumns(pinnedNotes, 2), [pinnedNotes]);
-  const otherCols = useMemo(() => splitIntoColumns(otherNotes, 2), [otherNotes]);
+  const columns = viewMode === "grid" ? 2 : 1;
+  const pinnedCols = useMemo(() => splitIntoColumns(pinnedNotes, columns), [pinnedNotes, columns]);
+  const otherCols = useMemo(() => splitIntoColumns(otherNotes, columns), [otherNotes, columns]);
 
   const hasPinned = pinnedNotes.length > 0;
 
@@ -201,6 +286,8 @@ export default function NotesListScreen() {
     [colors.mutedForeground, searchQuery, t]
   );
 
+  const nextViewLabel = viewMode === "grid" ? t("notesViewList") : t("notesViewGrid");
+
   return (
     <View className="flex-1 bg-background">
       <View className="w-full max-w-md self-center gap-4 p-4 pb-0">
@@ -243,6 +330,26 @@ export default function NotesListScreen() {
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
           )}
+          <Pressable
+            onPress={handleToggleView}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={nextViewLabel}
+          >
+            {viewMode === "grid" ? (
+              <List size={18} color={colors.mutedForeground} />
+            ) : (
+              <LayoutGrid size={18} color={colors.mutedForeground} />
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => setSortMenuVisible(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t("notesSort")}
+          >
+            <Sort size={18} color={colors.mutedForeground} />
+          </Pressable>
         </View>
       </View>
 
@@ -258,6 +365,49 @@ export default function NotesListScreen() {
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}
+      />
+
+      <Modal
+        visible={sortMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortMenuVisible(false)}
+      >
+        <Pressable
+          className="flex-1 items-center justify-center bg-black/50 px-8"
+          onPress={() => setSortMenuVisible(false)}
+        >
+          <Pressable
+            onPress={(event) => event.stopPropagation()}
+            className="w-full max-w-sm gap-1 rounded-2xl bg-card p-2 shadow-xl"
+          >
+            <Text className="px-3 pb-1 pt-2 text-base font-semibold text-foreground">
+              {t("notesSort")}
+            </Text>
+            {SORT_OPTIONS.map((option) => {
+              const selected = option.value === sort;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => handleSelectSort(option.value)}
+                  className="flex-row items-center justify-between rounded-xl px-3 py-3"
+                  accessibilityRole="button"
+                  accessibilityLabel={t(option.labelKey)}
+                  accessibilityState={{ selected }}
+                >
+                  <Text className="text-sm text-foreground">{t(option.labelKey)}</Text>
+                  {selected ? <Check size={18} color={colors.primary} /> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <NoteTypeChooser
+        visible={chooserVisible}
+        onClose={() => setChooserVisible(false)}
+        onSelect={handleSelectType}
       />
     </View>
   );

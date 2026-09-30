@@ -1,15 +1,47 @@
 import * as db from "./db";
 import { type NoteColor } from "../constants/theme";
-import { type Note } from "../types/notes";
+import { type Note, type NoteItem, type NoteKind } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
 import { isLexicalJson } from "./lexicalPreview";
 
-export type { Note };
+export type { Note, NoteItem, NoteKind };
+
+/** A checklist item in its pre-persist form (no id/position assigned yet). */
+export interface NewChecklistItem {
+  text: string;
+  checked: boolean;
+}
+
+/** Sort orders offered by the notes list. Pinned notes always sort first. */
+export type NoteSort = "updated" | "created" | "title";
 
 const VALID_NOTE_COLORS: NoteColor[] = ["default", "yellow", "green", "blue", "pink", "purple", "orange", "red"];
 
 function isValidNoteColor(color: string): color is NoteColor {
   return (VALID_NOTE_COLORS as string[]).includes(color);
+}
+
+function isNoteKind(kind: string): kind is NoteKind {
+  return kind === "text" || kind === "checklist";
+}
+
+/**
+ * The plain-text/index form of a checklist. Shares the `- [x]` / `- [ ]`
+ * markdown shape the rich-text converter emits, so search and the existing
+ * markdown preview helpers treat both note kinds uniformly.
+ */
+function plainTextFromItems(items: readonly NewChecklistItem[]): string {
+  return items.map((item) => `${item.checked ? "- [x]" : "- [ ]"} ${item.text}`).join("\n");
+}
+
+function orderBy(sort: NoteSort): string {
+  const secondary =
+    sort === "created"
+      ? "created_at DESC, id DESC"
+      : sort === "title"
+        ? "title COLLATE NOCASE ASC, id DESC"
+        : "updated_at DESC, id DESC";
+  return `is_pinned DESC, ${secondary}`;
 }
 
 /**
@@ -24,10 +56,12 @@ function getPlainTextFromContent(content: string): string {
 
 function toNote(row: Record<string, unknown>): Note {
   const rawColor = String(row.color ?? "default");
+  const rawKind = String(row.kind ?? "text");
   return {
     id: Number(row.id),
     title: String(row.title ?? ""),
     content: String(row.content ?? ""),
+    kind: isNoteKind(rawKind) ? rawKind : "text",
     is_pinned: Number(row.is_pinned) === 1,
     color: isValidNoteColor(rawColor) ? rawColor : "default",
     created_at: String(row.created_at ?? ""),
@@ -35,17 +69,54 @@ function toNote(row: Record<string, unknown>): Note {
   };
 }
 
+function toNoteItem(row: Record<string, unknown>): NoteItem {
+  return {
+    id: Number(row.id),
+    note_id: Number(row.note_id),
+    text: String(row.text ?? ""),
+    checked: Number(row.checked) === 1,
+    position: Number(row.position) || 0,
+  };
+}
+
 // The list only renders a short preview, so ship a bounded slice of the
 // pre-derived plain text instead of every note's full content blob.
 const LIST_COLUMNS =
-  "id, title, substr(plain_text, 1, 600) AS content, is_pinned, color, created_at, updated_at";
+  "id, title, substr(plain_text, 1, 2000) AS content, kind, is_pinned, color, created_at, updated_at";
 
-export async function loadNotes(): Promise<Note[]> {
+const ITEM_COLUMNS = "id, note_id, text, checked, position";
+
+/**
+ * Attach the ordered items to every checklist note in one batched query.
+ * A checklist note's full item list is needed for both the card preview and
+ * the +N ticked summary, so this intentionally fetches all of them.
+ */
+async function attachChecklistItems(notes: Note[]): Promise<Note[]> {
+  const ids = notes.filter((note) => note.kind === "checklist").map((note) => note.id);
+  if (ids.length === 0) return notes;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = await db.query<Record<string, unknown>>(
+    `SELECT ${ITEM_COLUMNS} FROM note_items WHERE note_id IN (${placeholders}) ORDER BY note_id, position, id`,
+    ids
+  );
+  const byNote = new Map<number, NoteItem[]>();
+  for (const row of rows) {
+    const item = toNoteItem(row);
+    const existing = byNote.get(item.note_id);
+    if (existing) existing.push(item);
+    else byNote.set(item.note_id, [item]);
+  }
+  return notes.map((note) =>
+    note.kind === "checklist" ? { ...note, items: byNote.get(note.id) ?? [] } : note
+  );
+}
+
+export async function loadNotes(sort: NoteSort = "updated"): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY is_pinned DESC, updated_at DESC`
+    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY ${orderBy(sort)}`
   );
-  return rows.map(toNote);
+  return attachChecklistItems(rows.map(toNote));
 }
 
 let backfillPromise: Promise<void> | null = null;
@@ -105,10 +176,10 @@ async function ensurePlainTextBackfill(): Promise<void> {
   return backfillPromise;
 }
 
-export async function searchNotes(query: string): Promise<Note[]> {
+export async function searchNotes(query: string, sort: NoteSort = "updated"): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return loadNotes();
+  if (!normalized) return loadNotes(sort);
 
   if (db.isNotesFtsEnabled()) {
     // Token-prefix match: closer to the old substring behaviour while letting
@@ -122,10 +193,10 @@ export async function searchNotes(query: string): Promise<Note[]> {
       const rows = await db.query<Record<string, unknown>>(
         `SELECT ${LIST_COLUMNS} FROM notes
           WHERE id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)
-          ORDER BY is_pinned DESC, updated_at DESC`,
+          ORDER BY ${orderBy(sort)}`,
         [ftsQuery]
       );
-      return rows.map(toNote);
+      return attachChecklistItems(rows.map(toNote));
     } catch {
       // Malformed FTS query — fall through to the LIKE path below.
     }
@@ -134,10 +205,10 @@ export async function searchNotes(query: string): Promise<Note[]> {
   const escaped = normalized.replace(/[\\%_]/g, "\\$&");
   const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY is_pinned DESC, updated_at DESC`,
+    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY ${orderBy(sort)}`,
     [pattern, pattern]
   );
-  return rows.map(toNote);
+  return attachChecklistItems(rows.map(toNote));
 }
 
 export async function getNote(id: number): Promise<Note | undefined> {
@@ -173,7 +244,8 @@ export async function createNote(
 
 export async function updateNote(
   id: number,
-  fields: Partial<Pick<Note, "title" | "content" | "is_pinned">>
+  fields: Partial<Pick<Note, "title" | "content" | "is_pinned">>,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
   const sets: string[] = [];
   const values: (string | number)[] = [];
@@ -194,15 +266,82 @@ export async function updateNote(
   if (sets.length === 0) return;
   sets.push("updated_at = datetime('now')");
   values.push(id);
-  await db.execute(
+  await exec.execute(
     `UPDATE notes SET ${sets.join(", ")} WHERE id = ?`,
     values
   );
+}
+
+async function insertChecklistItems(
+  exec: db.DbExecutor,
+  noteId: number,
+  items: readonly NewChecklistItem[]
+): Promise<void> {
+  for (let position = 0; position < items.length; position++) {
+    const item = items[position];
+    await exec.execute(
+      "INSERT INTO note_items (note_id, text, checked, position) VALUES (?, ?, ?, ?)",
+      [noteId, item.text, item.checked ? 1 : 0, position]
+    );
+  }
+}
+
+/** Items of a checklist note, in display order. */
+export async function getChecklistItems(noteId: number): Promise<NoteItem[]> {
+  const rows = await db.query<Record<string, unknown>>(
+    `SELECT ${ITEM_COLUMNS} FROM note_items WHERE note_id = ? ORDER BY position, id`,
+    [noteId]
+  );
+  return rows.map(toNoteItem);
+}
+
+export async function createChecklistNote(
+  fields: Pick<Note, "title" | "is_pinned">,
+  items: readonly NewChecklistItem[],
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<Note> {
+  const result = await exec.execute(
+    "INSERT INTO notes (title, content, kind, is_pinned, color, plain_text) VALUES (?, '', 'checklist', ?, 'default', ?)",
+    [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items)]
+  );
+  const noteId = result.lastId;
+  if (!noteId) throw new Error("Failed to create note.");
+  await insertChecklistItems(exec, noteId, items);
+  const created = await exec.get<Record<string, unknown>>(
+    "SELECT * FROM notes WHERE id = ?",
+    [noteId]
+  );
+  if (!created) throw new Error("Failed to create note.");
+  return toNote(created);
+}
+
+/**
+ * Replace a checklist note's items and title in one shot. Always run this
+ * inside a transaction (see `db.withTransaction`); the delete/insert pair must
+ * not be observable half-applied. `plain_text` is rebuilt so search and the
+ * `updated_at` ordering stay in sync with the visible items.
+ */
+export async function saveChecklistNote(
+  noteId: number,
+  fields: Pick<Note, "title" | "is_pinned">,
+  items: readonly NewChecklistItem[],
+  exec: db.DbExecutor = db.defaultExecutor
+): Promise<void> {
+  await exec.execute(
+    "UPDATE notes SET title = ?, is_pinned = ?, plain_text = ?, updated_at = datetime('now') WHERE id = ?",
+    [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items), noteId]
+  );
+  await exec.execute("DELETE FROM note_items WHERE note_id = ?", [noteId]);
+  await insertChecklistItems(exec, noteId, items);
 }
 
 export async function deleteNote(
   id: number,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  // Delete items explicitly rather than relying on `ON DELETE CASCADE`: a
+  // transaction runs on its own connection, where the `foreign_keys` pragma
+  // set on the main connection is not guaranteed to be in effect.
+  await exec.execute("DELETE FROM note_items WHERE note_id = ?", [id]);
   await exec.execute("DELETE FROM notes WHERE id = ?", [id]);
 }

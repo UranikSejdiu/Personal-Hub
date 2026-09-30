@@ -7,7 +7,7 @@ import type {
   SavingsGoal,
 } from "../types/budget";
 import { EMPTY_LOANS } from "../types/budget";
-import type { Note } from "../types/notes";
+import type { Note, NoteKind } from "../types/notes";
 import type { NoteColor } from "../constants/theme";
 
 /**
@@ -90,22 +90,31 @@ const NOTE_COLOR: NoteColor = "default";
 export const SAMPLE_NOTES: {
   title: string;
   content: string;
+  kind: NoteKind;
   is_pinned: boolean;
   color: NoteColor;
+  items?: { text: string; checked: boolean }[];
 }[] = [
   {
     title: "Welcome to Personal Hub",
     content:
       '<p>This is a sample note. Tap the card to open the editor, or the <strong>+</strong> button to write your own.</p><ul><li><s>Rich text works</s> — bold, italic and lists</li><li>Checkbox lists: tap a box to tick it off</li><li>Pin a note to keep it at the top</li></ul>',
+    kind: "text",
     is_pinned: true,
     color: NOTE_COLOR,
   },
   {
     title: "Shopping list",
-    content:
-      '<ul><li>Oat milk</li><li><s>Coffee beans</s></li><li>Rice</li></ul>',
+    content: "",
+    kind: "checklist",
     is_pinned: false,
     color: NOTE_COLOR,
+    items: [
+      { text: "Oat milk", checked: false },
+      { text: "Coffee beans", checked: true },
+      { text: "Rice", checked: false },
+      { text: "Eggs", checked: false },
+    ],
   },
 ];
 
@@ -135,10 +144,18 @@ export function sampleNote(
     id: index + 1,
     title: source.title,
     content: source.content,
+    kind: source.kind,
     is_pinned: source.is_pinned,
     color: source.color,
     created_at: createdAt,
     updated_at: updatedAt,
+    items: source.items?.map((item, position) => ({
+      id: index * 100 + position,
+      note_id: index + 1,
+      text: item.text,
+      checked: item.checked,
+      position,
+    })),
   };
 }
 

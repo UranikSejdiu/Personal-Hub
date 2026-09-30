@@ -68,4 +68,5 @@ export const CircleHelp = createIcon("CircleHelp");
 export const LayoutDashboard = createIcon("LayoutDashboard");
 export const PiggyBank = createIcon("PiggyBank");
 export const Calculator = createIcon("Calculator");
+export const Sort = createIcon("Sort");
 export const Settings = createIcon("Settings");

@@ -81,6 +81,11 @@ export interface BackupEnvelope {
     transactions: Record<string, unknown>[];
     dhikrs: Record<string, unknown>[];
     notes: Record<string, unknown>[];
+    /**
+     * Checklist items. Optional: backups written before checklist notes
+     * existed omit this, and are restored with no items.
+     */
+    noteItems?: Record<string, unknown>[];
   };
 }
 
@@ -202,7 +207,16 @@ function validateNote(row: Record<string, unknown>): string | null {
   ) {
     return "note fields invalid";
   }
+  if (row.kind !== undefined && row.kind !== "text" && row.kind !== "checklist") return "note.kind invalid";
   if (!requiredString(row, "created_at") || !requiredString(row, "updated_at")) return "note dates invalid";
+  return null;
+}
+
+function validateNoteItem(row: Record<string, unknown>): string | null {
+  if (!optionalId(row) || !requiredString(row, "text")) return "note item fields invalid";
+  if (!isInteger(row.note_id) || (row.note_id as number) <= 0) return "note item note_id invalid";
+  if (!isBinaryFlag(row.checked)) return "note item checked invalid";
+  if (!isInteger(row.position) || (row.position as number) < 0) return "note item position invalid";
   return null;
 }
 
@@ -251,6 +265,22 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const autoDepositMonths = (tables.autoDeposits as Record<string, unknown>[]).map((row) => row.month as string);
   if (new Set(autoDepositMonths).size !== autoDepositMonths.length) return { ok: false, error: "Duplicate auto deposit month" };
 
+  // Optional checklist items (absent in backups written before v5).
+  const noteItems = tables.noteItems;
+  if (noteItems !== undefined) {
+    if (!Array.isArray(noteItems)) return { ok: false, error: "tables.noteItems must be array" };
+    const noteIds = new Set<number>();
+    for (const note of tables.notes as Record<string, unknown>[]) {
+      if (note.id !== undefined) noteIds.add(note.id as number);
+    }
+    for (const [index, value] of noteItems.entries()) {
+      if (!isObject(value)) return { ok: false, error: `tables.noteItems[${index}] must be object` };
+      const error = validateNoteItem(value);
+      if (error) return { ok: false, error: `tables.noteItems[${index}]: ${error}` };
+      if (!noteIds.has(value.note_id as number)) return { ok: false, error: "note item references a missing note" };
+    }
+  }
+
   // Detect accidental .db file pick: JSON parse would have thrown already, but guard SQLite header if base64
   // Real SQLite header check is done on file read before JSON parse (see import flow).
 
@@ -259,7 +289,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
   return db.withTransaction(async (tx) => {
-    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes] =
+    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems] =
       await Promise.all([
         tx.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
         tx.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
@@ -270,6 +300,7 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         tx.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
         tx.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
         tx.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM note_items ORDER BY note_id, position, id"),
       ]);
 
     return {
@@ -290,6 +321,7 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         transactions,
         dhikrs,
         notes,
+        noteItems,
       },
     };
   });
@@ -395,6 +427,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     await tx.execute("DELETE FROM savings_auto_deposits");
     await tx.execute("DELETE FROM savings_transactions");
     await tx.execute("DELETE FROM dhikrs");
+    await tx.execute("DELETE FROM note_items");
     await tx.execute("DELETE FROM notes");
     await tx.execute("DELETE FROM loans");
     await tx.execute("DELETE FROM savings_goals");
@@ -533,19 +566,38 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       );
     }
 
+    // Map old note ids to the freshly assigned ids so checklist items can be
+    // re-linked. Items whose note id is unknown are dropped rather than
+    // orphaned (validation already rejects unknown references).
+    const noteIdMap = new Map<number, number>();
     for (const r of env.tables.notes) {
       const row = r as Record<string, unknown>;
-      await tx.execute(
-        `INSERT INTO notes (title, content, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      const kind = row.kind === "checklist" ? "checklist" : "text";
+      const res = await tx.execute(
+        `INSERT INTO notes (title, content, kind, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.title as string,
           row.content as string,
+          kind,
           row.is_pinned ? 1 : 0,
           row.color as string,
           (row.plain_text as string | undefined) ?? "",
           row.created_at as string,
           row.updated_at as string,
         ]
+      );
+      if (row.id !== undefined && res.lastId) {
+        noteIdMap.set(row.id as number, res.lastId);
+      }
+    }
+
+    for (const r of env.tables.noteItems ?? []) {
+      const row = r as Record<string, unknown>;
+      const noteId = noteIdMap.get(row.note_id as number);
+      if (!noteId) continue;
+      await tx.execute(
+        `INSERT INTO note_items (note_id, text, checked, position) VALUES (?, ?, ?, ?)`,
+        [noteId, String(row.text ?? ""), row.checked ? 1 : 0, Number(row.position) || 0]
       );
     }
     });
