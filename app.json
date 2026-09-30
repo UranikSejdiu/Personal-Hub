@@ -2,7 +2,7 @@
   "expo": {
     "name": "Personal Hub",
     "slug": "uraniks-hub",
-    "version": "1.19.4",
+    "version": "1.19.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.uranik.offlinehub",
-      "versionCode": 89,
+      "versionCode": 90,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
