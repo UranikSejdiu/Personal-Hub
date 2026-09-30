@@ -86,7 +86,6 @@ function DhikrDraggableRow({
       >
         <Text
           className="text-base font-semibold text-foreground"
-          numberOfLines={1}
         >
           {d.name}
         </Text>

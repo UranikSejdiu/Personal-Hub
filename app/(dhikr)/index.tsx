@@ -254,8 +254,7 @@ export default function CounterScreen() {
               <ChevronLeft size={28} color={colors.foreground} />
             </Pressable>
             <Text
-              className="flex-1 text-center text-xl font-semibold text-foreground"
-              numberOfLines={1}
+              className="min-w-0 flex-1 text-center text-xl font-semibold text-foreground"
             >
               {activeDhikr.name}
             </Text>
