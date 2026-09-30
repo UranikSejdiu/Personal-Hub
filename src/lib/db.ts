@@ -123,7 +123,12 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 
   const openedDatabaseRef: { current: SQLite.SQLiteDatabase | null } = { current: null };
   initPromise = (async () => {
-    const database = await SQLite.openDatabaseAsync(DB_NAME);
+    // Expo's close-time statement sweep can finalize FTS5-owned statements;
+    // exclusive transactions close their connection after each checklist save.
+    // See https://github.com/expo/expo/issues/38168.
+    const database = await SQLite.openDatabaseAsync(DB_NAME, {
+      finalizeUnusedStatementsBeforeClosing: false,
+    });
     openedDatabaseRef.current = database;
     await database.execAsync("PRAGMA journal_mode = WAL;");
     await database.execAsync("PRAGMA foreign_keys = ON;");

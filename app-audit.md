@@ -25,6 +25,8 @@ The following changes are in the working tree. The findings below remain as the 
 | 12. Tutorial completion | Persistence failures show an existing translated toast and allow retry; concurrent taps are guarded. Device UI testing remains open. |
 | Additional: pending settings writes | Normal import, safety restore, and demo cleanup now use the same cancel-and-drain step for debounced goal saves. A controlled UI race test remains open. |
 | Additional: demo seeding race | The seeder rechecks database emptiness after entering the write transaction, so a user write that wins the race is preserved. |
+| Additional: checklist save/drop lifecycle | Screen-callback reproduction confirmed Save could persist the old order before the drag library finished its drop animation. Save/back now wait for `onDragEnd`, use the final order before React commits, and reject duplicate saves. Edits are disabled during writes; failed writes keep the editor open for retry. |
+| Additional: SQLite FTS connection close | Expo's native statement sweep finalizes FTS-owned statements before SQLite closes them. A disposable host SQLite process with the app's FTS triggers reproduced native heap corruption using that algorithm; disabling the sweep closed successfully. Database open options now disable the sweep and propagate to exclusive transaction connections. This verifies the defect, but does not establish the stack trace of the reported Android incident. |
 
 The five strict unused-symbol diagnostics are resolved, and the unsupported `.npmrc` setting is removed. File-removal candidates and larger performance/lifecycle work remain listed below; no candidate file was deleted. [Regression checks](./scripts/audit-regression.cjs) exercise the fixed data paths with disposable in-memory SQLite and mocked native APIs.
 
@@ -219,12 +221,13 @@ The original reproductions were made with disposable in-memory SQLite fixtures a
 
 | Check | Result |
 | --- | --- |
-| `npm run audit:regression` | Passed 14 source-level regressions using disposable in-memory SQLite and mocked native APIs, including the v6 migration and seed race. |
+| `npm run audit:regression` | Passed 16 source-level regressions using disposable in-memory SQLite and mocked native APIs, including checklist drop/save timing, duplicate saves, write failure/retry, reordered-item persistence/rollback, the v6 migration and seed race. |
 | `npm run typecheck` | Passed. |
 | `npx tsc --noEmit --noUnusedLocals --noUnusedParameters` | Passed. |
 | `npm run lint` | Passed. |
 | `npx expo config --type public` | Passed. |
 | Android backup XML check | Parsed both checked-in XML files and confirmed all three sensitive `file` paths are excluded in each applicable rule block. |
 | Android production Metro/Hermes export | Passed: 2,068 modules and a 5.1 MB HBC bundle. The first sandbox attempt hit Windows `spawn EPERM`; the permitted retry completed. This is not a native APK build. |
+| `python scripts/sqlite-fts-close-repro.py` | Windows host SQLite 3.45.3: Expo's statement-sweep algorithm finalized six FTS internal statements, then connection close terminated the child process with native heap corruption (exit 3221226356). The same in-memory trigger/update/commit flow without the sweep closed successfully (exit 0). This is a cleanup-algorithm reproduction, not an Android/iOS app run. |
 
-Still needed: native upgrade/device checks for migration and tutorial behavior, an Android OS backup/restore check, an iOS backup-policy decision, and investigation of existing orphan expenses. Unsaved-note navigation, budget refresh/background handling, the controlled settings race test, and measured performance work remain open. The emulator stays stopped.
+Still needed: native upgrade/device checks for migration and tutorial behavior, an Android OS backup/restore check, an iOS backup-policy decision, and investigation of existing orphan expenses. Unsaved-note navigation, budget refresh/background handling, the controlled settings race test, and measured performance work remain open.

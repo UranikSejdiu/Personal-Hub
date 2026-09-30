@@ -15,6 +15,7 @@ export interface ChecklistEntry {
 
 interface ChecklistItemRowProps {
   item: ChecklistEntry;
+  disabled?: boolean;
   isActive: boolean;
   drag: () => void;
   onToggle: (key: string) => void;
@@ -25,6 +26,7 @@ interface ChecklistItemRowProps {
 
 export function ChecklistItemRow({
   item,
+  disabled = false,
   isActive,
   drag,
   onToggle,
@@ -45,19 +47,22 @@ export function ChecklistItemRow({
     <View className={cn("flex-row items-start gap-1 px-3", isActive && "bg-muted/40")}>
       <Pressable
         onLongPress={drag}
+        disabled={disabled && !isActive}
         delayLongPress={150}
         className="h-10 w-8 items-center justify-center"
         accessibilityRole="button"
         accessibilityLabel={t("reorderHandle")}
+        accessibilityState={{ disabled: disabled && !isActive }}
       >
         <GripVertical size={18} color={colors.mutedForeground} />
       </Pressable>
 
       <Pressable
         onPress={() => onToggle(item.key)}
+        disabled={disabled}
         className="h-10 w-8 items-center justify-center"
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: item.checked }}
+        accessibilityState={{ checked: item.checked, disabled }}
         accessibilityLabel={item.text || t("notesItemPlaceholder")}
       >
         <CheckboxSquare checked={item.checked} />
@@ -66,6 +71,7 @@ export function ChecklistItemRow({
       <TextInput
         ref={inputRef}
         value={item.text}
+        editable={!disabled}
         onChangeText={(text) => onChangeText(item.key, text)}
         placeholder={t("notesItemPlaceholder")}
         placeholderTextColor={colors.mutedForeground}
@@ -76,9 +82,11 @@ export function ChecklistItemRow({
 
       <Pressable
         onPress={() => onRemove(item.key)}
+        disabled={disabled}
         className="h-10 w-8 items-center justify-center"
         accessibilityRole="button"
         accessibilityLabel={t("notesItemDelete")}
+        accessibilityState={{ disabled }}
       >
         <X size={18} color={colors.mutedForeground} />
       </Pressable>

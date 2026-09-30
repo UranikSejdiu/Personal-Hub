@@ -77,6 +77,10 @@ export default function ChecklistEditorScreen() {
   const [asyncLoadFailed, setAsyncLoadFailed] = useState(false);
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
   const [isSaving, setIsSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  // A ref closes the interval before React commits the disabled controls.
+  const operationRef = useRef<"idle" | "dragging" | "saving">("idle");
+  const isBusy = isSaving || isDragging;
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
   const allowRemoveRef = useRef(false);
@@ -159,6 +163,7 @@ export default function ChecklistEditorScreen() {
   }, []);
 
   const handleToggle = useCallback((key: string) => {
+    if (operationRef.current !== "idle") return;
     setItems((previous) => {
       const toggled = previous.map((item) =>
         item.key === key ? { ...item, checked: !item.checked } : item
@@ -169,17 +174,20 @@ export default function ChecklistEditorScreen() {
   }, []);
 
   const handleChangeText = useCallback((key: string, text: string) => {
+    if (operationRef.current !== "idle") return;
     setItems((previous) =>
       previous.map((item) => (item.key === key ? { ...item, text } : item))
     );
   }, []);
 
   const handleRemove = useCallback((key: string) => {
+    if (operationRef.current !== "idle") return;
     void haptics.light();
     setItems((previous) => previous.filter((item) => item.key !== key));
   }, [haptics]);
 
   const handleAddItem = useCallback(() => {
+    if (operationRef.current !== "idle") return;
     const key = `new-${keyCounterRef.current++}`;
     pendingFocusRef.current = key;
     void haptics.light();
@@ -190,14 +198,27 @@ export default function ChecklistEditorScreen() {
     ]);
   }, [haptics]);
 
+  const handleDragBegin = useCallback(() => {
+    if (operationRef.current !== "idle") return;
+    operationRef.current = "dragging";
+    setIsDragging(true);
+  }, []);
+
   const handleDragEnd = useCallback(
     ({ data }: { data: ChecklistEntry[] }) => {
-      setItems([...data, ...itemsRef.current.filter((item) => item.checked)]);
+      if (operationRef.current !== "dragging") return;
+      const reordered = [...data, ...itemsRef.current.filter((item) => item.checked)];
+      itemsRef.current = reordered;
+      setItems(reordered);
+      // onRelease precedes the drop animation; only onDragEnd has the final order.
+      operationRef.current = "idle";
+      setIsDragging(false);
     },
     []
   );
 
   const handleBack = useCallback(() => {
+    if (operationRef.current !== "idle") return;
     router.back();
   }, [router]);
 
@@ -217,6 +238,7 @@ export default function ChecklistEditorScreen() {
       }) => {
         if (allowRemoveRef.current) return;
         event.preventDefault();
+        if (operationRef.current !== "idle") return;
         if (checkingRemoveRef.current) return;
         const action = event.data.action;
         checkingRemoveRef.current = true;
@@ -250,10 +272,12 @@ export default function ChecklistEditorScreen() {
   }, [router]);
 
   const handleSave = useCallback(async () => {
-    if (isSaving || loadFailed) return;
+    if (operationRef.current !== "idle" || loading || loadFailed) return;
+    operationRef.current = "saving";
     setIsSaving(true);
+    const savedItems = itemsRef.current;
     try {
-      const payload: NewChecklistItem[] = items.map(({ text, checked }) => ({ text, checked }));
+      const payload: NewChecklistItem[] = savedItems.map(({ text, checked }) => ({ text, checked }));
       if (noteId) {
         await withTransaction((tx) =>
           saveChecklistNote(noteId, { title, is_pinned: isPinned }, payload, tx)
@@ -262,18 +286,20 @@ export default function ChecklistEditorScreen() {
         const created = await createChecklistNote({ title, is_pinned: isPinned }, payload);
         setNoteId(created.id);
       }
-      snapshotRef.current = serialize(title, isPinned, items);
+      snapshotRef.current = serialize(title, isPinned, savedItems);
       allowRemoveRef.current = true;
       void haptics.success();
       router.back();
     } catch {
       toast.error(t("saveFailed"));
     } finally {
+      operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [haptics, isPinned, isSaving, items, loadFailed, noteId, router, t, title]);
+  }, [haptics, isPinned, loading, loadFailed, noteId, router, t, title]);
 
   const handleDelete = useCallback(() => {
+    if (operationRef.current !== "idle") return;
     if (noteId) setConfirmState({ kind: "delete" });
   }, [noteId]);
 
@@ -291,6 +317,7 @@ export default function ChecklistEditorScreen() {
   }, [haptics, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
+    if (operationRef.current !== "idle") return;
     void haptics.light();
     setIsPinned((previous) => !previous);
   }, [haptics]);
@@ -300,6 +327,7 @@ export default function ChecklistEditorScreen() {
       <ScaleDecorator>
         <ChecklistItemRow
           item={item}
+          disabled={isBusy}
           isActive={isActive}
           drag={drag}
           onToggle={handleToggle}
@@ -309,7 +337,7 @@ export default function ChecklistEditorScreen() {
         />
       </ScaleDecorator>
     ),
-    [handleChangeText, handleRemove, handleToggle, registerInput]
+    [handleChangeText, handleRemove, handleToggle, isBusy, registerInput]
   );
 
   if (loading) {
@@ -340,11 +368,11 @@ export default function ChecklistEditorScreen() {
     <View>
       <Pressable
         onPress={handleAddItem}
-        disabled={isSaving}
+        disabled={isBusy}
         className="min-h-[44px] flex-row items-center gap-2 px-4"
         accessibilityRole="button"
         accessibilityLabel={t("notesAddItem")}
-        accessibilityState={{ disabled: isSaving }}
+        accessibilityState={{ disabled: isBusy }}
       >
         <Plus size={16} color={colors.mutedForeground} />
         <Text className="text-sm text-muted-foreground">{t("notesAddItem")}</Text>
@@ -380,9 +408,10 @@ export default function ChecklistEditorScreen() {
                 <View key={item.key} className="flex-row items-center gap-1 px-3">
                   <Pressable
                     onPress={() => handleToggle(item.key)}
+                    disabled={isBusy}
                     className="h-10 w-8 items-center justify-center"
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: true }}
+                    accessibilityState={{ checked: true, disabled: isBusy }}
                     accessibilityLabel={item.text || t("notesItemPlaceholder")}
                   >
                     <CheckboxSquare checked />
@@ -392,9 +421,11 @@ export default function ChecklistEditorScreen() {
                   </Text>
                   <Pressable
                     onPress={() => handleRemove(item.key)}
+                    disabled={isBusy}
                     className="h-10 w-8 items-center justify-center"
                     accessibilityRole="button"
                     accessibilityLabel={t("notesItemDelete")}
+                    accessibilityState={{ disabled: isBusy }}
                   >
                     <X size={18} color={colors.mutedForeground} />
                   </Pressable>
@@ -418,38 +449,44 @@ export default function ChecklistEditorScreen() {
           <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
             <Pressable
               onPress={handleBack}
+              disabled={isBusy}
               className="p-1"
               accessibilityRole="button"
               accessibilityLabel={t("cancel")}
+              accessibilityState={{ disabled: isBusy }}
             >
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <View className="flex-row items-center gap-2">
               <Pressable
                 onPress={handleTogglePin}
+                disabled={isBusy}
                 className="p-3"
                 accessibilityRole="button"
                 accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
+                accessibilityState={{ disabled: isBusy }}
               >
                 <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
               </Pressable>
               {noteId ? (
                 <Pressable
                   onPress={handleDelete}
+                  disabled={isBusy}
                   className="p-3"
                   accessibilityRole="button"
                   accessibilityLabel={t("notesDelete")}
+                  accessibilityState={{ disabled: isBusy }}
                 >
                   <Trash2 size={20} color={colors.destructive} />
                 </Pressable>
               ) : null}
               <Pressable
                 onPress={handleSave}
-                disabled={isSaving}
-                className={`rounded-lg px-4 py-2 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
+                disabled={isBusy}
+                className={`rounded-lg px-4 py-2 ${!isBusy ? "bg-primary" : "bg-primary/50"}`}
                 accessibilityRole="button"
                 accessibilityLabel={t("save")}
-                accessibilityState={{ disabled: isSaving }}
+                accessibilityState={{ disabled: isBusy }}
               >
                 <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
               </Pressable>
@@ -461,6 +498,7 @@ export default function ChecklistEditorScreen() {
             data={activeItems}
             keyExtractor={(item) => item.key}
             renderItem={renderItem}
+            onDragBegin={handleDragBegin}
             onDragEnd={handleDragEnd}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -469,6 +507,7 @@ export default function ChecklistEditorScreen() {
             ListHeaderComponent={
               <TextInput
                 value={title}
+                editable={!isSaving}
                 onChangeText={setTitle}
                 placeholder={t("notesUntitled")}
                 placeholderTextColor={colors.mutedForeground}

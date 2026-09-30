@@ -96,6 +96,9 @@ const reset = () => {
 const results = [];
 async function verify(name, fn) { reset(); await fn(); results.push({ name, passed: true }); }
 (async () => {
+  await verify('Checklist editor blocks save/navigation until drop completes and prevents duplicate saves', async () => {
+    await require('./checklist-editor-regression.cjs')(root);
+  });
   await verify('Recurring population skips an existing matching expense', async () => {
     const b = await budget.saveBudget('2026-09', 1000, false, false);
     await executor.execute('INSERT INTO recurring_expenses(category, amount) VALUES (?, ?)', ['Rent', 100]);
@@ -118,6 +121,28 @@ async function verify(name, fn) { reset(); await fn(); results.push({ name, pass
     ]));
     assert.equal((await executor.query('SELECT * FROM notes')).length, 0);
     assert.equal((await executor.query('SELECT * FROM note_items')).length, 0);
+  });
+  await verify('Checklist reorder persists and a failed save preserves the prior order', async () => {
+    const note = await notes.createChecklistNote({ title: 'Shopping', is_pinned: false }, [
+      { text: 'first', checked: false }, { text: 'second', checked: false },
+      { text: 'done', checked: true },
+    ]);
+    const reordered = [
+      { text: 'second', checked: false }, { text: 'first', checked: false },
+      { text: 'done', checked: true },
+    ];
+    await dbMock.withTransaction(tx => notes.saveChecklistNote(
+      note.id, { title: 'Reordered', is_pinned: false }, reordered, tx
+    ));
+    assert.deepEqual((await notes.getChecklistItems(note.id)).map(({ text, checked }) => ({ text, checked })), reordered);
+    failOn = (sql, values) => sql.startsWith('INSERT INTO note_items') && values[1] === 'failure';
+    await assert.rejects(dbMock.withTransaction(tx => notes.saveChecklistNote(
+      note.id, { title: 'Failed edit', is_pinned: false }, [
+        { text: 'changed', checked: false }, { text: 'failure', checked: false },
+      ], tx
+    )));
+    assert.deepEqual((await notes.getChecklistItems(note.id)).map(({ text, checked }) => ({ text, checked })), reordered);
+    assert.equal((await executor.get('SELECT title FROM notes WHERE id = ?', [note.id])).title, 'Reordered');
   });
   await verify('Loan payment toggles are reversible and idempotent at the term', async () => {
     await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_amount: 1200, loan_term: 12, loan_months_paid: 11 });
@@ -238,7 +263,10 @@ async function verify(name, fn) { reset(); await fn(); results.push({ name, pass
     }).outputText;
     const module = { exports: {} };
     const localRequire = name => {
-      if (name === 'expo-sqlite') return { openDatabaseAsync: async () => fakeDatabase };
+      if (name === 'expo-sqlite') return { openDatabaseAsync: async (_name, options) => {
+        assert.equal(options.finalizeUnusedStatementsBeforeClosing, false);
+        return fakeDatabase;
+      } };
       if (name === './noteContent') return { contentToMarkdown: () => '' };
       if (name === './lexicalPreview') return { isLexicalJson: () => false };
       if (name.startsWith('.')) return load(path.resolve(path.dirname(filename), `${name}.ts`));
