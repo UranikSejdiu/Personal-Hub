@@ -4,11 +4,13 @@ import { DHIKR_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
+import { usePersistActiveTab } from "../../src/hooks/usePersistActiveTab";
 
 export default function DhikrLayout() {
   const router = useRouter();
   const { t } = useI18n();
   const { handleAppSelect } = useAppSwitching("dhikr");
+  usePersistActiveTab("dhikr");
 
   return (
     <>

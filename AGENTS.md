@@ -98,11 +98,11 @@ assets/           # Fonts, images, and native static resources
 The existing hub architecture includes:
 - app registration & module switching
 - Expo Router tab & stack navigation
-- a two-level navigation shell: `HubHeader` renders the `AppSwitcher` dropdown (top) to move between modules, and each module renders a `PillNav` tab bar (bottom) for its own sections
+- a two-level navigation shell: `HubHeader` renders the `AppSwitcher` dropdown (top) to move between modules, and each module renders a `PillNav` tab bar (bottom) for its own sections. Each module's last tab is remembered and restored on switch
 - Android hardware back-button handling
 - cross-platform theme engine (Light, Dark)
 
-Module switching is a modal dropdown, not swipe navigation — do not assume gesture-driven navigation exists.
+Module switching is an anchored dropdown menu, not swipe navigation — do not assume gesture-driven navigation exists.
 
 Do not create a parallel architecture when the existing architecture already provides the required functionality.
 

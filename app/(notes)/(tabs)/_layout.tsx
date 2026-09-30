@@ -2,10 +2,12 @@ import { Tabs, useRouter } from "expo-router";
 import { PillNav } from "../../../src/components/PillNav";
 import { NOTES_TABS } from "../../../src/hub/tabs";
 import { useI18n } from "../../../src/lib/i18n";
+import { usePersistActiveTab } from "../../../src/hooks/usePersistActiveTab";
 
 export default function NotesTabsLayout() {
   const router = useRouter();
   const { t } = useI18n();
+  usePersistActiveTab("notes");
 
   return (
     <Tabs

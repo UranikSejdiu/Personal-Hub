@@ -6,6 +6,7 @@ import { BUDGET_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
+import { usePersistActiveTab } from "../../src/hooks/usePersistActiveTab";
 import { loadSavingsGoal } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 
@@ -13,6 +14,7 @@ export default function BudgetLayout() {
   const router = useRouter();
   const { t } = useI18n();
   const { handleAppSelect } = useAppSwitching("budget");
+  usePersistActiveTab("budget");
 
   const tRef = useRef(t);
   useEffect(() => {
