@@ -5,6 +5,8 @@ import { Platform } from "react-native";
 import { getAppVersion } from "../constants/config";
 import { NOTE_COLORS } from "../constants/theme";
 import { isClosingMarkerDescription } from "./savings";
+import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS } from "./calculations";
+import { invalidateSampleData } from "./sampleData";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -109,7 +111,7 @@ function isFiniteNumber(v: unknown): v is number {
 }
 
 function isInteger(v: unknown): v is number {
-  return isFiniteNumber(v) && Number.isInteger(v);
+  return isFiniteNumber(v) && Number.isSafeInteger(v);
 }
 
 function isBinaryFlag(v: unknown): v is 0 | 1 {
@@ -143,6 +145,11 @@ function validateLoans(row: Record<string, unknown>): string | null {
   if (Number(row.loan_payment_day) < 1 || Number(row.loan_payment_day) > 31) {
     return "loans.loan_payment_day invalid";
   }
+  if (Number(row.loan_term) > MAX_LOAN_TERM_MONTHS || Number(row.loan_months_paid) > MAX_LOAN_TERM_MONTHS ||
+      Number(row.cc_months_paid) > MAX_LOAN_TERM_MONTHS || Number(row.loan_rate) > MAX_LOAN_ANNUAL_RATE ||
+      Number(row.loan_amount) > MAX_LOAN_AMOUNT || Number(row.loan_payment) > MAX_LOAN_AMOUNT) {
+    return "loans values out of range";
+  }
   if (row.loan_start_date !== null && row.loan_start_date !== undefined && !isValidDate(row.loan_start_date)) return "loans.loan_start_date invalid";
   if (!optionalString(row, "loan_name") || !optionalString(row, "cc_name")) return "loans names invalid";
   return null;
@@ -160,6 +167,8 @@ function validateBudget(row: Record<string, unknown>): string | null {
   if (row.income < 0) return "budget.income must be non-negative";
   if (row.loan_paid !== undefined && !isBinaryFlag(row.loan_paid)) return "budget.loan_paid invalid";
   if (row.cc_paid !== undefined && !isBinaryFlag(row.cc_paid)) return "budget.cc_paid invalid";
+  if (row.loan_counter_incremented !== undefined && row.loan_counter_incremented !== null &&
+      !isBinaryFlag(row.loan_counter_incremented)) return "budget.loan_counter_incremented invalid";
   if (!optionalString(row, "updated_at")) return "budget.updated_at invalid";
   return null;
 }
@@ -252,15 +261,25 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const budgets = tables.budgets as Record<string, unknown>[];
   const budgetMonths = new Set<string>();
   const budgetIds = new Set<number>();
+  const budgetMonthById = new Map<number, string>();
   for (const budget of budgets) {
     budgetMonths.add(budget.month as string);
-    if (budget.id !== undefined) budgetIds.add(budget.id as number);
+    if (budget.id !== undefined) {
+      const id = budget.id as number;
+      if (budgetIds.has(id)) return { ok: false, error: "Duplicate budget ID" };
+      budgetIds.add(id);
+      budgetMonthById.set(id, budget.month as string);
+    }
   }
   if (budgetMonths.size !== budgets.length) return { ok: false, error: "Duplicate budget month" };
   for (const expense of tables.expenses as Record<string, unknown>[]) {
     const hasMonth = expense.budget_month !== undefined && budgetMonths.has(expense.budget_month as string);
     const hasId = expense.budget_id !== undefined && budgetIds.has(expense.budget_id as number);
     if (!hasMonth && !hasId) return { ok: false, error: "Expense references a missing budget" };
+    if (expense.budget_month !== undefined && expense.budget_id !== undefined &&
+      budgetMonthById.get(expense.budget_id as number) !== expense.budget_month) {
+      return { ok: false, error: "Expense budget references disagree" };
+    }
   }
   const autoDepositMonths = (tables.autoDeposits as Record<string, unknown>[]).map((row) => row.month as string);
   if (new Set(autoDepositMonths).size !== autoDepositMonths.length) return { ok: false, error: "Duplicate auto deposit month" };
@@ -279,6 +298,10 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
       if (error) return { ok: false, error: `tables.noteItems[${index}]: ${error}` };
       if (!noteIds.has(value.note_id as number)) return { ok: false, error: "note item references a missing note" };
     }
+  }
+  const notesWithIds = (tables.notes as Record<string, unknown>[]).filter((note) => note.id !== undefined);
+  if (new Set(notesWithIds.map((note) => note.id as number)).size !== notesWithIds.length) {
+    return { ok: false, error: "Duplicate note ID" };
   }
 
   // Detect accidental .db file pick: JSON parse would have thrown already, but guard SQLite header if base64
@@ -418,6 +441,11 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     }
   }
 
+  // SecureStore ownership IDs/months belong to the previous database. Clear
+  // them before replacement, even for a safety restore. If this fails, abort
+  // without touching user data rather than risking later demo cleanup.
+  await invalidateSampleData();
+
   try {
     await db.withTransaction(async (tx) => {
     // Clear in FK-safe order
@@ -469,12 +497,13 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = b as Record<string, unknown>;
       const month = row.month as string;
       const res = await tx.execute(
-        `INSERT INTO budgets (month, income, loan_paid, cc_paid, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO budgets (month, income, loan_paid, cc_paid, loan_counter_incremented, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
         [
           month,
           row.income as number,
           row.loan_paid ? 1 : 0,
           row.cc_paid ? 1 : 0,
+          row.loan_counter_incremented ?? null,
           (row.updated_at as string) || new Date().toISOString(),
         ]
       );

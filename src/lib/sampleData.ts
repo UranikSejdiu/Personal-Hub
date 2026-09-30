@@ -106,16 +106,16 @@ const SAVINGS_FIELDS = ["goal_amount", "salary"];
  * `loadSavingsGoal` cannot answer this: they report zeros both for a missing row
  * and for a genuinely zero one, so the tables are counted directly.
  */
-export async function isDatabaseEmpty(): Promise<boolean> {
+export async function isDatabaseEmpty(exec: db.DbExecutor = db.defaultExecutor): Promise<boolean> {
   for (const table of CONTENT_TABLES) {
-    const row = await db.get<{ count: number }>(`SELECT COUNT(*) AS count FROM ${table}`);
+    const row = await exec.get<{ count: number }>(`SELECT COUNT(*) AS count FROM ${table}`);
     if ((row?.count ?? 0) > 0) return false;
   }
 
-  const loans = await db.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1");
+  const loans = await exec.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1");
   if (loans && hasActivity(loans, LOAN_FIELDS)) return false;
 
-  const goal = await db.get<Record<string, unknown>>(
+  const goal = await exec.get<Record<string, unknown>>(
     "SELECT * FROM savings_goals WHERE id = 1"
   );
   if (goal && hasActivity(goal, SAVINGS_FIELDS)) return false;
@@ -139,6 +139,11 @@ export async function hasSampleData(): Promise<boolean> {
   return record?.state === "seeded";
 }
 
+/** Invalidate demo ownership before replacing database contents from a backup. */
+export async function invalidateSampleData(): Promise<void> {
+  await SecureStore.deleteItemAsync(SAMPLE_STATE_KEY);
+}
+
 function loansMatchSample(loans: Loans): boolean {
   return LOAN_FIELDS.every((field) => {
     const key = field as keyof Loans;
@@ -156,8 +161,12 @@ export async function seedSampleData(): Promise<void> {
 
   const months: string[] = [];
   const noteIds: number[] = [];
+  let seeded = false;
 
   await db.withTransaction(async (tx) => {
+    // Recheck after acquiring the write queue: a user write may have landed
+    // between the initial emptiness check and this transaction.
+    if (!(await isDatabaseEmpty(tx))) return;
     await saveLoans(SAMPLE_LOANS, tx);
     await saveSavingsGoal(SAMPLE_SAVINGS.goal_amount, SAMPLE_SAVINGS.salary, tx);
 
@@ -203,9 +212,10 @@ export async function seedSampleData(): Promise<void> {
             );
       noteIds.push(created.id);
     }
+    seeded = true;
   });
 
-  await writeRecord({ state: "seeded", months, noteIds });
+  if (seeded) await writeRecord({ state: "seeded", months, noteIds });
 }
 
 /**

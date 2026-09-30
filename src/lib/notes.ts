@@ -298,8 +298,11 @@ export async function getChecklistItems(noteId: number): Promise<NoteItem[]> {
 export async function createChecklistNote(
   fields: Pick<Note, "title" | "is_pinned">,
   items: readonly NewChecklistItem[],
-  exec: db.DbExecutor = db.defaultExecutor
+  exec?: db.DbExecutor
 ): Promise<Note> {
+  if (!exec) {
+    return db.withTransaction((tx) => createChecklistNote(fields, items, tx));
+  }
   const result = await exec.execute(
     "INSERT INTO notes (title, content, kind, is_pinned, color, plain_text) VALUES (?, '', 'checklist', ?, 'default', ?)",
     [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items)]

@@ -9,7 +9,6 @@ interface NumberInputProps {
   placeholder?: string;
   min?: number;
   max?: number;
-  step?: number;
   decimals?: number;
   suffix?: string;
   className?: string;
@@ -21,7 +20,6 @@ export function NumberInput({
   placeholder = "0",
   min = -Infinity,
   max = Infinity,
-  step = 1,
   decimals = 0,
   suffix,
   className,

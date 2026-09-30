@@ -149,6 +149,16 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     }, 800);
   }, [flushGoalSave]);
 
+  const cancelAndDrainGoalSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (goalSaveInFlightRef.current) {
+      await goalSaveInFlightRef.current;
+    }
+  }, []);
+
   // Unmount paths (hardware back, app switch) must flush a pending edit rather
   // than drop it, otherwise the edited value silently disappears.
   useEffect(() => {
@@ -192,6 +202,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
   const runSafetyRestore = useCallback(async () => {
     setBackupBusy(true);
     try {
+      await cancelAndDrainGoalSave();
       await restoreSafetyBackup();
       resetPlainTextBackfill();
       setCanRestoreSafety(false);
@@ -206,12 +217,13 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     } finally {
       setBackupBusy(false);
     }
-  }, [t, reloadBudgetGoal]);
+  }, [t, reloadBudgetGoal, cancelAndDrainGoalSave]);
 
   /** Remove the demo rows written on first run, so the app starts from scratch. */
   const runClearSampleData = useCallback(async () => {
     setBackupBusy(true);
     try {
+      await cancelAndDrainGoalSave();
       const removed = await clearSampleData();
       if (removed) {
         setSampleDataPresent(false);
@@ -224,7 +236,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
       setBackupBusy(false);
       setConfirmAction(null);
     }
-  }, [t, reloadBudgetGoal]);
+  }, [t, reloadBudgetGoal, cancelAndDrainGoalSave]);
 
   const handleClearSampleData = useCallback(() => {
     setConfirmAction({
@@ -295,17 +307,10 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
         confirmLabel: t("importData"),
         destructive: true,
         onConfirm: async () => {
-          // Cancel any pending debounced goal save so it cannot overwrite the
-          // freshly imported data.
-          if (saveTimerRef.current) {
-            clearTimeout(saveTimerRef.current);
-            saveTimerRef.current = null;
-          }
-          if (goalSaveInFlightRef.current) {
-            await goalSaveInFlightRef.current;
-          }
           setBackupBusy(true);
           try {
+            // Drain local writes before replacing database state.
+            await cancelAndDrainGoalSave();
             await importBackupFromJson(json);
             resetPlainTextBackfill();
             setCanRestoreSafety(await hasSafetyBackup());
@@ -335,7 +340,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
       const reason = error instanceof Error ? error.message : String(error);
       toast.error(t("importFailedReason", { reason }));
     }
-  }, [backupBusy, t, reloadBudgetGoal, runSafetyRestore]);
+  }, [backupBusy, t, reloadBudgetGoal, runSafetyRestore, cancelAndDrainGoalSave]);
 
   if (!activeSection) {
     return (

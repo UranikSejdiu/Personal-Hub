@@ -8,12 +8,15 @@ const DATA_EXTRACTION_RULES_ATTRIBUTE = "@xml/data_extraction_rules";
 // Android 11 and lower: only <exclude> entries, everything else stays backed up.
 const BACKUP_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
 <!--
-  Personal Hub is offline-first. The SQLite database must never reach cloud
-  backup: restoring an older copy over a newer schema corrupts user data, and
-  the data is already kept on-device. Auth tokens in SecureStore stay out too.
+  Personal Hub is offline-first. The SQLite database and recovery snapshots
+  must stay off cloud backup and device transfer. Auth tokens in SecureStore
+  stay out too.
 -->
 <full-backup-content>
   <exclude domain="database" path="."/>
+  <exclude domain="file" path="SQLite/"/>
+  <exclude domain="file" path="personal-hub-safety-backup.json"/>
+  <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
   <exclude domain="sharedpref" path="SecureStore"/>
 </full-backup-content>
 `;
@@ -27,10 +30,16 @@ const DATA_EXTRACTION_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
   <cloud-backup>
     <exclude domain="database" path="."/>
+    <exclude domain="file" path="SQLite/"/>
+    <exclude domain="file" path="personal-hub-safety-backup.json"/>
+    <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
     <exclude domain="sharedpref" path="SecureStore"/>
   </cloud-backup>
   <device-transfer>
     <exclude domain="database" path="."/>
+    <exclude domain="file" path="SQLite/"/>
+    <exclude domain="file" path="personal-hub-safety-backup.json"/>
+    <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
     <exclude domain="sharedpref" path="SecureStore"/>
   </device-transfer>
 </data-extraction-rules>

@@ -8,10 +8,11 @@ import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
   saveLoans,
+  loanMonthlyPayment,
   type Loans,
   EMPTY_LOANS,
 } from "../../src/lib/budget";
-import { pmt, remainingBalance, creditCardPayoff } from "../../src/lib/calculations";
+import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, remainingBalance, creditCardPayoff } from "../../src/lib/calculations";
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
@@ -58,12 +59,7 @@ export default function LoansScreen() {
     setLoans((prev) => ({ ...prev, ...fields }));
   }, []);
 
-  const loanPayment =
-    loans.loan_amount <= 0 || loans.loan_term <= 0
-      ? 0
-      : loans.loan_payment > 0
-        ? loans.loan_payment
-        : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
+  const loanPayment = loanMonthlyPayment(loans);
 
   const payoff = useMemo(() => {
     if (loans.cc_balance <= 0 || loans.cc_payment <= 0) return null;
@@ -78,7 +74,7 @@ export default function LoansScreen() {
       : 0;
   const loanBalance =
     loans.loan_amount > 0 && loans.loan_term > 0
-      ? remainingBalance(loans.loan_amount, loans.loan_rate, loans.loan_term, loans.loan_months_paid)
+      ? remainingBalance(loans.loan_amount, loans.loan_rate, loans.loan_term, loans.loan_months_paid, loans.loan_payment > 0 ? loans.loan_payment : undefined)
       : 0;
 
   const isCcPaid = loans.cc_months_paid > 0 && loans.cc_balance <= 0;
@@ -140,34 +136,34 @@ export default function LoansScreen() {
 
             <View>
               <Text className="mb-1 text-sm text-muted-foreground">{t("loanAmount")}</Text>
-               <NumberInput value={loans.loan_amount} onChange={(v) => update({ loan_amount: v })} min={0} decimals={2} placeholder="0.00" />
+               <NumberInput value={loans.loan_amount} onChange={(v) => update({ loan_amount: v })} min={0} max={MAX_LOAN_AMOUNT} decimals={2} placeholder="0.00" />
             </View>
 
             <View className="flex-row gap-3">
               <View className="flex-1">
                 <Text className="mb-1 text-sm text-muted-foreground">{t("loanRate")}</Text>
-                 <NumberInput value={loans.loan_rate} onChange={(v) => update({ loan_rate: v })} min={0} decimals={2} placeholder="0" />
+                 <NumberInput value={loans.loan_rate} onChange={(v) => update({ loan_rate: v })} min={0} max={MAX_LOAN_ANNUAL_RATE} decimals={2} placeholder="0" />
               </View>
               <View className="flex-1">
                 <Text className="mb-1 text-sm text-muted-foreground">{t("loanTerm")}</Text>
-                <NumberInput value={loans.loan_term} onChange={(v) => update({ loan_term: v })} min={0} step={1} placeholder="0" />
+                <NumberInput value={loans.loan_term} onChange={(v) => update({ loan_term: v })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" />
               </View>
             </View>
 
             <View className="flex-row gap-3">
               <View className="flex-1">
                 <Text className="mb-1 text-sm text-muted-foreground">{t("loanMonthsPaid")}</Text>
-                <NumberInput value={loans.loan_months_paid} onChange={(v) => update({ loan_months_paid: v })} min={0} step={1} placeholder="0" />
+                <NumberInput value={loans.loan_months_paid} onChange={(v) => update({ loan_months_paid: v })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" />
               </View>
               <View className="flex-1">
                 <Text className="mb-1 text-sm text-muted-foreground">{t("loanPaymentDay")}</Text>
-                <NumberInput value={loans.loan_payment_day} onChange={(v) => update({ loan_payment_day: v })} min={1} max={31} step={1} placeholder="1" />
+                <NumberInput value={loans.loan_payment_day} onChange={(v) => update({ loan_payment_day: v })} min={1} max={31} placeholder="1" />
               </View>
             </View>
 
             <View>
               <Text className="mb-1 text-sm text-muted-foreground">{t("optionalPayment")}</Text>
-              <NumberInput value={loans.loan_payment} onChange={(v) => update({ loan_payment: v })} min={0} decimals={2} placeholder="0.00" />
+              <NumberInput value={loans.loan_payment} onChange={(v) => update({ loan_payment: v })} min={0} max={MAX_LOAN_AMOUNT} decimals={2} placeholder="0.00" />
             </View>
 
             <View>
@@ -254,7 +250,7 @@ export default function LoansScreen() {
 
             <View>
               <Text className="mb-1 text-sm text-muted-foreground">{t("ccMonthsPaid")}</Text>
-              <NumberInput value={loans.cc_months_paid} onChange={(v) => update({ cc_months_paid: v })} min={0} step={1} placeholder="0" />
+              <NumberInput value={loans.cc_months_paid} onChange={(v) => update({ cc_months_paid: v })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" />
             </View>
 
             {isCcPaid && (

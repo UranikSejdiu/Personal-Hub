@@ -47,3 +47,4 @@ yarn-error.*
 /android/keystore.properties
 /SECRETS.md
 *.md
+!/app-audit.md

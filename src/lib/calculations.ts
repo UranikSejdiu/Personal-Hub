@@ -1,3 +1,7 @@
+export const MAX_LOAN_TERM_MONTHS = 1200;
+export const MAX_LOAN_ANNUAL_RATE = 100;
+export const MAX_LOAN_AMOUNT = 1_000_000_000_000;
+
 export function pmt(
   principal: number,
   annualRate: number,
@@ -6,20 +10,20 @@ export function pmt(
   if (!Number.isFinite(principal) || !Number.isFinite(annualRate) || !Number.isFinite(months)) {
     return 0;
   }
-  if (principal <= 0 || months <= 0) return 0;
+  if (principal <= 0 || principal > MAX_LOAN_AMOUNT || !Number.isSafeInteger(months) || months <= 0 ||
+      months > MAX_LOAN_TERM_MONTHS || annualRate > MAX_LOAN_ANNUAL_RATE) return 0;
   if (annualRate <= 0) return principal / months;
   const r = annualRate / 100 / 12;
-  return (
-    (principal * r * Math.pow(1 + r, months)) /
-    (Math.pow(1 + r, months) - 1)
-  );
+  const denominator = -Math.expm1(-months * Math.log1p(r));
+  return (principal * r) / denominator;
 }
 
 export function remainingBalance(
   principal: number,
   annualRate: number,
   totalMonths: number,
-  paidMonths: number
+  paidMonths: number,
+  regularPayment?: number
 ): number {
   if (
     !Number.isFinite(principal) ||
@@ -29,9 +33,20 @@ export function remainingBalance(
   ) {
     return 0;
   }
-  if (principal <= 0 || totalMonths <= 0) return 0;
+  if (principal <= 0 || principal > MAX_LOAN_AMOUNT || !Number.isSafeInteger(totalMonths) ||
+      totalMonths <= 0 || totalMonths > MAX_LOAN_TERM_MONTHS || annualRate > MAX_LOAN_ANNUAL_RATE) return 0;
   if (paidMonths >= totalMonths) return 0;
   const rate = annualRate > 0 ? annualRate : 0;
+  if (regularPayment !== undefined && Number.isFinite(regularPayment) && regularPayment > 0) {
+    let balance = principal;
+    const monthlyRate = rate / 100 / 12;
+    for (let month = 0; month < Math.min(paidMonths, totalMonths); month++) {
+      balance = balance * (1 + monthlyRate) - regularPayment;
+      if (balance <= 0) return 0;
+      if (!Number.isFinite(balance)) return Number.MAX_VALUE;
+    }
+    return balance < Number.MAX_VALUE / 100 ? Math.round(balance * 100) / 100 : balance;
+  }
   if (rate === 0) {
     return Math.max(0, principal - (principal / totalMonths) * paidMonths);
   }
@@ -60,7 +75,11 @@ export function getActualSchedule(
   paymentDay: number,
   regularPayment?: number
 ): ScheduleRow[] {
-  if (termMonths <= 0 || principal <= 0) return [];
+  if (!Number.isSafeInteger(termMonths) || termMonths <= 0 ||
+      termMonths > MAX_LOAN_TERM_MONTHS || principal <= 0 || principal > MAX_LOAN_AMOUNT ||
+      !Number.isFinite(annualRate) || annualRate < 0 ||
+      annualRate > MAX_LOAN_ANNUAL_RATE ||
+      (regularPayment !== undefined && (!Number.isFinite(regularPayment) || regularPayment > MAX_LOAN_AMOUNT))) return [];
   if (!startDateStr || startDateStr.length === 0) return [];
   const rate = annualRate / 100;
   const schedule: ScheduleRow[] = [];

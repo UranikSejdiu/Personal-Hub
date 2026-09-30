@@ -4,8 +4,8 @@ import { Landmark, Check } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
-import { pmt, remainingBalance, scheduleBalance } from "../lib/calculations";
-import { type Budget, type Loans } from "../lib/budget";
+import { remainingBalance, scheduleBalance } from "../lib/calculations";
+import { loanMonthlyPayment, type Budget, type Loans } from "../lib/budget";
 import { formatCurrency, withAlpha } from "../lib/utils";
 
 interface Props {
@@ -59,14 +59,15 @@ export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
 
   const monthlyPayment = scheduleInfo
     ? scheduleInfo.payment
-    : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
+    : loanMonthlyPayment(loans);
   const balance = scheduleInfo
     ? scheduleInfo.balance
     : remainingBalance(
         loans.loan_amount,
         loans.loan_rate,
         loans.loan_term,
-        loanMonthsPaid
+        loanMonthsPaid,
+        loans.loan_payment > 0 ? loans.loan_payment : undefined
       );
   const progressPct = isPaid
     ? 100

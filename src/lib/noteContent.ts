@@ -487,7 +487,7 @@ function htmlToMarkdown(html: string): string {
   const withCheckboxes = normalizeCheckboxHtmlForMarkdown(html);
   const withOrderedNumbers = withCheckboxes.replace(
     /<ol[^>]*>([\s\S]*?)<\/ol>/gi,
-    (match, inner: string) => {
+    (_match, inner: string) => {
       let n = 0;
       return inner.replace(/<li[^>]*>/gi, () => `${++n}. `);
     }

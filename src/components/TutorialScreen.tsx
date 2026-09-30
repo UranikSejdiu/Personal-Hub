@@ -7,6 +7,7 @@ import { useThemeColors } from "../lib/theme";
 import { setTutorialSeen } from "../lib/tutorial";
 import { useHaptics } from "../hooks/useHaptics";
 import { withAlpha } from "../lib/utils";
+import { toast } from "sonner-native";
 import { WelcomePreview } from "./tutorial/WelcomePreview";
 import { NavigationPreview } from "./tutorial/NavigationPreview";
 import { DashboardPreview } from "./tutorial/DashboardPreview";
@@ -42,26 +43,38 @@ export default function TutorialScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const scrollRef = useRef<ScrollView>(null);
+  const completingRef = useRef(false);
   const [currentPage, setCurrentPage] = useState(0);
 
   const isLast = currentPage === PAGES.length - 1;
 
-  const handleNext = useCallback(async () => {
-    haptics.light();
-    if (isLast) {
+  const completeTutorial = useCallback(async () => {
+    if (completingRef.current) return;
+    completingRef.current = true;
+    try {
       await setTutorialSeen(true);
       router.replace("/(budget)" as Href);
+    } catch {
+      toast.error(t("saveFailed"));
+    } finally {
+      completingRef.current = false;
+    }
+  }, [router, t]);
+
+  const handleNext = useCallback(() => {
+    void haptics.light();
+    if (isLast) {
+      void completeTutorial();
     } else {
       const next = currentPage + 1;
       scrollRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: true });
     }
-  }, [currentPage, isLast, haptics, router]);
+  }, [currentPage, isLast, haptics, completeTutorial]);
 
-  const handleSkip = useCallback(async () => {
-    haptics.light();
-    await setTutorialSeen(true);
-    router.replace("/(budget)" as Href);
-  }, [haptics, router]);
+  const handleSkip = useCallback(() => {
+    void haptics.light();
+    void completeTutorial();
+  }, [haptics, completeTutorial]);
 
   const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { x: number } } }) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);

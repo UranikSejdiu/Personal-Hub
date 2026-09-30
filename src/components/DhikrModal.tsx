@@ -100,7 +100,6 @@ export function DhikrModal({ mode, dhikr, onClose, onSave, haptics }: Props) {
                 value={limit}
                 onChange={setLimit}
                 min={0}
-                step={1}
                 placeholder={t("limitPlaceholder")}
               />
             </View>

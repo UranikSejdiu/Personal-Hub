@@ -41,11 +41,14 @@ export async function ensureMonthlyAutoDeposit(
   const amount = sanitizeAmount(goalAmount);
   if (amount === 0) return;
   const desc = description?.trim() ?? "";
-  await db.execute(
-    `INSERT OR IGNORE INTO savings_auto_deposits (month, amount, description)
-     VALUES (?, ?, ?)`,
-    [currentMonth(), amount, desc]
-  );
+  await db.withTransaction(async (tx) => {
+    await tx.execute(
+      `INSERT OR IGNORE INTO savings_auto_deposits (month, amount, description)
+       VALUES (?, ?, ?)`,
+      [currentMonth(), amount, desc]
+    );
+    await refreshClosingBalances(tx);
+  });
 }
 
 export async function listAutoDeposits(): Promise<AutoDeposit[]> {
@@ -60,10 +63,10 @@ export async function listAutoDeposits(): Promise<AutoDeposit[]> {
 }
 
 export async function deleteAutoDeposit(month: string): Promise<void> {
-  await db.execute(
-    "DELETE FROM savings_auto_deposits WHERE month = ?",
-    [month]
-  );
+  await db.withTransaction(async (tx) => {
+    await tx.execute("DELETE FROM savings_auto_deposits WHERE month = ?", [month]);
+    await refreshClosingBalances(tx);
+  });
 }
 
 export interface AutoDepositUpdate {
@@ -87,10 +90,10 @@ export async function updateAutoDeposit(
   }
   if (sets.length === 0) return;
   values.push(month);
-  await db.execute(
-    `UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`,
-    values
-  );
+  await db.withTransaction(async (tx) => {
+    await tx.execute(`UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`, values);
+    await refreshClosingBalances(tx);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +163,11 @@ export async function addTransaction(
   if (isClosingMarkerDescription(description)) {
     throw new Error("Reserved savings description");
   }
-  return insertTransaction(type, description, amount, date);
+  return db.withTransaction(async (tx) => {
+    const created = await insertTransaction(type, description, amount, date, tx);
+    await refreshClosingBalances(tx);
+    return created;
+  });
 }
 
 export interface TransactionUpdate {
@@ -197,14 +204,52 @@ export async function updateTransaction(
   }
   if (sets.length === 0) return;
   values.push(id);
-  await db.execute(
-    `UPDATE savings_transactions SET ${sets.join(", ")} WHERE id = ?`,
-    values
-  );
+  await db.withTransaction(async (tx) => {
+    const existing = await tx.get<{ is_closing: number }>(
+      "SELECT is_closing FROM savings_transactions WHERE id = ?", [id]
+    );
+    if (existing?.is_closing === 1) throw new Error("Cannot edit a closing balance");
+    await tx.execute(`UPDATE savings_transactions SET ${sets.join(", ")} WHERE id = ?`, values);
+    await refreshClosingBalances(tx);
+  });
 }
 
 export async function deleteTransaction(id: number): Promise<void> {
-  await db.execute("DELETE FROM savings_transactions WHERE id = ?", [id]);
+  await db.withTransaction(async (tx) => {
+    const existing = await tx.get<{ is_closing: number }>(
+      "SELECT is_closing FROM savings_transactions WHERE id = ?", [id]
+    );
+    if (existing?.is_closing === 1) throw new Error("Cannot delete a closing balance");
+    await tx.execute("DELETE FROM savings_transactions WHERE id = ?", [id]);
+    await refreshClosingBalances(tx);
+  });
+}
+
+/** Rebuild every marker from source activity, so edits in closed years remain visible. */
+async function refreshClosingBalances(tx: db.DbExecutor): Promise<void> {
+  const markers = await tx.query<{ id: number; date: string }>(
+    "SELECT id, date FROM savings_transactions WHERE is_closing = 1 ORDER BY date, id"
+  );
+  for (const marker of markers) {
+    const net = await closingNetBefore(tx, marker.date);
+    await tx.execute(
+      "UPDATE savings_transactions SET type = ?, amount = ? WHERE id = ?",
+      [net >= 0 ? "deposit" : "purchase", Math.abs(net), marker.id]
+    );
+  }
+}
+
+async function closingNetBefore(tx: db.DbExecutor, date: string): Promise<number> {
+  const auto = await tx.get<{ total: number }>(
+    "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month < ?",
+    [date.slice(0, 7)]
+  );
+  const manual = await tx.get<{ total: number }>(
+    `SELECT COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE -amount END), 0) AS total
+     FROM savings_transactions WHERE is_closing = 0 AND date < ?`,
+    [date]
+  );
+  return Number(auto?.total ?? 0) + Number(manual?.total ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +340,10 @@ export interface CloseYearResult {
   blockedYear?: number;
 }
 
+export async function previewClosingBalance(year: number): Promise<number> {
+  return db.withTransaction((tx) => closingNetBefore(tx, `${year + 1}-01-01`));
+}
+
 export async function closeYear(
   year: number,
   closingDescription: string
@@ -343,24 +392,7 @@ export async function closeYear(
     );
     if (!yearHasActivity) return { net: 0, created: null };
 
-    const like = `${year}-%`;
-    const [autoRow, txRow] = await Promise.all([
-      tx.get<Record<string, unknown>>(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month LIKE ?",
-        [like]
-      ),
-      tx.get<Record<string, unknown>>(
-        `SELECT
-           COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
-           COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
-         FROM savings_transactions WHERE date LIKE ?`,
-        [like]
-      ),
-    ]);
-    const autoTotal = Number(autoRow?.total) || 0;
-    const saved = Number(txRow?.saved) || 0;
-    const spent = Number(txRow?.spent) || 0;
-    const net = autoTotal + saved - spent;
+    const net = await closingNetBefore(tx, carryForwardDate);
     // A zero net still needs a carry-forward marker: without one the year
     // would stay "open" and block every later year from being closed.
     const type: SavingsEntryType = net >= 0 ? "deposit" : "purchase";

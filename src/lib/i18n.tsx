@@ -353,7 +353,7 @@ const MONTHS_SHORT = [
   "msDec",
 ] as const;
 
-export function monthLabelShort(lang: Lang, key: string): string {
+export function monthLabelShort(_lang: Lang, key: string): string {
   const month = Number(key.slice(5, 7));
   if (!Number.isInteger(month) || month < 1 || month > 12) return key;
   const year = key.slice(0, 4);

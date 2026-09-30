@@ -4,7 +4,7 @@
     "slug": "uraniks-hub",
     "version": "1.19.6",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon-personal-hub.png",
     "userInterfaceStyle": "automatic",
     "scheme": "uranikshub",
     "ios": {
@@ -16,8 +16,8 @@
       "versionCode": 91,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#1a1a2e",
-        "foregroundImage": "./assets/android-icon-foreground.png"
+        "backgroundColor": "#101A35",
+        "foregroundImage": "./assets/android-icon-foreground-personal-hub.png"
       },
       "predictiveBackGestureEnabled": false
     },

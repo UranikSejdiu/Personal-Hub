@@ -1,5 +1,5 @@
 import * as db from "./db";
-import { pmt } from "./calculations";
+import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
 import {
   type Loans,
   type Budget,
@@ -64,6 +64,20 @@ export async function saveLoans(
   loans: Loans,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  if (!Number.isSafeInteger(loans.loan_term) || loans.loan_term < 0 ||
+      loans.loan_term > MAX_LOAN_TERM_MONTHS || !Number.isFinite(loans.loan_rate) ||
+      loans.loan_rate < 0 || loans.loan_rate > MAX_LOAN_ANNUAL_RATE ||
+      !Number.isFinite(loans.loan_amount) || loans.loan_amount < 0 ||
+      loans.loan_amount > MAX_LOAN_AMOUNT || !Number.isFinite(loans.loan_payment) ||
+      loans.loan_payment < 0 || loans.loan_payment > MAX_LOAN_AMOUNT ||
+      !Number.isSafeInteger(loans.loan_months_paid) || loans.loan_months_paid < 0 ||
+      loans.loan_months_paid > MAX_LOAN_TERM_MONTHS ||
+      !Number.isSafeInteger(loans.cc_months_paid) || loans.cc_months_paid < 0 ||
+      loans.cc_months_paid > MAX_LOAN_TERM_MONTHS ||
+      !Number.isSafeInteger(loans.loan_payment_day) ||
+      loans.loan_payment_day < 1 || loans.loan_payment_day > 31) {
+    throw new Error("Loan values are out of range");
+  }
   await exec.execute(
     `INSERT INTO loans (
       id, loan_amount, loan_rate, loan_term, loan_payment,
@@ -108,9 +122,8 @@ export async function saveLoans(
  * single transaction so the pair can never drift apart if the app is
  * backgrounded between the two writes.
  *
- * The counter is left untouched once the loan is fully paid: an increment that
- * was clamped at `loan_term` must never be undone by a later decrement,
- * otherwise a check/uncheck cycle permanently loses a recorded month.
+ * Track whether this flag actually incremented the counter. A payment checked
+ * after the loan reached its term must not decrement the counter on undo.
  */
 export async function applyLoanPaidToggle(
   month: string,
@@ -118,20 +131,36 @@ export async function applyLoanPaidToggle(
 ): Promise<{ loans: Loans; budget: Budget }> {
   return db.withTransaction(async (tx) => {
     const loans = await loadLoans(tx);
+    const budget = await loadBudget(month, tx);
+    if (!budget) throw new Error("Budget not found for month.");
+    if (budget.loan_paid === newLoanPaid) return { loans, budget };
+    const counterRow = await tx.get<{ loan_counter_incremented: number | null }>(
+      "SELECT loan_counter_incremented FROM budgets WHERE id = ?", [budget.id]
+    );
     const term = loans.loan_term;
-    const fullyPaid = term > 0 && loans.loan_months_paid >= term;
     let monthsPaid = loans.loan_months_paid;
+    let counted = 0;
     if (newLoanPaid) {
-      monthsPaid = term > 0 ? Math.min(term, monthsPaid + 1) : monthsPaid + 1;
-    } else if (!fullyPaid) {
-      monthsPaid = Math.max(0, monthsPaid - 1);
+      if (term <= 0 || monthsPaid < term) {
+        monthsPaid += 1;
+        counted = 1;
+      }
+    } else {
+      let contributed = counterRow?.loan_counter_incremented === 1;
+      if (counterRow?.loan_counter_incremented === null) {
+        // Old rows have no ledger. Decrement only when every currently checked
+        // month is represented in the counter; otherwise ownership is unclear.
+        const checked = await tx.get<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM budgets WHERE loan_paid = 1"
+        );
+        contributed = checked?.count === monthsPaid;
+      }
+      if (contributed) monthsPaid = Math.max(0, monthsPaid - 1);
     }
     const updatedLoans = { ...loans, loan_months_paid: monthsPaid };
     await saveLoans(updatedLoans, tx);
-
-    const budget = await loadBudget(month, tx);
-    if (!budget) throw new Error("Budget not found for month.");
     await saveBudget(month, budget.income, newLoanPaid, budget.cc_paid, tx);
+    await tx.execute("UPDATE budgets SET loan_counter_incremented = ? WHERE id = ?", [counted, budget.id]);
     return { loans: updatedLoans, budget };
   });
 }
@@ -143,6 +172,9 @@ export async function applyCcPaidToggle(
 ): Promise<{ loans: Loans; budget: Budget }> {
   return db.withTransaction(async (tx) => {
     const loans = await loadLoans(tx);
+    const budget = await loadBudget(month, tx);
+    if (!budget) throw new Error("Budget not found for month.");
+    if (budget.cc_paid === newCcPaid) return { loans, budget };
     const monthsPaid = Math.max(
       0,
       loans.cc_months_paid + (newCcPaid ? 1 : -1)
@@ -150,8 +182,6 @@ export async function applyCcPaidToggle(
     const updatedLoans = { ...loans, cc_months_paid: monthsPaid };
     await saveLoans(updatedLoans, tx);
 
-    const budget = await loadBudget(month, tx);
-    if (!budget) throw new Error("Budget not found for month.");
     await saveBudget(month, budget.income, budget.loan_paid, newCcPaid, tx);
     return { loans: updatedLoans, budget };
   });
@@ -248,29 +278,23 @@ export async function setExpenseRecurring(
 export async function populateRecurringExpenses(
   budgetId: number
 ): Promise<void> {
-  const recurring = await listRecurringExpenses();
-  if (recurring.length === 0) return;
-  const existing = await db.query<Record<string, unknown>>(
-    "SELECT category, amount FROM expenses WHERE budget_id = ? AND is_recurring = 1",
-    [budgetId]
-  );
-  const existingKeys = new Set(
-    existing.map((r) => `${String(r.category)}::${Number(r.amount)}::${Number(r.is_recurring)}`)
-  );
-  const seenKeys = new Set<string>();
-  const toInsert = recurring.filter((r) => {
-    const key = `${r.category}::${r.amount}`;
-    if (seenKeys.has(key)) return false;
-    seenKeys.add(key);
-    return !existingKeys.has(`${key}::1`);
-  });
-  if (toInsert.length === 0) return;
   await db.withTransaction(async (tx) => {
-    for (const exp of toInsert) {
+    const recurring = await tx.query<{ category: string; amount: number }>(
+      "SELECT category, amount FROM recurring_expenses ORDER BY id"
+    );
+    const existing = await tx.query<{ category: string; amount: number }>(
+      "SELECT category, amount FROM expenses WHERE budget_id = ? AND is_recurring = 1",
+      [budgetId]
+    );
+    const existingKeys = new Set(existing.map((row) => JSON.stringify([row.category, row.amount])));
+    for (const exp of recurring) {
+      const key = JSON.stringify([exp.category, exp.amount]);
+      if (existingKeys.has(key)) continue;
       await tx.execute(
         "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, 1)",
         [budgetId, exp.category, exp.amount]
       );
+      existingKeys.add(key);
     }
   });
 }
@@ -324,6 +348,12 @@ export async function deleteBudget(
   month: string,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  // Exclusive transactions use a separate SQLite connection, where foreign
+  // keys may be disabled. Remove children explicitly on that same executor.
+  await exec.execute(
+    "DELETE FROM expenses WHERE budget_id IN (SELECT id FROM budgets WHERE month = ?)",
+    [month]
+  );
   await exec.execute("DELETE FROM budgets WHERE month = ?", [month]);
 }
 

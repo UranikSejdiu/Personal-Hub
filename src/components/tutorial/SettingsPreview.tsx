@@ -41,7 +41,7 @@ export function SettingsPreview() {
 
   return (
     <View className="mx-4 gap-2">
-      {items.map((item, i) => (
+      {items.map((item) => (
         <Animated.View
           key={item.labelKey}
           style={item.style}

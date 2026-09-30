@@ -15,6 +15,7 @@ import {
   updateAutoDeposit,
   getSavingsSummary,
   closeYear,
+  previewClosingBalance,
   isClosingMarkerDescription,
   type SavingsTransaction,
   type SavingsSummary,
@@ -231,48 +232,49 @@ export default function SavingsScreen() {
       }
       // A net of exactly 0 is still closable: it writes a carry-forward marker
       // so the year is marked done and later years are not blocked.
-      let net = 0;
-      for (const e of yearEntries) {
-        if (e.type === "deposit") net += e.amount;
-        else net -= e.amount;
-      }
-      const nextYear = year + 1;
-      const desc = t("closingBalance", { year });
-      setConfirmAction({
-        title: t("closeYearLabel"),
-        message: t("closeYearConfirm", {
-          year,
-          amount: formatCurrency(Math.abs(net)),
-          nextYear,
-        }),
-        confirmLabel: t("closeYearLabel"),
-        onConfirm: () => {
-          void (async () => {
-            try {
-              const result = await closeYear(year, desc);
-              if (result.blockedYear !== undefined) {
-                toast(t("closeYearBlocked", { year: result.blockedYear }));
-                setConfirmAction(null);
-                return;
-              }
-              if (!result.created) {
-                // Already closed, or no activity recorded for this year.
-                toast(t("closeYearNothing", { year }));
-                setConfirmAction(null);
-                return;
-              }
-              await loadData();
-              setSelectedYear(nextYear);
-              setConfirmAction(null);
-              void haptics.success();
-              toast.success(t("savedSuccess"));
-            } catch {
-              toast.error(t("errorAddingSavings"));
-              setConfirmAction(null);
-            }
-          })();
-        },
-      });
+      void (async () => {
+        try {
+          const net = await previewClosingBalance(year);
+          const nextYear = year + 1;
+          const desc = t("closingBalance", { year });
+          setConfirmAction({
+            title: t("closeYearLabel"),
+            message: t("closeYearConfirm", {
+              year,
+              amount: formatCurrency(Math.abs(net)),
+              nextYear,
+            }),
+            confirmLabel: t("closeYearLabel"),
+            onConfirm: () => {
+              void (async () => {
+                try {
+                  const result = await closeYear(year, desc);
+                  if (result.blockedYear !== undefined) {
+                    toast(t("closeYearBlocked", { year: result.blockedYear }));
+                    setConfirmAction(null);
+                    return;
+                  }
+                  if (!result.created) {
+                    toast(t("closeYearNothing", { year }));
+                    setConfirmAction(null);
+                    return;
+                  }
+                  await loadData();
+                  setSelectedYear(nextYear);
+                  setConfirmAction(null);
+                  void haptics.success();
+                  toast.success(t("savedSuccess"));
+                } catch {
+                  toast.error(t("errorAddingSavings"));
+                  setConfirmAction(null);
+                }
+              })();
+            },
+          });
+        } catch {
+          toast.error(t("errorLoadingData"));
+        }
+      })();
     },
     [entries, t, loadData, haptics]
   );

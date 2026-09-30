@@ -54,6 +54,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "audit:regression": "node scripts/audit-regression.cjs",
     "lint": "expo lint",
     "postinstall": "patch-package"
   },

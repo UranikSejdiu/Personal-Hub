@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -34,6 +34,7 @@ const SCHEMA_STATEMENTS: string[] = [
     income REAL NOT NULL DEFAULT 0,
     loan_paid INTEGER NOT NULL DEFAULT 0,
     cc_paid INTEGER NOT NULL DEFAULT 0,
+    loan_counter_incremented INTEGER,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );`,
   `CREATE TABLE IF NOT EXISTS expenses (
@@ -108,6 +109,7 @@ const SCHEMA_STATEMENTS: string[] = [
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "budgets", column: "loan_counter_incremented", definition: "INTEGER" },
   { table: "notes", column: "plain_text", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "notes", column: "kind", definition: "TEXT NOT NULL DEFAULT 'text'" },
   { table: "savings_auto_deposits", column: "description", definition: "TEXT NOT NULL DEFAULT ''" },
@@ -184,6 +186,29 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
               OR description LIKE '%Bilanci mbyllës%'
               OR description LIKE '%Closing balance%');`
       );
+
+      // v6: earlier releases could write an incomplete or stale carry-forward.
+      // Rebuild markers from source activity in the migration transaction so
+      // an existing user's balance is repaired immediately after upgrade.
+      const closingRows = await database.getAllAsync<{ id: number; date: string }>(
+        "SELECT id, date FROM savings_transactions WHERE is_closing = 1 ORDER BY date, id"
+      );
+      for (const marker of closingRows) {
+        const auto = await database.getFirstAsync<{ total: number }>(
+          "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month < ?",
+          [marker.date.slice(0, 7)]
+        );
+        const manual = await database.getFirstAsync<{ total: number }>(
+          `SELECT COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE -amount END), 0) AS total
+           FROM savings_transactions WHERE is_closing = 0 AND date < ?`,
+          [marker.date]
+        );
+        const net = Number(auto?.total ?? 0) + Number(manual?.total ?? 0);
+        await database.runAsync(
+          "UPDATE savings_transactions SET type = ?, amount = ? WHERE id = ?",
+          [net >= 0 ? "deposit" : "purchase", Math.abs(net), marker.id]
+        );
+      }
 
       // FTS5 is optional: some SQLite builds omit it. On failure the partial
       // objects are dropped and note search falls back to LIKE, so a missing
