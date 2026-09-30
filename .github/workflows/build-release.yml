@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -58,9 +59,19 @@ jobs:
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Build release APK
-        run: cd android && ./gradlew assembleRelease
+        run: cd android && ./gradlew assembleRelease --profile
+
+      - name: Upload Gradle profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-profile
+          path: android/build/reports/profile/*.html
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Create GitHub Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
