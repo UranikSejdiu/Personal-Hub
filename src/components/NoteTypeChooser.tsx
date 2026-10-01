@@ -43,7 +43,8 @@ export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserP
                 void haptics.light();
                 onSelect(option.kind);
               }}
-              className="flex-row items-center gap-3 rounded-xl px-2 py-3"
+              className="min-h-[44px] flex-row items-center gap-3 rounded-xl px-2 py-3 active:bg-muted"
+              accessible
               accessibilityRole="button"
               accessibilityLabel={t(option.labelKey)}
             >
@@ -54,7 +55,7 @@ export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserP
                 <Text className="text-base font-medium text-foreground">
                   {t(option.labelKey)}
                 </Text>
-                <Text className="text-xs text-muted-foreground">{t(option.hintKey)}</Text>
+                <Text className="text-sm leading-5 text-muted-foreground">{t(option.hintKey)}</Text>
               </View>
             </Pressable>
           ))}

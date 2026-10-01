@@ -27,19 +27,17 @@ export const NoteCard = React.memo(function NoteCard({
   }, [note.content]);
 
   const checklistItems = note.kind === "checklist" ? note.items ?? [] : [];
-  const isChecklist = checklistItems.length > 0;
+  const isChecklist = note.kind === "checklist";
   const activeItems = checklistItems.filter((item) => !item.checked);
   const checkedCount = checklistItems.filter((item) => item.checked).length;
   const visibleItems = activeItems.slice(0, MAX_VISIBLE_CHECKLIST_ITEMS);
-  const checkedLabel =
-    checkedCount === 1
-      ? t("notesCheckedItems", { count: checkedCount })
-      : t("notesCheckedItemsPlural", { count: checkedCount });
+  const hiddenCount = activeItems.length - visibleItems.length;
 
   return (
     <Pressable
       onPress={() => onPress(note)}
-      className="relative mb-2 rounded-lg border border-border/50 bg-card p-3"
+      className="relative mb-2 min-h-[44px] rounded-xl border border-border/50 bg-card p-3 active:opacity-70"
+      accessible
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}
     >
@@ -55,7 +53,7 @@ export const NoteCard = React.memo(function NoteCard({
             className="mt-0.5 shrink-0"
             accessible
             accessibilityRole="image"
-            accessibilityLabel="Pinned"
+            accessibilityLabel={t("notesPinned")}
           >
             <Pin size={14} color={colors.primary} />
           </View>
@@ -63,7 +61,7 @@ export const NoteCard = React.memo(function NoteCard({
       </View>
 
       {isChecklist ? (
-        <View style={{ marginTop: 6 }}>
+        <View className="mt-2 gap-0.5">
           {visibleItems.map((item) => (
             <View key={item.id} className="flex-row items-start gap-2 py-0.5">
               <View className="mt-0.5">
@@ -72,26 +70,29 @@ export const NoteCard = React.memo(function NoteCard({
               <Text
                 numberOfLines={1}
                 ellipsizeMode="tail"
-                className="flex-1 text-[13px] leading-[18px] text-muted-foreground"
+                className="flex-1 text-sm leading-5 text-muted-foreground"
               >
                 {item.text}
               </Text>
             </View>
           ))}
-          {checkedCount > 0 ? (
-            <Text className="mt-1 text-[13px] leading-[18px] text-muted-foreground">
-              {`+ ${checkedLabel}`}
+          {hiddenCount > 0 ? (
+            <Text className="text-sm leading-5 text-muted-foreground">
+              {t("notesMoreItems", { count: hiddenCount })}
             </Text>
           ) : null}
+          <Text className="mt-1 text-sm font-medium leading-5 text-muted-foreground">
+            {t("notesChecklistProgress", { completed: checkedCount, total: checklistItems.length })}
+          </Text>
         </View>
       ) : previewLines.length > 0 ? (
-        <View style={{ marginTop: 6 }}>
+        <View className="mt-2">
           {previewLines.map((line, i) => (
             <Text
               key={i}
               numberOfLines={1}
               ellipsizeMode="tail"
-              className="text-[13px] leading-[18px] text-muted-foreground"
+              className="text-sm leading-5 text-muted-foreground"
             >
               {line.map((segment, segmentIndex) => (
                 <Text

@@ -49,6 +49,7 @@ export const UICON_GLYPHS = {
   "PiggyBank": "奔",
   "Calculator": "",
   "Settings": "﯒",
-  "Sort": "\uF15D"
+  "Sort": "",
+  "MoreHorizontal": "蠟"
 } as const;
 export type UiconName = keyof typeof UICON_GLYPHS;

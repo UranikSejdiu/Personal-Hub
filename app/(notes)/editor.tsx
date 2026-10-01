@@ -483,6 +483,7 @@ export default function NotesEditorScreen() {
       checkedStatesRef.current = parseCheckedStates(content);
       allowRemoveRef.current = true;
       void haptics.success();
+      toast.success(t("savedSuccess"));
       router.back();
     } catch {
       toast.error(t("saveFailed"));
@@ -557,7 +558,7 @@ export default function NotesEditorScreen() {
           <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
             <Pressable
               onPress={handleBack}
-              className="p-1"
+              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
               accessibilityRole="button"
               accessibilityLabel={t("cancel")}
             >
@@ -566,7 +567,7 @@ export default function NotesEditorScreen() {
             <View className="flex-row items-center gap-2">
               <Pressable
                 onPress={handleTogglePin}
-                className="p-3"
+                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
                 accessibilityRole="button"
                 accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
               >
@@ -575,7 +576,7 @@ export default function NotesEditorScreen() {
               {noteId ? (
                 <Pressable
                   onPress={handleDelete}
-                  className="p-3"
+                  className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
                   accessibilityRole="button"
                   accessibilityLabel={t("notesDelete")}
                 >
@@ -585,12 +586,14 @@ export default function NotesEditorScreen() {
               <Pressable
                 onPress={handleSave}
                 disabled={isSaving}
-                className={`rounded-lg px-4 py-2 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
+                className={`min-h-[44px] items-center justify-center rounded-lg px-4 py-2 active:opacity-70 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
                 accessibilityRole="button"
                 accessibilityLabel={t("save")}
-                accessibilityState={{ disabled: isSaving }}
+                accessibilityState={{ disabled: isSaving, busy: isSaving }}
               >
-                <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
+                <Text accessibilityLiveRegion="polite" className="text-sm font-medium text-primary-foreground">
+                  {t(isSaving ? "saving" : "save")}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -674,7 +677,7 @@ export default function NotesEditorScreen() {
                       void haptics.light();
                     }}
                     disabled={blocked}
-                    className={`h-9 w-9 items-center justify-center rounded-lg ${
+                    className={`h-11 w-11 items-center justify-center rounded-lg active:opacity-70 ${
                       active ? "bg-primary" : blocked ? "bg-muted/40" : "bg-muted"
                     }`}
                     accessibilityRole="button"

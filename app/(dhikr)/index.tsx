@@ -215,7 +215,8 @@ export default function CounterScreen() {
         </Text>
         <Pressable
           onPress={handleOpenList}
-          className="mt-4 flex-row items-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+          className="mt-4 min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-4 py-2.5 active:opacity-70"
+          accessible
           accessibilityRole="button"
           accessibilityLabel={t("addDhikrBtn")}
           android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
@@ -248,7 +249,9 @@ export default function CounterScreen() {
           <View className="flex-row items-center gap-4 w-full justify-center pt-10">
             <Pressable
               onPress={handlePrev}
-              className="p-2"
+              className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+              accessible
+              accessibilityRole="button"
               accessibilityLabel={t("previousDhikr")}
             >
               <ChevronLeft size={28} color={colors.foreground} />
@@ -260,7 +263,9 @@ export default function CounterScreen() {
             </Text>
             <Pressable
               onPress={handleNext}
-              className="p-2"
+              className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+              accessible
+              accessibilityRole="button"
               accessibilityLabel={t("nextDhikr")}
             >
               <ChevronRight size={28} color={colors.foreground} />
@@ -273,7 +278,8 @@ export default function CounterScreen() {
             unstable_pressDelay={0}
             android_disableSound={true}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            className="flex-1 items-center justify-center"
+            className="flex-1 items-center justify-center active:opacity-70"
+            accessible
             accessibilityRole="button"
             accessibilityLabel={t("tapToCount")}
           >
@@ -298,7 +304,9 @@ export default function CounterScreen() {
             )}
             <Pressable
               onPress={handleReset}
-              className="flex-row items-center gap-2 rounded-full bg-secondary px-5 py-3"
+              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary px-5 py-3 active:opacity-70"
+              accessible
+              accessibilityRole="button"
               accessibilityLabel={t("resetLabel")}
             >
               <RotateCcw size={16} color={colors.mutedForeground} />

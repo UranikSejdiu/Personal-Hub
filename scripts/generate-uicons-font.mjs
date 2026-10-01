@@ -60,6 +60,7 @@ const iconSources = {
   Calculator: "calculator",
   Settings: "settings",
   Sort: "angles-up-down",
+  MoreHorizontal: "menu-dots",
 };
 
 const css = fs.readFileSync(cssPath, "utf8");

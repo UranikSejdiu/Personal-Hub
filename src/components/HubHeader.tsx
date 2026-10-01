@@ -36,7 +36,8 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
             onPress={() => router.push(`${getHubRoute(activeAppId)}/settings` as Href)}
             accessibilityRole="button"
             accessibilityLabel={t("newUpdateAvailable")}
-            className="relative h-10 w-10 items-center justify-center rounded-full bg-primary/10"
+            className="relative h-11 w-11 items-center justify-center rounded-full bg-primary/10 active:opacity-70"
+            accessible
           >
             <Rocket size={20} color={colors.primary} />
             <View className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive" />

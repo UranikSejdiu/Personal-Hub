@@ -240,7 +240,7 @@ export default function NotesListScreen() {
       if (item.type === "section") {
         return (
           <Text
-            className={`mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground ${
+            className={`mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground ${
               item.spacedTop ? "mt-4" : ""
             }`}
           >
@@ -277,7 +277,7 @@ export default function NotesListScreen() {
           {searchQuery ? t("notesNoResults") : t("notesEmpty")}
         </Text>
         {!searchQuery && (
-          <Text className="text-xs text-muted-foreground">
+          <Text className="text-sm text-muted-foreground">
             {t("notesEmptyHint")}
           </Text>
         )}
@@ -297,7 +297,8 @@ export default function NotesListScreen() {
           </Text>
           <Pressable
             onPress={handleNew}
-            className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-2"
+            className="min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-3 py-2 active:opacity-70"
+            accessible
             accessibilityRole="button"
             accessibilityLabel={t("notesNew")}
           >
@@ -308,7 +309,7 @@ export default function NotesListScreen() {
           </Pressable>
         </View>
 
-        <View className="flex-row items-center gap-2 rounded-full bg-muted px-4 py-2.5">
+        <View className="flex-row items-center gap-1 rounded-full bg-muted px-3 py-1">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -319,11 +320,13 @@ export default function NotesListScreen() {
             }}
             placeholder={t("notesSearchPlaceholder")}
             placeholderTextColor={colors.mutedForeground}
-            className="flex-1 text-sm text-foreground"
+            className="min-w-0 flex-1 text-sm text-foreground"
           />
           {searchQuery.length > 0 && (
             <Pressable
               onPress={clearSearch}
+              className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+              accessible
               accessibilityRole="button"
               accessibilityLabel={t("clear")}
             >
@@ -332,7 +335,8 @@ export default function NotesListScreen() {
           )}
           <Pressable
             onPress={handleToggleView}
-            hitSlop={8}
+            className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+            accessible
             accessibilityRole="button"
             accessibilityLabel={nextViewLabel}
           >
@@ -344,7 +348,8 @@ export default function NotesListScreen() {
           </Pressable>
           <Pressable
             onPress={() => setSortMenuVisible(true)}
-            hitSlop={8}
+            className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+            accessible
             accessibilityRole="button"
             accessibilityLabel={t("notesSort")}
           >
@@ -390,7 +395,8 @@ export default function NotesListScreen() {
                 <Pressable
                   key={option.value}
                   onPress={() => handleSelectSort(option.value)}
-                  className="flex-row items-center justify-between rounded-xl px-3 py-3"
+                  className="min-h-[44px] flex-row items-center justify-between rounded-xl px-3 py-3 active:bg-muted"
+                  accessible
                   accessibilityRole="button"
                   accessibilityLabel={t(option.labelKey)}
                   accessibilityState={{ selected }}

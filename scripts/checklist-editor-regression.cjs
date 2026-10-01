@@ -13,6 +13,7 @@ function fixture(root) {
   let saveWait = Promise.resolve();
   const saved = [];
   const errors = [];
+  const successes = [];
   let backs = 0;
   let beforeRemove;
   const initial = [
@@ -63,7 +64,7 @@ function fixture(root) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     'react-native-draggable-flatlist': { default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator', __esModule: true },
     'expo-router': { useRouter: () => router, useLocalSearchParams: () => ({ id: '1' }), useNavigation: () => navigation },
-    'sonner-native': { toast: { error: message => errors.push(message) } },
+    'sonner-native': { toast: { error: message => errors.push(message), success: message => successes.push(message) } },
     '../../src/components/AppIcons': new Proxy({}, { get: (_target, name) => name }),
     '../../src/lib/i18n': { useI18n: () => ({ t }) },
     '../../src/lib/theme': { useThemeColors: () => ({}) },
@@ -107,7 +108,7 @@ function fixture(root) {
       saveWait = new Promise((resolve, reject) => { finish = error => error ? reject(error) : resolve(); });
       return finish;
     },
-    saved, errors,
+    saved, errors, successes,
     get backs() { return backs; },
   };
 }
@@ -139,12 +140,16 @@ module.exports = async function verifyChecklistEditor(root) {
     { text: 'second', checked: false }, { text: 'first', checked: false }, { text: 'done', checked: true },
   ]);
   assert.equal(editor.backs, 0, 'Navigation must wait for the write');
+  assert.deepEqual(editor.successes, [], 'Save feedback must wait for persistence');
+  editor.render();
+  assert.equal(editor.save().accessibilityState.busy, true);
   editor.remove({ preventDefault() {}, data: { action: { type: 'GO_BACK' } } });
   assert.equal(editor.backs, 0, 'Back must not discard an in-flight save');
   finish();
   await Promise.all([save, duplicate]);
   assert.equal(editor.backs, 1);
   assert.deepEqual(editor.errors, []);
+  assert.deepEqual(editor.successes, ['savedSuccess'], 'A successful write reports success once');
 
   const failed = fixture(root);
   failed.render();
@@ -164,11 +169,13 @@ module.exports = async function verifyChecklistEditor(root) {
   assert.equal(failed.backs, 0, 'Failed save must leave the editor open');
   assert.equal(failed.save().disabled, false, 'Failed save must allow retry');
   assert.deepEqual(failed.errors, ['saveFailed']);
+  assert.deepEqual(failed.successes, [], 'Failed writes must not report success');
   failed.deferSave()();
   await failed.save().onPress();
   assert.equal(failed.saved.length, 2);
   assert.equal(failed.saved[1].items[0].checked, false);
   assert.equal(failed.backs, 1);
+  assert.deepEqual(failed.successes, ['savedSuccess']);
 };
 
 if (require.main === module) {

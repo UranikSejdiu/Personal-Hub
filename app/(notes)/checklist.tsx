@@ -289,6 +289,7 @@ export default function ChecklistEditorScreen() {
       snapshotRef.current = serialize(title, isPinned, savedItems);
       allowRemoveRef.current = true;
       void haptics.success();
+      toast.success(t("savedSuccess"));
       router.back();
     } catch {
       toast.error(t("saveFailed"));
@@ -354,7 +355,7 @@ export default function ChecklistEditorScreen() {
         <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
         <Pressable
           onPress={() => router.back()}
-          className="rounded-lg bg-primary px-4 py-2"
+          className="min-h-[44px] justify-center rounded-lg bg-primary px-4 py-2 active:opacity-70"
           accessibilityRole="button"
           accessibilityLabel={t("cancel")}
         >
@@ -369,7 +370,8 @@ export default function ChecklistEditorScreen() {
       <Pressable
         onPress={handleAddItem}
         disabled={isBusy}
-        className="min-h-[44px] flex-row items-center gap-2 px-4"
+        className="min-h-[44px] flex-row items-center gap-2 px-4 active:bg-muted"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("notesAddItem")}
         accessibilityState={{ disabled: isBusy }}
@@ -382,7 +384,8 @@ export default function ChecklistEditorScreen() {
         <View className="mt-2">
           <Pressable
             onPress={() => setCheckedExpanded((previous) => !previous)}
-            className="min-h-[44px] flex-row items-center gap-2 px-4"
+            className="min-h-[44px] flex-row items-center gap-2 px-4 active:bg-muted"
+            accessible
             accessibilityRole="button"
             accessibilityState={{ expanded: checkedExpanded }}
             accessibilityLabel={
@@ -409,7 +412,8 @@ export default function ChecklistEditorScreen() {
                   <Pressable
                     onPress={() => handleToggle(item.key)}
                     disabled={isBusy}
-                    className="h-10 w-8 items-center justify-center"
+                    className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+                    accessible
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: true, disabled: isBusy }}
                     accessibilityLabel={item.text || t("notesItemPlaceholder")}
@@ -422,7 +426,8 @@ export default function ChecklistEditorScreen() {
                   <Pressable
                     onPress={() => handleRemove(item.key)}
                     disabled={isBusy}
-                    className="h-10 w-8 items-center justify-center"
+                    className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+                    accessible
                     accessibilityRole="button"
                     accessibilityLabel={t("notesItemDelete")}
                     accessibilityState={{ disabled: isBusy }}
@@ -450,7 +455,7 @@ export default function ChecklistEditorScreen() {
             <Pressable
               onPress={handleBack}
               disabled={isBusy}
-              className="p-1"
+              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
               accessibilityRole="button"
               accessibilityLabel={t("cancel")}
               accessibilityState={{ disabled: isBusy }}
@@ -461,7 +466,7 @@ export default function ChecklistEditorScreen() {
               <Pressable
                 onPress={handleTogglePin}
                 disabled={isBusy}
-                className="p-3"
+                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
                 accessibilityRole="button"
                 accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
                 accessibilityState={{ disabled: isBusy }}
@@ -472,7 +477,7 @@ export default function ChecklistEditorScreen() {
                 <Pressable
                   onPress={handleDelete}
                   disabled={isBusy}
-                  className="p-3"
+                  className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
                   accessibilityRole="button"
                   accessibilityLabel={t("notesDelete")}
                   accessibilityState={{ disabled: isBusy }}
@@ -483,12 +488,14 @@ export default function ChecklistEditorScreen() {
               <Pressable
                 onPress={handleSave}
                 disabled={isBusy}
-                className={`rounded-lg px-4 py-2 ${!isBusy ? "bg-primary" : "bg-primary/50"}`}
+                className={`min-h-[44px] items-center justify-center rounded-lg px-4 py-2 active:opacity-70 ${!isBusy ? "bg-primary" : "bg-primary/50"}`}
                 accessibilityRole="button"
                 accessibilityLabel={t("save")}
-                accessibilityState={{ disabled: isBusy }}
+                accessibilityState={{ disabled: isBusy, busy: isSaving }}
               >
-                <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
+                <Text accessibilityLiveRegion="polite" className="text-sm font-medium text-primary-foreground">
+                  {t(isSaving ? "saving" : "save")}
+                </Text>
               </Pressable>
             </View>
           </View>

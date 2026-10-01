@@ -56,13 +56,14 @@ export function PillNav({ tabs, activeTabId, onTabPress }: PillNavProps) {
           <Pressable
             key={tab.id}
             onPress={() => {
-              haptics.light();
+              void haptics.light();
               onTabPress(tab.id);
             }}
             className={cn(
-              "flex-1 flex-col items-center justify-center gap-1 rounded-full py-2.5",
+              "min-h-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full py-2.5 active:opacity-70",
               isActive && "bg-primary"
             )}
+            accessible
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: isActive }}

@@ -63,7 +63,7 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
   const open = useCallback(() => {
     const node = triggerRef.current;
     if (!node) return;
-    haptics.light();
+    void haptics.light();
     node.measureInWindow((x, y, width, height) => {
       setAnchor({ x, y, width, height });
     });
@@ -84,7 +84,8 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
       <Pressable
         ref={triggerRef}
         onPress={open}
-        className="flex-row items-center gap-2 px-4 py-3"
+        className="min-h-[44px] flex-row items-center gap-2 rounded-lg px-4 py-3 active:bg-muted"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("switchApp")}
         accessibilityState={{ expanded: anchor !== null }}
@@ -121,15 +122,17 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
                     key={app.id}
                     onPress={(event) => {
                       event.stopPropagation();
-                      haptics.medium();
+                      void haptics.medium();
                       onAppSelect(app.id);
                       close();
                     }}
                     className={cn(
-                      "flex-row items-center gap-3 rounded-xl px-3 py-3",
+                      "min-h-[44px] flex-row items-center gap-3 rounded-xl px-3 py-3 active:opacity-70",
                       isActive && "bg-accent"
                     )}
+                    accessible
                     accessibilityRole="menuitem"
+                    accessibilityLabel={t(app.titleKey)}
                     accessibilityState={{ selected: isActive }}
                   >
                     <Icon size={22} color={isActive ? colors.foreground : colors.mutedForeground} />

@@ -6,7 +6,7 @@ import {
   Alert,
   StyleSheet,
 } from "react-native";
-import { Sparkles, Plus, Pencil, Trash2, GripVertical } from "../../src/components/AppIcons";
+import { Sparkles, Plus, MoreHorizontal, GripVertical } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -38,8 +38,7 @@ function DhikrDraggableRow({
   isActive,
   colors,
   t,
-  onEdit,
-  onDelete,
+  onActions,
   onSelect,
 }: {
   item: Dhikr;
@@ -47,8 +46,7 @@ function DhikrDraggableRow({
   isActive: boolean;
   colors: ReturnType<typeof useThemeColors>;
   t: ReturnType<typeof useI18n>["t"];
-  onEdit: (d: Dhikr) => void;
-  onDelete: (d: Dhikr) => void;
+  onActions: (d: Dhikr) => void;
   onSelect: (d: Dhikr) => void;
 }) {
   return (
@@ -71,7 +69,8 @@ function DhikrDraggableRow({
       <Pressable
         onLongPress={drag}
         delayLongPress={150}
-        className="shrink-0 items-center justify-center px-1 py-2"
+        className="min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg active:bg-muted"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("reorderHandle")}
       >
@@ -80,7 +79,8 @@ function DhikrDraggableRow({
 
       <Pressable
         onPress={() => onSelect(d)}
-        className="flex-1 min-w-0"
+        className="min-h-[44px] min-w-0 flex-1 justify-center rounded-lg active:opacity-70"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("openDhikr")}
       >
@@ -89,12 +89,12 @@ function DhikrDraggableRow({
         >
           {d.name}
         </Text>
-        <View className="mt-1 flex-row items-center gap-2">
-          <Text className="text-xs text-muted-foreground">
+        <View className="mt-1 flex-row flex-wrap items-center gap-x-3 gap-y-1">
+          <Text className="text-sm text-muted-foreground">
             {t("total")}: {d.total_count.toLocaleString()}
           </Text>
           {d.daily_limit != null && d.daily_limit > 0 && (
-            <Text className="text-xs font-semibold text-primary">
+            <Text className="text-sm font-semibold text-primary">
               {d.daily_count}/{d.daily_limit}
             </Text>
           )}
@@ -117,22 +117,15 @@ function DhikrDraggableRow({
       </Pressable>
 
       <Pressable
-        onPress={() => onEdit(d)}
-        className="shrink-0 p-2"
+        onPress={() => onActions(d)}
+        disabled={isActive}
+        className="min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg active:bg-muted"
+        accessible
         accessibilityRole="button"
-        accessibilityLabel={t("editDhikr")}
+        accessibilityLabel={t("dhikrActionsFor", { name: d.name })}
+        accessibilityState={{ disabled: isActive }}
       >
-        <Pencil size={18} color={colors.mutedForeground} />
-      </Pressable>
-      <Pressable
-        onPress={() => {
-          void onDelete(d);
-        }}
-        className="shrink-0 p-2"
-        accessibilityRole="button"
-        accessibilityLabel={t("delete")}
-      >
-        <Trash2 size={18} color={colors.destructive} />
+        <MoreHorizontal size={20} color={colors.mutedForeground} />
       </Pressable>
     </View>
   );
@@ -236,6 +229,15 @@ export default function DhikrListScreen() {
     [dhikrs, haptics, t]
   );
 
+  const handleActions = useCallback((dhikr: Dhikr) => {
+    void haptics.light();
+    Alert.alert(t("dhikrActions"), dhikr.name, [
+      { text: t("editDhikr"), onPress: () => handleEdit(dhikr) },
+      { text: t("delete"), style: "destructive", onPress: () => handleDelete(dhikr) },
+      { text: t("cancel"), style: "cancel" },
+    ]);
+  }, [handleDelete, handleEdit, haptics, t]);
+
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<Dhikr>) => (
       <DhikrDraggableRow
@@ -244,12 +246,11 @@ export default function DhikrListScreen() {
         isActive={isActive}
         colors={colors}
         t={t}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onActions={handleActions}
         onSelect={handleSelect}
       />
     ),
-    [colors, handleDelete, handleEdit, handleSelect, t]
+    [colors, handleActions, handleSelect, t]
   );
 
   const listHeader = useMemo(() => (
@@ -259,7 +260,7 @@ export default function DhikrListScreen() {
       </Text>
       <Pressable
         onPress={handleAdd}
-        className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+        className="min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-3 py-2 active:opacity-70"
         accessibilityRole="button"
         accessibilityLabel={t("addDhikrBtn")}
       >

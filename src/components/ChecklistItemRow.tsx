@@ -49,7 +49,8 @@ export function ChecklistItemRow({
         onLongPress={drag}
         disabled={disabled && !isActive}
         delayLongPress={150}
-        className="h-10 w-8 items-center justify-center"
+        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("reorderHandle")}
         accessibilityState={{ disabled: disabled && !isActive }}
@@ -60,7 +61,8 @@ export function ChecklistItemRow({
       <Pressable
         onPress={() => onToggle(item.key)}
         disabled={disabled}
-        className="h-10 w-8 items-center justify-center"
+        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        accessible
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.checked, disabled }}
         accessibilityLabel={item.text || t("notesItemPlaceholder")}
@@ -77,13 +79,14 @@ export function ChecklistItemRow({
         placeholderTextColor={colors.mutedForeground}
         multiline
         scrollEnabled={false}
-        className="flex-1 py-2 text-base text-foreground"
+        className="min-h-[44px] min-w-0 flex-1 py-2 text-base text-foreground"
       />
 
       <Pressable
         onPress={() => onRemove(item.key)}
         disabled={disabled}
-        className="h-10 w-8 items-center justify-center"
+        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        accessible
         accessibilityRole="button"
         accessibilityLabel={t("notesItemDelete")}
         accessibilityState={{ disabled }}

@@ -70,3 +70,4 @@ export const PiggyBank = createIcon("PiggyBank");
 export const Calculator = createIcon("Calculator");
 export const Sort = createIcon("Sort");
 export const Settings = createIcon("Settings");
+export const MoreHorizontal = createIcon("MoreHorizontal");
