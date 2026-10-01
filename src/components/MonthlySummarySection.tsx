@@ -4,7 +4,7 @@ import { CircleCheck } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import {
-  loanMonthlyPayment,
+  loanPaymentForMonth,
   type Budget,
   type Expense,
   type Loans,
@@ -33,7 +33,7 @@ export function MonthlySummarySection({
   const colors = useThemeColors();
 
   const c = useMemo(() => {
-    const loanPayment = loanMonthlyPayment(loans);
+    const loanPayment = loanPaymentForMonth(loans, budget.month);
     const cards = CREDIT_CARD_SLOTS.map((slot) => {
       const card = creditCardDetails(loans, slot);
       const payment = creditCardPaymentForMonth(card, budget.month);

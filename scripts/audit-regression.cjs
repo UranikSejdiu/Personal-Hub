@@ -220,6 +220,30 @@ function migrationModule(fixture) {
     await budget.applyLoanPaidToggle('2026-09', false);
     assert.equal((await budget.loadLoans()).loan_months_paid, 12);
   });
+  await verify('Payment-only loan plans affect only their scheduled months', async () => {
+    const loans = { ...budget.EMPTY_LOANS, loan_payment: 225, loan_term: 12, loan_months_paid: 3, loan_schedule_mode: 'count', loan_start_month: '2026-11', loan_end_month: '2027-07' };
+    await budget.saveLoans(loans);
+    assert.equal(budget.loanMonthlyPayment(loans), 225);
+    for (const [month, expected] of [['2026-10', 0], ['2026-11', 225], ['2027-07', 225], ['2027-08', 0]]) {
+      await budget.saveBudget(month, 1000, false, false);
+      assert.equal(budget.loanPaymentForMonth(await budget.loadLoans(), month), expected);
+      const summary = budget.computeMonthSummary({ month, income: 1000, loanPaid: false, ccPaid: false, totalExpenses: 0, paidExpenses: 0 }, loans, 0);
+      assert.equal(summary.outflow, expected);
+      if (expected === 0) await assert.rejects(budget.applyLoanPaidToggle(month, true));
+    }
+    await budget.applyLoanPaidToggle('2026-11', true);
+    assert.equal((await budget.loadLoans()).loan_months_paid, 4);
+    await budget.applyLoanPaidToggle('2026-11', false);
+    assert.equal((await budget.loadLoans()).loan_months_paid, 3);
+  });
+  await verify('Legacy loan calculations remain unbounded after migration', async () => {
+    const loans = { ...budget.EMPTY_LOANS, loan_amount: 1200, loan_term: 12, loan_months_paid: 4 };
+    await budget.saveLoans(loans);
+    const restored = await budget.loadLoans();
+    assert.equal(restored.loan_schedule_mode, null);
+    assert.equal(budget.loanPaymentForMonth(restored, '2025-01'), budget.loanMonthlyPayment(restored));
+    assert.equal(budget.loanPaymentForMonth(restored, '2028-12'), budget.loanMonthlyPayment(restored));
+  });
   await verify('Credit-card payment toggles are idempotent', async () => {
     await budget.saveLoans({ ...budget.EMPTY_LOANS, cc_balance: 1200, cc_payment: 150 });
     await budget.saveBudget('2026-09', 1000, false, false);
@@ -285,6 +309,39 @@ function migrationModule(fixture) {
     assert.equal(summaries.find(s => s.month === '2026-10').outflow, 150);
     assert.equal(summaries.find(s => s.month === '2026-11').outflow, 250);
   });
+  await verify('Installments split a repayable total into exact months and cents', async () => {
+    const cards = load(path.join(root, 'src/lib/creditCards.ts'));
+    const plan = { ...budget.EMPTY_LOANS, cc_plan_mode: 'installment', cc_balance: 550, cc_payment: 45.83, cc_installments: 12, cc_start_month: '2026-06', cc_end_month: '2027-05', cc_months_paid: 4 };
+    assert.equal(cards.installmentEndMonth('2026-06', 12), '2027-05');
+    assert.equal(cards.installmentEndMonth('2026-11', 12), '2027-10');
+    assert.deepEqual(cards.installmentPayments({ balance: 999, installments: 12 }), { regular: 83.25, final: 83.25, total: 999 });
+    assert.deepEqual(cards.installmentPayments({ balance: 550, installments: 12 }), { regular: 45.83, final: 45.87, total: 550 });
+    await budget.saveLoans(plan);
+    const restored = await budget.loadLoans();
+    assert.equal(restored.cc_plan_mode, 'installment');
+    assert.equal(restored.cc_installments, 12);
+    assert.equal(cards.creditCardPaymentForMonth(cards.creditCardDetails(restored, 1), '2026-05'), 0);
+    assert.equal(cards.creditCardPaymentForMonth(cards.creditCardDetails(restored, 1), '2026-06'), 45.83);
+    assert.equal(cards.creditCardPaymentForMonth(cards.creditCardDetails(restored, 1), '2027-05'), 45.87);
+    assert.equal(cards.creditCardPaymentForMonth(cards.creditCardDetails(restored, 1), '2027-06'), 0);
+    assert.equal(Math.round((11 * 45.83 + 45.87) * 100), 55000);
+    const last = budget.computeMonthSummary({ month: '2027-05', income: 1000, loanPaid: false, ccPaid: true, cc2Paid: false, totalExpenses: 0, paidExpenses: 0 }, restored, 0);
+    assert.equal(last.outflow, 45.87);
+    assert.equal(last.actualOutflow, 45.87);
+    await budget.saveBudget('2027-05', 1000, false, false);
+    await budget.applyCcPaidToggle('2027-05', true);
+    assert.equal((await budget.loadBudget('2027-05')).cc_paid, true);
+    await budget.applyCcPaidToggle('2027-05', false);
+    assert.equal((await budget.loadLoans()).cc_months_paid, 4);
+    const env = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(env).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    assert.equal((await budget.loadLoans()).cc_end_month, '2027-05');
+    await assert.rejects(budget.saveLoans({ ...plan, cc_end_month: '2027-06' }));
+    await assert.rejects(budget.saveLoans({ ...plan, cc_payment: 45.84 }));
+    env.tables.loans.cc_installments = 13;
+    assert.equal(backup.validateEnvelope(env).ok, false);
+  });
   await verify('Second card payment survives income autosave and copy preserves existing flags', async () => {
     await budget.saveLoans({ ...budget.EMPTY_LOANS, cc2_payment: 100 });
     await budget.saveBudget('2026-11', 1000, false, false);
@@ -322,11 +379,11 @@ function migrationModule(fixture) {
     assert.equal((await budget.loadBudget('2026-11')).cc_paid, false);
   });
   await verify('Legacy backups restore with an empty second card and unrestricted first card', async () => {
-    await budget.saveLoans({ ...budget.EMPTY_LOANS, cc_balance: 1200, cc_payment: 150 });
+    await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_amount: 1200, loan_term: 12, loan_months_paid: 3, cc_balance: 1200, cc_payment: 150 });
     await budget.saveBudget('2026-11', 1000, false, false);
     const env = await backup.buildBackupEnvelope();
     for (const key of Object.keys(env.tables.loans)) {
-      if (key.startsWith('cc2_') || key === 'cc_start_month' || key === 'cc_end_month') delete env.tables.loans[key];
+      if (key.startsWith('cc2_') || key === 'cc_start_month' || key === 'cc_end_month' || key.startsWith('loan_schedule_') || key === 'loan_start_month' || key === 'loan_end_month') delete env.tables.loans[key];
     }
     delete env.tables.budgets[0].cc2_paid;
     assert.equal(backup.validateEnvelope(env).ok, true);
@@ -335,7 +392,37 @@ function migrationModule(fixture) {
     assert.equal(loans.cc_payment, 150);
     assert.equal(loans.cc_start_month, null);
     assert.equal(loans.cc2_payment, 0);
+    assert.equal(loans.loan_schedule_mode, null);
+    assert.equal(loans.loan_amount, 1200);
+    assert.equal(loans.loan_months_paid, 3);
+    assert.equal(budget.loanPaymentForMonth(loans, '2028-01'), 100);
     assert.equal((await budget.loadBudget('2026-11')).cc2_paid, false);
+  });
+  await verify('Loan schedules and inline names survive backup restore', async () => {
+    await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_payment: 180, loan_term: 13, loan_schedule_mode: 'dates', loan_start_month: '2026-11', loan_end_month: '2027-11', cc_payment: 75 });
+    await budget.saveDebtName('loan', 'Car loan');
+    await budget.saveDebtName(1, 'Visa');
+    const env = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(env).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    const restored = await budget.loadLoans();
+    assert.equal(restored.loan_schedule_mode, 'dates');
+    assert.equal(restored.loan_start_month, '2026-11');
+    assert.equal(restored.loan_end_month, '2027-11');
+    assert.equal(restored.loan_payment, 180);
+    assert.equal(restored.loan_name, 'Car loan');
+    assert.equal(restored.cc_name, 'Visa');
+    assert.equal(restored.cc_payment, 75);
+  });
+  await verify('Invalid loan ranges are rejected without changing saved data', async () => {
+    await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_amount: 1200, loan_term: 12 });
+    await assert.rejects(budget.saveLoans({ ...budget.EMPTY_LOANS, loan_payment: 100, loan_term: 2, loan_schedule_mode: 'dates', loan_start_month: '2026-11', loan_end_month: '2026-11' }));
+    assert.equal((await budget.loadLoans()).loan_amount, 1200);
+    const env = await backup.buildBackupEnvelope();
+    env.tables.loans.loan_schedule_mode = 'dates';
+    env.tables.loans.loan_start_month = '2026-11';
+    env.tables.loans.loan_end_month = '2026-11';
+    assert.equal(backup.validateEnvelope(env).ok, false);
   });
   await verify('Invalid second card data and reversed schedules are rejected at boundaries', async () => {
     await assert.rejects(budget.saveLoans({ ...budget.EMPTY_LOANS, cc2_payment: -1 }));
@@ -465,15 +552,15 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 7);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 9);
   });
-  await verify('Version 7 upgrade preserves the existing card and defaults the optional card to empty', async () => {
+  await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
     try {
       for (const s of declarations.get('SCHEMA_STATEMENTS').elements) legacy.exec(s.text);
       for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
         const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
-        if (fields.column.startsWith('cc2_') || fields.column === 'cc_start_month' || fields.column === 'cc_end_month') continue;
+        if (fields.column.startsWith('cc2_') || fields.column === 'cc_start_month' || fields.column === 'cc_end_month' || fields.column === 'cc_plan_mode' || fields.column === 'cc_installments' || fields.column === 'loan_schedule_mode' || fields.column === 'loan_start_month' || fields.column === 'loan_end_month') continue;
         if (!legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) {
           legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
         }
@@ -490,9 +577,16 @@ function migrationModule(fixture) {
       assert.equal(loans.cc_start_month, null);
       assert.equal(loans.cc2_payment, 0);
       assert.equal(loans.cc2_start_month, null);
+      assert.equal(loans.loan_schedule_mode, null);
+      assert.equal(loans.loan_start_month, null);
+      assert.equal(loans.loan_end_month, null);
+      assert.equal(loans.cc_plan_mode, null);
+      assert.equal(loans.cc_installments, 0);
+      assert.equal(loans.cc2_plan_mode, null);
+      assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 7);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 9);
     } finally { legacy.close(); }
   });
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));

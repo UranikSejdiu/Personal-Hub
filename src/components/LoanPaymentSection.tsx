@@ -5,7 +5,7 @@ import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { remainingBalance, scheduleBalance } from "../lib/calculations";
-import { loanMonthlyPayment, type Budget, type Loans } from "../lib/budget";
+import { loanPaymentForMonth, type Budget, type Loans } from "../lib/budget";
 import { formatCurrency, withAlpha } from "../lib/utils";
 
 interface Props {
@@ -53,13 +53,13 @@ export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
     ]
   );
 
-  if (loans.loan_amount <= 0 && loans.loan_term <= 0) return null;
+  if (loanPaymentForMonth(loans, budget.month) <= 0) return null;
 
   const isPaid = loans.loan_term > 0 && loanMonthsPaid >= loans.loan_term;
 
   const monthlyPayment = scheduleInfo
     ? scheduleInfo.payment
-    : loanMonthlyPayment(loans);
+    : loanPaymentForMonth(loans, budget.month);
   const balance = scheduleInfo
     ? scheduleInfo.balance
     : remainingBalance(
@@ -105,7 +105,7 @@ export function LoanPaymentSection({ budget, loans, onToggle }: Props) {
           </Text>
         </View>
 
-        {!isPaid && (
+        {!isPaid && loans.loan_amount > 0 && (
           <View className="flex-row justify-between">
             <Text className="text-sm text-muted-foreground">{t("remainingBalanceLabel")}</Text>
             <Text className="text-sm font-medium text-foreground">{formatCurrency(balance)}</Text>

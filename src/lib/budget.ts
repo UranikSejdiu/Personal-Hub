@@ -1,5 +1,5 @@
 import * as db from "./db";
-import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, isCreditCardActive, isCreditCardValid, type CreditCardSlot } from "./creditCards";
+import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, creditCardScheduledMonths, isCreditCardActive, isCreditCardMonth, isCreditCardScheduleValid, isCreditCardValid, type CreditCardSlot } from "./creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
 import {
   type Loans,
@@ -53,6 +53,9 @@ export async function loadLoans(
     loan_payment_day: Number(row.loan_payment_day) || 1,
     loan_months_paid: Number(row.loan_months_paid) || 0,
     loan_name: String(row.loan_name) || "",
+    loan_schedule_mode: row.loan_schedule_mode === "count" || row.loan_schedule_mode === "dates" ? row.loan_schedule_mode : null,
+    loan_start_month: typeof row.loan_start_month === "string" ? row.loan_start_month : null,
+    loan_end_month: typeof row.loan_end_month === "string" ? row.loan_end_month : null,
     cc_balance: Number(row.cc_balance) || 0,
     cc_apr: Number(row.cc_apr) || 0,
     cc_payment: Number(row.cc_payment) || 0,
@@ -60,6 +63,8 @@ export async function loadLoans(
     cc_name: String(row.cc_name) || "",
     cc_start_month: typeof row.cc_start_month === "string" ? row.cc_start_month : null,
     cc_end_month: typeof row.cc_end_month === "string" ? row.cc_end_month : null,
+    cc_plan_mode: row.cc_plan_mode === "installment" ? "installment" : null,
+    cc_installments: Number(row.cc_installments) || 0,
     cc2_balance: Number(row.cc2_balance) || 0,
     cc2_apr: Number(row.cc2_apr) || 0,
     cc2_payment: Number(row.cc2_payment) || 0,
@@ -67,6 +72,8 @@ export async function loadLoans(
     cc2_name: String(row.cc2_name ?? ""),
     cc2_start_month: typeof row.cc2_start_month === "string" ? row.cc2_start_month : null,
     cc2_end_month: typeof row.cc2_end_month === "string" ? row.cc2_end_month : null,
+    cc2_plan_mode: row.cc2_plan_mode === "installment" ? "installment" : null,
+    cc2_installments: Number(row.cc2_installments) || 0,
   };
 }
 
@@ -76,6 +83,12 @@ export async function saveLoans(
 ): Promise<void> {
   if (!isCreditCardValid(creditCardDetails(loans, 1)) || !isCreditCardValid(creditCardDetails(loans, 2))) {
     throw new Error("Credit card values or payment schedule are invalid");
+  }
+  if (!isCreditCardScheduleValid({ startMonth: loans.loan_start_month, endMonth: loans.loan_end_month }) ||
+      (loans.loan_schedule_mode !== null && loans.loan_schedule_mode !== "count" && loans.loan_schedule_mode !== "dates") ||
+      (loans.loan_schedule_mode !== null && (!loans.loan_start_month || !loans.loan_end_month || loans.loan_term <= 0 || loans.loan_months_paid > loans.loan_term)) ||
+      (loans.loan_schedule_mode === "dates" && creditCardScheduledMonths({ startMonth: loans.loan_start_month, endMonth: loans.loan_end_month }) !== loans.loan_term)) {
+    throw new Error("Loan payment schedule is invalid");
   }
   if (!Number.isSafeInteger(loans.loan_term) || loans.loan_term < 0 ||
       loans.loan_term > MAX_LOAN_TERM_MONTHS || !Number.isFinite(loans.loan_rate) ||
@@ -95,10 +108,12 @@ export async function saveLoans(
     `INSERT INTO loans (
       id, loan_amount, loan_rate, loan_term, loan_payment,
       loan_start_date, loan_payment_day, loan_months_paid, loan_name,
+      loan_schedule_mode, loan_start_month, loan_end_month,
       cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name,
       cc_start_month, cc_end_month, cc2_balance, cc2_apr, cc2_payment,
-      cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month
-    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month,
+      cc_plan_mode, cc_installments, cc2_plan_mode, cc2_installments
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       loan_amount = excluded.loan_amount,
       loan_rate = excluded.loan_rate,
@@ -108,6 +123,9 @@ export async function saveLoans(
       loan_payment_day = excluded.loan_payment_day,
       loan_months_paid = excluded.loan_months_paid,
       loan_name = excluded.loan_name,
+      loan_schedule_mode = excluded.loan_schedule_mode,
+      loan_start_month = excluded.loan_start_month,
+      loan_end_month = excluded.loan_end_month,
       cc_balance = excluded.cc_balance,
       cc_apr = excluded.cc_apr,
       cc_payment = excluded.cc_payment,
@@ -122,6 +140,10 @@ export async function saveLoans(
       cc2_name = excluded.cc2_name,
       cc2_start_month = excluded.cc2_start_month,
       cc2_end_month = excluded.cc2_end_month,
+      cc_plan_mode = excluded.cc_plan_mode,
+      cc_installments = excluded.cc_installments,
+      cc2_plan_mode = excluded.cc2_plan_mode,
+      cc2_installments = excluded.cc2_installments,
       updated_at = datetime('now')`,
     [
       loans.loan_amount,
@@ -132,6 +154,9 @@ export async function saveLoans(
       loans.loan_payment_day,
       loans.loan_months_paid,
       loans.loan_name,
+      loans.loan_schedule_mode,
+      loans.loan_start_month,
+      loans.loan_end_month,
       loans.cc_balance,
       loans.cc_apr,
       loans.cc_payment,
@@ -146,7 +171,22 @@ export async function saveLoans(
       loans.cc2_name,
       loans.cc2_start_month,
       loans.cc2_end_month,
+      loans.cc_plan_mode,
+      loans.cc_installments,
+      loans.cc2_plan_mode,
+      loans.cc2_installments,
     ]
+  );
+}
+
+/** Update a single name without committing any other unsaved form fields. */
+export async function saveDebtName(slot: "loan" | CreditCardSlot, name: string): Promise<void> {
+  const cleanName = name.trim();
+  if (cleanName.length > 100) throw new Error("Name is too long");
+  const column = slot === "loan" ? "loan_name" : slot === 1 ? "cc_name" : "cc2_name";
+  await db.execute(
+    `INSERT INTO loans (id, ${column}) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET ${column} = excluded.${column}, updated_at = datetime('now')`,
+    [cleanName]
   );
 }
 
@@ -167,6 +207,9 @@ export async function applyLoanPaidToggle(
     const budget = await loadBudget(month, tx);
     if (!budget) throw new Error("Budget not found for month.");
     if (budget.loan_paid === newLoanPaid) return { loans, budget };
+    if (newLoanPaid && loanPaymentForMonth(loans, month) <= 0) {
+      throw new Error("No loan payment scheduled for this month");
+    }
     const counterRow = await tx.get<{ loan_counter_incremented: number | null }>(
       "SELECT loan_counter_incremented FROM budgets WHERE id = ?", [budget.id]
     );
@@ -211,7 +254,7 @@ export async function applyCcPaidToggle(
     const paidKey = slot === 1 ? "cc_paid" : "cc2_paid";
     if (budget[paidKey] === newCcPaid) return { loans, budget };
     const card = creditCardDetails(loans, slot);
-    if (newCcPaid && (!isCreditCardActive(card, month) || card.payment <= 0)) {
+    if (newCcPaid && (!isCreditCardActive(card, month) || creditCardPaymentForMonth(card, month) <= 0)) {
       throw new Error("No credit card payment scheduled for this month");
     }
     const monthsPaid = Math.max(0, card.monthsPaid + (newCcPaid ? 1 : -1));
@@ -571,10 +614,19 @@ export async function copyBudgetFromMonth(
 
 /** Monthly loan instalment, honouring a manual override when one is set. */
 export function loanMonthlyPayment(loans: Loans): number {
-  if (loans.loan_amount <= 0 || loans.loan_term <= 0) return 0;
+  if (loans.loan_term <= 0) return 0;
   return loans.loan_payment > 0
     ? loans.loan_payment
-    : pmt(loans.loan_amount, loans.loan_rate, loans.loan_term);
+    : loans.loan_amount > 0 ? pmt(loans.loan_amount, loans.loan_rate, loans.loan_term) : 0;
+}
+
+/** Legacy profiles have no bounded schedule; newly configured profiles do. */
+export function loanPaymentForMonth(loans: Loans, month: string): number {
+  const payment = loanMonthlyPayment(loans);
+  if (payment <= 0 || !isCreditCardMonth(month)) return 0;
+  if (loans.loan_schedule_mode !== null && loans.loan_start_month && month < loans.loan_start_month) return 0;
+  if (loans.loan_schedule_mode !== null && loans.loan_end_month && month > loans.loan_end_month) return 0;
+  return payment;
 }
 
 /** Aggregated month figures the dashboard card renders. */
@@ -599,7 +651,7 @@ export function computeMonthSummary(
   goalAmount: number
 ): MonthSummary {
   const { month, income, loanPaid, ccPaid, totalExpenses, paidExpenses } = input;
-  const loanPayment = loanMonthlyPayment(loans);
+  const loanPayment = loanPaymentForMonth(loans, month);
   const ccPayment = creditCardPaymentForMonth(creditCardDetails(loans, 1), month);
   const cc2Payment = creditCardPaymentForMonth(creditCardDetails(loans, 2), month);
   const outflow = loanPayment + ccPayment + cc2Payment + totalExpenses + goalAmount;

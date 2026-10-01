@@ -5,7 +5,7 @@ import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { creditCardPayoff } from "../lib/calculations";
-import { type CreditCardDetails, type CreditCardSlot, isCreditCardActive } from "../lib/creditCards";
+import { creditCardPaymentForMonth, creditCardScheduledMonths, type CreditCardDetails, type CreditCardSlot, isCreditCardActive } from "../lib/creditCards";
 import { formatCurrency, withAlpha } from "../lib/utils";
 
 interface Props {
@@ -31,7 +31,10 @@ export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) 
   if (!isCreditCardActive(card, month)) return null;
   const name = card.name || t(slot === 1 ? "sectionCreditCard" : "secondCreditCard");
 
-  const totalMonths = payoff.months === Infinity ? 0 : payoff.months;
+  const paymentThisMonth = creditCardPaymentForMonth(card, month);
+  const totalMonths = card.planMode === "installment" ? card.installments : card.balance > 0
+    ? payoff.months === Infinity ? 0 : payoff.months
+    : creditCardScheduledMonths(card) ?? 0;
   const isPaid = totalMonths > 0 && ccMonthsPaid >= totalMonths;
   const progressPct =
     totalMonths > 0 ? Math.min(100, Math.round((ccMonthsPaid / totalMonths) * 100)) : 0;
@@ -45,6 +48,7 @@ export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) 
       </View>
 
       <View className="gap-2">
+        {totalMonths > 0 ? <>
         <View className="flex-row items-center justify-between">
           <Text className="text-sm text-muted-foreground">{t("progress")}</Text>
           <Text className="text-sm font-medium text-foreground">{isPaid ? 100 : progressPct}%</Text>
@@ -59,19 +63,20 @@ export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) 
 
         <View className="flex-row justify-between">
           <Text className="text-sm text-muted-foreground">
-            {t("monthsCount", { paid: ccMonthsPaid, total: totalMonths || "?" })}
+            {t("monthsCount", { paid: ccMonthsPaid, total: totalMonths })}
           </Text>
           <Text className={`text-sm ${isPaid ? "font-semibold text-success" : "text-muted-foreground"}`}>
-            {isPaid ? t("paid") : totalMonths > 0 ? t("monthsLeft", { count: remainingMonths }) : ""}
+            {isPaid ? t("paid") : t("monthsLeft", { count: remainingMonths })}
           </Text>
         </View>
+        </> : <Text className="text-sm text-muted-foreground">{t("paymentsRecorded", { count: ccMonthsPaid })}</Text>}
 
         <Pressable
           onPress={() => { void haptics.light(); onToggle(); }}
-          disabled={card.payment <= 0}
+          disabled={paymentThisMonth <= 0}
           accessible
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: paid, disabled: card.payment <= 0 }}
+          accessibilityState={{ checked: paid, disabled: paymentThisMonth <= 0 }}
           accessibilityLabel={t("creditCardPaymentFor", { name })}
           className="min-h-[44px] rounded-lg bg-muted p-3 active:opacity-70"
           android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
@@ -92,7 +97,7 @@ export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) 
               </Text>
             </View>
             <Text className={`text-sm font-medium ${paid ? "text-muted-foreground line-through" : "text-foreground"}`}>
-              {formatCurrency(card.payment)}
+              {formatCurrency(paymentThisMonth)}
             </Text>
           </View>
         </Pressable>
@@ -103,7 +108,7 @@ export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) 
           </View>
         )}
 
-        {payoff.months === Infinity && card.balance > 0 && (
+        {card.planMode === null && payoff.months === Infinity && card.balance > 0 && (
           <View className="rounded-lg bg-destructive/15 p-3">
             <Text className="text-sm font-medium text-destructive">
               {t("ccWarning", {

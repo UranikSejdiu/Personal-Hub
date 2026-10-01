@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 9;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -109,6 +109,13 @@ const SCHEMA_STATEMENTS: string[] = [
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "loans", column: "cc_plan_mode", definition: "TEXT" },
+  { table: "loans", column: "cc_installments", definition: "INTEGER NOT NULL DEFAULT 0" },
+  { table: "loans", column: "cc2_plan_mode", definition: "TEXT" },
+  { table: "loans", column: "cc2_installments", definition: "INTEGER NOT NULL DEFAULT 0" },
+  { table: "loans", column: "loan_schedule_mode", definition: "TEXT" },
+  { table: "loans", column: "loan_start_month", definition: "TEXT" },
+  { table: "loans", column: "loan_end_month", definition: "TEXT" },
   { table: "loans", column: "cc_start_month", definition: "TEXT" },
   { table: "loans", column: "cc_end_month", definition: "TEXT" },
   { table: "loans", column: "cc2_balance", definition: "REAL NOT NULL DEFAULT 0" },

@@ -7,7 +7,7 @@ import { NOTE_COLORS } from "../constants/theme";
 import { isClosingMarkerDescription } from "./savings";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS } from "./calculations";
 import { invalidateSampleData } from "./sampleData";
-import { isCreditCardScheduleValid } from "./creditCards";
+import { creditCardScheduledMonths, installmentEndMonth, installmentPayments, isCreditCardScheduleValid } from "./creditCards";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -147,6 +147,21 @@ function validateLoans(row: Record<string, unknown>): string | null {
         !isCreditCardScheduleValid({ startMonth: typeof start === "string" ? start : null, endMonth: typeof end === "string" ? end : null })) {
       return `loans.${prefix} schedule invalid`;
     }
+    const planMode = row[`${prefix}_plan_mode`] ?? null;
+    const installments = row[`${prefix}_installments`] ?? 0;
+    if (planMode !== null && planMode !== "installment") return `loans.${prefix} plan mode invalid`;
+    if (!isInteger(installments) || installments < 0 || installments > MAX_LOAN_TERM_MONTHS) return `loans.${prefix} installments invalid`;
+    if (planMode === null && installments !== 0) return `loans.${prefix} plan incomplete`;
+    if (planMode === "installment") {
+      const balance = row[`${prefix}_balance`];
+      const payment = row[`${prefix}_payment`];
+      const apr = row[`${prefix}_apr`];
+      const monthsPaid = row[`${prefix}_months_paid`];
+      const amounts = installmentPayments({ balance: typeof balance === "number" ? balance : NaN, installments });
+      if (!amounts || typeof start !== "string" || end !== installmentEndMonth(start, installments) ||
+          apr !== 0 || !isFiniteNumber(payment) || Math.round(payment * 100) !== Math.round(amounts.regular * 100) ||
+          !isInteger(monthsPaid) || monthsPaid > installments) return `loans.${prefix} plan invalid`;
+    }
   }
   if (!optionalString(row, "cc2_name")) return "loans.cc2_name invalid";
   if (row.id !== undefined && row.id !== 1) return "loans.id must be 1";
@@ -170,6 +185,15 @@ function validateLoans(row: Record<string, unknown>): string | null {
   }
   if (row.loan_start_date !== null && row.loan_start_date !== undefined && !isValidDate(row.loan_start_date)) return "loans.loan_start_date invalid";
   if (!optionalString(row, "loan_name") || !optionalString(row, "cc_name")) return "loans names invalid";
+  const mode = row.loan_schedule_mode ?? null;
+  const start = row.loan_start_month ?? null;
+  const end = row.loan_end_month ?? null;
+  if (mode !== null && mode !== "count" && mode !== "dates") return "loans.loan_schedule_mode invalid";
+  if ((start !== null && typeof start !== "string") || (end !== null && typeof end !== "string") ||
+      !isCreditCardScheduleValid({ startMonth: typeof start === "string" ? start : null, endMonth: typeof end === "string" ? end : null })) return "loans.loan schedule invalid";
+  if (mode !== null && (start === null || end === null || Number(row.loan_term) <= 0 || Number(row.loan_months_paid) > Number(row.loan_term))) return "loans.loan schedule incomplete";
+  if (mode === "dates" && typeof start === "string" && typeof end === "string" &&
+      creditCardScheduledMonths({ startMonth: start, endMonth: end }) !== row.loan_term) return "loans.loan schedule duration invalid";
   return null;
 }
 
@@ -483,7 +507,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     if (env.tables.loans) {
       const r = env.tables.loans as Record<string, unknown>;
       await tx.execute(
-        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name, cc_start_month, cc_end_month, cc2_balance, cc2_apr, cc2_payment, cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, loan_schedule_mode, loan_start_month, loan_end_month, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name, cc_start_month, cc_end_month, cc2_balance, cc2_apr, cc2_payment, cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month, cc_plan_mode, cc_installments, cc2_plan_mode, cc2_installments) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.loan_amount as number,
           r.loan_rate as number,
@@ -493,6 +517,9 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
           r.loan_payment_day as number,
           r.loan_months_paid as number,
           String(r.loan_name ?? ""),
+          typeof r.loan_schedule_mode === "string" ? r.loan_schedule_mode : null,
+          typeof r.loan_start_month === "string" ? r.loan_start_month : null,
+          typeof r.loan_end_month === "string" ? r.loan_end_month : null,
           r.cc_balance as number,
           r.cc_apr as number,
           r.cc_payment as number,
@@ -507,6 +534,10 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
           String(r.cc2_name ?? ""),
           typeof r.cc2_start_month === "string" ? r.cc2_start_month : null,
           typeof r.cc2_end_month === "string" ? r.cc2_end_month : null,
+          r.cc_plan_mode === "installment" ? "installment" : null,
+          typeof r.cc_installments === "number" ? r.cc_installments : 0,
+          r.cc2_plan_mode === "installment" ? "installment" : null,
+          typeof r.cc2_installments === "number" ? r.cc2_installments : 0,
         ]
       );
     }
