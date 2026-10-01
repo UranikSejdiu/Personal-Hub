@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, Pressable, TextInput } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useFocusEffect } from "expo-router";
-import { Landmark, CreditCard, Save, ChevronRight } from "../../src/components/AppIcons";
+import { Landmark, Save, ChevronRight, Plus } from "../../src/components/AppIcons";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -13,11 +13,14 @@ import {
   type Loans,
   EMPTY_LOANS,
 } from "../../src/lib/budget";
-import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, remainingBalance, creditCardPayoff } from "../../src/lib/calculations";
+import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, remainingBalance } from "../../src/lib/calculations";
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
 import { useThemeColors } from "../../src/lib/theme";
+import { CreditCardForm } from "../../src/components/CreditCardForm";
+import { Button } from "../../src/components/ui/Button";
+import { creditCardDetails, creditCardFields, hasCreditCard, isCreditCardScheduleValid } from "../../src/lib/creditCards";
 
 export default function LoansScreen() {
   const { t } = useI18n();
@@ -25,6 +28,9 @@ export default function LoansScreen() {
   const haptics = useHaptics();
   const [loans, setLoans] = useState<Loans>(EMPTY_LOANS);
   const [saved, setSaved] = useState(false);
+  const [addingSecondCard, setAddingSecondCard] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -45,6 +51,13 @@ export default function LoansScreen() {
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (savingRef.current) return;
+    if (![creditCardDetails(loans, 1), creditCardDetails(loans, 2)].every(isCreditCardScheduleValid)) {
+      toast.error(t("creditCardScheduleError"));
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
     try {
       await saveLoans(loans);
       void haptics.success();
@@ -53,6 +66,9 @@ export default function LoansScreen() {
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch {
       toast.error(t("saveFailed"));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }, [loans, haptics, t]);
 
@@ -62,10 +78,9 @@ export default function LoansScreen() {
 
   const loanPayment = loanMonthlyPayment(loans);
 
-  const payoff = useMemo(() => {
-    if (loans.cc_balance <= 0 || loans.cc_payment <= 0) return null;
-    return creditCardPayoff(loans.cc_balance, loans.cc_apr, loans.cc_payment);
-  }, [loans.cc_balance, loans.cc_apr, loans.cc_payment]);
+  const firstCard = creditCardDetails(loans, 1);
+  const secondCard = creditCardDetails(loans, 2);
+  const showSecondCard = addingSecondCard || hasCreditCard(secondCard) || secondCard.name.length > 0 || secondCard.monthsPaid > 0 || secondCard.startMonth !== null || secondCard.endMonth !== null;
 
   const isLoanPaid = loans.loan_term > 0 && loans.loan_months_paid >= loans.loan_term;
   const loanProgress = isLoanPaid
@@ -77,8 +92,6 @@ export default function LoansScreen() {
     loans.loan_amount > 0 && loans.loan_term > 0
       ? remainingBalance(loans.loan_amount, loans.loan_rate, loans.loan_term, loans.loan_months_paid, loans.loan_payment > 0 ? loans.loan_payment : undefined)
       : 0;
-
-  const isCcPaid = loans.cc_months_paid > 0 && loans.cc_balance <= 0;
 
   const formatDate = useCallback((v: string | null) => {
     if (!v) return "—";
@@ -98,16 +111,7 @@ export default function LoansScreen() {
       <View className="w-full max-w-md self-center gap-3 p-4 pb-28">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
-          <Pressable
-            onPress={handleSave}
-            className="flex-row items-center gap-1 rounded-lg bg-primary px-4 py-2"
-            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-            accessibilityRole="button"
-            accessibilityLabel={t("save")}
-          >
-            <Save size={16} color={colors.primaryForeground} />
-            <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
-          </Pressable>
+          <Button label={t("save")} icon={Save} busy={saving} onPress={() => { void handleSave(); }} />
         </View>
 
         {saved && (
@@ -214,72 +218,13 @@ export default function LoansScreen() {
           </View>
         </View>
 
-        {/* Credit Card Section */}
-        <View className="rounded-xl border border-border bg-card p-4">
-          <View className="mb-3 flex-row items-center gap-2">
-             <CreditCard size={20} color={colors.foreground} />
-            <Text className="text-base font-semibold text-foreground">{t("ccSection")}</Text>
-          </View>
-
-          <View className="gap-3">
-            <View>
-              <Text className="mb-1 text-sm text-muted-foreground">{t("ccName")}</Text>
-              <TextInput
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
-                value={loans.cc_name}
-                onChangeText={(v) => update({ cc_name: v })}
-                placeholder={t("ccNamePlaceholder")}
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
-
-            <View>
-              <Text className="mb-1 text-sm text-muted-foreground">{t("ccBalance")}</Text>
-               <NumberInput value={loans.cc_balance} onChange={(v) => update({ cc_balance: v })} min={0} decimals={2} placeholder="0.00" />
-            </View>
-
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Text className="mb-1 text-sm text-muted-foreground">{t("ccApr")}</Text>
-                 <NumberInput value={loans.cc_apr} onChange={(v) => update({ cc_apr: v })} min={0} decimals={2} placeholder="0" />
-              </View>
-              <View className="flex-1">
-                <Text className="mb-1 text-sm text-muted-foreground">{t("ccPayment")}</Text>
-                 <NumberInput value={loans.cc_payment} onChange={(v) => update({ cc_payment: v })} min={0} decimals={2} placeholder="0.00" />
-              </View>
-            </View>
-
-            <View>
-              <Text className="mb-1 text-sm text-muted-foreground">{t("ccMonthsPaid")}</Text>
-              <NumberInput value={loans.cc_months_paid} onChange={(v) => update({ cc_months_paid: v })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" />
-            </View>
-
-            {isCcPaid && (
-              <View className="rounded-lg bg-success/15 p-3">
-                <Text className="text-center text-sm font-medium text-success">{t("cardFullyPaid")}</Text>
-              </View>
-            )}
-
-            {payoff && (
-              <View className="flex-row gap-2">
-                <View className="flex-1 rounded-lg bg-muted p-2">
-                  <Text className="text-xs text-muted-foreground">{t("monthsToPayoff")}</Text>
-                  <Text className="font-medium text-foreground">
-                    {payoff.months === Infinity ? t("never") : String(Math.round(payoff.months))}
-                  </Text>
-                </View>
-                <View className="flex-1 rounded-lg bg-muted p-2">
-                  <Text className="text-xs text-muted-foreground">{t("totalInterest")}</Text>
-                  <Text className="font-medium text-foreground">
-                    {payoff.totalInterest === Infinity
-                      ? "—"
-                      : formatCurrency(payoff.totalInterest)}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
+        <CreditCardForm card={firstCard} slot={1} onChange={(card) => update(creditCardFields(1, card))} />
+        {showSecondCard ? (
+          <CreditCardForm card={secondCard} slot={2} onChange={(card) => update(creditCardFields(2, card))} />
+        ) : (
+          <Button label={t("addSecondCreditCard")} icon={Plus} variant="secondary" onPress={() => { void haptics.light(); setAddingSecondCard(true); }} />
+        )}
+        {showSecondCard && <Button label={t("save")} icon={Save} busy={saving} onPress={() => { void handleSave(); }} />}
       </View>
     </KeyboardAwareScrollView>
 

@@ -7,6 +7,7 @@ import Animated, {
   withSequence,
   withTiming,
   Easing,
+  cancelAnimation,
 } from "react-native-reanimated";
 import { ChevronLeft, ChevronRight } from "../AppIcons";
 import { DhikrCounterTitle } from "../DhikrCounterTitle";
@@ -29,6 +30,7 @@ export function DhikrPreview() {
       ),
       -1
     );
+    return () => cancelAnimation(ripple);
   }, [ripple]);
 
   const numStyle = useAnimatedStyle(() => ({
@@ -54,11 +56,6 @@ export function DhikrPreview() {
           {COUNTER}
         </Text>
       </Animated.View>
-      <View className="flex-row items-center gap-3">
-        <View className="rounded-full bg-success/15 px-3 py-1">
-          <Text className="text-xs font-semibold text-success">{t("goalComplete")}</Text>
-        </View>
-      </View>
     </View>
   );
 }

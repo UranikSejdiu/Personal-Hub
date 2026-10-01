@@ -7,6 +7,7 @@ import Animated, {
   withSequence,
   withTiming,
   Easing,
+  cancelAnimation,
 } from "react-native-reanimated";
 import { AppSwitcher } from "../AppSwitcher";
 import { PillNav } from "../PillNav";
@@ -23,7 +24,8 @@ import { useI18n } from "../../lib/i18n";
 export function NavigationPreview() {
   const { t } = useI18n();
   const [activeAppId, setActiveAppId] = useState<string>(HUB_APPS[0].id);
-  const [activeTabId, setActiveTabId] = useState<string>(hubTabs(HUB_APPS[0].id)[0].id);
+  const [lastTabs, setLastTabs] = useState<Record<string, string>>({});
+  const activeTabId = lastTabs[activeAppId] ?? hubTabs(activeAppId)[0].id;
 
   const hintPulse = useSharedValue(0);
   useEffect(() => {
@@ -35,6 +37,7 @@ export function NavigationPreview() {
       -1,
       true
     );
+    return () => cancelAnimation(hintPulse);
   }, [hintPulse]);
   const hintStyle = useAnimatedStyle(() => ({ opacity: 0.45 + hintPulse.value * 0.55 }));
 
@@ -53,13 +56,12 @@ export function NavigationPreview() {
       </Animated.Text>
 
       <View className="w-full overflow-hidden rounded-2xl border border-border bg-background">
-        <View className="flex-row items-center border-b border-border/50 bg-card px-2">
+        <View className="flex-row items-center bg-background px-2 py-2">
           <AppSwitcher
             apps={HUB_APPS}
             activeAppId={activeAppId}
             onAppSelect={(appId) => {
               setActiveAppId(appId);
-              setActiveTabId(hubTabs(appId)[0].id);
             }}
           />
         </View>
@@ -84,11 +86,12 @@ export function NavigationPreview() {
         {t("tutorialHintTabs")}
       </Animated.Text>
 
-      <View className="h-16 w-full">
+      <View className="w-full">
         <PillNav
+          placement="inline"
           tabs={tabs.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
           activeTabId={activeTabId}
-          onTabPress={setActiveTabId}
+          onTabPress={(tabId) => setLastTabs((previous) => ({ ...previous, [activeAppId]: tabId }))}
         />
       </View>
     </View>

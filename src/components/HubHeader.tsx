@@ -22,10 +22,10 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
 
   return (
     <View
-      className="bg-card border-b border-border/50"
+      className="bg-background"
       style={{ paddingTop: insets.top }}
     >
-      <View className="flex-row items-center justify-between px-2">
+      <View className="w-full max-w-md self-center flex-row items-center justify-between px-4 py-2">
         <AppSwitcher
           apps={HUB_APPS}
           activeAppId={activeAppId}

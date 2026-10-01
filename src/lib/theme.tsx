@@ -8,13 +8,15 @@ import {
   type ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
+import { colorScheme, vars } from "nativewind";
 import * as SecureStore from "expo-secure-store";
 import {
-  COLORS,
-  ACCENT_COLORS,
+  getThemeColors,
+  getThemeVariables,
   isAccentName,
   type AccentName,
   type ThemeName,
+  type ThemeColors,
 } from "../constants/theme";
 import type { TKey } from "./i18n";
 
@@ -70,6 +72,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  // Keep NativeWind's dark: variants aligned with the app's saved preference.
+  useEffect(() => {
+    colorScheme.set(theme);
+  }, [theme]);
+
   const setTheme = useCallback((next: ThemeName) => {
     setThemeState(next);
     void SecureStore.setItemAsync(THEME_KEY, next).catch((err) => {
@@ -105,21 +112,17 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
-type BaseThemeColors = (typeof COLORS)[ThemeName];
-
-export type ThemeColors = Omit<BaseThemeColors, "primary" | "primaryForeground"> & {
-  primary: string;
-  primaryForeground: string;
-};
+export type { ThemeColors } from "../constants/theme";
 
 export function useThemeColors(): ThemeColors {
   const { theme, accent } = useTheme();
   return useMemo(
-    () => ({
-      ...COLORS[theme],
-      primary: ACCENT_COLORS[accent].primary,
-      primaryForeground: ACCENT_COLORS[accent].primaryForeground,
-    }),
+    () => getThemeColors(theme, accent),
     [theme, accent]
   );
+}
+
+export function useThemeVariables() {
+  const colors = useThemeColors();
+  return useMemo(() => vars(getThemeVariables(colors)), [colors]);
 }

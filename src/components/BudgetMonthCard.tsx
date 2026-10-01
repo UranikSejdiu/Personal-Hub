@@ -1,9 +1,11 @@
 import { memo, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Trash2, ChevronDown } from "./AppIcons";
+import { View, Text, Pressable } from "react-native";
+import { Trash2, ChevronDown, MoreHorizontal } from "./AppIcons";
 import { useI18n, monthLabelShort } from "../lib/i18n";
-import { useThemeColors } from "../lib/theme";
-import { formatCurrency, withAlpha } from "../lib/utils";
+import { useHaptics } from "../hooks/useHaptics";
+import { formatCurrency, cn } from "../lib/utils";
+import { Button, IconButton } from "./ui/Button";
+import { Card } from "./ui/Card";
 import type { MonthSummary } from "../types/budget";
 
 interface BudgetMonthCardProps {
@@ -13,6 +15,7 @@ interface BudgetMonthCardProps {
   /** Controlled expand state (used by the tutorial); the card manages its own otherwise. */
   expanded?: boolean;
   onToggleExpand?: () => void;
+  variant?: "compact" | "featured";
 }
 
 export const BudgetMonthCard = memo(function BudgetMonthCard({
@@ -21,115 +24,125 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
   onDelete,
   expanded,
   onToggleExpand,
+  variant = "compact",
 }: BudgetMonthCardProps) {
   const { t, lang } = useI18n();
-  const colors = useThemeColors();
+  const haptics = useHaptics();
   const monthLabel = monthLabelShort(lang, summary.month);
-  const isNegative = summary.remaining < 0;
+  const featured = variant === "featured";
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
   const handleToggle = onToggleExpand ?? (() => setInternalExpanded((value) => !value));
 
+  const details = [
+    { label: t("incomeColon"), value: summary.income },
+    { label: t("dashboardPlannedOutflow"), value: summary.outflow },
+    ...(!featured ? [
+      { label: t("dashboardPlannedRemaining"), value: summary.remaining },
+      { label: t("dashboardPaidOutflow"), value: summary.actualOutflow },
+      { label: t("dashboardActualRemaining"), value: summary.actualRemaining },
+    ] : []),
+  ];
+
   return (
-    <View className="rounded-xl border border-border bg-card p-3">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
-          <Pressable
-            onPress={onOpen}
-            accessibilityRole="button"
-            accessibilityLabel={monthLabel}
-          >
-            <Text className="font-medium text-foreground underline">{monthLabel}</Text>
-          </Pressable>
-          <Text className={`text-xs ${isNegative ? "text-destructive" : "text-muted-foreground"}`}>
-            {formatCurrency(summary.remaining)}
+    <Card className={featured ? "border-primary/20" : undefined}>
+      <View className="flex-row items-start gap-2">
+        <Pressable
+          onPress={onOpen}
+          className="min-h-[44px] min-w-0 flex-1 rounded-xl py-1 active:opacity-70"
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={t("dashboardOpenMonth", { month: monthLabel })}
+        >
+          {featured && (
+            <Text className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">{t("dashboardCurrentMonth")}</Text>
+          )}
+          <Text className={cn("text-foreground", featured ? "text-lg font-semibold" : "text-base font-semibold")}>{monthLabel}</Text>
+          <Text className="mt-3 text-xs text-muted-foreground">
+            {t(featured ? "dashboardActualRemaining" : "dashboardPlannedRemaining")}
           </Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Pressable
-            onPress={handleToggle}
-            className="h-6 w-6 items-center justify-center rounded-md transition-colors"
+          <Text
+            className={cn(
+              "mt-1",
+              featured ? "text-3xl font-display" : "text-lg font-semibold",
+              (featured ? summary.actualRemaining : summary.remaining) < 0 ? "text-destructive" : "text-foreground"
+            )}
+          >
+            {formatCurrency(featured ? summary.actualRemaining : summary.remaining)}
+          </Text>
+        </Pressable>
+        <View className="flex-row">
+          <IconButton
+            icon={ChevronDown}
+            className={isExpanded ? "rotate-180" : "rotate-0"}
+            onPress={() => { void haptics.light(); handleToggle(); }}
             accessibilityLabel={isExpanded ? t("collapse") : t("expand")}
-            accessibilityRole="button"
             accessibilityState={{ expanded: isExpanded }}
-            android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-          >
-            <View style={isExpanded ? styles.rotated : undefined}>
-              <ChevronDown
-                size={16}
-                color={isNegative ? colors.destructive : colors.mutedForeground}
-              />
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={onDelete}
-            className="h-6 w-6 items-center justify-center rounded-md transition-colors"
-            accessibilityLabel={t("delete")}
-            accessibilityRole="button"
-            android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
-          >
-            <Trash2 size={14} color={colors.mutedForeground} />
-          </Pressable>
+          />
+          <IconButton
+            icon={MoreHorizontal}
+            selected={menuOpen}
+            onPress={() => { void haptics.light(); setMenuOpen((value) => !value); }}
+            accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })}
+            accessibilityState={{ expanded: menuOpen }}
+          />
         </View>
       </View>
 
-      {isExpanded && (
-        <View className="mt-2 gap-1">
-          <View className="flex-row justify-between">
-            <Text className="text-muted-foreground">{t("incomeColon")} </Text>
-            <Text className="font-medium text-foreground">{formatCurrency(summary.income)}</Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-muted-foreground">{t("plannedColon")} </Text>
-            <Text className="font-medium text-foreground">{formatCurrency(summary.outflow)}</Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-muted-foreground">{t("remainsColon")} </Text>
-            <Text
-              className={isNegative ? "text-destructive" : "font-medium text-foreground"}
-            >
-              {formatCurrency(summary.remaining)}
-            </Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-muted-foreground">{t("paidColon")} </Text>
-            <Text className="font-medium text-foreground">
-              {formatCurrency(summary.actualOutflow)}
-            </Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-muted-foreground">{t("actuallyRemainsColon")} </Text>
-            <Text className="font-medium text-foreground">
-              {formatCurrency(summary.actualRemaining)}
-            </Text>
-          </View>
-
-          {summary.savingsGoal > 0 && (
-            <View className="mt-1 gap-1">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-xs text-muted-foreground">{t("goalColon")}</Text>
-                <Text className={summary.goalMet ? "text-success" : "font-medium text-foreground"}>
-                  {formatCurrency(Math.max(0, summary.actualRemaining))} /{" "}
-                  {formatCurrency(summary.savingsGoal)}
-                </Text>
-              </View>
-              <View className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                <View
-                  className={summary.goalMet ? "bg-success" : "bg-primary"}
-                  style={{ width: `${summary.goalProgress}%`, height: "100%" }}
-                />
-              </View>
-            </View>
-          )}
+      {menuOpen && (
+        <View className="mt-3 border-t border-border/60 pt-3">
+          <Button label={t("delete")} icon={Trash2} variant="destructive" onPress={() => { setMenuOpen(false); onDelete(); }} />
         </View>
       )}
-    </View>
-  );
-});
 
-const styles = StyleSheet.create({
-  rotated: {
-    transform: [{ rotate: "180deg" }],
-  },
+      {featured && (
+        <View className="mt-4 flex-row flex-wrap gap-4 rounded-xl bg-surface p-3">
+          <View className="min-w-[112px] flex-1 gap-1">
+            <Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text>
+            <Text className={cn("text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
+          </View>
+          <View className="min-w-[112px] flex-1 gap-1">
+            <Text className="text-xs text-muted-foreground">{t("dashboardPaidOutflow")}</Text>
+            <Text className="text-base font-semibold text-foreground">{formatCurrency(summary.actualOutflow)}</Text>
+          </View>
+        </View>
+      )}
+
+      {isExpanded && (
+        <View className="mt-4 gap-3 border-t border-border/60 pt-4">
+          {details.map((detail) => (
+            <View key={detail.label} className="flex-row flex-wrap justify-between gap-2">
+              <Text className="shrink text-sm text-muted-foreground">{detail.label}</Text>
+              <Text className={cn("text-sm font-medium", detail.value < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(detail.value)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {summary.savingsGoal > 0 && (featured || isExpanded) && (
+        <View className="mt-4 gap-2">
+          <View className="flex-row flex-wrap items-center justify-between gap-2">
+            <Text className="text-xs text-muted-foreground">{t("dashboardSavingsProgress")}</Text>
+            <Text className={cn("text-xs font-semibold", summary.goalMet ? "text-success" : "text-foreground")}>
+              {formatCurrency(Math.max(0, summary.actualRemaining))} / {formatCurrency(summary.savingsGoal)}
+            </Text>
+          </View>
+          <View
+            className="h-2 w-full overflow-hidden rounded-full bg-muted"
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={t("dashboardSavingsProgress")}
+            accessibilityValue={{ min: 0, max: 100, now: summary.goalProgress }}
+          >
+            <View
+              className={cn("h-full rounded-full", summary.goalMet ? "bg-success" : "bg-primary")}
+              style={{ width: `${summary.goalProgress}%` }}
+            />
+          </View>
+        </View>
+      )}
+    </Card>
+  );
 });

@@ -38,9 +38,10 @@ interface PillNavProps {
   tabs: PillNavTab[];
   activeTabId: string;
   onTabPress: (tabId: string) => void;
+  placement?: "floating" | "inline";
 }
 
-export function PillNav({ tabs, activeTabId, onTabPress }: PillNavProps) {
+export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" }: PillNavProps) {
   const haptics = useHaptics();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -50,8 +51,11 @@ export function PillNav({ tabs, activeTabId, onTabPress }: PillNavProps) {
 
   return (
     <View
-      className="absolute left-4 right-4 flex-row items-center justify-center rounded-full bg-card/95 p-1 shadow-lg border border-border/50"
-      style={{ bottom: Math.max(16, insets.bottom + 8) }}
+      className={cn(
+        "flex-row items-center justify-center rounded-full bg-card p-1.5 shadow-sm border border-border/60",
+        placement === "inline" ? "w-full" : "absolute left-4 right-4"
+      )}
+      style={placement === "floating" ? { bottom: Math.max(16, insets.bottom + 8) } : undefined}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
@@ -64,19 +68,19 @@ export function PillNav({ tabs, activeTabId, onTabPress }: PillNavProps) {
               onTabPress(tab.id);
             }}
             className={cn(
-              "min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 py-1 active:opacity-70",
-              isActive && "bg-primary"
+              "min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-2 active:opacity-70",
+              isActive && "bg-primary/10"
             )}
             accessible
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: isActive }}
           >
-            <Icon size={18} color={isActive ? colors.primaryForeground : colors.mutedForeground} />
+            <Icon size={20} color={isActive ? colors.primary : colors.mutedForeground} />
             <Text
               className={cn(
-                "text-xs font-medium leading-4 text-center",
-                isActive ? "text-primary-foreground" : "text-muted-foreground",
+                "text-xs leading-4 text-center",
+                isActive ? "font-semibold text-primary" : "font-medium text-muted-foreground",
               )}
             >
               {tab.label}

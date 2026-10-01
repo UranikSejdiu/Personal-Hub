@@ -6,6 +6,7 @@ import { useThemeColors } from "../lib/theme";
 import { cn } from "../lib/utils";
 
 export interface DatePickerProps {
+  mode?: "date" | "month";
   value: string | null;
   onChange: (value: string | null) => void;
   onClose: () => void;
@@ -13,12 +14,12 @@ export interface DatePickerProps {
 
 function parseValue(v: string | null): Date | null {
   if (!v) return null;
-  const [y, m, d] = v.split("-").map(Number);
+  const [y, m, d = 1] = v.split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(y, m - 1, d);
 }
 
-export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
+export function DatePicker({ value, onChange, onClose, mode = "date" }: DatePickerProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const today = useMemo(() => new Date(), []);
@@ -97,35 +98,63 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
               onPress={() =>
                 setDisplay(
                   new Date(
-                    display.getFullYear(),
-                    display.getMonth() - 1,
+                    display.getFullYear() - (mode === "month" ? 1 : 0),
+                    mode === "month" ? display.getMonth() : display.getMonth() - 1,
                     1
                   )
                 )
               }
-              className="p-1"
+              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={t(mode === "month" ? "previousYear" : "previousMonth")}
             >
               <ChevronLeft size={20} color={colors.mutedForeground} />
             </Pressable>
             <Text className="text-base font-semibold text-foreground">
-              {monthLabel}
+              {mode === "month" ? display.getFullYear() : monthLabel}
             </Text>
             <Pressable
               onPress={() =>
                 setDisplay(
                   new Date(
-                    display.getFullYear(),
-                    display.getMonth() + 1,
+                    display.getFullYear() + (mode === "month" ? 1 : 0),
+                    mode === "month" ? display.getMonth() : display.getMonth() + 1,
                     1
                   )
                 )
               }
-              className="p-1"
+              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={t(mode === "month" ? "nextYear" : "nextMonth")}
             >
               <ChevronRight size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
+          {mode === "month" ? (
+            <View className="mt-3 flex-row flex-wrap">
+              {Array.from({ length: 12 }, (_, month) => {
+                const label = new Date(display.getFullYear(), month, 1).toLocaleDateString(locale, { month: "short" });
+                const selectedDate = parseValue(value);
+                const selected = selectedDate?.getFullYear() === display.getFullYear() && selectedDate.getMonth() === month;
+                return (
+                  <Pressable
+                    key={month}
+                    onPress={() => { onChange(`${display.getFullYear()}-${String(month + 1).padStart(2, "0")}`); onClose(); }}
+                    className={cn("min-h-[44px] w-1/3 items-center justify-center rounded-lg px-2 py-3 active:opacity-70", selected && "bg-primary")}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={`${label} ${display.getFullYear()}`}
+                    accessibilityState={{ selected }}
+                  >
+                    <Text className={cn("text-sm font-medium", selected ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : <>
           <View className="flex-row py-2">
             {weekdays.map((d, i) => (
               <Text key={i} className="flex-1 text-center text-xs uppercase text-muted-foreground">
@@ -172,13 +201,16 @@ export function DatePicker({ value, onChange, onClose }: DatePickerProps) {
             })}
           </View>
 
+          </>}
           <View className="mt-4 flex-row justify-end">
             <Pressable
               onPress={() => {
                 onChange(null);
                 onClose();
               }}
-              className="rounded-lg bg-secondary px-3 py-1.5"
+              className="min-h-[44px] items-center justify-center rounded-lg bg-secondary px-3 py-2 active:opacity-70"
+              accessible
+              accessibilityRole="button"
               accessibilityLabel={t("clear")}
             >
               <Text className="text-sm font-medium text-muted-foreground">

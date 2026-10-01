@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
+import { Plus, Trash2, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -28,6 +28,7 @@ import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
+import { SavingsGoalCard } from "../../src/components/SavingsGoalCard";
 
 function todayDate(): string {
   const now = new Date();
@@ -348,9 +349,6 @@ export default function SavingsScreen() {
     });
   }, [editingId, editingKind, editingMonth, t, loadData]);
 
-  const goalMet = goalAmount > 0 && summary.balance >= goalAmount;
-  const goalProgress = goalAmount > 0 ? Math.min(100, (summary.balance / goalAmount) * 100) : 0;
-
   const renderEntry = useCallback(
     ({ item: entry, index }: ListRenderItemInfo<SavingsEntry>) => {
       const isAuto = entry.kind === "auto";
@@ -410,32 +408,7 @@ export default function SavingsScreen() {
     <View className="gap-4">
       <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
-      {goalAmount > 0 && (
-        <View className="rounded-xl border border-border bg-card p-4">
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
-            {goalMet && (
-              <View className="flex-row items-center gap-1 rounded-full bg-success/15 px-2 py-0.5">
-                <CircleCheck size={12} color={colors.success} />
-                <Text className="text-[11px] font-semibold text-success">{t("goalMetBadge")}</Text>
-              </View>
-            )}
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-sm text-muted-foreground">{t("goalColon")}</Text>
-            <Text className="text-sm font-medium text-foreground">{formatCurrency(goalAmount)}</Text>
-          </View>
-          <View className="flex-row justify-between">
-            <Text className="text-sm text-muted-foreground">{t("savedLabel")}</Text>
-            <Text className={`text-sm font-medium ${goalMet ? "text-success" : "text-foreground"}`}>
-              {formatCurrency(summary.balance)}
-            </Text>
-          </View>
-          <View className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-border">
-            <View className={`h-full rounded-full ${goalMet ? "bg-success" : "bg-primary"}`} style={{ width: `${goalProgress}%` }} />
-          </View>
-        </View>
-      )}
+      <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
 
       {/* Activity card shell — closed by the footer strip so entry rows stay
           virtualized inside FlatList while preserving the card chrome. */}
@@ -511,8 +484,6 @@ export default function SavingsScreen() {
       t,
       colors,
       goalAmount,
-      goalMet,
-      goalProgress,
       summary.balance,
       filteredEntries.length,
       availableYears,

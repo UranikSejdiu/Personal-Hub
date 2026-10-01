@@ -10,12 +10,13 @@ import { currentSampleMonth, sampleMonthSummary } from "../../lib/sampleDataset"
  */
 export function DashboardPreview() {
   const summary = sampleMonthSummary(currentSampleMonth());
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <View className="w-full px-1">
       <BudgetMonthCard
         summary={summary}
+        variant="featured"
         expanded={expanded}
         onOpen={() => {}}
         onToggleExpand={() => setExpanded((prev) => !prev)}

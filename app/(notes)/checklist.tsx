@@ -522,7 +522,7 @@ export default function ChecklistEditorScreen() {
                 onChangeText={setTitle}
                 placeholder={t("notesUntitled")}
                 placeholderTextColor={colors.mutedForeground}
-                className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
+                className="mb-3 w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
                 multiline
               />
             }

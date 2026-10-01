@@ -97,6 +97,15 @@ const LOAN_FIELDS = [
   "cc_payment",
   "cc_name",
   "cc_months_paid",
+  "cc_start_month",
+  "cc_end_month",
+  "cc2_balance",
+  "cc2_apr",
+  "cc2_payment",
+  "cc2_name",
+  "cc2_months_paid",
+  "cc2_start_month",
+  "cc2_end_month",
 ];
 
 const SAVINGS_FIELDS = ["goal_amount", "salary"];

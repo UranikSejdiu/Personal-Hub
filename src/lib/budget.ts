@@ -1,4 +1,5 @@
 import * as db from "./db";
+import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, isCreditCardActive, isCreditCardValid, type CreditCardSlot } from "./creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
 import {
   type Loans,
@@ -57,6 +58,15 @@ export async function loadLoans(
     cc_payment: Number(row.cc_payment) || 0,
     cc_months_paid: Number(row.cc_months_paid) || 0,
     cc_name: String(row.cc_name) || "",
+    cc_start_month: typeof row.cc_start_month === "string" ? row.cc_start_month : null,
+    cc_end_month: typeof row.cc_end_month === "string" ? row.cc_end_month : null,
+    cc2_balance: Number(row.cc2_balance) || 0,
+    cc2_apr: Number(row.cc2_apr) || 0,
+    cc2_payment: Number(row.cc2_payment) || 0,
+    cc2_months_paid: Number(row.cc2_months_paid) || 0,
+    cc2_name: String(row.cc2_name ?? ""),
+    cc2_start_month: typeof row.cc2_start_month === "string" ? row.cc2_start_month : null,
+    cc2_end_month: typeof row.cc2_end_month === "string" ? row.cc2_end_month : null,
   };
 }
 
@@ -64,6 +74,9 @@ export async function saveLoans(
   loans: Loans,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  if (!isCreditCardValid(creditCardDetails(loans, 1)) || !isCreditCardValid(creditCardDetails(loans, 2))) {
+    throw new Error("Credit card values or payment schedule are invalid");
+  }
   if (!Number.isSafeInteger(loans.loan_term) || loans.loan_term < 0 ||
       loans.loan_term > MAX_LOAN_TERM_MONTHS || !Number.isFinite(loans.loan_rate) ||
       loans.loan_rate < 0 || loans.loan_rate > MAX_LOAN_ANNUAL_RATE ||
@@ -82,8 +95,10 @@ export async function saveLoans(
     `INSERT INTO loans (
       id, loan_amount, loan_rate, loan_term, loan_payment,
       loan_start_date, loan_payment_day, loan_months_paid, loan_name,
-      cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name
-    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name,
+      cc_start_month, cc_end_month, cc2_balance, cc2_apr, cc2_payment,
+      cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       loan_amount = excluded.loan_amount,
       loan_rate = excluded.loan_rate,
@@ -98,6 +113,15 @@ export async function saveLoans(
       cc_payment = excluded.cc_payment,
       cc_months_paid = excluded.cc_months_paid,
       cc_name = excluded.cc_name,
+      cc_start_month = excluded.cc_start_month,
+      cc_end_month = excluded.cc_end_month,
+      cc2_balance = excluded.cc2_balance,
+      cc2_apr = excluded.cc2_apr,
+      cc2_payment = excluded.cc2_payment,
+      cc2_months_paid = excluded.cc2_months_paid,
+      cc2_name = excluded.cc2_name,
+      cc2_start_month = excluded.cc2_start_month,
+      cc2_end_month = excluded.cc2_end_month,
       updated_at = datetime('now')`,
     [
       loans.loan_amount,
@@ -113,6 +137,15 @@ export async function saveLoans(
       loans.cc_payment,
       loans.cc_months_paid,
       loans.cc_name,
+      loans.cc_start_month,
+      loans.cc_end_month,
+      loans.cc2_balance,
+      loans.cc2_apr,
+      loans.cc2_payment,
+      loans.cc2_months_paid,
+      loans.cc2_name,
+      loans.cc2_start_month,
+      loans.cc2_end_month,
     ]
   );
 }
@@ -168,22 +201,25 @@ export async function applyLoanPaidToggle(
 /** Same as {@link applyLoanPaidToggle} for the credit-card payment flag. */
 export async function applyCcPaidToggle(
   month: string,
-  newCcPaid: boolean
+  newCcPaid: boolean,
+  slot: CreditCardSlot = 1
 ): Promise<{ loans: Loans; budget: Budget }> {
   return db.withTransaction(async (tx) => {
     const loans = await loadLoans(tx);
     const budget = await loadBudget(month, tx);
     if (!budget) throw new Error("Budget not found for month.");
-    if (budget.cc_paid === newCcPaid) return { loans, budget };
-    const monthsPaid = Math.max(
-      0,
-      loans.cc_months_paid + (newCcPaid ? 1 : -1)
-    );
-    const updatedLoans = { ...loans, cc_months_paid: monthsPaid };
+    const paidKey = slot === 1 ? "cc_paid" : "cc2_paid";
+    if (budget[paidKey] === newCcPaid) return { loans, budget };
+    const card = creditCardDetails(loans, slot);
+    if (newCcPaid && (!isCreditCardActive(card, month) || card.payment <= 0)) {
+      throw new Error("No credit card payment scheduled for this month");
+    }
+    const monthsPaid = Math.max(0, card.monthsPaid + (newCcPaid ? 1 : -1));
+    const updatedLoans = { ...loans, ...creditCardFields(slot, { ...card, monthsPaid }) };
     await saveLoans(updatedLoans, tx);
 
-    await saveBudget(month, budget.income, budget.loan_paid, newCcPaid, tx);
-    return { loans: updatedLoans, budget };
+    await tx.execute(`UPDATE budgets SET ${paidKey} = ?, updated_at = datetime('now') WHERE id = ?`, [newCcPaid ? 1 : 0, budget.id]);
+    return { loans: updatedLoans, budget: { ...budget, [paidKey]: newCcPaid } };
   });
 }
 
@@ -276,27 +312,29 @@ export async function setExpenseRecurring(
 }
 
 export async function populateRecurringExpenses(
-  budgetId: number
+  budgetId: number,
+  exec?: db.DbExecutor
 ): Promise<void> {
-  await db.withTransaction(async (tx) => {
-    const recurring = await tx.query<{ category: string; amount: number }>(
-      "SELECT category, amount FROM recurring_expenses ORDER BY id"
+  if (!exec) {
+    return db.withTransaction((tx) => populateRecurringExpenses(budgetId, tx));
+  }
+  const recurring = await exec.query<{ category: string; amount: number }>(
+    "SELECT category, amount FROM recurring_expenses ORDER BY id"
+  );
+  const existing = await exec.query<{ category: string; amount: number }>(
+    "SELECT category, amount FROM expenses WHERE budget_id = ? AND is_recurring = 1",
+    [budgetId]
+  );
+  const existingKeys = new Set(existing.map((row) => JSON.stringify([row.category, row.amount])));
+  for (const exp of recurring) {
+    const key = JSON.stringify([exp.category, exp.amount]);
+    if (existingKeys.has(key)) continue;
+    await exec.execute(
+      "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, 1)",
+      [budgetId, exp.category, exp.amount]
     );
-    const existing = await tx.query<{ category: string; amount: number }>(
-      "SELECT category, amount FROM expenses WHERE budget_id = ? AND is_recurring = 1",
-      [budgetId]
-    );
-    const existingKeys = new Set(existing.map((row) => JSON.stringify([row.category, row.amount])));
-    for (const exp of recurring) {
-      const key = JSON.stringify([exp.category, exp.amount]);
-      if (existingKeys.has(key)) continue;
-      await tx.execute(
-        "INSERT INTO expenses (budget_id, category, amount, is_recurring) VALUES (?, ?, ?, 1)",
-        [budgetId, exp.category, exp.amount]
-      );
-      existingKeys.add(key);
-    }
-  });
+    existingKeys.add(key);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +356,7 @@ export async function loadBudget(
     income: Number(row.income) || 0,
     loan_paid: Number(row.loan_paid) === 1,
     cc_paid: Number(row.cc_paid) === 1,
+    cc2_paid: Number(row.cc2_paid) === 1,
     updated_at: String(row.updated_at),
   };
 }
@@ -342,6 +381,23 @@ export async function saveBudget(
   const saved = await loadBudget(month, exec);
   if (!saved) throw new Error("Failed to save budget.");
   return saved;
+}
+
+/** Create a month and its recurring expenses atomically; existing data is kept. */
+export async function createBudgetMonth(month: string): Promise<{ budget: Budget; created: boolean }> {
+  if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error("Invalid budget month.");
+  }
+  return db.withTransaction(async (tx) => {
+    const existing = await loadBudget(month, tx);
+    if (existing) return { budget: existing, created: false };
+    const previous = await loadBudget(addMonths(month, -1), tx);
+    const { salary } = await loadSavingsGoal(tx);
+    const income = previous && previous.income > 0 ? previous.income : salary;
+    const budget = await saveBudget(month, income, false, false, tx);
+    await populateRecurringExpenses(budget.id, tx);
+    return { budget, created: true };
+  });
 }
 
 export async function deleteBudget(
@@ -527,6 +583,7 @@ export interface MonthSummaryInput {
   income: number;
   loanPaid: boolean;
   ccPaid: boolean;
+  cc2Paid?: boolean;
   totalExpenses: number;
   paidExpenses: number;
 }
@@ -543,10 +600,11 @@ export function computeMonthSummary(
 ): MonthSummary {
   const { month, income, loanPaid, ccPaid, totalExpenses, paidExpenses } = input;
   const loanPayment = loanMonthlyPayment(loans);
-  const ccPayment = loans.cc_payment || 0;
-  const outflow = loanPayment + ccPayment + totalExpenses + goalAmount;
+  const ccPayment = creditCardPaymentForMonth(creditCardDetails(loans, 1), month);
+  const cc2Payment = creditCardPaymentForMonth(creditCardDetails(loans, 2), month);
+  const outflow = loanPayment + ccPayment + cc2Payment + totalExpenses + goalAmount;
   const actualOutflow =
-    (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + paidExpenses;
+    (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + (input.cc2Paid ? cc2Payment : 0) + paidExpenses;
   const actualRemaining = income - actualOutflow;
   const goalProgress =
     goalAmount > 0
@@ -577,6 +635,7 @@ export async function listMonthSummaries(
        b.income AS income,
        b.loan_paid AS loan_paid,
        b.cc_paid AS cc_paid,
+       b.cc2_paid AS cc2_paid,
        COALESCE(SUM(e.amount), 0) AS total_expenses,
        COALESCE(SUM(CASE WHEN e.paid = 1 THEN e.amount ELSE 0 END), 0) AS paid_expenses
      FROM budgets b
@@ -592,6 +651,7 @@ export async function listMonthSummaries(
         income: Number(row.income) || 0,
         loanPaid: Number(row.loan_paid) === 1,
         ccPaid: Number(row.cc_paid) === 1,
+        cc2Paid: Number(row.cc2_paid) === 1,
         totalExpenses: Number(row.total_expenses) || 0,
         paidExpenses: Number(row.paid_expenses) || 0,
       },

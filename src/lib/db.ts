@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS loans (
@@ -109,6 +109,16 @@ const SCHEMA_STATEMENTS: string[] = [
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "loans", column: "cc_start_month", definition: "TEXT" },
+  { table: "loans", column: "cc_end_month", definition: "TEXT" },
+  { table: "loans", column: "cc2_balance", definition: "REAL NOT NULL DEFAULT 0" },
+  { table: "loans", column: "cc2_apr", definition: "REAL NOT NULL DEFAULT 0" },
+  { table: "loans", column: "cc2_payment", definition: "REAL NOT NULL DEFAULT 0" },
+  { table: "loans", column: "cc2_months_paid", definition: "INTEGER NOT NULL DEFAULT 0" },
+  { table: "loans", column: "cc2_name", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "loans", column: "cc2_start_month", definition: "TEXT" },
+  { table: "loans", column: "cc2_end_month", definition: "TEXT" },
+  { table: "budgets", column: "cc2_paid", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "budgets", column: "loan_counter_incremented", definition: "INTEGER" },
   { table: "notes", column: "plain_text", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "notes", column: "kind", definition: "TEXT NOT NULL DEFAULT 'text'" },

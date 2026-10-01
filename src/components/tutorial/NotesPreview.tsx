@@ -4,6 +4,8 @@ import { Search } from "../AppIcons";
 import { NoteCard } from "../NoteCard";
 import { useI18n } from "../../lib/i18n";
 import { sampleNote, SAMPLE_NOTES } from "../../lib/sampleDataset";
+import { useThemeColors } from "../../lib/theme";
+import { contentToMarkdown } from "../../lib/noteContent";
 
 /**
  * Renders the real note cards from the sample dataset, so the preview lines,
@@ -11,25 +13,26 @@ import { sampleNote, SAMPLE_NOTES } from "../../lib/sampleDataset";
  */
 export function NotesPreview() {
   const { t } = useI18n();
+  const colors = useThemeColors();
   const [query, setQuery] = useState("");
 
   const now = new Date().toISOString();
   const notes = SAMPLE_NOTES.map((_, index) => sampleNote(index, now, now));
   const term = query.trim().toLowerCase();
   const visible = term
-    ? notes.filter((note) => note.title.toLowerCase().includes(term))
+    ? notes.filter((note) => [note.title, contentToMarkdown(note.content), ...(note.items ?? []).map((item) => item.text)].join("\n").toLowerCase().includes(term))
     : notes;
 
   return (
     <View className="w-full gap-3 px-1">
-      <View className="flex-row items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-        <Search size={14} />
+      <View className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-muted px-3 py-1">
+        <Search size={18} color={colors.mutedForeground} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder={t("notesSearchPlaceholder")}
-          placeholderTextColor="currentColor"
-          className="flex-1 text-xs text-muted-foreground"
+          placeholderTextColor={colors.mutedForeground}
+          className="min-w-0 flex-1 text-sm text-foreground"
           accessibilityLabel={t("notesSearchPlaceholder")}
         />
       </View>

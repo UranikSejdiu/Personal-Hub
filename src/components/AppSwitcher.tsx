@@ -84,13 +84,15 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
       <Pressable
         ref={triggerRef}
         onPress={open}
-        className="min-h-[44px] flex-row items-center gap-2 rounded-lg px-4 py-3 active:bg-muted"
+        className="min-h-[44px] flex-row items-center gap-2 rounded-xl px-2 py-2 active:bg-muted"
         accessible
         accessibilityRole="button"
         accessibilityLabel={t("switchApp")}
         accessibilityState={{ expanded: anchor !== null }}
       >
-        <ActiveIcon size={22} color={colors.foreground} />
+        <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+          <ActiveIcon size={20} color={colors.primary} />
+        </View>
         <Text className="text-base font-semibold text-foreground">
           {activeApp ? t(activeApp.titleKey) : ""}
         </Text>
@@ -111,7 +113,7 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
         >
           {anchor ? (
             <View
-              className="absolute rounded-2xl border border-border/50 bg-card p-2 shadow-xl"
+              className="absolute rounded-2xl border border-border/60 bg-card p-2 shadow-md"
               style={{ top: anchor.y + anchor.height + 4, left: menuLeft, width: MENU_WIDTH }}
             >
               {apps.map((app) => {
@@ -128,14 +130,14 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
                     }}
                     className={cn(
                       "min-h-[44px] flex-row items-center gap-3 rounded-xl px-3 py-3 active:opacity-70",
-                      isActive && "bg-accent"
+                      isActive && "bg-primary/10"
                     )}
                     accessible
                     accessibilityRole="menuitem"
                     accessibilityLabel={t(app.titleKey)}
                     accessibilityState={{ selected: isActive }}
                   >
-                    <Icon size={22} color={isActive ? colors.foreground : colors.mutedForeground} />
+                    <Icon size={22} color={isActive ? colors.primary : colors.mutedForeground} />
                     <Text
                       className={cn(
                         "flex-1 text-base",

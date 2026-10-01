@@ -5,28 +5,31 @@ import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { creditCardPayoff } from "../lib/calculations";
-import { type Budget, type Loans } from "../lib/budget";
+import { type CreditCardDetails, type CreditCardSlot, isCreditCardActive } from "../lib/creditCards";
 import { formatCurrency, withAlpha } from "../lib/utils";
 
 interface Props {
-  budget: Budget;
-  loans: Loans;
+  card: CreditCardDetails;
+  slot: CreditCardSlot;
+  month: string;
+  paid: boolean;
   onToggle: () => void;
 }
 
-export function CreditCardSection({ budget, loans, onToggle }: Props) {
+export function CreditCardSection({ card, slot, month, paid, onToggle }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const haptics = useHaptics();
 
-  const ccMonthsPaid = loans.cc_months_paid;
+  const ccMonthsPaid = card.monthsPaid;
   // Payoff simulates month-by-month interest until the balance clears.
   const payoff = useMemo(
-    () => creditCardPayoff(loans.cc_balance, loans.cc_apr, loans.cc_payment),
-    [loans.cc_balance, loans.cc_apr, loans.cc_payment]
+    () => creditCardPayoff(card.balance, card.apr, card.payment),
+    [card.balance, card.apr, card.payment]
   );
 
-  if (loans.cc_balance <= 0 && loans.cc_payment <= 0) return null;
+  if (!isCreditCardActive(card, month)) return null;
+  const name = card.name || t(slot === 1 ? "sectionCreditCard" : "secondCreditCard");
 
   const totalMonths = payoff.months === Infinity ? 0 : payoff.months;
   const isPaid = totalMonths > 0 && ccMonthsPaid >= totalMonths;
@@ -38,7 +41,7 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
     <View className="rounded-xl border border-border bg-card p-4">
       <View className="mb-3 flex-row items-center gap-2">
          <CreditCard size={20} color={colors.foreground} />
-        <Text className="text-base font-semibold text-foreground">{loans.cc_name || t("sectionCreditCard")}</Text>
+        <Text className="flex-1 text-base font-semibold text-foreground">{name}</Text>
       </View>
 
       <View className="gap-2">
@@ -63,32 +66,36 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
           </Text>
         </View>
 
-        <View className="rounded-lg bg-muted p-3">
-          <View className="flex-row items-center justify-between">
+        <Pressable
+          onPress={() => { void haptics.light(); onToggle(); }}
+          disabled={card.payment <= 0}
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: paid, disabled: card.payment <= 0 }}
+          accessibilityLabel={t("creditCardPaymentFor", { name })}
+          className="min-h-[44px] rounded-lg bg-muted p-3 active:opacity-70"
+          android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+        >
+          <View className="flex-row flex-wrap items-center justify-between gap-2">
             <View className="flex-row items-center gap-2">
-              <Pressable
-                onPress={() => { void haptics.light(); onToggle(); }}
+              <View
                 className={`h-6 w-6 items-center justify-center rounded-md border-2 ${
-                  budget.cc_paid
+                  paid
                     ? "border-primary bg-primary/15"
                     : "border-muted-foreground/50 bg-secondary"
                 }`}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: budget.cc_paid }}
-                accessibilityLabel={t("monthlyPayment")}
-                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
               >
-                {budget.cc_paid && <Check size={14} color={colors.primary} />}
-              </Pressable>
-              <Text className={`text-sm text-muted-foreground ${budget.cc_paid ? "line-through" : ""}`}>
+                {paid && <Check size={14} color={colors.primary} />}
+              </View>
+              <Text className={`text-sm text-muted-foreground ${paid ? "line-through" : ""}`}>
                 {t("monthlyPayment")}
               </Text>
             </View>
-            <Text className={`text-sm font-medium ${budget.cc_paid ? "text-muted-foreground line-through" : "text-foreground"}`}>
-              {formatCurrency(loans.cc_payment)}
+            <Text className={`text-sm font-medium ${paid ? "text-muted-foreground line-through" : "text-foreground"}`}>
+              {formatCurrency(card.payment)}
             </Text>
           </View>
-        </View>
+        </Pressable>
 
         {isPaid && (
           <View className="rounded-lg bg-success/15 p-3">
@@ -96,12 +103,12 @@ export function CreditCardSection({ budget, loans, onToggle }: Props) {
           </View>
         )}
 
-        {payoff.months === Infinity && loans.cc_balance > 0 && (
+        {payoff.months === Infinity && card.balance > 0 && (
           <View className="rounded-lg bg-destructive/15 p-3">
             <Text className="text-sm font-medium text-destructive">
               {t("ccWarning", {
-                payment: formatCurrency(loans.cc_payment),
-                interest: formatCurrency(loans.cc_balance * (loans.cc_apr / 100 / 12)),
+                payment: formatCurrency(card.payment),
+                interest: formatCurrency(card.balance * (card.apr / 100 / 12)),
               })}
             </Text>
           </View>

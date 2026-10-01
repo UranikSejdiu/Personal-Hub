@@ -607,7 +607,7 @@ export default function NotesEditorScreen() {
                 multiline
               />
 
-              <View className="mt-1 min-h-[240px]">
+              <View className="mt-3 min-h-[240px]">
                 <EnrichedTextInput
                   ref={editorRef}
                   defaultValue={initialHtml}

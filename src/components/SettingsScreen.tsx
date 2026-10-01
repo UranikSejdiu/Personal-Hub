@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen, RotateCcw, Trash2 } from "./AppIcons";
+import { ChevronRight, ArrowLeft, Vibrate, Cloud, Download, BookOpen, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
@@ -29,8 +29,9 @@ import { getHubRoute } from "../hub/registry";
 import { setTutorialSeen } from "../lib/tutorial";
 import { clearSampleData, hasSampleData } from "../lib/sampleData";
 import { resetPlainTextBackfill } from "../lib/notes";
+import { SettingsMenu, type SettingsSection } from "./SettingsMenu";
 
-type Section = "general" | "budget" | "backup" | "about" | null;
+type Section = SettingsSection | null;
 
 interface ConfirmAction {
   title: string;
@@ -39,20 +40,6 @@ interface ConfirmAction {
   destructive?: boolean;
   onConfirm: () => void | Promise<void>;
 }
-
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
-  "theme-light-dark": Palette,
-  target: Target,
-  cloud: Cloud,
-  information: Info,
-};
-
-const ALL_MENU_ITEMS = [
-  { section: "general" as const, icon: "theme-light-dark" as const, labelKey: "settingsGeneral" as const },
-  { section: "budget" as const, icon: "target" as const, labelKey: "settingsBudget" as const },
-  { section: "backup" as const, icon: "cloud" as const, labelKey: "settingsBackupSync" as const },
-  { section: "about" as const, icon: "information" as const, labelKey: "settingsAbout" as const },
-];
 
 interface SettingsScreenProps {
   activeAppId: string;
@@ -351,27 +338,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
           <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
         </View>
-        <View className="gap-2">
-          {ALL_MENU_ITEMS.filter((item) => item.section !== "budget" || activeAppId === "budget").map((item) => {
-            const Icon = ICON_MAP[item.icon] ?? Info;
-            return (
-              <Pressable
-                key={item.section}
-                onPress={() => { void haptics.light(); setActiveSection(item.section); }}
-                className="flex-row items-center justify-between rounded-xl border border-border bg-card p-4"
-                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                accessibilityRole="button"
-                accessibilityLabel={t(item.labelKey)}
-              >
-                <View className="flex-row items-center gap-3">
-                   <Icon size={20} color={colors.foreground} />
-                   <Text className="text-sm font-medium text-foreground">{t(item.labelKey)}</Text>
-                 </View>
-                 <ChevronRight size={20} color={colors.mutedForeground} />
-              </Pressable>
-            );
-          })}
-        </View>
+        <SettingsMenu activeAppId={activeAppId} onSelect={setActiveSection} />
       </View>
       </ScrollView>
         <ConfirmDialog
@@ -437,22 +404,25 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
 
             <View className="rounded-xl border border-border bg-card p-4">
               <Text className="mb-3 text-sm font-semibold text-foreground">{t("accentLabel")}</Text>
-              <View className="flex-row gap-3">
+              <View className="flex-row flex-wrap gap-3">
                 {ACCENT_ORDER.map((name) => (
                   <Pressable
                     key={name}
                     onPress={() => { void haptics.light(); setAccent(name); }}
-                    className={`h-8 w-8 items-center justify-center rounded-full border-2 ${
+                    className={`h-11 w-11 items-center justify-center rounded-full border-2 active:opacity-70 ${
                       accent === name ? "border-foreground" : "border-border"
                     }`}
-                    style={{ backgroundColor: ACCENT_COLORS[name].primary }}
+                    style={{ backgroundColor: ACCENT_COLORS[name][theme].primary }}
                     android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: accent === name }}
-                    accessibilityLabel={t(`accent_${name}` as "accent_blue")}
+                    accessibilityLabel={t(`accent_${name}`)}
                   >
                     {accent === name && (
-                      <View className="h-2.5 w-2.5 rounded-full bg-white" />
+                      <View
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: ACCENT_COLORS[name][theme].primaryForeground }}
+                      />
                     )}
                   </Pressable>
                 ))}

@@ -1,0 +1,35 @@
+name: Quality Checks
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Validate types, lint, data behavior, and theme contrast
+        run: npm run validate
+
+      - name: Verify Expo configuration
+        run: npx expo config --type public
+
+      - name: Bundle Android and iOS
+        run: npm run bundle:check

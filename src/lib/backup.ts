@@ -7,6 +7,7 @@ import { NOTE_COLORS } from "../constants/theme";
 import { isClosingMarkerDescription } from "./savings";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS } from "./calculations";
 import { invalidateSampleData } from "./sampleData";
+import { isCreditCardScheduleValid } from "./creditCards";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 1;
@@ -131,6 +132,23 @@ function optionalId(row: Record<string, unknown>): boolean {
 }
 
 function validateLoans(row: Record<string, unknown>): string | null {
+  for (const key of ["cc2_balance", "cc2_apr", "cc2_payment", "cc2_months_paid"]) {
+    const value = row[key];
+    if (value === undefined) continue; // Legacy backups have only the first card.
+    if (!isFiniteNumber(value) || value < 0 ||
+        (key === "cc2_months_paid" ? !Number.isSafeInteger(value) || value > MAX_LOAN_TERM_MONTHS : key !== "cc2_apr" && value > MAX_LOAN_AMOUNT)) {
+      return `loans.${key} invalid`;
+    }
+  }
+  for (const prefix of ["cc", "cc2"]) {
+    const start = row[`${prefix}_start_month`];
+    const end = row[`${prefix}_end_month`];
+    if ((start != null && typeof start !== "string") || (end != null && typeof end !== "string") ||
+        !isCreditCardScheduleValid({ startMonth: typeof start === "string" ? start : null, endMonth: typeof end === "string" ? end : null })) {
+      return `loans.${prefix} schedule invalid`;
+    }
+  }
+  if (!optionalString(row, "cc2_name")) return "loans.cc2_name invalid";
   if (row.id !== undefined && row.id !== 1) return "loans.id must be 1";
   for (const key of ["loan_amount", "loan_rate", "loan_payment", "cc_balance", "cc_apr", "cc_payment"]) {
     if (!isFiniteNumber(row[key])) return `loans.${key} invalid`;
@@ -167,6 +185,7 @@ function validateBudget(row: Record<string, unknown>): string | null {
   if (row.income < 0) return "budget.income must be non-negative";
   if (row.loan_paid !== undefined && !isBinaryFlag(row.loan_paid)) return "budget.loan_paid invalid";
   if (row.cc_paid !== undefined && !isBinaryFlag(row.cc_paid)) return "budget.cc_paid invalid";
+  if (row.cc2_paid !== undefined && !isBinaryFlag(row.cc2_paid)) return "budget.cc2_paid invalid";
   if (row.loan_counter_incremented !== undefined && row.loan_counter_incremented !== null &&
       !isBinaryFlag(row.loan_counter_incremented)) return "budget.loan_counter_incremented invalid";
   if (!optionalString(row, "updated_at")) return "budget.updated_at invalid";
@@ -464,7 +483,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     if (env.tables.loans) {
       const r = env.tables.loans as Record<string, unknown>;
       await tx.execute(
-        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO loans (id, loan_amount, loan_rate, loan_term, loan_payment, loan_start_date, loan_payment_day, loan_months_paid, loan_name, cc_balance, cc_apr, cc_payment, cc_months_paid, cc_name, cc_start_month, cc_end_month, cc2_balance, cc2_apr, cc2_payment, cc2_months_paid, cc2_name, cc2_start_month, cc2_end_month) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           r.loan_amount as number,
           r.loan_rate as number,
@@ -479,6 +498,15 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
           r.cc_payment as number,
           r.cc_months_paid as number,
           String(r.cc_name ?? ""),
+          typeof r.cc_start_month === "string" ? r.cc_start_month : null,
+          typeof r.cc_end_month === "string" ? r.cc_end_month : null,
+          typeof r.cc2_balance === "number" ? r.cc2_balance : 0,
+          typeof r.cc2_apr === "number" ? r.cc2_apr : 0,
+          typeof r.cc2_payment === "number" ? r.cc2_payment : 0,
+          typeof r.cc2_months_paid === "number" ? r.cc2_months_paid : 0,
+          String(r.cc2_name ?? ""),
+          typeof r.cc2_start_month === "string" ? r.cc2_start_month : null,
+          typeof r.cc2_end_month === "string" ? r.cc2_end_month : null,
         ]
       );
     }
@@ -497,12 +525,13 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = b as Record<string, unknown>;
       const month = row.month as string;
       const res = await tx.execute(
-        `INSERT INTO budgets (month, income, loan_paid, cc_paid, loan_counter_incremented, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO budgets (month, income, loan_paid, cc_paid, cc2_paid, loan_counter_incremented, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           month,
           row.income as number,
           row.loan_paid ? 1 : 0,
           row.cc_paid ? 1 : 0,
+          row.cc2_paid ? 1 : 0,
           row.loan_counter_incremented ?? null,
           (row.updated_at as string) || new Date().toISOString(),
         ]

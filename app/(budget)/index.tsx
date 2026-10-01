@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
-import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, View, Text, FlatList, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -10,56 +11,66 @@ import { useThemeColors } from "../../src/lib/theme";
 import {
   addMonths,
   currentMonth,
+  createBudgetMonth,
   deleteBudget,
   listMonthSummaries,
   loadBudget,
   loadLoans,
-  loadSavingsGoal,
-  populateRecurringExpenses,
-  saveBudget,
   saveLoans,
   type MonthSummary,
 } from "../../src/lib/budget";
 import { withTransaction } from "../../src/lib/db";
-import { withAlpha } from "../../src/lib/utils";
 import { BudgetMonthCard } from "../../src/components/BudgetMonthCard";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
+import { Button } from "../../src/components/ui/Button";
+import { Card } from "../../src/components/ui/Card";
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { t, lang } = useI18n();
   const [summaries, setSummaries] = useState<MonthSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [monthToDelete, setMonthToDelete] = useState<string | null>(null);
-  const [creatingBudget, setCreatingBudget] = useState(false);
+  const [creatingMonth, setCreatingMonth] = useState<string | null>(null);
+  const creationInFlight = useRef(false);
+  const insets = useSafeAreaInsets();
 
   const haptics = useHaptics();
   const colors = useThemeColors();
+  const thisMonth = currentMonth();
+  const currentSummary = summaries.find((summary) => summary.month === thisMonth);
+  const otherMonths = summaries.filter((summary) => summary.month !== thisMonth);
 
   const refresh = useCallback(async () => {
+    setLoadState("loading");
     try {
       const loans = await loadLoans();
       const data = await listMonthSummaries(loans);
       setSummaries(data);
+      setLoadState("ready");
     } catch {
+      setLoadState("error");
       toast.error(t("errorLoadingData"));
-    } finally {
-      setLoaded(true);
     }
   }, [t]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setLoadState("loading");
       void (async () => {
         try {
           const loans = await loadLoans();
           const data = await listMonthSummaries(loans);
-          if (!cancelled) setSummaries(data);
+          if (!cancelled) {
+            setSummaries(data);
+            setLoadState("ready");
+          }
         } catch {
-          if (!cancelled) toast.error(t("errorLoadingData"));
-        } finally {
-          if (!cancelled) setLoaded(true);
+          if (!cancelled) {
+            setLoadState("error");
+            toast.error(t("errorLoadingData"));
+          }
         }
       })();
       return () => {
@@ -83,7 +94,7 @@ export default function DashboardScreen() {
     try {
       await withTransaction(async (tx) => {
         const budget = await loadBudget(month, tx);
-        if (budget?.loan_paid || budget?.cc_paid) {
+        if (budget?.loan_paid || budget?.cc_paid || budget?.cc2_paid) {
           const loans = await loadLoans(tx);
           await saveLoans(
             {
@@ -96,6 +107,9 @@ export default function DashboardScreen() {
               cc_months_paid: budget.cc_paid
                 ? Math.max(0, loans.cc_months_paid - 1)
                 : loans.cc_months_paid,
+              cc2_months_paid: budget.cc2_paid
+                ? Math.max(0, loans.cc2_months_paid - 1)
+                : loans.cc2_months_paid,
             },
             tx
           );
@@ -103,38 +117,31 @@ export default function DashboardScreen() {
         await deleteBudget(month, tx);
       });
       await refresh();
-      haptics.success();
+      void haptics.success();
     } catch {
       toast.error(t("errorDeletingBudget"));
     }
   }, [monthToDelete, refresh, t, haptics]);
 
-  const handleNewBudget = useCallback(async () => {
-    if (creatingBudget) return;
-    setCreatingBudget(true);
+  const handleCreateMonth = useCallback(async (month: string) => {
+    if (creationInFlight.current) return;
+    creationInFlight.current = true;
+    setCreatingMonth(month);
     try {
-      const now = currentMonth();
-      const nextMonth = addMonths(now, 1);
-      const existing = await loadBudget(nextMonth);
-      if (existing) {
-        openBudgetMonth(nextMonth);
-        return;
+      const { created } = await createBudgetMonth(month);
+      if (created) {
+        await refresh();
+        void haptics.medium();
+        toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
       }
-      const prevBudget = await loadBudget(addMonths(nextMonth, -1));
-      const { salary } = await loadSavingsGoal();
-      const seedIncome = prevBudget && prevBudget.income > 0 ? prevBudget.income : salary;
-      const budget = await saveBudget(nextMonth, seedIncome, false, false);
-      await populateRecurringExpenses(budget.id);
-      await refresh();
-      haptics.medium();
-      toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, nextMonth) }));
-      openBudgetMonth(nextMonth);
+      openBudgetMonth(month);
     } catch {
       toast.error(t("errorCreatingBudget"));
     } finally {
-      setCreatingBudget(false);
+      creationInFlight.current = false;
+      setCreatingMonth(null);
     }
-  }, [creatingBudget, openBudgetMonth, refresh, lang, t, haptics]);
+  }, [openBudgetMonth, refresh, lang, t, haptics]);
 
   const renderMonth = useCallback(
     ({ item }: { item: MonthSummary }) => (
@@ -149,53 +156,70 @@ export default function DashboardScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-foreground">{t("recentMonths")}</Text>
-          <Pressable
-            onPress={handleNewBudget}
-            disabled={creatingBudget}
-            className="flex-row items-center rounded-lg bg-primary px-3 py-1.5 opacity-100 disabled:opacity-60"
-            accessibilityRole="button"
-            accessibilityLabel={t("newBudget")}
-            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-          >
-            <Plus size={14} color={colors.primaryForeground} />
-            <Text className="ml-1.5 text-sm font-medium text-primary-foreground">{t("newBudget")}</Text>
-          </Pressable>
-        </View>
+      <FlatList
+        className="w-full max-w-md self-center"
+        style={styles.list}
+        data={loadState === "ready" ? otherMonths : []}
+        keyExtractor={(item) => item.month}
+        renderItem={renderMonth}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 128 }]}
+        ListHeaderComponent={
+          <View className="gap-5">
+            <View>
+              <View className="flex-row flex-wrap items-center justify-between gap-3">
+                <Text accessibilityRole="header" className="text-3xl font-display text-foreground">{t("dashboardTitle")}</Text>
+                <Button
+                  label={t("dashboardNextMonth")}
+                  icon={Plus}
+                  variant="secondary"
+                  disabled={loadState !== "ready" || creatingMonth !== null}
+                  busy={creatingMonth === addMonths(thisMonth, 1)}
+                  onPress={() => { void handleCreateMonth(addMonths(thisMonth, 1)); }}
+                />
+              </View>
+              <Text className="mt-2 text-sm leading-5 text-muted-foreground">{t("dashboardSubtitle")}</Text>
+            </View>
 
-        {!loaded ? (
-          <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
-        ) : summaries.length === 0 ? (
-          <View className="items-center gap-2 rounded-xl border border-border bg-card px-5 py-8">
-            <Text className="text-center text-base font-semibold text-foreground">
-              {t("dashboardEmptyTitle")}
-            </Text>
-            <Text className="text-center text-sm text-muted-foreground">
-              {t("dashboardEmptyHint")}
-            </Text>
-            <Pressable
-              onPress={handleNewBudget}
-              disabled={creatingBudget}
-              className="mt-2 flex-row items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
-              accessibilityRole="button"
-              accessibilityLabel={t("newBudget")}
-              android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-            >
-              <Plus size={16} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">{t("newBudget")}</Text>
-            </Pressable>
+            {loadState === "loading" ? (
+              <View className="flex-row items-center justify-center gap-3 py-10" accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.primary} />
+                <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
+              </View>
+            ) : loadState === "error" ? (
+              <Card className="gap-4">
+                <Text className="text-sm text-foreground">{t("errorLoadingData")}</Text>
+                <Button label={t("retry")} onPress={() => { void refresh(); }} />
+              </Card>
+            ) : currentSummary ? (
+              <BudgetMonthCard
+                variant="featured"
+                summary={currentSummary}
+                onOpen={() => openBudgetMonth(currentSummary.month)}
+                onDelete={() => setMonthToDelete(currentSummary.month)}
+              />
+            ) : (
+              <Card className="gap-3 p-5">
+                <Text className="text-lg font-semibold text-foreground">{t("dashboardNoCurrentMonth")}</Text>
+                <Text className="text-sm leading-5 text-muted-foreground">
+                  {t("dashboardNoCurrentMonthHint", { month: monthLabelShort(lang, thisMonth) })}
+                </Text>
+                <Button
+                  label={t("dashboardCreateCurrentMonth")}
+                  icon={Plus}
+                  disabled={creatingMonth !== null}
+                  busy={creatingMonth === thisMonth}
+                  onPress={() => { void handleCreateMonth(thisMonth); }}
+                  className="mt-1"
+                />
+              </Card>
+            )}
+
+            {loadState === "ready" && otherMonths.length > 0 && (
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">{t("dashboardOtherMonths")}</Text>
+            )}
           </View>
-        ) : (
-          <FlatList
-            data={summaries}
-            keyExtractor={(item) => item.month}
-            renderItem={renderMonth}
-            contentContainerStyle={styles.listContent}
-          />
-        )}
-      </View>
+        }
+      />
 
       <ConfirmDialog
         visible={monthToDelete !== null}
@@ -216,5 +240,6 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  listContent: { gap: 8 },
+  list: { flex: 1 },
+  listContent: { padding: 16, gap: 12 },
 });

@@ -55,6 +55,9 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "audit:regression": "node scripts/audit-regression.cjs",
+    "check:theme": "node scripts/theme-contrast.cjs",
+    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme",
+    "bundle:check": "expo export --platform android --platform ios --output-dir dist",
     "lint": "expo lint",
     "postinstall": "patch-package"
   },

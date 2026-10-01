@@ -11,6 +11,7 @@ import {
 } from "../lib/budget";
 import { formatCurrency } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
+import { CREDIT_CARD_SLOTS, creditCardDetails, creditCardPaymentForMonth } from "../lib/creditCards";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 
 interface Props {
@@ -33,19 +34,25 @@ export function MonthlySummarySection({
 
   const c = useMemo(() => {
     const loanPayment = loanMonthlyPayment(loans);
-    const ccPayment = loans.cc_payment || 0;
+    const cards = CREDIT_CARD_SLOTS.map((slot) => {
+      const card = creditCardDetails(loans, slot);
+      const payment = creditCardPaymentForMonth(card, budget.month);
+      const paid = slot === 1 ? budget.cc_paid : budget.cc2_paid;
+      return { slot, card, payment, paid, actual: paid ? payment : 0 };
+    });
+    const ccPayment = cards.reduce((sum, card) => sum + card.payment, 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const totalOutflow = loanPayment + ccPayment + totalExpenses + savingsGoal;
     const remaining = (budget.income || 0) - totalOutflow;
 
     const paidLoan = budget.loan_paid ? loanPayment : 0;
-    const paidCc = budget.cc_paid ? ccPayment : 0;
+    const paidCc = cards.reduce((sum, card) => sum + card.actual, 0);
     const paidExpenses = expenses.reduce((sum, e) => sum + (e.paid ? e.amount || 0 : 0), 0);
     const actualOutflow = paidLoan + paidCc + paidExpenses;
     const actualRemaining = (budget.income || 0) - actualOutflow;
 
     return {
-      loanPayment, ccPayment, totalExpenses, totalOutflow, remaining,
+      cards, loanPayment, ccPayment, totalExpenses, totalOutflow, remaining,
       paidLoan, paidCc, paidExpenses, actualOutflow, actualRemaining,
     };
   }, [budget, expenses, loans, savingsGoal]);
@@ -84,16 +91,18 @@ export function MonthlySummarySection({
               </View>
             </TableRow>
 
-            <TableRow className="border-t-0 px-0 py-1">
-              <TableCell numberOfLines={1} className="flex-1 text-chart-2">{t("ccPaymentLabel")}</TableCell>
-              <TableCell className="w-[72] text-right text-chart-2">{formatCurrency(c.ccPayment)}</TableCell>
+            {c.cards.filter((card) => card.payment > 0).map(({ slot, card, payment, paid, actual }) => (
+            <TableRow key={slot} className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className="flex-1 text-chart-2">{card.name || t(slot === 1 ? "ccPaymentLabel" : "secondCreditCard")}</TableCell>
+              <TableCell className="w-[72] text-right text-chart-2">{formatCurrency(payment)}</TableCell>
               <View className="w-[72] flex-row items-center justify-end gap-1">
-                <Text numberOfLines={1} className={`text-sm ${budget.cc_paid ? "font-semibold text-chart-2" : "text-foreground"}`}>
-                  {formatCurrency(c.paidCc)}
+                <Text numberOfLines={1} className={`text-sm ${paid ? "font-semibold text-chart-2" : "text-foreground"}`}>
+                  {formatCurrency(actual)}
                 </Text>
-                {budget.cc_paid && <CircleCheck size={12} color={colors.success} />}
+                {paid && <CircleCheck size={12} color={colors.success} />}
               </View>
             </TableRow>
+            ))}
 
             <TableRow className="border-t-0 px-0 py-1">
               <TableCell numberOfLines={1} className="flex-1 text-chart-3">{t("totalCustomExpenses")}</TableCell>

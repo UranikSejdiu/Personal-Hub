@@ -28,6 +28,7 @@ import {
 } from "../../src/lib/budget";
 import { LoanPaymentSection } from "../../src/components/LoanPaymentSection";
 import { CreditCardSection } from "../../src/components/CreditCardSection";
+import { CREDIT_CARD_SLOTS, creditCardDetails, type CreditCardSlot } from "../../src/lib/creditCards";
 import { CustomExpensesSection } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 
@@ -209,6 +210,7 @@ export default function BudgetScreen() {
         income: seedIncome,
         loan_paid: false,
         cc_paid: false,
+        cc2_paid: false,
         updated_at: "",
       }
     );
@@ -382,16 +384,17 @@ export default function BudgetScreen() {
     }
   }, [budget, month, ensureBudget, scheduleSave, t, haptics]);
 
-  const handleCcToggle = useCallback(async () => {
+  const handleCcToggle = useCallback(async (slot: CreditCardSlot) => {
     const prev = budget;
     if (!prev || toggleInFlightRef.current) return;
     toggleInFlightRef.current = true;
-    const newCcPaid = !prev.cc_paid;
+    const paidKey = slot === 1 ? "cc_paid" : "cc2_paid";
+    const newCcPaid = !prev[paidKey];
     try {
       await ensureBudget();
-      const result = await applyCcPaidToggle(month, newCcPaid);
+      const result = await applyCcPaidToggle(month, newCcPaid, slot);
       setLoans(result.loans);
-      setBudget((b) => (b ? { ...b, cc_paid: newCcPaid } : b));
+      setBudget((b) => (b ? { ...b, [paidKey]: newCcPaid } : b));
       scheduleSave();
       void haptics.light();
     } catch {
@@ -616,11 +619,16 @@ export default function BudgetScreen() {
               onToggle={handleLoanToggle}
             />
 
-            <CreditCardSection
-              budget={budget}
-              loans={loans}
-              onToggle={handleCcToggle}
-            />
+            {CREDIT_CARD_SLOTS.map((slot) => (
+              <CreditCardSection
+                key={slot}
+                card={creditCardDetails(loans, slot)}
+                slot={slot}
+                month={budget.month}
+                paid={slot === 1 ? budget.cc_paid : budget.cc2_paid}
+                onToggle={() => { void handleCcToggle(slot); }}
+              />
+            ))}
           </>
         )}
 

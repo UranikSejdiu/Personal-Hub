@@ -12,6 +12,15 @@ export interface Loans {
   cc_payment: number;
   cc_months_paid: number;
   cc_name: string;
+  cc_start_month: string | null;
+  cc_end_month: string | null;
+  cc2_balance: number;
+  cc2_apr: number;
+  cc2_payment: number;
+  cc2_months_paid: number;
+  cc2_name: string;
+  cc2_start_month: string | null;
+  cc2_end_month: string | null;
 }
 
 export interface Budget {
@@ -20,6 +29,7 @@ export interface Budget {
   income: number;
   loan_paid: boolean;
   cc_paid: boolean;
+  cc2_paid: boolean;
   updated_at: string;
 }
 
@@ -69,4 +79,13 @@ export const EMPTY_LOANS: Loans = {
   cc_payment: 0,
   cc_months_paid: 0,
   cc_name: "",
+  cc_start_month: null,
+  cc_end_month: null,
+  cc2_balance: 0,
+  cc2_apr: 0,
+  cc2_payment: 0,
+  cc2_months_paid: 0,
+  cc2_name: "",
+  cc2_start_month: null,
+  cc2_end_month: null,
 };

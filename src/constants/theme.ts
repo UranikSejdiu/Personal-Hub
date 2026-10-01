@@ -1,88 +1,84 @@
-export const COLORS = {
-  light: {
-    background: "hsl(0, 0%, 100%)",
-    foreground: "hsl(240, 10%, 3.9%)",
-    card: "hsl(0, 0%, 100%)",
-    cardForeground: "hsl(240, 10%, 3.9%)",
-    primary: "hsl(221, 83%, 53%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-    secondary: "hsl(240, 4.8%, 95.9%)",
-    secondaryForeground: "hsl(240, 5.9%, 10%)",
-    muted: "hsl(240, 4.8%, 95.9%)",
-    mutedForeground: "hsl(240, 3.8%, 46.1%)",
-    accent: "hsl(240, 4.8%, 95.9%)",
-    accentForeground: "hsl(240, 5.9%, 10%)",
-    destructive: "hsl(0, 84.2%, 52%)",
-    destructiveForeground: "hsl(0, 0%, 98%)",
-    success: "hsl(142, 76%, 36%)",
-    successForeground: "hsl(0, 0%, 98%)",
-    surface: "hsl(240, 4.8%, 95.9%)",
-    border: "hsl(240, 5.9%, 90%)",
-    input: "hsl(240, 5.9%, 90%)",
-    ring: "hsl(240, 5.9%, 10%)",
-  },
-  dark: {
-    background: "hsl(240, 10%, 3.9%)",
-    foreground: "hsl(0, 0%, 98%)",
-    card: "hsl(240, 10%, 3.9%)",
-    cardForeground: "hsl(0, 0%, 98%)",
-    primary: "hsl(221, 83%, 53%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-    secondary: "hsl(240, 3.7%, 15.9%)",
-    secondaryForeground: "hsl(0, 0%, 98%)",
-    muted: "hsl(240, 3.7%, 15.9%)",
-    mutedForeground: "hsl(240, 5%, 64.9%)",
-    accent: "hsl(240, 3.7%, 15.9%)",
-    accentForeground: "hsl(0, 0%, 98%)",
-    destructive: "hsl(0, 93.2%, 58%)",
-    destructiveForeground: "hsl(0, 0%, 98%)",
-    success: "hsl(142, 71%, 45%)",
-    successForeground: "hsl(0, 0%, 98%)",
-    surface: "hsl(240, 3.7%, 15.9%)",
-    border: "hsl(240, 3.7%, 15.9%)",
-    input: "hsl(240, 3.7%, 15.9%)",
-    ring: "hsl(240, 4.9%, 83.9%)",
-  },
-} as const;
-
 export type ThemeName = "light" | "dark";
 
-export type AccentName = "blue" | "green" | "purple" | "teal" | "orange" | "pink";
+export type AccentName = "blue" | "green" | "purple" | "teal" | "orange" | "pink" | "indigo";
 
 interface AccentColor {
   primary: string;
   primaryForeground: string;
 }
 
-export const ACCENT_COLORS: Record<AccentName, AccentColor> = {
-  blue: {
-    primary: "hsl(221, 83%, 53%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
-  green: {
-    primary: "hsl(142, 71%, 36%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
-  purple: {
-    primary: "hsl(262, 83%, 58%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
-  teal: {
-    primary: "hsl(173, 65%, 30%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
-  orange: {
-    primary: "hsl(24, 95%, 48%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
-  pink: {
-    primary: "hsl(330, 81%, 57%)",
-    primaryForeground: "hsl(0, 0%, 100%)",
-  },
+function makeAccent(light: string, dark: string): Record<ThemeName, AccentColor> {
+  return {
+    light: { primary: light, primaryForeground: "hsl(0, 0%, 100%)" },
+    dark: { primary: dark, primaryForeground: "hsl(225, 18%, 10%)" },
+  };
+}
+
+export const ACCENT_COLORS: Record<AccentName, Record<ThemeName, AccentColor>> = {
+  blue: makeAccent("hsl(221, 83%, 48%)", "hsl(221, 90%, 76%)"),
+  green: makeAccent("hsl(142, 64%, 28%)", "hsl(142, 60%, 65%)"),
+  purple: makeAccent("hsl(262, 72%, 48%)", "hsl(262, 85%, 80%)"),
+  teal: makeAccent("hsl(173, 65%, 26%)", "hsl(173, 60%, 65%)"),
+  orange: makeAccent("hsl(24, 85%, 35%)", "hsl(24, 85%, 70%)"),
+  pink: makeAccent("hsl(330, 70%, 42%)", "hsl(330, 80%, 76%)"),
+  indigo: makeAccent("hsl(245, 75%, 58%)", "hsl(239, 84%, 80%)"),
 };
+
+/** Shared by NativeWind variables, icons, inputs, and native controls. */
+export const COLORS = {
+  light: {
+    background: "hsl(220, 20%, 97%)",
+    foreground: "hsl(225, 18%, 12%)",
+    card: "hsl(0, 0%, 100%)",
+    cardForeground: "hsl(225, 18%, 12%)",
+    secondary: "hsl(220, 16%, 94%)",
+    secondaryForeground: "hsl(225, 18%, 12%)",
+    muted: "hsl(220, 16%, 94%)",
+    mutedForeground: "hsl(220, 10%, 43%)",
+    accent: "hsl(220, 16%, 94%)",
+    accentForeground: "hsl(225, 18%, 12%)",
+    destructive: "hsl(0, 72%, 43%)",
+    destructiveForeground: "hsl(0, 0%, 100%)",
+    success: "hsl(142, 65%, 29%)",
+    successForeground: "hsl(0, 0%, 100%)",
+    surface: "hsl(220, 16%, 96%)",
+    border: "hsl(220, 14%, 87%)",
+    input: "hsl(220, 14%, 80%)",
+    chart1: "hsl(12, 76%, 38%)",
+    chart2: "hsl(173, 65%, 29%)",
+    chart3: "hsl(197, 55%, 30%)",
+    chart4: "hsl(43, 80%, 28%)",
+    chart5: "hsl(262, 65%, 45%)",
+  },
+  dark: {
+    background: "hsl(225, 11%, 7%)",
+    foreground: "hsl(225, 20%, 96%)",
+    card: "hsl(225, 13%, 12%)",
+    cardForeground: "hsl(225, 20%, 96%)",
+    secondary: "hsl(225, 12%, 17%)",
+    secondaryForeground: "hsl(225, 20%, 96%)",
+    muted: "hsl(225, 12%, 17%)",
+    mutedForeground: "hsl(225, 12%, 70%)",
+    accent: "hsl(225, 12%, 17%)",
+    accentForeground: "hsl(225, 20%, 96%)",
+    destructive: "hsl(0, 85%, 73%)",
+    destructiveForeground: "hsl(225, 18%, 10%)",
+    success: "hsl(142, 60%, 65%)",
+    successForeground: "hsl(225, 18%, 10%)",
+    surface: "hsl(225, 12%, 17%)",
+    border: "hsl(225, 12%, 23%)",
+    input: "hsl(225, 12%, 38%)",
+    chart1: "hsl(12, 76%, 72%)",
+    chart2: "hsl(173, 58%, 65%)",
+    chart3: "hsl(197, 60%, 70%)",
+    chart4: "hsl(43, 74%, 70%)",
+    chart5: "hsl(262, 75%, 78%)",
+  },
+} as const;
 
 export const ACCENT_ORDER: AccentName[] = [
   "blue",
+  "indigo",
   "green",
   "purple",
   "teal",
@@ -91,7 +87,24 @@ export const ACCENT_ORDER: AccentName[] = [
 ];
 
 export function isAccentName(value: string | null | undefined): value is AccentName {
-  return typeof value === "string" && value in ACCENT_COLORS;
+  return typeof value === "string" && Object.hasOwn(ACCENT_COLORS, value);
+}
+
+export function getThemeColors(theme: ThemeName, accent: AccentName) {
+  const selectedAccent = ACCENT_COLORS[accent][theme];
+  return { ...COLORS[theme], ...selectedAccent, ring: selectedAccent.primary };
+}
+
+export type ThemeColors = ReturnType<typeof getThemeColors>;
+
+/** Tailwind's hsl(var(--token)) values, derived from the same native colors. */
+export function getThemeVariables(colors: ThemeColors): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(colors).map(([key, value]) => [
+      `--${key.replace(/([A-Z]|\d)/g, "-$1").toLowerCase()}`,
+      value.slice(4, -1).replace(/,\s*/g, " "),
+    ])
+  );
 }
 
 export const NOTE_COLORS = {

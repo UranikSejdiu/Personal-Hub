@@ -8,7 +8,7 @@ import { Toaster } from "sonner-native";
 import { useFonts } from "expo-font";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
-import { ThemeProvider, useTheme } from "../src/lib/theme";
+import { ThemeProvider, useTheme, useThemeVariables } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
@@ -20,7 +20,8 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 function RootLayoutInner() {
-  const { theme, resolvedTheme, accent } = useTheme();
+  const { resolvedTheme } = useTheme();
+  const themeVariables = useThemeVariables();
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -46,8 +47,8 @@ function RootLayoutInner() {
 
   return (
     <View
-      className={`${theme} ${accent === "blue" ? "" : `accent-${accent}`}`}
-      style={{ flex: 1 }}
+      className="flex-1 bg-background"
+      style={themeVariables}
     >
       <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false }}>
@@ -77,7 +78,7 @@ function RootLayoutInner() {
 }
 
 function BootstrapGate() {
-  const { theme, accent } = useTheme();
+  const themeVariables = useThemeVariables();
   const { t } = useI18n();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
@@ -126,7 +127,8 @@ function BootstrapGate() {
   if (dbError) {
     return (
       <View
-        className={`${theme} ${accent === "blue" ? "" : `accent-${accent}`} flex-1 items-center justify-center bg-background px-6`}
+        className="flex-1 items-center justify-center bg-background px-6"
+        style={themeVariables}
       >
         <Text className="text-base font-semibold text-foreground">{t("dbInitFailed")}</Text>
         <Text className="mt-2 text-center text-sm text-muted-foreground">{dbError}</Text>
@@ -167,7 +169,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardProvider preserveEdgeToEdge>
+      <KeyboardProvider>
         <SafeAreaProvider>
           <ThemeProvider>
             <I18nProvider>

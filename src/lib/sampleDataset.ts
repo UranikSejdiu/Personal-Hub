@@ -197,6 +197,7 @@ export function sampleBudget(month: SampleMonth, id: number, updatedAt: string):
     income: month.income,
     loan_paid: month.loanPaid,
     cc_paid: month.ccPaid,
+    cc2_paid: false,
     updated_at: updatedAt,
   };
 }
