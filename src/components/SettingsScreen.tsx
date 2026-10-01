@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ChevronRight, Info, Palette, ArrowLeft, Vibrate, Target, Cloud, Download, BookOpen, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
@@ -389,7 +390,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
 
   return (
     <>
-      <ScrollView className="flex-1 bg-background">
+      <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center gap-2">
             <Pressable onPress={() => setActiveSection(null)} accessibilityRole="button" accessibilityLabel={t("cancel")} android_ripple={{ color: withAlpha(colors.primary, 0.125) }}>
@@ -610,7 +611,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
           <View className="gap-4">
             <View className="rounded-xl border border-border bg-card p-4">
               <View className="items-center gap-3 py-6">
-                <Image source={require("../../assets/icon.png")} className="h-16 w-16 rounded-xl" />
+                <Image source={require("../../assets/icon-personal-hub.png")} className="h-16 w-16 rounded-xl" />
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
                 <Text className="text-sm text-muted-foreground">{t("version")}: {getAppVersion()}</Text>
                 <Text className="text-center text-sm text-muted-foreground">{t("aboutDescription")}</Text>
@@ -633,7 +634,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
           </View>
         )}
        </View>
-     </ScrollView>
+     </KeyboardAwareScrollView>
       <ConfirmDialog
         visible={confirmAction !== null}
         title={confirmAction?.title ?? t("deleteConfirmTitle")}

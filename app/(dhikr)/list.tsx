@@ -30,7 +30,8 @@ import DraggableFlatList, {
 
 type ModalState =
   | { visible: false }
-  | { visible: true; mode: "add" | "edit"; dhikr?: Dhikr };
+  | { visible: true; mode: "add" }
+  | { visible: true; mode: "edit" | "actions"; dhikr: Dhikr };
 
 function DhikrDraggableRow({
   item: d,
@@ -196,6 +197,7 @@ export default function DhikrListScreen() {
             onPress: async () => {
               try {
                 await deleteDhikr(dhikr.id);
+                setModal({ visible: false });
                 const remaining = dhikrs.filter((d) => d.id !== dhikr.id);
                 setDhikrs(remaining);
                 void clearSelectedDhikrIdIfMissing(
@@ -231,12 +233,8 @@ export default function DhikrListScreen() {
 
   const handleActions = useCallback((dhikr: Dhikr) => {
     void haptics.light();
-    Alert.alert(t("dhikrActions"), dhikr.name, [
-      { text: t("editDhikr"), onPress: () => handleEdit(dhikr) },
-      { text: t("delete"), style: "destructive", onPress: () => handleDelete(dhikr) },
-      { text: t("cancel"), style: "cancel" },
-    ]);
-  }, [handleDelete, handleEdit, haptics, t]);
+    setModal({ visible: true, mode: "actions", dhikr });
+  }, [haptics]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<Dhikr>) => (
@@ -286,13 +284,16 @@ export default function DhikrListScreen() {
 
   const renderModal = modal.visible ? (
     <DhikrModal
-      mode={modal.mode}
-      dhikr={modal.dhikr}
+      haptics={haptics}
+      {...(modal.mode === "add"
+        ? { mode: modal.mode }
+        : modal.mode === "edit"
+          ? { mode: modal.mode, dhikr: modal.dhikr }
+          : { mode: modal.mode, dhikr: modal.dhikr, onEdit: () => handleEdit(modal.dhikr), onDelete: () => handleDelete(modal.dhikr) })}
       onClose={() => setModal({ visible: false })}
       onSave={(d) => {
         if (modal.mode === "add") {
           setDhikrs((prev) => [...prev, d]);
-          void haptics.light();
         } else {
           setDhikrs((prev) =>
             prev.map((item) => (item.id === d.id ? d : item))

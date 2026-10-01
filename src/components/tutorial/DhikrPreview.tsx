@@ -9,6 +9,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { ChevronLeft, ChevronRight } from "../AppIcons";
+import { DhikrCounterTitle } from "../DhikrCounterTitle";
 import { useThemeColors } from "../../lib/theme";
 import { useI18n } from "../../lib/i18n";
 import { SAMPLE_DHIKR } from "../../lib/sampleDataset";
@@ -36,11 +37,11 @@ export function DhikrPreview() {
 
   return (
     <View className="items-center justify-center py-4">
-      <View className="flex-row items-center gap-4">
+      <View className="w-full flex-row items-center gap-4">
         <View className="h-8 w-8 items-center justify-center rounded-full bg-muted">
           <ChevronLeft size={16} color={colors.mutedForeground} />
         </View>
-        <Text className="text-base font-semibold text-foreground">{SAMPLE_DHIKR.name}</Text>
+        <DhikrCounterTitle name={SAMPLE_DHIKR.name} />
         <View className="h-8 w-8 items-center justify-center rounded-full bg-muted">
           <ChevronRight size={16} color={colors.mutedForeground} />
         </View>

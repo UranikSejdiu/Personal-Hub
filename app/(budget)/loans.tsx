@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Keyboard, TextInput } from "react-native";
+import { View, Text, Pressable, TextInput } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useFocusEffect } from "expo-router";
 import { Landmark, CreditCard, Save, ChevronRight } from "../../src/components/AppIcons";
 import { toast } from "sonner-native";
@@ -93,7 +94,7 @@ export default function LoansScreen() {
 
   return (
     <>
-      <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
+      <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <View className="w-full max-w-md self-center gap-3 p-4 pb-28">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
@@ -280,7 +281,7 @@ export default function LoansScreen() {
           </View>
         </View>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
 
       {datePickerVisible && (
         <DatePicker

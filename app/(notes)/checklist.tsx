@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import {
   Pressable,
   Text,
   TextInput,
   View,
   type TextInput as TextInputType,
+  type ScrollView as ScrollViewType,
 } from "react-native";
-import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DraggableFlatList, {
   ScaleDecorator,
@@ -35,6 +38,12 @@ import {
 } from "../../src/components/ChecklistItemRow";
 
 type ConfirmState = { kind: "discard" } | { kind: "delete" } | null;
+const AnimatedGestureScrollView = Animated.createAnimatedComponent(GestureScrollView);
+const KeyboardGestureScrollView = forwardRef<ScrollViewType, ComponentProps<typeof Animated.ScrollView>>(
+  function KeyboardGestureScrollView(props, ref) {
+    return <AnimatedGestureScrollView {...props} ref={ref} />;
+  }
+);
 
 type LoadTarget =
   | { kind: "new" }
@@ -57,7 +66,6 @@ export default function ChecklistEditorScreen() {
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
@@ -444,12 +452,7 @@ export default function ChecklistEditorScreen() {
 
   return (
     <>
-      <KeyboardAvoidingView
-        className="flex-1 bg-background"
-        style={{ marginTop: keyboardVisible ? 1 : 0 }}
-        behavior="padding"
-        automaticOffset
-      >
+      <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
             <Pressable
@@ -508,6 +511,7 @@ export default function ChecklistEditorScreen() {
             onDragBegin={handleDragBegin}
             onDragEnd={handleDragEnd}
             keyboardShouldPersistTaps="handled"
+            renderScrollComponent={(props) => <KeyboardAwareScrollView {...props} ScrollViewComponent={KeyboardGestureScrollView} bottomOffset={16} />}
             showsVerticalScrollIndicator={false}
             containerStyle={{ flex: 1 }}
             contentContainerStyle={{ flexGrow: 1, paddingBottom: Math.max(24, insets.bottom + 16) }}
@@ -525,7 +529,7 @@ export default function ChecklistEditorScreen() {
             ListFooterComponent={listFooter}
           />
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       <ConfirmDialog
         visible={confirmState !== null}

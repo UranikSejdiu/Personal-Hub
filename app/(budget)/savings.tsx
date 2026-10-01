@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform, type ListRenderItemInfo } from "react-native";
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Plus, Trash2, CircleCheck, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -562,12 +563,10 @@ export default function SavingsScreen() {
       />
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
+        <KeyboardAvoidingView className="flex-1" behavior="padding" automaticOffset>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            className="max-h-[85%] w-full max-w-sm"
-          >
-          <ScrollView keyboardShouldPersistTaps="handled" className="rounded-2xl bg-card" contentContainerClassName="p-5">
+          <View className="max-h-full w-full max-w-sm overflow-hidden rounded-2xl bg-card">
+          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-5">
             <Text className="text-lg font-semibold text-foreground">
               {editingKind === "auto"
                 ? t("savingsAutoEditTitle")
@@ -646,8 +645,9 @@ export default function SavingsScreen() {
               </Pressable>
             </View>
           </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {datePickerVisible && (

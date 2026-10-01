@@ -4,9 +4,8 @@ import {
   Text,
   Pressable,
   TextInput,
-  ScrollView,
 } from "react-native";
-import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Trash2,
@@ -172,10 +171,11 @@ export default function NotesEditorScreen() {
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
+  const [toolbarHeight, setToolbarHeight] = useState(57);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const plainTextRef = useRef("");
   const [isAddingItem, setIsAddingItem] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   // Snapshot of the last persisted/loaded state, used to decide whether there
   // are actually unsaved changes instead of a fragile dirty flag.
   const savedSnapshotRef = useRef<{ title: string; html: string; pinned: boolean } | null>(null);
@@ -540,19 +540,7 @@ export default function NotesEditorScreen() {
 
   return (
     <>
-      {/* `automaticOffset` caches the view's on-screen position from an async
-          `onLayout` measurement. A freshly pushed note is measured while the
-          screen is still animating in, and an empty note never changes layout
-          again, so the cached offset stays wrong and the toolbar hides behind
-          the keyboard. Loading a note (or typing) changes the layout and forces
-          a fresh measurement, which is why editing works. Toggling a 1px margin
-          when the keyboard opens re-triggers that measurement. */}
-      <KeyboardAvoidingView
-        className="flex-1 bg-background"
-        style={{ marginTop: keyboardVisible ? 1 : 0 }}
-        behavior="padding"
-        automaticOffset
-      >
+      <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
           <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
@@ -600,10 +588,12 @@ export default function NotesEditorScreen() {
 
           {/* Note body: the editor grows with its content so the Add item row
               sits directly under the checklist instead of at the screen bottom. */}
-          <ScrollView
+          <KeyboardAwareScrollView
             ref={scrollRef}
             className="flex-1"
             keyboardShouldPersistTaps="handled"
+            bottomOffset={toolbarHeight + 12}
+            extraKeyboardSpace={toolbarHeight}
             contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
             showsVerticalScrollIndicator={false}
           >
@@ -655,12 +645,13 @@ export default function NotesEditorScreen() {
                 </Pressable>
               ) : null}
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Pinned toolbar — rides above the software keyboard. */}
-          <View
+          <KeyboardStickyView
             className="w-full border-t border-border bg-background"
             style={toolbarStyle}
+            onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
           >
             <View className="w-full max-w-md flex-row items-center justify-center gap-1 self-center px-2 py-1.5">
               {FORMAT_BUTTONS.map((button) => {
@@ -692,9 +683,9 @@ export default function NotesEditorScreen() {
                 );
               })}
             </View>
-          </View>
+          </KeyboardStickyView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       <ConfirmDialog
         visible={confirmState !== null}

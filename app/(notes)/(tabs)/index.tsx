@@ -10,6 +10,7 @@ import {
   type ListRenderItemInfo,
 } from "react-native";
 import { Check, FileText, LayoutGrid, List, Plus, Search, Sort, XCircle } from "../../../src/components/AppIcons";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, type TKey } from "../../../src/lib/i18n";
@@ -289,7 +290,7 @@ export default function NotesListScreen() {
   const nextViewLabel = viewMode === "grid" ? t("notesViewList") : t("notesViewGrid");
 
   return (
-    <View className="flex-1 bg-background">
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
       <View className="w-full max-w-md self-center gap-4 p-4 pb-0">
         <View className="flex-row items-center justify-between">
           <Text className="text-base font-semibold text-foreground">
@@ -415,6 +416,6 @@ export default function NotesListScreen() {
         onClose={() => setChooserVisible(false)}
         onSelect={handleSelectType}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }

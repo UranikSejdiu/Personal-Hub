@@ -23,6 +23,7 @@ function fixture(root) {
   ];
   const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const hooks = {
+    forwardRef: render => render,
     useState(initialValue) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initialValue === 'function' ? initialValue() : initialValue;
@@ -60,7 +61,9 @@ function fixture(root) {
     react: hooks,
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': Object.fromEntries(['Pressable', 'Text', 'TextInput', 'View'].map(name => [name, name])),
-    'react-native-keyboard-controller': { KeyboardAvoidingView: 'KeyboardAvoidingView', useKeyboardState: fn => fn({ isVisible: false }) },
+    'react-native-keyboard-controller': { KeyboardAwareScrollView: 'KeyboardAwareScrollView' },
+    'react-native-gesture-handler': { ScrollView: 'GestureScrollView' },
+    'react-native-reanimated': { default: { createAnimatedComponent: component => component }, __esModule: true },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     'react-native-draggable-flatlist': { default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator', __esModule: true },
     'expo-router': { useRouter: () => router, useLocalSearchParams: () => ({ id: '1' }), useNavigation: () => navigation },
@@ -120,6 +123,10 @@ module.exports = async function verifyChecklistEditor(root) {
   await Promise.resolve();
   editor.render();
   const beforeDrag = editor.list();
+  const onScroll = () => {};
+  const scroll = beforeDrag.renderScrollComponent({ onScroll, keyboardShouldPersistTaps: 'handled' });
+  assert.equal(scroll.props.onScroll, onScroll, 'Keyboard awareness must preserve drag-list scroll events');
+  assert.equal(scroll.props.ScrollViewComponent({}, null).type, 'GestureScrollView', 'Keyboard awareness must preserve gesture handling');
   beforeDrag.onDragBegin?.(0);
   await editor.save().onPress();
   assert.equal(editor.saved.length, 0, 'Save must not persist the old order while a drop is pending');

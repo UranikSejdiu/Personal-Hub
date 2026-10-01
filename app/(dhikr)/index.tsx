@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DhikrCounterTitle } from "../../src/components/DhikrCounterTitle";
 import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
@@ -24,6 +26,9 @@ export default function CounterScreen() {
   const { t } = useI18n();
   const haptics = useHaptics();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const counterBottomPadding = Math.max(16, insets.bottom + 8) + Math.ceil(80 * Math.max(1, fontScale)) + 24;
   const [dhikrs, setDhikrs] = useState<Dhikr[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showFireworks, setShowFireworks] = useState(false);
@@ -256,11 +261,7 @@ export default function CounterScreen() {
             >
               <ChevronLeft size={28} color={colors.foreground} />
             </Pressable>
-            <Text
-              className="min-w-0 flex-1 text-center text-xl font-semibold text-foreground"
-            >
-              {activeDhikr.name}
-            </Text>
+            <DhikrCounterTitle name={activeDhikr.name} />
             <Pressable
               onPress={handleNext}
               className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
@@ -294,7 +295,7 @@ export default function CounterScreen() {
           </Pressable>
 
           {/* Bottom: goal badge + reset */}
-          <View className="items-center gap-3 pb-28">
+          <View className="items-center gap-3" style={{ paddingBottom: counterBottomPadding }}>
             {limitReached && (
               <View className="rounded-full bg-success/15 px-4 py-2">
                 <Text className="text-center text-sm font-medium text-success">
@@ -318,7 +319,7 @@ export default function CounterScreen() {
 
       {/* Limit reached warning banner */}
       {showLimitWarning && (
-        <View className="absolute inset-x-0 bottom-32 z-40 items-center px-4">
+        <View className="absolute inset-x-0 z-40 items-center px-4" style={{ bottom: counterBottomPadding + 8 }}>
           <View
             className="rounded-full border px-5 py-2.5"
             style={{

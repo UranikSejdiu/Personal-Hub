@@ -469,6 +469,8 @@ git push origin main --tags
 34. PREBUILD & NATIVE FILE PERSISTENCE
 `npx expo prebuild --clean` wipes the entire `android/` directory and regenerates it. This deletes any manually added native files (e.g., custom res/xml files, custom gradle properties).
 
+The installed Expo SDK 57 CLI defaults to clean regeneration even when `--clean` is omitted. Always inspect `npx expo prebuild --help` before using it. To apply changes to the existing native project, explicitly use `--no-clean` (e.g., `npx expo prebuild --no-clean --platform android --no-install`).
+
 **Config plugins** are used to persist native changes across prebuild runs. They are registered in `app.json` under `expo.plugins` and run automatically during prebuild.
 
 Current config plugins:

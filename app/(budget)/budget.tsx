@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Keyboard, Pressable } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
@@ -591,7 +592,7 @@ export default function BudgetScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
+    <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
         {saveError ? (
           <View className="rounded-md bg-destructive/15 p-3">
@@ -643,6 +644,6 @@ export default function BudgetScreen() {
           />
         )}
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
