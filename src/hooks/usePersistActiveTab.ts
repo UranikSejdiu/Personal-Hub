@@ -15,8 +15,6 @@ export function usePersistActiveTab(appId: string): void {
   useEffect(() => {
     const tabs = hubTabs(appId);
     const active = tabs.find((tab) => (segments as string[]).includes(tab.id));
-    // Sub-screens (e.g. a single budget month) are not tabs; fold them onto the
-    // module's first tab so switching back never lands on a hidden route.
     void setAppTab(appId, active?.id ?? tabs[0]?.id ?? "index");
   }, [segments, appId]);
 }

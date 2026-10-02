@@ -18,17 +18,14 @@ import {
   listRecurringExpenses,
   removeRecurringExpense,
   copyBudgetFromMonth,
-  applyLoanPaidToggle,
-  applyCcPaidToggle,
   currentMonth,
   addMonths,
   type Loans,
   type Budget,
   type Expense,
 } from "../../src/lib/budget";
-import { LoanPaymentSection } from "../../src/components/LoanPaymentSection";
-import { CreditCardSection } from "../../src/components/CreditCardSection";
-import { CREDIT_CARD_SLOTS, creditCardDetails, type CreditCardSlot } from "../../src/lib/creditCards";
+import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentPlan } from "../../src/lib/repaymentPlans";
+import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
 import { CustomExpensesSection } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 
@@ -50,6 +47,8 @@ export default function BudgetScreen() {
   const activeMonthRef = useRef(month);
 
   const [loans, setLoans] = useState<Loans | null>(null);
+  const [repayments, setRepayments] = useState<RepaymentPlan[]>([]);
+  const [paidRepayments, setPaidRepayments] = useState<Set<number>>(new Set());
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [hasPreviousBudget, setHasPreviousBudget] = useState(false);
@@ -183,14 +182,18 @@ export default function BudgetScreen() {
 
   const loadData = useCallback(async (m: string) => {
     const request = ++loadRequestRef.current;
-    const [l, b, pb, sg] = await Promise.all([
+    const [l, b, pb, sg, plans, paidPlans] = await Promise.all([
       loadLoans(),
       loadBudget(m),
       loadBudget(addMonths(m, -1)),
       loadSavingsGoal(),
+      listRepaymentPlans(),
+      paidRepaymentIds(m),
     ]);
     if (request !== loadRequestRef.current) return;
     setLoans(l);
+    setRepayments(plans);
+    setPaidRepayments(paidPlans);
     setHasPreviousBudget(!!pb);
     setSavingsGoal(sg.goal_amount);
     salaryRef.current = sg.salary;
@@ -365,44 +368,27 @@ export default function BudgetScreen() {
     [ensureBudget, scheduleSave, t]
   );
 
-  const handleLoanToggle = useCallback(async () => {
-    const prev = budget;
-    if (!prev || toggleInFlightRef.current) return;
+  const handleRepaymentToggle = useCallback(async (planId: number) => {
+    if (toggleInFlightRef.current) return;
     toggleInFlightRef.current = true;
-    const newLoanPaid = !prev.loan_paid;
+    const nextPaid = !paidRepayments.has(planId);
     try {
       await ensureBudget();
-      const result = await applyLoanPaidToggle(month, newLoanPaid);
-      setLoans(result.loans);
-      setBudget((b) => (b ? { ...b, loan_paid: newLoanPaid } : b));
-      scheduleSave();
+      const updated = await setRepaymentPaid(planId, month, nextPaid);
+      setRepayments((current) => current.map((plan) => plan.id === planId ? updated : plan));
+      setPaidRepayments((current) => {
+        const next = new Set(current);
+        if (nextPaid) next.add(planId);
+        else next.delete(planId);
+        return next;
+      });
       void haptics.light();
     } catch {
       toast.error(t("errorUpdatingLoan"));
     } finally {
       toggleInFlightRef.current = false;
     }
-  }, [budget, month, ensureBudget, scheduleSave, t, haptics]);
-
-  const handleCcToggle = useCallback(async (slot: CreditCardSlot) => {
-    const prev = budget;
-    if (!prev || toggleInFlightRef.current) return;
-    toggleInFlightRef.current = true;
-    const paidKey = slot === 1 ? "cc_paid" : "cc2_paid";
-    const newCcPaid = !prev[paidKey];
-    try {
-      await ensureBudget();
-      const result = await applyCcPaidToggle(month, newCcPaid, slot);
-      setLoans(result.loans);
-      setBudget((b) => (b ? { ...b, [paidKey]: newCcPaid } : b));
-      scheduleSave();
-      void haptics.light();
-    } catch {
-      toast.error(t("errorUpdatingCc"));
-    } finally {
-      toggleInFlightRef.current = false;
-    }
-  }, [budget, month, ensureBudget, scheduleSave, t, haptics]);
+  }, [paidRepayments, ensureBudget, month, haptics, t]);
 
   const handleAddExpense = useCallback(async () => {
     try {
@@ -613,20 +599,13 @@ export default function BudgetScreen() {
 
         {budget && (
           <>
-            <LoanPaymentSection
-              budget={budget}
-              loans={loans}
-              onToggle={handleLoanToggle}
-            />
-
-            {CREDIT_CARD_SLOTS.map((slot) => (
-              <CreditCardSection
-                key={slot}
-                card={creditCardDetails(loans, slot)}
-                slot={slot}
+            {repayments.map((plan) => (
+              <RepaymentPaymentSection
+                key={plan.id}
+                plan={plan}
                 month={budget.month}
-                paid={slot === 1 ? budget.cc_paid : budget.cc2_paid}
-                onToggle={() => { void handleCcToggle(slot); }}
+                paid={paidRepayments.has(plan.id)}
+                onToggle={() => { void handleRepaymentToggle(plan.id); }}
               />
             ))}
           </>
@@ -647,6 +626,8 @@ export default function BudgetScreen() {
             budget={budget}
             expenses={expenses}
             loans={loans}
+            repayments={repayments}
+            paidRepayments={paidRepayments}
             savingsGoal={savingsGoal}
             onIncomeChange={handleIncomeChange}
           />

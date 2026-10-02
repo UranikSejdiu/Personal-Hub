@@ -13,12 +13,15 @@ import { formatCurrency } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 import { CREDIT_CARD_SLOTS, creditCardDetails, creditCardPaymentForMonth } from "../lib/creditCards";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
+import { repaymentForMonth, type RepaymentPlan } from "../lib/repaymentPlans";
 
 interface Props {
   budget: Budget;
   expenses: Expense[];
   loans: Loans;
   savingsGoal: number;
+  repayments: readonly RepaymentPlan[];
+  paidRepayments: ReadonlySet<number>;
   onIncomeChange: (income: number) => void;
 }
 
@@ -27,6 +30,8 @@ export function MonthlySummarySection({
   expenses,
   loans,
   savingsGoal,
+  repayments,
+  paidRepayments,
   onIncomeChange,
 }: Props) {
   const { t } = useI18n();
@@ -41,27 +46,30 @@ export function MonthlySummarySection({
       return { slot, card, payment, paid, actual: paid ? payment : 0 };
     });
     const ccPayment = cards.reduce((sum, card) => sum + card.payment, 0);
+    const extra = repayments.map((plan) => ({ plan, payment: repaymentForMonth(plan, budget.month), paid: paidRepayments.has(plan.id) })).filter((item) => item.payment > 0);
+    const extraPlanned = extra.reduce((sum, item) => sum + item.payment, 0);
+    const extraPaid = extra.reduce((sum, item) => sum + (item.paid ? item.payment : 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalOutflow = loanPayment + ccPayment + totalExpenses + savingsGoal;
+    const totalOutflow = loanPayment + ccPayment + extraPlanned + totalExpenses + savingsGoal;
     const remaining = (budget.income || 0) - totalOutflow;
 
     const paidLoan = budget.loan_paid ? loanPayment : 0;
     const paidCc = cards.reduce((sum, card) => sum + card.actual, 0);
     const paidExpenses = expenses.reduce((sum, e) => sum + (e.paid ? e.amount || 0 : 0), 0);
-    const actualOutflow = paidLoan + paidCc + paidExpenses;
+    const actualOutflow = paidLoan + paidCc + extraPaid + paidExpenses;
     const actualRemaining = (budget.income || 0) - actualOutflow;
 
     return {
-      cards, loanPayment, ccPayment, totalExpenses, totalOutflow, remaining,
+      cards, extra, extraPlanned, loanPayment, ccPayment, totalExpenses, totalOutflow, remaining,
       paidLoan, paidCc, paidExpenses, actualOutflow, actualRemaining,
     };
-  }, [budget, expenses, loans, savingsGoal]);
+  }, [budget, expenses, loans, savingsGoal, repayments, paidRepayments]);
 
   const goalProgress =
     savingsGoal > 0 ? Math.min(100, Math.max(0, (c.actualRemaining / savingsGoal) * 100)) : 0;
   const goalMet = savingsGoal > 0 && c.actualRemaining >= savingsGoal;
 
-  const hasData = c.loanPayment > 0 || c.ccPayment > 0 || c.totalExpenses > 0 || savingsGoal > 0;
+  const hasData = c.loanPayment > 0 || c.ccPayment > 0 || c.extraPlanned > 0 || c.totalExpenses > 0 || savingsGoal > 0;
 
   return (
     <View className="rounded-xl border border-border bg-card p-4">
@@ -80,7 +88,7 @@ export function MonthlySummarySection({
             <TableHead className="w-[72] text-right">{t("actualLabel")}</TableHead>
           </TableHeader>
           <TableBody>
-            <TableRow className="border-t-0 px-0 py-1">
+            {c.loanPayment > 0 && <TableRow className="border-t-0 px-0 py-1">
               <TableCell numberOfLines={1} className="flex-1 text-chart-1">{t("loanPaymentLabel")}</TableCell>
               <TableCell className="w-[72] text-right text-chart-1">{formatCurrency(c.loanPayment)}</TableCell>
               <View className="w-[72] flex-row items-center justify-end gap-1">
@@ -89,7 +97,7 @@ export function MonthlySummarySection({
                 </Text>
                 {budget.loan_paid && <CircleCheck size={12} color={colors.success} />}
               </View>
-            </TableRow>
+            </TableRow>}
 
             {c.cards.filter((card) => card.payment > 0).map(({ slot, card, payment, paid, actual }) => (
             <TableRow key={slot} className="border-t-0 px-0 py-1">
@@ -103,6 +111,15 @@ export function MonthlySummarySection({
               </View>
             </TableRow>
             ))}
+
+            {c.extra.map(({ plan, payment, paid }) => <TableRow key={`repayment-${plan.id}`} className="border-t-0 px-0 py-1">
+              <TableCell numberOfLines={1} className={`flex-1 ${plan.kind === "loan" ? "text-chart-1" : "text-chart-2"}`}>{plan.name}</TableCell>
+              <TableCell className={`w-[72] text-right ${plan.kind === "loan" ? "text-chart-1" : "text-chart-2"}`}>{formatCurrency(payment)}</TableCell>
+              <View className="w-[72] flex-row items-center justify-end gap-1">
+                <Text numberOfLines={1} className={`text-sm ${paid ? plan.kind === "loan" ? "font-semibold text-chart-1" : "font-semibold text-chart-2" : "text-foreground"}`}>{formatCurrency(paid ? payment : 0)}</Text>
+                {paid && <CircleCheck size={12} color={colors.success} />}
+              </View>
+            </TableRow>)}
 
             <TableRow className="border-t-0 px-0 py-1">
               <TableCell numberOfLines={1} className="flex-1 text-chart-3">{t("totalCustomExpenses")}</TableCell>

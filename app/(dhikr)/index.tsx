@@ -249,12 +249,12 @@ export default function CounterScreen() {
         className="flex-1"
         contentContainerStyle={{ flexGrow: 1 }}
       >
-        <View className="flex-1 items-center px-4">
+        <View className="flex-1 items-center">
           {/* Top selector: name + prev/next chevrons */}
-          <View className="flex-row items-center gap-4 w-full justify-center pt-10">
+          <View className="w-full flex-row items-center justify-center gap-4 px-5 pt-10">
             <Pressable
               onPress={handlePrev}
-              className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+              className="h-14 w-14 items-center justify-center rounded-xl active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel={t("previousDhikr")}
@@ -264,7 +264,7 @@ export default function CounterScreen() {
             <DhikrCounterTitle name={activeDhikr.name} />
             <Pressable
               onPress={handleNext}
-              className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+              className="h-14 w-14 items-center justify-center rounded-xl active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel={t("nextDhikr")}
@@ -278,8 +278,7 @@ export default function CounterScreen() {
             onPress={handleTap}
             unstable_pressDelay={0}
             android_disableSound={true}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            className="flex-1 items-center justify-center active:opacity-70"
+            className="w-full flex-1 items-center justify-center active:opacity-70"
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("tapToCount")}
@@ -310,8 +309,8 @@ export default function CounterScreen() {
               accessibilityRole="button"
               accessibilityLabel={t("resetLabel")}
             >
-              <RotateCcw size={16} color={colors.mutedForeground} />
-              <Text className="text-sm text-muted-foreground">{t("resetLabel")}</Text>
+              <RotateCcw size={16} color={colors.primary} />
+              <Text className="text-sm font-medium text-primary">{t("resetLabel")}</Text>
             </Pressable>
           </View>
         </View>

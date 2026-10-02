@@ -8,9 +8,11 @@ import { isClosingMarkerDescription } from "./savings";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS } from "./calculations";
 import { invalidateSampleData } from "./sampleData";
 import { creditCardScheduledMonths, installmentEndMonth, installmentPayments, isCreditCardScheduleValid } from "./creditCards";
+import { isValidRepaymentInput, repaymentForMonth, type RepaymentInput, type RepaymentPlan } from "./repaymentPlans";
+import { migrateLegacyRepayments } from "./repaymentMigration";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 3;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
 // Real backups are well under this; the cap keeps a hostile or mistaken file
@@ -89,6 +91,8 @@ export interface BackupEnvelope {
      * existed omit this, and are restored with no items.
      */
     noteItems?: Record<string, unknown>[];
+    repaymentPlans?: Record<string, unknown>[];
+    repaymentPayments?: Record<string, unknown>[];
   };
 }
 
@@ -277,7 +281,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const meta = raw.meta as Record<string, unknown> | undefined;
   if (!isObject(meta)) return { ok: false, error: "Missing meta" };
   if (meta.format !== BACKUP_FORMAT) return { ok: false, error: `Invalid format ${String(meta.format)}` };
-  if (typeof meta.version !== "number" || meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
+  if (meta.version !== 1 && meta.version !== 2 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
 
@@ -347,6 +351,47 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
     return { ok: false, error: "Duplicate note ID" };
   }
 
+  const repaymentPlans = tables.repaymentPlans ?? [];
+  const repaymentPayments = tables.repaymentPayments ?? [];
+  if (meta.version >= 2 && (tables.repaymentPlans === undefined || tables.repaymentPayments === undefined)) return { ok: false, error: "Missing repayment tables" };
+  if (!Array.isArray(repaymentPlans) || !Array.isArray(repaymentPayments)) return { ok: false, error: "Repayment tables must be arrays" };
+  const planIds = new Set<number>();
+  const plansById = new Map<number, RepaymentPlan>();
+  for (const row of repaymentPlans) {
+    if (!isObject(row) || !isInteger(row.id) || row.id <= 0 || planIds.has(row.id)) return { ok: false, error: "Invalid or duplicate repayment plan ID" };
+    const plan: RepaymentInput = {
+      kind: row.kind === "loan" || row.kind === "card" ? row.kind : "loan",
+      name: row.name as string,
+      amount: row.amount as number,
+      apr: row.apr as number,
+      payment: row.payment as number,
+      term: row.term as number,
+      monthsPaid: row.months_paid as number,
+      startMonth: row.start_month as string,
+      endMonth: typeof row.end_month === "string" ? row.end_month : null,
+      unbounded: row.unbounded === 1,
+    };
+    if ((row.end_month !== undefined && row.end_month !== null && typeof row.end_month !== "string") || (row.unbounded !== undefined && !isBinaryFlag(row.unbounded))) return { ok: false, error: "Invalid repayment schedule" };
+    if (meta.version === BACKUP_VERSION && (row.end_month === undefined || row.unbounded === undefined)) return { ok: false, error: "Missing repayment schedule fields" };
+    if (row.kind !== "loan" && row.kind !== "card" || !isValidRepaymentInput(plan)) return { ok: false, error: "Invalid repayment plan" };
+    planIds.add(row.id);
+    plansById.set(row.id, { id: row.id, ...plan });
+  }
+  const paymentKeys = new Set<string>();
+  const countedByPlan = new Map<number, number>();
+  for (const row of repaymentPayments) {
+    if (!isObject(row) || !isInteger(row.plan_id) || !planIds.has(row.plan_id) || !isValidMonth(row.month) || !isBinaryFlag(row.counted)) return { ok: false, error: "Invalid repayment payment" };
+    const plan = plansById.get(row.plan_id);
+    if (!plan || repaymentForMonth(plan, row.month as string) <= 0 || !budgetMonths.has(row.month as string)) return { ok: false, error: "Repayment payment is outside its schedule or budget" };
+    const key = `${row.plan_id}:${row.month}`;
+    if (paymentKeys.has(key)) return { ok: false, error: "Duplicate repayment payment" };
+    paymentKeys.add(key);
+    countedByPlan.set(row.plan_id, (countedByPlan.get(row.plan_id) ?? 0) + row.counted);
+  }
+  for (const [id, counted] of countedByPlan) {
+    if (counted > (plansById.get(id)?.monthsPaid ?? 0)) return { ok: false, error: "Repayment counter is inconsistent" };
+  }
+
   // Detect accidental .db file pick: JSON parse would have thrown already, but guard SQLite header if base64
   // Real SQLite header check is done on file read before JSON parse (see import flow).
 
@@ -355,7 +400,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
   return db.withTransaction(async (tx) => {
-    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems] =
+    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems, repaymentPlans, repaymentPayments] =
       await Promise.all([
         tx.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
         tx.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
@@ -367,6 +412,8 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         tx.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
         tx.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
         tx.query<Record<string, unknown>>("SELECT * FROM note_items ORDER BY note_id, position, id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM repayment_plans ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM repayment_payments ORDER BY plan_id, month"),
       ]);
 
     return {
@@ -388,6 +435,8 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         dhikrs,
         notes,
         noteItems,
+        repaymentPlans,
+        repaymentPayments,
       },
     };
   });
@@ -493,6 +542,8 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     await db.withTransaction(async (tx) => {
     // Clear in FK-safe order
     await tx.execute("DELETE FROM expenses");
+    await tx.execute("DELETE FROM repayment_payments");
+    await tx.execute("DELETE FROM repayment_plans");
     await tx.execute("DELETE FROM budgets");
     await tx.execute("DELETE FROM recurring_expenses");
     await tx.execute("DELETE FROM savings_auto_deposits");
@@ -502,6 +553,16 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     await tx.execute("DELETE FROM notes");
     await tx.execute("DELETE FROM loans");
     await tx.execute("DELETE FROM savings_goals");
+
+    for (const r of env.tables.repaymentPlans ?? []) {
+      await tx.execute(
+        "INSERT INTO repayment_plans (id, kind, name, amount, apr, payment, term, months_paid, start_month, end_month, unbounded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [r.id as number, r.kind as string, r.name as string, r.amount as number, r.apr as number, r.payment as number, r.term as number, r.months_paid as number, r.start_month as string, (r.end_month as string | null) ?? null, r.unbounded === 1 ? 1 : 0]
+      );
+    }
+    for (const r of env.tables.repaymentPayments ?? []) {
+      await tx.execute("INSERT INTO repayment_payments (plan_id, month, counted) VALUES (?, ?, ?)", [r.plan_id as number, r.month as string, r.counted as number]);
+    }
 
     // Restore singletons
     if (env.tables.loans) {
@@ -689,6 +750,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
         [noteId, String(row.text ?? ""), row.checked ? 1 : 0, Number(row.position) || 0]
       );
     }
+    await migrateLegacyRepayments(tx);
     });
     // Keep the snapshot after a successful import: a schema-valid file can
     // still be the wrong file, and this is the only in-app way back. It is

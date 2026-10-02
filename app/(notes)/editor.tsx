@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback, type ComponentRef } from "react";
 import {
   View,
   Text,
   Pressable,
   TextInput,
+  Modal,
+  useWindowDimensions,
 } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +13,8 @@ import {
   Trash2,
   ArrowLeft,
   Pin,
+  Check,
+  MoreHorizontal,
   Bold,
   Italic,
   Strikethrough,
@@ -55,6 +59,11 @@ type ConfirmState =
   | { kind: "discard"; action: "back" | "pending" }
   | { kind: "delete" }
   | null;
+
+type MenuAnchor = { x: number; y: number; width: number; height: number };
+
+const ACTION_MENU_WIDTH = 208;
+const ACTION_MENU_EDGE = 8;
 
 type LoadTarget =
   | { kind: "new" }
@@ -148,7 +157,10 @@ export default function NotesEditorScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const editorRef = useRef<EnrichedTextInputInstance>(null);
+  const moreButtonRef = useRef<ComponentRef<typeof View>>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [styleState, setStyleState] = useState<OnChangeStateEvent | null>(null);
 
   const [noteId, setNoteId] = useState<number | null>(() => {
@@ -514,6 +526,22 @@ export default function NotesEditorScreen() {
     setIsPinned((previous) => !previous);
   }, [haptics]);
 
+  const openActions = useCallback(() => {
+    const button = moreButtonRef.current;
+    if (!button) return;
+    void haptics.light();
+    button.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ x, y, width, height });
+    });
+  }, [haptics]);
+
+  const menuLeft = menuAnchor
+    ? Math.min(
+        Math.max(menuAnchor.x + menuAnchor.width - ACTION_MENU_WIDTH, ACTION_MENU_EDGE),
+        Math.max(ACTION_MENU_EDGE, windowWidth - ACTION_MENU_WIDTH - ACTION_MENU_EDGE)
+      )
+    : ACTION_MENU_EDGE;
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -554,23 +582,16 @@ export default function NotesEditorScreen() {
             </Pressable>
             <View className="flex-row items-center gap-2">
               <Pressable
-                onPress={handleTogglePin}
+                ref={moreButtonRef}
+                onPress={openActions}
                 className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
+                accessible
                 accessibilityRole="button"
-                accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
+                accessibilityLabel={t("notesMoreActions")}
+                accessibilityState={{ expanded: menuAnchor !== null }}
               >
-                <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
+                <MoreHorizontal size={22} color={isPinned ? colors.primary : colors.mutedForeground} />
               </Pressable>
-              {noteId ? (
-                <Pressable
-                  onPress={handleDelete}
-                  className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
-                  accessibilityRole="button"
-                  accessibilityLabel={t("notesDelete")}
-                >
-                  <Trash2 size={20} color={colors.destructive} />
-                </Pressable>
-              ) : null}
               <Pressable
                 onPress={handleSave}
                 disabled={isSaving}
@@ -586,22 +607,21 @@ export default function NotesEditorScreen() {
             </View>
           </View>
 
-          {/* Note body: the editor grows with its content so the Add item row
-              sits directly under the checklist instead of at the screen bottom. */}
+          {/* Fill the available writing area and keep growing for longer notes. */}
           <KeyboardAwareScrollView
             ref={scrollRef}
             className="flex-1"
             keyboardShouldPersistTaps="handled"
             bottomOffset={toolbarHeight + 12}
             extraKeyboardSpace={toolbarHeight}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
+            contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
           >
-            <View className="w-full max-w-md self-center">
+            <View className="w-full max-w-md flex-grow self-center">
               <TextInput
                 value={title}
                 onChangeText={setTitle}
-                placeholder={t("notesUntitled")}
+                placeholder={t("notesTitlePlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
                 className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
                 multiline
@@ -644,6 +664,13 @@ export default function NotesEditorScreen() {
                   </Text>
                 </Pressable>
               ) : null}
+              <Pressable
+                onPress={() => editorRef.current?.focus()}
+                className="flex-grow"
+                accessible
+                accessibilityRole="button"
+                accessibilityLabel={t("notesContinueWriting")}
+              />
             </View>
           </KeyboardAwareScrollView>
 
@@ -653,39 +680,96 @@ export default function NotesEditorScreen() {
             style={toolbarStyle}
             onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
           >
-            <View className="w-full max-w-md flex-row items-center justify-center gap-1 self-center px-2 py-1.5">
-              {FORMAT_BUTTONS.map((button) => {
-                const state = styleState?.[button.stateKey];
-                const active = state?.isActive ?? false;
-                const blocked = state?.isBlocking ?? false;
-                return (
-                  <Pressable
-                    key={button.type}
-                    onPress={() => {
-                      const editor = editorRef.current;
-                      if (!editor || blocked) return;
-                      button.toggle(editor);
-                      void haptics.light();
-                    }}
-                    disabled={blocked}
-                    className={`h-11 w-11 items-center justify-center rounded-lg active:opacity-70 ${
-                      active ? "bg-primary" : blocked ? "bg-muted/40" : "bg-muted"
-                    }`}
-                    accessibilityRole="button"
-                    accessibilityLabel={t(button.labelKey)}
-                    accessibilityState={{ selected: active, disabled: blocked }}
-                  >
-                    <button.icon
-                      size={18}
-                      color={active ? colors.primaryForeground : colors.foreground}
-                    />
-                  </Pressable>
-                );
-              })}
+            <View className="w-full max-w-md flex-row items-center justify-center self-center px-2 py-1.5">
+              <View className="flex-row items-center rounded-xl bg-muted/50 px-1">
+                {FORMAT_BUTTONS.map((button) => {
+                  const state = styleState?.[button.stateKey];
+                  const active = state?.isActive ?? false;
+                  const blocked = state?.isBlocking ?? false;
+                  return (
+                    <Fragment key={button.type}>
+                      {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" /> : null}
+                      <Pressable
+                        onPress={() => {
+                          const editor = editorRef.current;
+                          if (!editor || blocked) return;
+                          button.toggle(editor);
+                          void haptics.light();
+                        }}
+                        disabled={blocked}
+                        className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${
+                          active ? "bg-primary/15" : blocked ? "opacity-40" : ""
+                        }`}
+                        accessibilityRole="button"
+                        accessibilityLabel={t(button.labelKey)}
+                        accessibilityState={{ selected: active, disabled: blocked }}
+                      >
+                        <button.icon
+                          size={18}
+                          color={active ? colors.primary : colors.foreground}
+                        />
+                      </Pressable>
+                    </Fragment>
+                  );
+                })}
+              </View>
             </View>
           </KeyboardStickyView>
         </View>
       </View>
+
+      <Modal
+        visible={menuAnchor !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuAnchor(null)}
+      >
+        <Pressable
+          className="flex-1 bg-black/20"
+          onPress={() => setMenuAnchor(null)}
+          accessibilityRole="button"
+          accessibilityLabel={t("cancel")}
+        >
+          {menuAnchor ? (
+            <View
+              className="absolute rounded-2xl border border-border/60 bg-card p-2 shadow-md"
+              style={{ top: menuAnchor.y + menuAnchor.height + 4, left: menuLeft, width: ACTION_MENU_WIDTH }}
+            >
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  setMenuAnchor(null);
+                  handleTogglePin();
+                }}
+                className="min-h-[44px] flex-row items-center gap-3 rounded-xl px-3 py-2 active:bg-muted"
+                accessible
+                accessibilityRole="menuitem"
+                accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
+              >
+                <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
+                <Text className="flex-1 text-base text-foreground">{t(isPinned ? "notesUnpin" : "notesPin")}</Text>
+                {isPinned ? <Check size={18} color={colors.primary} /> : null}
+              </Pressable>
+              {noteId ? (
+                <Pressable
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    setMenuAnchor(null);
+                    handleDelete();
+                  }}
+                  className="min-h-[44px] flex-row items-center gap-3 rounded-xl px-3 py-2 active:bg-muted"
+                  accessible
+                  accessibilityRole="menuitem"
+                  accessibilityLabel={t("notesDelete")}
+                >
+                  <Trash2 size={20} color={colors.destructive} />
+                  <Text className="text-base text-destructive">{t("notesDelete")}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </Pressable>
+      </Modal>
 
       <ConfirmDialog
         visible={confirmState !== null}

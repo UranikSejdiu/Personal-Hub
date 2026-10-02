@@ -20,6 +20,7 @@ import {
   sampleMonthKey,
 } from "./sampleDataset";
 import { EMPTY_LOANS, type Loans } from "../types/budget";
+import { migrateLegacyRepayments } from "./repaymentMigration";
 
 const SAMPLE_STATE_KEY = "app_sample_data_state";
 
@@ -27,6 +28,7 @@ interface SampleDataRecord {
   state: "seeded" | "cleared";
   months: string[];
   noteIds: number[];
+  planSnapshots?: { id: number; plan: Record<string, unknown>; payments: Record<string, unknown>[] }[];
 }
 
 /**
@@ -43,6 +45,7 @@ const CONTENT_TABLES = [
   "savings_transactions",
   "savings_auto_deposits",
   "recurring_expenses",
+  "repayment_plans",
 ] as const;
 
 function parseRecord(raw: string): SampleDataRecord | null {
@@ -63,6 +66,16 @@ function parseRecord(raw: string): SampleDataRecord | null {
     noteIds: Array.isArray(candidate.noteIds)
       ? candidate.noteIds.filter((id): id is number => typeof id === "number")
       : [],
+    planSnapshots: Array.isArray(candidate.planSnapshots)
+      ? candidate.planSnapshots.flatMap((snapshot): NonNullable<SampleDataRecord["planSnapshots"]> => {
+          if (typeof snapshot !== "object" || snapshot === null) return [];
+          const item = snapshot as Record<string, unknown>;
+          if (!Number.isSafeInteger(item.id) || typeof item.id !== "number" || item.id <= 0 ||
+              typeof item.plan !== "object" || item.plan === null || Array.isArray(item.plan) ||
+              !Array.isArray(item.payments) || !item.payments.every((payment) => typeof payment === "object" && payment !== null && !Array.isArray(payment))) return [];
+          return [{ id: item.id, plan: item.plan as Record<string, unknown>, payments: item.payments as Record<string, unknown>[] }];
+        })
+      : undefined,
   };
 }
 
@@ -177,6 +190,7 @@ export async function seedSampleData(): Promise<void> {
 
   const months: string[] = [];
   const noteIds: number[] = [];
+  const planSnapshots: NonNullable<SampleDataRecord["planSnapshots"]> = [];
   let seeded = false;
 
   await db.withTransaction(async (tx) => {
@@ -210,6 +224,12 @@ export async function seedSampleData(): Promise<void> {
       months.push(key);
     }
 
+    const planIds = await migrateLegacyRepayments(tx);
+    for (const id of planIds) {
+      const plan = await tx.get<Record<string, unknown>>("SELECT * FROM repayment_plans WHERE id = ?", [id]);
+      if (plan) planSnapshots.push({ id, plan, payments: await tx.query<Record<string, unknown>>("SELECT * FROM repayment_payments WHERE plan_id = ? ORDER BY month", [id]) });
+    }
+
     for (const note of SAMPLE_NOTES) {
       const created =
         note.kind === "checklist"
@@ -231,7 +251,7 @@ export async function seedSampleData(): Promise<void> {
     seeded = true;
   });
 
-  if (seeded) await writeRecord({ state: "seeded", months, noteIds });
+  if (seeded) await writeRecord({ state: "seeded", months, noteIds, planSnapshots });
 }
 
 /**
@@ -247,6 +267,14 @@ export async function clearSampleData(): Promise<boolean> {
   if (!record || record.state !== "seeded") return false;
 
   await db.withTransaction(async (tx) => {
+    for (const snapshot of record.planSnapshots ?? []) {
+      const plan = await tx.get<Record<string, unknown>>("SELECT * FROM repayment_plans WHERE id = ?", [snapshot.id]);
+      const payments = await tx.query<Record<string, unknown>>("SELECT * FROM repayment_payments WHERE plan_id = ? ORDER BY month", [snapshot.id]);
+      if (plan && JSON.stringify(plan) === JSON.stringify(snapshot.plan) && JSON.stringify(payments) === JSON.stringify(snapshot.payments)) {
+        await tx.execute("DELETE FROM repayment_payments WHERE plan_id = ?", [snapshot.id]);
+        await tx.execute("DELETE FROM repayment_plans WHERE id = ?", [snapshot.id]);
+      }
+    }
     for (const noteId of record.noteIds) {
       const note = await tx.get<{ id: number }>("SELECT id FROM notes WHERE id = ?", [noteId]);
       if (note) await deleteNote(noteId, tx);

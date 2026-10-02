@@ -1,6 +1,7 @@
 import * as db from "./db";
 import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, creditCardScheduledMonths, isCreditCardActive, isCreditCardMonth, isCreditCardScheduleValid, isCreditCardValid, type CreditCardSlot } from "./creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
+import { allPaidRepayments, clearRepaymentsForMonth, listRepaymentPlans, repaymentForMonth, type RepaymentPlan } from "./repaymentPlans";
 import {
   type Loans,
   type Budget,
@@ -447,6 +448,7 @@ export async function deleteBudget(
   month: string,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  await clearRepaymentsForMonth(month, exec);
   // Exclusive transactions use a separate SQLite connection, where foreign
   // keys may be disabled. Remove children explicitly on that same executor.
   await exec.execute(
@@ -648,15 +650,20 @@ export interface MonthSummaryInput {
 export function computeMonthSummary(
   input: MonthSummaryInput,
   loans: Loans,
-  goalAmount: number
+  goalAmount: number,
+  repayments: readonly RepaymentPlan[] = [],
+  paidRepayments: ReadonlySet<number> = new Set<number>()
 ): MonthSummary {
   const { month, income, loanPaid, ccPaid, totalExpenses, paidExpenses } = input;
   const loanPayment = loanPaymentForMonth(loans, month);
   const ccPayment = creditCardPaymentForMonth(creditCardDetails(loans, 1), month);
   const cc2Payment = creditCardPaymentForMonth(creditCardDetails(loans, 2), month);
-  const outflow = loanPayment + ccPayment + cc2Payment + totalExpenses + goalAmount;
+  const extraPayments = repayments.map((plan) => ({ id: plan.id, amount: repaymentForMonth(plan, month) }));
+  const extraPlanned = extraPayments.reduce((sum, item) => sum + item.amount, 0);
+  const extraPaid = extraPayments.reduce((sum, item) => sum + (paidRepayments.has(item.id) ? item.amount : 0), 0);
+  const outflow = loanPayment + ccPayment + cc2Payment + extraPlanned + totalExpenses + goalAmount;
   const actualOutflow =
-    (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + (input.cc2Paid ? cc2Payment : 0) + paidExpenses;
+    (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + (input.cc2Paid ? cc2Payment : 0) + extraPaid + paidExpenses;
   const actualRemaining = income - actualOutflow;
   const goalProgress =
     goalAmount > 0
@@ -678,7 +685,9 @@ export function computeMonthSummary(
 export async function listMonthSummaries(
   loans: Loans
 ): Promise<MonthSummary[]> {
-  const savingsGoal = await loadSavingsGoal();
+  const [savingsGoal, repayments, paidByMonth] = await Promise.all([
+    loadSavingsGoal(), listRepaymentPlans(), allPaidRepayments(),
+  ]);
   const goalAmt = savingsGoal.goal_amount;
 
   const rows = await db.query<Record<string, unknown>>(
@@ -708,7 +717,9 @@ export async function listMonthSummaries(
         paidExpenses: Number(row.paid_expenses) || 0,
       },
       loans,
-      goalAmt
+      goalAmt,
+      repayments,
+      paidByMonth.get(String(row.month))
     )
   );
 }

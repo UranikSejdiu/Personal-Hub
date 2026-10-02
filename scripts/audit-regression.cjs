@@ -83,6 +83,7 @@ function load(filename) {
   return module.exports;
 }
 const budget = load(path.join(root, 'src/lib/budget.ts'));
+const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
 const notes = load(path.join(root, 'src/lib/notes.ts'));
 const savings = load(path.join(root, 'src/lib/savings.ts'));
 const backup = load(path.join(root, 'src/lib/backup.ts'));
@@ -90,7 +91,7 @@ const sample = load(path.join(root, 'src/lib/sampleData.ts'));
 const calculations = load(path.join(root, 'src/lib/calculations.ts'));
 const reset = () => {
   failOn = null;
-  for (const name of ['expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
+  for (const name of ['repayment_payments', 'repayment_plans', 'expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
   stored.clear(); files.clear();
 };
 const results = [];
@@ -123,8 +124,45 @@ function migrationModule(fixture) {
   return module.exports;
 }
 (async () => {
+  await verify('Independent plans allow arbitrary loan/card counts, isolated paid state, and backup restore', async () => {
+    const created = [];
+    for (let i = 0; i < 3; i++) created.push(await repayments.saveRepaymentPlan({ kind: 'loan', name: `Loan ${i}`, amount: 1200, apr: 0, payment: 100, term: 12, monthsPaid: 0, startMonth: '2026-10' }));
+    for (let i = 0; i < 10; i++) created.push(await repayments.saveRepaymentPlan({ kind: 'card', name: `Card ${i}`, amount: 100, apr: 0, payment: 0, term: 4, monthsPaid: 0, startMonth: '2026-10' }));
+    assert.equal((await repayments.listRepaymentPlans()).length, 13);
+    await budget.saveBudget('2026-10', 2000, false, false);
+    await repayments.setRepaymentPaid(created[3].id, '2026-10', true);
+    assert.deepEqual([...await repayments.paidRepaymentIds('2026-10')], [created[3].id]);
+    const summary = budget.computeMonthSummary({ month: '2026-10', income: 2000, loanPaid: false, ccPaid: false, totalExpenses: 0, paidExpenses: 0 }, budget.EMPTY_LOANS, 0, await repayments.listRepaymentPlans(), await repayments.paidRepaymentIds('2026-10'));
+    assert.equal(summary.outflow, 550);
+    assert.equal(summary.actualOutflow, 25);
+    const env = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(env).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    assert.equal((await repayments.listRepaymentPlans()).length, 13);
+    assert.deepEqual([...await repayments.paidRepaymentIds('2026-10')], [created[3].id]);
+    await budget.deleteBudget('2026-10');
+    assert.equal((await repayments.paidRepaymentIds('2026-10')).size, 0);
+    assert.equal((await repayments.listRepaymentPlans()).find(p => p.id === created[3].id).monthsPaid, 0);
+  });
+  await verify('Version 2 backups require payment tables while version 1 backups remain importable', async () => {
+    const env = await backup.buildBackupEnvelope();
+    delete env.tables.repaymentPlans;
+    delete env.tables.repaymentPayments;
+    assert.equal(backup.validateEnvelope(env).ok, false);
+    env.meta.version = 1;
+    assert.equal(backup.validateEnvelope(env).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    assert.equal((await repayments.listRepaymentPlans()).length, 0);
+  });
+  await verify('A saved payment plan prevents demo data from being seeded over user data', async () => {
+    await repayments.saveRepaymentPlan({ kind: 'loan', name: 'My loan', amount: 0, apr: 0, payment: 100, term: 12, monthsPaid: 0, startMonth: '2026-10' });
+    assert.equal(await sample.isDatabaseEmpty(), false);
+  });
   await verify('Checklist editor blocks save/navigation until drop completes and prevents duplicate saves', async () => {
     await require('./checklist-editor-regression.cjs')(root);
+  });
+  await verify('Dhikr Arrange previews, cancellation, saves, and failure retry', async () => {
+    await require('./dhikr-list-regression.cjs')(root);
   });
   await verify('Recurring population skips an existing matching expense', async () => {
     const b = await budget.saveBudget('2026-09', 1000, false, false);
@@ -336,7 +374,8 @@ function migrationModule(fixture) {
     const env = await backup.buildBackupEnvelope();
     assert.equal(backup.validateEnvelope(env).ok, true);
     await backup.importBackupFromJson(JSON.stringify(env));
-    assert.equal((await budget.loadLoans()).cc_end_month, '2027-05');
+    assert.equal((await budget.loadLoans()).cc_end_month, null);
+    assert.equal((await repayments.listRepaymentPlans()).find(p => p.kind === 'card').endMonth, '2027-05');
     await assert.rejects(budget.saveLoans({ ...plan, cc_end_month: '2027-06' }));
     await assert.rejects(budget.saveLoans({ ...plan, cc_payment: 45.84 }));
     env.tables.loans.cc_installments = 13;
@@ -362,20 +401,21 @@ function migrationModule(fixture) {
     assert.equal((await budget.loadLoans()).cc2_months_paid, 0);
     assert.equal((await budget.loadBudget('2026-11')).cc2_paid, false);
   });
-  await verify('Backup restores both cards, payment schedules, and independent paid flags', async () => {
+  await verify('Backup converts both cards, payment schedules, and independent paid flags', async () => {
     await budget.saveLoans({ ...budget.EMPTY_LOANS, cc_payment: 150, cc2_name: 'Second card', cc2_balance: 1300, cc2_payment: 100, cc2_start_month: '2026-11', cc2_end_month: '2027-11' });
     await budget.saveBudget('2026-11', 1000, false, false);
     await budget.applyCcPaidToggle('2026-11', true, 2);
     const env = await backup.buildBackupEnvelope();
     assert.equal(backup.validateEnvelope(env).ok, true);
     await backup.importBackupFromJson(JSON.stringify(env));
-    const loans = await budget.loadLoans();
-    assert.equal(loans.cc_payment, 150);
-    assert.equal(loans.cc2_name, 'Second card');
-    assert.equal(loans.cc2_start_month, '2026-11');
-    assert.equal(loans.cc2_end_month, '2027-11');
-    assert.equal(loans.cc2_months_paid, 1);
-    assert.equal((await budget.loadBudget('2026-11')).cc2_paid, true);
+    const plans = await repayments.listRepaymentPlans();
+    assert.equal(plans.length, 2);
+    assert.equal(plans.find(p => p.name === 'Credit Card').payment, 150);
+    assert.equal(plans.find(p => p.name === 'Second card').startMonth, '2026-11');
+    assert.equal(plans.find(p => p.name === 'Second card').endMonth, '2027-11');
+    assert.equal(plans.find(p => p.name === 'Second card').monthsPaid, 1);
+    assert.deepEqual([...await repayments.paidRepaymentIds('2026-11')], [plans.find(p => p.name === 'Second card').id]);
+    assert.equal((await budget.loadBudget('2026-11')).cc2_paid, false);
     assert.equal((await budget.loadBudget('2026-11')).cc_paid, false);
   });
   await verify('Legacy backups restore with an empty second card and unrestricted first card', async () => {
@@ -388,14 +428,13 @@ function migrationModule(fixture) {
     delete env.tables.budgets[0].cc2_paid;
     assert.equal(backup.validateEnvelope(env).ok, true);
     await backup.importBackupFromJson(JSON.stringify(env));
-    const loans = await budget.loadLoans();
-    assert.equal(loans.cc_payment, 150);
-    assert.equal(loans.cc_start_month, null);
-    assert.equal(loans.cc2_payment, 0);
-    assert.equal(loans.loan_schedule_mode, null);
-    assert.equal(loans.loan_amount, 1200);
-    assert.equal(loans.loan_months_paid, 3);
-    assert.equal(budget.loanPaymentForMonth(loans, '2028-01'), 100);
+    const plans = await repayments.listRepaymentPlans();
+    assert.equal(plans.length, 2);
+    assert.equal(plans.find(p => p.kind === 'card').payment, 150);
+    assert.equal(plans.find(p => p.kind === 'card').unbounded, true);
+    assert.equal(plans.find(p => p.kind === 'loan').amount, 1200);
+    assert.equal(plans.find(p => p.kind === 'loan').monthsPaid, 3);
+    assert.equal(repayments.repaymentForMonth(plans.find(p => p.kind === 'loan'), '2028-01'), 100);
     assert.equal((await budget.loadBudget('2026-11')).cc2_paid, false);
   });
   await verify('Loan schedules and inline names survive backup restore', async () => {
@@ -405,14 +444,15 @@ function migrationModule(fixture) {
     const env = await backup.buildBackupEnvelope();
     assert.equal(backup.validateEnvelope(env).ok, true);
     await backup.importBackupFromJson(JSON.stringify(env));
-    const restored = await budget.loadLoans();
-    assert.equal(restored.loan_schedule_mode, 'dates');
-    assert.equal(restored.loan_start_month, '2026-11');
-    assert.equal(restored.loan_end_month, '2027-11');
-    assert.equal(restored.loan_payment, 180);
-    assert.equal(restored.loan_name, 'Car loan');
-    assert.equal(restored.cc_name, 'Visa');
-    assert.equal(restored.cc_payment, 75);
+    const plans = await repayments.listRepaymentPlans();
+    const loan = plans.find(p => p.kind === 'loan');
+    const card = plans.find(p => p.kind === 'card');
+    assert.equal(loan.startMonth, '2026-11');
+    assert.equal(loan.endMonth, '2027-11');
+    assert.equal(loan.payment, 180);
+    assert.equal(loan.name, 'Car loan');
+    assert.equal(card.name, 'Visa');
+    assert.equal(card.payment, 75);
   });
   await verify('Invalid loan ranges are rejected without changing saved data', async () => {
     await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_amount: 1200, loan_term: 12 });
@@ -552,7 +592,7 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 9);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 11);
   });
   await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
@@ -586,7 +626,26 @@ function migrationModule(fixture) {
       assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 9);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 11);
+    } finally { legacy.close(); }
+  });
+  await verify('Version 11 adds independent plans to an existing version 9 database without changing its debts', async () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      for (const s of declarations.get('SCHEMA_STATEMENTS').elements) {
+        if (!s.text.includes('repayment_plans') && !s.text.includes('repayment_payments')) legacy.exec(s.text);
+      }
+      for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
+        const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
+        if (fields.table === 'repayment_plans') continue;
+        if (!legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
+      }
+      legacy.exec("INSERT INTO loans(id, loan_name, loan_payment, loan_term) VALUES(1, 'Existing loan', 250, 12)");
+      legacy.exec('PRAGMA user_version = 9');
+      await migrationModule(legacy).initDatabase();
+      assert.equal(legacy.prepare('SELECT loan_name FROM loans WHERE id = 1').get().loan_name, 'Existing loan');
+      assert.equal(legacy.prepare("SELECT COUNT(*) AS count FROM repayment_plans").get().count, 0);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 11);
     } finally { legacy.close(); }
   });
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));

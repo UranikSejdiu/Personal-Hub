@@ -10,9 +10,30 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 11;
 
 const SCHEMA_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS repayment_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK (kind IN ('loan', 'card')),
+    name TEXT NOT NULL DEFAULT '',
+    amount REAL NOT NULL,
+    apr REAL NOT NULL DEFAULT 0,
+    payment REAL NOT NULL DEFAULT 0,
+    term INTEGER NOT NULL,
+    months_paid INTEGER NOT NULL DEFAULT 0,
+    start_month TEXT NOT NULL,
+    end_month TEXT,
+    unbounded INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );`,
+  `CREATE TABLE IF NOT EXISTS repayment_payments (
+    plan_id INTEGER NOT NULL REFERENCES repayment_plans(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    counted INTEGER NOT NULL DEFAULT 0 CHECK (counted IN (0, 1)),
+    PRIMARY KEY (plan_id, month)
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_repayment_payments_month ON repayment_payments(month);`,
   `CREATE TABLE IF NOT EXISTS loans (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     loan_amount REAL NOT NULL DEFAULT 0,
@@ -109,6 +130,8 @@ const SCHEMA_STATEMENTS: string[] = [
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "repayment_plans", column: "end_month", definition: "TEXT" },
+  { table: "repayment_plans", column: "unbounded", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "loans", column: "cc_plan_mode", definition: "TEXT" },
   { table: "loans", column: "cc_installments", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "loans", column: "cc2_plan_mode", definition: "TEXT" },

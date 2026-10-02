@@ -7,6 +7,7 @@ import { cn } from "../lib/utils";
 
 export interface DatePickerProps {
   mode?: "date" | "month";
+  initialDisplay?: "selected" | "current";
   value: string | null;
   onChange: (value: string | null) => void;
   onClose: () => void;
@@ -19,12 +20,12 @@ function parseValue(v: string | null): Date | null {
   return new Date(y, m - 1, d);
 }
 
-export function DatePicker({ value, onChange, onClose, mode = "date" }: DatePickerProps) {
+export function DatePicker({ value, onChange, onClose, mode = "date", initialDisplay = "selected" }: DatePickerProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const today = useMemo(() => new Date(), []);
 
-  const [display, setDisplay] = useState<Date>(parseValue(value) ?? today);
+  const [display, setDisplay] = useState<Date>(initialDisplay === "current" ? today : parseValue(value) ?? today);
 
   const locale = "en-US";
 

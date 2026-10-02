@@ -1,41 +1,125 @@
-import { View, Text, Pressable } from "react-native";
-import { ChevronRight, Info, Palette, Target, Cloud } from "./AppIcons";
+import { Pressable, Switch, Text, View } from "react-native";
+import type { ComponentType } from "react";
+import { BookOpen, ChevronRight, Cloud, Info, Target } from "./AppIcons";
+import type { AppIconProps } from "./AppIcons";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { useHaptics } from "../hooks/useHaptics";
+import { ACCENT_COLORS, ACCENT_ORDER, type AccentName, type ThemeName } from "../constants/theme";
 import { withAlpha } from "../lib/utils";
 
-export type SettingsSection = "general" | "budget" | "backup" | "about";
-const ITEMS: { section: SettingsSection; icon: typeof Palette; labelKey: TKey }[] = [
-  { section: "general", icon: Palette, labelKey: "settingsGeneral" },
-  { section: "budget", icon: Target, labelKey: "settingsBudget" },
-  { section: "backup", icon: Cloud, labelKey: "settingsBackupSync" },
-  { section: "about", icon: Info, labelKey: "settingsAbout" },
-];
+export type SettingsSection = "budget" | "backup" | "about";
 
-export function SettingsMenu({ activeAppId, onSelect }: { activeAppId: string; onSelect: (section: SettingsSection) => void }) {
+interface SettingsMenuProps {
+  theme: ThemeName;
+  accent: AccentName;
+  hapticsOn: boolean;
+  budgetSummary: string;
+  onThemeChange: (theme: ThemeName) => void;
+  onAccentChange: (accent: AccentName) => void;
+  onHapticsChange: (enabled: boolean) => void;
+  onSelect: (section: SettingsSection) => void;
+  onReplayTutorial: () => void;
+}
+
+function SettingsRow({ icon: Icon, labelKey, subtitle, onPress }: {
+  icon: ComponentType<AppIconProps>;
+  labelKey: TKey;
+  subtitle?: string;
+  onPress: () => void;
+}) {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   return (
-    <View className="gap-2">
-      {ITEMS.filter((item) => item.section !== "budget" || activeAppId === "budget").map(({ section, icon: Icon, labelKey }) => (
-        <Pressable
-          key={section}
-          onPress={() => { void haptics.light(); onSelect(section); }}
-          className="min-h-[44px] flex-row items-center justify-between rounded-xl border border-border bg-card p-4 active:opacity-70"
-          android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={t(labelKey)}
-        >
-          <View className="flex-1 flex-row items-center gap-3">
-            <Icon size={20} color={colors.foreground} />
-            <Text className="flex-1 text-sm font-medium text-foreground">{t(labelKey)}</Text>
+    <Pressable
+      onPress={onPress}
+      className="min-h-[52px] flex-row items-center gap-3 px-4 py-3"
+      android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+      accessible accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${t(labelKey)}, ${subtitle}` : t(labelKey)}
+    >
+      <Icon size={20} color={colors.mutedForeground} />
+      <View className="min-w-0 flex-1">
+        <Text className="text-base font-medium text-foreground">{t(labelKey)}</Text>
+        {subtitle ? <Text className="mt-0.5 text-xs text-muted-foreground">{subtitle}</Text> : null}
+      </View>
+      <ChevronRight size={18} color={colors.mutedForeground} />
+    </Pressable>
+  );
+}
+
+export function SettingsMenu({ theme, accent, hapticsOn, budgetSummary, onThemeChange, onAccentChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
+  const { t } = useI18n();
+  const colors = useThemeColors();
+  return (
+    <View className="gap-5">
+      <View className="gap-2">
+        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsAppearance")}</Text>
+        <View className="rounded-xl border border-border bg-card p-4">
+          <Text className="mb-2 text-sm font-medium text-foreground">{t("themeLabel")}</Text>
+          <View className="flex-row rounded-xl bg-muted/60 p-1">
+            {(["light", "dark"] as const).map((value) => (
+              <Pressable
+                key={value} onPress={() => onThemeChange(value)}
+                className={`min-h-[44px] flex-1 items-center justify-center rounded-lg ${theme === value ? "bg-card" : ""}`}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+                accessible accessibilityRole="radio"
+                accessibilityState={{ checked: theme === value }}
+                accessibilityLabel={t(value === "light" ? "themeLight" : "themeDark")}
+              >
+                <Text className={`text-sm font-medium ${theme === value ? "text-foreground" : "text-muted-foreground"}`}>
+                  {t(value === "light" ? "themeLight" : "themeDark")}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-          <ChevronRight size={20} color={colors.mutedForeground} />
-        </Pressable>
-      ))}
+          <View className="my-4 h-px bg-border" />
+          <Text className="mb-2 text-sm font-medium text-foreground">{t("accentLabel")}</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {ACCENT_ORDER.map((name) => (
+              <Pressable
+                key={name} onPress={() => onAccentChange(name)}
+                className={`h-11 w-11 items-center justify-center rounded-full border-2 ${accent === name ? "border-foreground" : "border-transparent"}`}
+                android_ripple={{ color: withAlpha(colors.primary, 0.125), borderless: true }}
+                accessible accessibilityRole="radio"
+                accessibilityState={{ checked: accent === name }} accessibilityLabel={t(`accent_${name}`)}
+              >
+                <View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: ACCENT_COLORS[name][theme].primary }}>
+                  {accent === name ? <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ACCENT_COLORS[name][theme].primaryForeground }} /> : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View className="gap-2">
+        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsPreferences")}</Text>
+        <View className="min-h-[52px] flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-2">
+          <Text className="flex-1 text-base font-medium text-foreground">{t("hapticsLabel")}</Text>
+          <Switch value={hapticsOn} onValueChange={onHapticsChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={theme === "dark" ? colors.foreground : colors.card} accessibilityLabel={t("hapticsLabel")} />
+        </View>
+      </View>
+
+      <View className="gap-2">
+        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsBudget")}</Text>
+        <View className="overflow-hidden rounded-xl border border-border bg-card">
+          <SettingsRow icon={Target} labelKey="settingsBudgetDetails" subtitle={budgetSummary} onPress={() => onSelect("budget")} />
+        </View>
+      </View>
+      <View className="gap-2">
+        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsData")}</Text>
+        <View className="overflow-hidden rounded-xl border border-border bg-card">
+          <SettingsRow icon={Cloud} labelKey="settingsBackupRestore" onPress={() => onSelect("backup")} />
+        </View>
+      </View>
+      <View className="gap-2">
+        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsHelp")}</Text>
+        <View className="overflow-hidden rounded-xl border border-border bg-card">
+          <SettingsRow icon={BookOpen} labelKey="tutorialShowAgain" onPress={onReplayTutorial} />
+          <View className="ml-12 h-px bg-border" />
+          <SettingsRow icon={Info} labelKey="settingsAboutUpdates" onPress={() => onSelect("about")} />
+        </View>
+      </View>
     </View>
   );
 }

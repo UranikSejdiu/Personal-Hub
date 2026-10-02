@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme, useThemeVariables } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
+import { migrateLegacyRepayments } from "../src/lib/repaymentMigration";
 import { seedSampleData } from "../src/lib/sampleData";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
 
@@ -56,6 +57,7 @@ function RootLayoutInner() {
         <Stack.Screen name="(budget)" />
         <Stack.Screen name="(dhikr)" />
         <Stack.Screen name="(notes)" />
+        <Stack.Screen name="settings/[section]" />
       </Stack>
       <Toaster
         position="bottom-center"
@@ -88,6 +90,7 @@ function BootstrapGate() {
     (async () => {
       try {
         await initDatabase();
+        await migrateLegacyRepayments();
         if (!cancelled) setDbReady(true);
         // Demo data for a first run, seeded in the background so it never
         // delays first paint. Screens reload on focus, so it is picked up
@@ -118,6 +121,7 @@ function BootstrapGate() {
     setDbError(null);
     setDbReady(false);
     void initDatabase()
+      .then(() => migrateLegacyRepayments())
       .then(() => setDbReady(true))
       .catch((err: unknown) => {
         setDbError(err instanceof Error ? err.message : String(err));

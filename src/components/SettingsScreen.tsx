@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Switch, BackHandler, Image } from "react-native";
+import { View, Text, ScrollView, Pressable, BackHandler, Image } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { ChevronRight, ArrowLeft, Vibrate, Cloud, Download, BookOpen, RotateCcw, Trash2 } from "./AppIcons";
-import { useRouter, type Href } from "expo-router";
+import { ArrowLeft, Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
+import { useRouter, useFocusEffect, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
-import { useTheme, useThemeColors, THEMES } from "../lib/theme";
-import { ACCENT_ORDER, ACCENT_COLORS } from "../constants/theme";
+import { useTheme, useThemeColors } from "../lib/theme";
 import { useHaptics, getHapticsEnabled, setHapticsEnabled, isHapticsEnabled } from "../hooks/useHaptics";
 import * as Haptics from "expo-haptics";
 import { getAppVersion } from "../constants/config";
@@ -24,7 +23,7 @@ import { NumberInput } from "./NumberInput";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
-import { withAlpha } from "../lib/utils";
+import { formatCurrency, withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
 import { setTutorialSeen } from "../lib/tutorial";
 import { clearSampleData, hasSampleData } from "../lib/sampleData";
@@ -43,34 +42,35 @@ interface ConfirmAction {
 
 interface SettingsScreenProps {
   activeAppId: string;
+  section?: SettingsSection;
 }
 
-export default function SettingsScreen({ activeAppId }: SettingsScreenProps) {
+export default function SettingsScreen({ activeAppId, section }: SettingsScreenProps) {
   const router = useRouter();
   const { t } = useI18n();
   const { theme, setTheme, accent, setAccent } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const [activeSection, setActiveSection] = useState<Section>(null);
+  const activeSection: Section = section ?? null;
   const [hapticsOn, setHapticsOn] = useState<boolean>(isHapticsEnabled);
   const [goalAmount, setGoalAmount] = useState(0);
   const [salary, setSalary] = useState(0);
+  const [budgetLoadState, setBudgetLoadState] = useState<"loading" | "ready" | "failed">("loading");
   const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [canRestoreSafety, setCanRestoreSafety] = useState(false);
-const [sampleDataPresent, setSampleDataPresent] = useState(false);
+  const [sampleDataPresent, setSampleDataPresent] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const goalRef = useRef(0);
   const salaryRef = useRef(0);
+  const goalDirtyRef = useRef(false);
+  const leavingRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const goalSaveInFlightRef = useRef<Promise<void> | null>(null);
+  const goalSaveInFlightRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
+    if (activeSection) return;
     const onBack = () => {
-      if (activeSection) {
-        setActiveSection(null);
-        return true;
-      }
       router.replace(getHubRoute(activeAppId) as Href);
       return true;
     };
@@ -88,34 +88,50 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
         // A failed check only hides the optional restore action.
         setCanRestoreSafety(false);
       });
-    if (activeAppId === "budget") {
-      void loadSavingsGoal().then((sg) => {
-        setGoalAmount(sg.goal_amount);
-        setSalary(sg.salary);
-        goalRef.current = sg.goal_amount;
-        salaryRef.current = sg.salary;
-      }).catch(() => {
-        toast.error(t("errorLoadingData"));
-      });
-    }
     void hasSampleData()
       .then(setSampleDataPresent)
       .catch(() => {
         // A failed check only hides the optional reset action.
         setSampleDataPresent(false);
       });
-  }, [activeAppId, t]);
+  }, [t]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setBudgetLoadState("loading");
+    void loadSavingsGoal().then((sg) => {
+      if (!active) return;
+      setGoalAmount(sg.goal_amount);
+      setSalary(sg.salary);
+      goalRef.current = sg.goal_amount;
+      salaryRef.current = sg.salary;
+      goalDirtyRef.current = false;
+      setBudgetLoadState("ready");
+    }).catch(() => {
+      if (active) {
+        setBudgetLoadState("failed");
+        toast.error(t("errorLoadingData"));
+      }
+    });
+    return () => { active = false; };
+  }, [t]));
 
   const flushGoalSave = useCallback(
     async (options?: { silent?: boolean }) => {
+      if (!goalDirtyRef.current) return true;
+      const goal = goalRef.current;
+      const currentSalary = salaryRef.current;
       if (!options?.silent) setSaving(true);
       try {
-        await saveSavingsGoal(goalRef.current, salaryRef.current);
-        if (goalRef.current > 0) {
-          await ensureMonthlyAutoDeposit(goalRef.current);
+        await saveSavingsGoal(goal, currentSalary);
+        if (goal > 0) {
+          await ensureMonthlyAutoDeposit(goal);
         }
+        if (goalRef.current === goal && salaryRef.current === currentSalary) goalDirtyRef.current = false;
+        return true;
       } catch {
         toast.error(t("saveFailed"));
+        return false;
       } finally {
         if (!options?.silent) setSaving(false);
       }
@@ -127,7 +143,8 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      const saveTask = flushGoalSave();
+      const previous = goalSaveInFlightRef.current;
+      const saveTask = previous ? previous.then(() => flushGoalSave()) : flushGoalSave();
       goalSaveInFlightRef.current = saveTask;
       void saveTask.then(() => {
         if (goalSaveInFlightRef.current === saveTask) {
@@ -145,6 +162,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     if (goalSaveInFlightRef.current) {
       await goalSaveInFlightRef.current;
     }
+    goalDirtyRef.current = false;
   }, []);
 
   // Unmount paths (hardware back, app switch) must flush a pending edit rather
@@ -154,7 +172,10 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
-        void flushGoalSave({ silent: true });
+      }
+      if (goalDirtyRef.current) {
+        const previous = goalSaveInFlightRef.current;
+        void (previous ? previous.then(() => flushGoalSave({ silent: true })) : flushGoalSave({ silent: true }));
       }
     };
   }, [flushGoalSave]);
@@ -163,6 +184,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     (v: number) => {
       setGoalAmount(v);
       goalRef.current = v;
+      goalDirtyRef.current = true;
       scheduleGoalSave();
     },
     [scheduleGoalSave]
@@ -172,6 +194,7 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     (v: number) => {
       setSalary(v);
       salaryRef.current = v;
+      goalDirtyRef.current = true;
       scheduleGoalSave();
     },
     [scheduleGoalSave]
@@ -184,6 +207,8 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     setSalary(sg.salary);
     goalRef.current = sg.goal_amount;
     salaryRef.current = sg.salary;
+    goalDirtyRef.current = false;
+    setBudgetLoadState("ready");
   }, [activeAppId]);
 
   /** Restore the snapshot taken automatically before the last import. */
@@ -255,9 +280,54 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch {
+      setHapticsOn(!val);
       toast.error(t("saveFailed"));
     }
   }, [t]);
+
+  const openSection = useCallback((next: SettingsSection) => {
+    void haptics.light();
+    router.push({ pathname: "/settings/[section]", params: { section: next, from: activeAppId } } as Href);
+  }, [activeAppId, haptics, router]);
+
+  const replayTutorial = useCallback(() => {
+    void (async () => {
+      await haptics.light();
+      try {
+        await setTutorialSeen(false);
+        router.replace("/(tutorial)" as Href);
+      } catch {
+        toast.error(t("saveFailed"));
+      }
+    })();
+  }, [haptics, router, t]);
+
+  const leaveDetail = useCallback(async () => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    if (activeSection === "budget") {
+      if (goalSaveInFlightRef.current) await goalSaveInFlightRef.current;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (goalDirtyRef.current && !(await flushGoalSave())) {
+        leavingRef.current = false;
+        return;
+      }
+    }
+    if (router.canGoBack()) router.back();
+    else router.replace(`${getHubRoute(activeAppId)}/settings` as Href);
+  }, [activeAppId, activeSection, flushGoalSave, router]);
+
+  useEffect(() => {
+    if (!activeSection) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      void leaveDetail();
+      return true;
+    });
+    return () => sub.remove();
+  }, [activeSection, leaveDetail]);
 
   const handleExport = useCallback(async () => {
     if (backupBusy) return;
@@ -334,23 +404,23 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
     return (
       <>
         <ScrollView className="flex-1 bg-background">
-          <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-          <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
-        </View>
-        <SettingsMenu activeAppId={activeAppId} onSelect={setActiveSection} />
-      </View>
-      </ScrollView>
-        <ConfirmDialog
-          visible={confirmAction !== null}
-          title={confirmAction?.title ?? t("deleteConfirmTitle")}
-          message={confirmAction?.message ?? ""}
-          confirmLabel={confirmAction?.confirmLabel ?? t("confirm")}
-          cancelLabel={t("cancel")}
-          destructive={confirmAction?.destructive ?? false}
-          onClose={() => setConfirmAction(null)}
-          onConfirm={() => confirmAction?.onConfirm()}
-        />
+          <View className="w-full max-w-md self-center gap-5 px-4 pt-4 pb-28">
+            <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
+            <SettingsMenu
+              theme={theme}
+              accent={accent}
+              hapticsOn={hapticsOn}
+              budgetSummary={budgetLoadState === "ready"
+                ? t("settingsBudgetSummary", { salary: formatCurrency(salary), target: formatCurrency(goalAmount) })
+                : t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}
+              onThemeChange={(next) => { void haptics.light(); setTheme(next); }}
+              onAccentChange={(next) => { void haptics.light(); setAccent(next); }}
+              onHapticsChange={(next) => { void toggleHaptics(next); }}
+              onSelect={openSection}
+              onReplayTutorial={replayTutorial}
+            />
+          </View>
+        </ScrollView>
       </>
     );
   }
@@ -360,148 +430,28 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
       <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
           <View className="flex-row items-center gap-2">
-            <Pressable onPress={() => setActiveSection(null)} accessibilityRole="button" accessibilityLabel={t("cancel")} android_ripple={{ color: withAlpha(colors.primary, 0.125) }}>
+            <Pressable
+              onPress={() => { void leaveDetail(); }}
+              className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
+              accessible accessibilityRole="button" accessibilityLabel={t("settingsBack")}
+              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+            >
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
-          <Text className="text-2xl font-bold text-foreground">
-            {activeSection === "general"
-              ? t("settingsGeneral")
-              : activeSection === "budget"
-                ? t("settingsBudget")
-                : activeSection === "backup"
-                  ? t("settingsBackupSync")
-                  : t("settingsAbout")}
-          </Text>
-        </View>
-
-        {activeSection === "general" && (
-          <View className="gap-4">
-            <View className="rounded-xl border border-border bg-card p-4">
-              <Text className="mb-3 text-sm font-semibold text-foreground">{t("themeLabel")}</Text>
-              <View className="gap-2">
-                {THEMES.map((th) => (
-                  <Pressable
-                    key={th.value}
-                    onPress={() => { void haptics.light(); setTheme(th.value); }}
-                    className={`flex-row items-center gap-3 rounded-lg border p-3 ${
-                      theme === th.value ? "border-primary bg-primary/10" : "border-border"
-                    }`}
-                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: theme === th.value }}
-                    accessibilityLabel={t(th.labelKey)}
-                  >
-                    <View className={`h-5 w-5 rounded-full border-2 ${
-                      theme === th.value ? "border-primary" : "border-border"
-                    }`}>
-                      {theme === th.value && <View className="m-0.5 h-full rounded-full bg-primary" />}
-                    </View>
-                    <Text className="text-sm text-foreground">{t(th.labelKey)}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View className="rounded-xl border border-border bg-card p-4">
-              <Text className="mb-3 text-sm font-semibold text-foreground">{t("accentLabel")}</Text>
-              <View className="flex-row flex-wrap gap-3">
-                {ACCENT_ORDER.map((name) => (
-                  <Pressable
-                    key={name}
-                    onPress={() => { void haptics.light(); setAccent(name); }}
-                    className={`h-11 w-11 items-center justify-center rounded-full border-2 active:opacity-70 ${
-                      accent === name ? "border-foreground" : "border-border"
-                    }`}
-                    style={{ backgroundColor: ACCENT_COLORS[name][theme].primary }}
-                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: accent === name }}
-                    accessibilityLabel={t(`accent_${name}`)}
-                  >
-                    {accent === name && (
-                      <View
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: ACCENT_COLORS[name][theme].primaryForeground }}
-                      />
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View className="rounded-xl border border-border bg-card p-4">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-3">
-                   <Vibrate size={20} color={colors.foreground} />
-                   <Text className="text-sm font-medium text-foreground">{t("hapticsLabel")}</Text>
-                 </View>
-                 <Switch
-                   value={hapticsOn}
-                   onValueChange={toggleHaptics}
-                   trackColor={{ false: colors.muted, true: colors.primary }}
-                 />
-               </View>
-            </View>
-
-            <Pressable
-              onPress={() => {
-                void (async () => {
-                  await haptics.light();
-                  try {
-                    await setTutorialSeen(false);
-                    router.replace("/(tutorial)" as Href);
-                  } catch {
-                    toast.error(t("saveFailed"));
-                  }
-                })();
-              }}
-              className="rounded-xl border border-border bg-card p-4"
-              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-              accessibilityRole="button"
-              accessibilityLabel={t("tutorialShowAgain")}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-3">
-                  <BookOpen size={20} color={colors.foreground} />
-                  <Text className="text-sm font-medium text-foreground">{t("tutorialShowAgain")}</Text>
-                </View>
-                <ChevronRight size={20} color={colors.mutedForeground} />
-              </View>
-            </Pressable>
-
-            {sampleDataPresent ? (
-              <Pressable
-                onPress={handleClearSampleData}
-                disabled={backupBusy}
-                className="rounded-xl border border-border bg-card p-4 disabled:opacity-60"
-                android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
-                accessibilityRole="button"
-                accessibilityLabel={t("sampleDataClear")}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 flex-row items-center gap-3 pr-3">
-                    <Trash2 size={20} color={colors.destructive} />
-                    <View className="flex-1">
-                      <Text className="text-sm font-medium text-foreground">
-                        {t("sampleDataClear")}
-                      </Text>
-                      <Text className="mt-0.5 text-xs text-muted-foreground">
-                        {t("sampleDataDescription")}
-                      </Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color={colors.mutedForeground} />
-                </View>
-              </Pressable>
-            ) : null}
+            <Text className="text-2xl font-bold text-foreground">
+              {activeSection === "budget" ? t("settingsBudgetDetails") : activeSection === "backup" ? t("settingsBackupRestore") : t("settingsAboutUpdates")}
+            </Text>
           </View>
-        )}
 
-        {activeSection === "budget" && (
+        {activeSection === "budget" && budgetLoadState !== "ready" ? (
+          <Text className="text-sm text-muted-foreground">{t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}</Text>
+        ) : null}
+
+        {activeSection === "budget" && budgetLoadState === "ready" && (
           <View className="gap-4">
             <View className="rounded-xl border border-border bg-card p-4">
               <View className="flex-row items-center justify-between">
-                <Text className="text-sm text-muted-foreground">{t("goalAmount")}</Text>
+                <Text className="flex-1 text-sm text-muted-foreground">{t("savingsGoalLabel")}</Text>
                 <NumberInput
                   value={goalAmount}
                   onChange={handleGoalChange}
@@ -533,10 +483,6 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
         {activeSection === "backup" && (
           <View className="gap-4">
             <View className="rounded-xl border border-border bg-card p-4 gap-3">
-              <View className="flex-row items-center gap-2">
-                <Cloud size={20} color={colors.foreground} />
-                <Text className="text-sm font-semibold text-foreground">{t("settingsBackupSync")}</Text>
-              </View>
               <Pressable
                 onPress={() => { void haptics.light(); void handleExport(); }}
                 disabled={backupBusy}
@@ -574,11 +520,30 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
               ) : null}
               {backupBusy ? <Text className="text-center text-xs text-muted-foreground">{t("savingAuto")}</Text> : null}
             </View>
+            {sampleDataPresent ? (
+              <View className="gap-2">
+                <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsDataManagement")}</Text>
+                <Pressable
+                  onPress={handleClearSampleData}
+                  disabled={backupBusy}
+                  className="min-h-[52px] flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 active:bg-muted/60 disabled:opacity-60"
+                  android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
+                  accessible accessibilityRole="button" accessibilityLabel={t("sampleDataClear")}
+                >
+                  <Trash2 size={20} color={colors.destructive} />
+                  <View className="flex-1">
+                    <Text className="text-base font-medium text-destructive">{t("sampleDataClear")}</Text>
+                    <Text className="mt-0.5 text-xs text-muted-foreground">{t("sampleDataDescription")}</Text>
+                  </View>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         )}
 
         {activeSection === "about" && (
           <View className="gap-4">
+            <UpdateCard />
             <View className="rounded-xl border border-border bg-card p-4">
               <View className="items-center gap-3 py-6">
                 <Image source={require("../../assets/icon-personal-hub.png")} className="h-16 w-16 rounded-xl" />
@@ -600,7 +565,6 @@ const [sampleDataPresent, setSampleDataPresent] = useState(false);
                 </Pressable>
               </View>
             </View>
-            <UpdateCard />
           </View>
         )}
        </View>
