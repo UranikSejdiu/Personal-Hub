@@ -1,6 +1,5 @@
 import { addMonths, computeMonthSummary, currentMonth } from "./budget";
 import type {
-  Budget,
   Expense,
   Loans,
   MonthSummary,
@@ -187,17 +186,4 @@ export function sampleMonthSummary(month: SampleMonth): MonthSummary {
 /** The sample month currently in progress. */
 export function currentSampleMonth(): SampleMonth {
   return SAMPLE_MONTHS.find((month) => month.offset === 0) ?? SAMPLE_MONTHS[0];
-}
-
-/** A settled `Budget` row for a sample month, with the columns SQLite assigns. */
-export function sampleBudget(month: SampleMonth, id: number, updatedAt: string): Budget {
-  return {
-    id,
-    month: sampleMonthKey(month),
-    income: month.income,
-    loan_paid: month.loanPaid,
-    cc_paid: month.ccPaid,
-    cc2_paid: false,
-    updated_at: updatedAt,
-  };
 }

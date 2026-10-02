@@ -18,12 +18,6 @@ import {
   type ThemeName,
   type ThemeColors,
 } from "../constants/theme";
-import type { TKey } from "./i18n";
-
-export const THEMES: { value: ThemeName; labelKey: TKey }[] = [
-  { value: "light", labelKey: "themeLight" },
-  { value: "dark", labelKey: "themeDark" },
-];
 
 const THEME_KEY = "app_theme";
 const ACCENT_KEY = "app_accent";
