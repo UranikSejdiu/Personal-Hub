@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { Pin } from "./AppIcons";
-import { CheckboxSquare } from "./CheckboxSquare";
+import { Checkbox } from "./ui/Checkbox";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
 import { getPreviewSegments } from "../lib/noteContent";
@@ -65,7 +65,7 @@ export const NoteCard = React.memo(function NoteCard({
           {visibleItems.map((item) => (
             <View key={item.id} className="flex-row items-start gap-2 py-0.5">
               <View className="mt-0.5">
-                <CheckboxSquare checked={false} size="sm" />
+                <Checkbox displayOnly checked={false} size="sm" />
               </View>
               <Text
                 numberOfLines={1}

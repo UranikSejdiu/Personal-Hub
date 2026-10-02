@@ -24,10 +24,10 @@ import {
 } from "../../src/lib/budget";
 import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentPlan } from "../../src/lib/repaymentPlans";
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
-import { CustomExpensesHeader, CustomExpenseRow, CustomExpensesTotals } from "../../src/components/CustomExpensesSection";
+import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 
-const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView {...props} bottomOffset={16} />;
+const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView {...props} className="flex-1 bg-background" bottomOffset={16} />;
 
 export default function BudgetScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
@@ -401,7 +401,7 @@ export default function BudgetScreen() {
   return (
     <FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center gap-3 p-4 pb-28"
+      contentContainerClassName="w-full max-w-md self-center p-4 pb-28"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -411,7 +411,11 @@ export default function BudgetScreen() {
       maxToRenderPerBatch={8}
       windowSize={7}
       removeClippedSubviews={false}
-      renderItem={({ item }) => <CustomExpenseRow expense={item} onUpdate={handleUpdateExpense} onRemove={handleRemoveExpense} onToggleRecurring={handleToggleRecurring} />}
+      renderItem={({ item, index }) => (
+        <View className="border-x border-border bg-card px-4">
+          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={handleRemoveExpense} onToggleRecurring={handleToggleRecurring} />
+        </View>
+      )}
       ListHeaderComponent={
         <View className="gap-4">
           <Text className="text-xl font-bold text-foreground">{t("tabBudget")}</Text>
@@ -423,7 +427,7 @@ export default function BudgetScreen() {
       }
       ListFooterComponent={
         <View className="gap-4">
-          <CustomExpensesTotals expenses={expenses} />
+          <View className="h-3 rounded-b-2xl border border-t-0 border-border bg-card" />
           <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}
             repayments={repayments} paidRepayments={paidRepayments} savingsGoal={savingsGoal} />
         </View>

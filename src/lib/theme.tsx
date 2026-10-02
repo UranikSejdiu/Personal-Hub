@@ -13,21 +13,16 @@ import * as SecureStore from "expo-secure-store";
 import {
   getThemeColors,
   getThemeVariables,
-  isAccentName,
-  type AccentName,
   type ThemeName,
   type ThemeColors,
 } from "../constants/theme";
 
 const THEME_KEY = "app_theme";
-const ACCENT_KEY = "app_accent";
 
 interface ThemeContextValue {
   theme: ThemeName;
   setTheme: (theme: ThemeName) => void;
   resolvedTheme: "light" | "dark";
-  accent: AccentName;
-  setAccent: (accent: AccentName) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -57,15 +52,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // SecureStore unavailable — nothing to migrate.
     }
   }, []);
-  const [accent, setAccentState] = useState<AccentName>(() => {
-    try {
-      const stored = SecureStore.getItem(ACCENT_KEY);
-      return isAccentName(stored) ? stored : "blue";
-    } catch {
-      return "blue";
-    }
-  });
-
   // Keep NativeWind's dark: variants aligned with the app's saved preference.
   useEffect(() => {
     colorScheme.set(theme);
@@ -79,20 +65,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setAccent = useCallback((next: AccentName) => {
-    setAccentState(next);
-    void SecureStore.setItemAsync(ACCENT_KEY, next).catch((err) => {
-      // Non-critical: accent applies in-memory; persist failure only affects restart.
-      console.warn("[theme] failed to persist accent:", err);
-    });
-  }, []);
-
   const resolvedTheme: "light" | "dark" =
     theme === "light" ? "light" : "dark";
 
   const value = useMemo(
-    () => ({ theme, setTheme, resolvedTheme, accent, setAccent }),
-    [theme, setTheme, resolvedTheme, accent, setAccent]
+    () => ({ theme, setTheme, resolvedTheme }),
+    [theme, setTheme, resolvedTheme]
   );
 
   return (
@@ -109,10 +87,10 @@ export function useTheme(): ThemeContextValue {
 export type { ThemeColors } from "../constants/theme";
 
 export function useThemeColors(): ThemeColors {
-  const { theme, accent } = useTheme();
+  const { theme } = useTheme();
   return useMemo(
-    () => getThemeColors(theme, accent),
-    [theme, accent]
+    () => getThemeColors(theme),
+    [theme]
   );
 }
 

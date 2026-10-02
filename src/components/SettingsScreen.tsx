@@ -47,7 +47,7 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ activeAppId, section }: SettingsScreenProps) {
   const router = useRouter();
   const { t } = useI18n();
-  const { theme, setTheme, accent, setAccent } = useTheme();
+  const { theme, setTheme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
   const activeSection: Section = section ?? null;
@@ -404,13 +404,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
             <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
             <SettingsMenu
               theme={theme}
-              accent={accent}
               hapticsOn={hapticsOn}
               budgetSummary={budgetLoadState === "ready"
                 ? t("settingsBudgetSummary", { salary: formatCurrency(salary), target: formatCurrency(goalAmount) })
                 : t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}
               onThemeChange={(next) => { void haptics.light(); setTheme(next); }}
-              onAccentChange={(next) => { void haptics.light(); setAccent(next); }}
               onHapticsChange={(next) => { void toggleHaptics(next); }}
               onSelect={openSection}
               onReplayTutorial={replayTutorial}

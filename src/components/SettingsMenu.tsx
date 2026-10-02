@@ -4,18 +4,16 @@ import { BookOpen, ChevronRight, Cloud, Info, Target } from "./AppIcons";
 import type { AppIconProps } from "./AppIcons";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { ACCENT_COLORS, ACCENT_ORDER, type AccentName, type ThemeName } from "../constants/theme";
+import { type ThemeName } from "../constants/theme";
 import { withAlpha } from "../lib/utils";
 
 export type SettingsSection = "budget" | "backup" | "about";
 
 interface SettingsMenuProps {
   theme: ThemeName;
-  accent: AccentName;
   hapticsOn: boolean;
   budgetSummary: string;
   onThemeChange: (theme: ThemeName) => void;
-  onAccentChange: (accent: AccentName) => void;
   onHapticsChange: (enabled: boolean) => void;
   onSelect: (section: SettingsSection) => void;
   onReplayTutorial: () => void;
@@ -47,7 +45,7 @@ function SettingsRow({ icon: Icon, labelKey, subtitle, onPress }: {
   );
 }
 
-export function SettingsMenu({ theme, accent, hapticsOn, budgetSummary, onThemeChange, onAccentChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
+export function SettingsMenu({ theme, hapticsOn, budgetSummary, onThemeChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   return (
@@ -72,23 +70,7 @@ export function SettingsMenu({ theme, accent, hapticsOn, budgetSummary, onThemeC
               </Pressable>
             ))}
           </View>
-          <View className="my-4 h-px bg-border" />
-          <Text className="mb-2 text-sm font-medium text-foreground">{t("accentLabel")}</Text>
-          <View className="flex-row flex-wrap gap-2">
-            {ACCENT_ORDER.map((name) => (
-              <Pressable
-                key={name} onPress={() => onAccentChange(name)}
-                className={`h-11 w-11 items-center justify-center rounded-full border-2 ${accent === name ? "border-foreground" : "border-transparent"}`}
-                android_ripple={{ color: withAlpha(colors.primary, 0.125), borderless: true }}
-                accessible accessibilityRole="radio"
-                accessibilityState={{ checked: accent === name }} accessibilityLabel={t(`accent_${name}`)}
-              >
-                <View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: ACCENT_COLORS[name][theme].primary }}>
-                  {accent === name ? <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ACCENT_COLORS[name][theme].primaryForeground }} /> : null}
-                </View>
-              </Pressable>
-            ))}
-          </View>
+
         </View>
       </View>
 

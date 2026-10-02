@@ -31,7 +31,7 @@ import { withTransaction } from "../../src/lib/db";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { CheckboxSquare } from "../../src/components/CheckboxSquare";
+import { Checkbox } from "../../src/components/ui/Checkbox";
 import {
   ChecklistItemRow,
   type ChecklistEntry,
@@ -417,17 +417,12 @@ export default function ChecklistEditorScreen() {
           {checkedExpanded
             ? checkedItems.map((item) => (
                 <View key={item.key} className="flex-row items-center gap-1 px-3">
-                  <Pressable
+                  <Checkbox checked
                     onPress={() => handleToggle(item.key)}
                     disabled={isBusy}
                     className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
-                    accessible
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: true, disabled: isBusy }}
                     accessibilityLabel={item.text || t("notesItemPlaceholder")}
-                  >
-                    <CheckboxSquare checked />
-                  </Pressable>
+                  />
                   <Text className="flex-1 py-2 text-base text-muted-foreground line-through">
                     {item.text || t("notesItemPlaceholder")}
                   </Text>

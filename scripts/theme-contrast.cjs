@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
 }).outputText;
 const themeModule = { exports: {} };
 vm.runInNewContext(compiled, { module: themeModule, exports: themeModule.exports }, { filename });
-const { ACCENT_ORDER, getThemeColors, getThemeVariables, isAccentName } = themeModule.exports;
+const { getThemeColors, getThemeVariables } = themeModule.exports;
 
 // WCAG relative luminance; verify the actual tokens, including tinted selections.
 function rgb(color) {
@@ -42,8 +42,7 @@ function contrast(first, second) {
 
 let checked = 0;
 for (const theme of ["light", "dark"]) {
-  for (const accent of ACCENT_ORDER) {
-    const colors = getThemeColors(theme, accent);
+    const colors = getThemeColors(theme);
     for (const value of Object.values(colors)) rgb(value);
     const pairs = [];
     for (const background of ["background", "card", "surface", "muted"]) {
@@ -62,15 +61,11 @@ for (const theme of ["light", "dark"]) {
     pairs.push(["selected tab", primary, primary.map((value, i) => value * 0.1 + card[i] * 0.9)]);
     for (const [label, foreground, background] of pairs) {
       const ratio = contrast(foreground, background);
-      assert.ok(ratio >= 4.5, `${theme}/${accent}: ${label} contrast ${ratio.toFixed(2)} is below 4.5`);
+      assert.ok(ratio >= 4.5, `${theme}: ${label} contrast ${ratio.toFixed(2)} is below 4.5`);
       checked += 1;
     }
     const variables = getThemeVariables(colors);
     assert.ok(variables["--card-foreground"] && variables["--primary-foreground"] && variables["--chart-1"]);
     assert.equal(variables["--primary"], colors.primary.slice(4, -1).replace(/,\s*/g, " "));
-  }
 }
-assert.equal(isAccentName("indigo"), true);
-assert.equal(isAccentName("toString"), false);
-assert.equal(isAccentName(null), false);
-console.log(`Theme contrast passed: ${checked} text pairs across both themes and ${ACCENT_ORDER.length} accents.`);
+console.log(`Theme contrast passed: ${checked} text pairs across light and dark mode.`);

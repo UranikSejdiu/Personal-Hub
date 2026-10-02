@@ -6,7 +6,7 @@ import { SettingsMenu, type SettingsSection } from "../SettingsMenu";
 import { useI18n, type TKey } from "../../lib/i18n";
 import { SAMPLE_SAVINGS } from "../../lib/sampleDataset";
 import { formatCurrency } from "../../lib/utils";
-import type { AccentName, ThemeName } from "../../constants/theme";
+import { useTheme } from "../../lib/theme";
 
 type PreviewSection = SettingsSection | "appearance" | "preferences" | "tutorial";
 
@@ -22,8 +22,7 @@ const HINTS: Record<PreviewSection, TKey> = {
 export function SettingsPreview() {
   const { t } = useI18n();
   const [section, setSection] = useState<PreviewSection>("appearance");
-  const [theme, setTheme] = useState<ThemeName>("light");
-  const [accent, setAccent] = useState<AccentName>("blue");
+  const { theme, setTheme } = useTheme();
   const [income, setIncome] = useState(SAMPLE_SAVINGS.salary);
   const [goal, setGoal] = useState(SAMPLE_SAVINGS.goal_amount);
   const [hapticsOn, setHapticsOn] = useState(true);
@@ -36,11 +35,9 @@ export function SettingsPreview() {
         </View>
       ) : <SettingsMenu
         theme={theme}
-        accent={accent}
         hapticsOn={hapticsOn}
         budgetSummary={t("settingsBudgetSummary", { salary: formatCurrency(income), target: formatCurrency(goal) })}
         onThemeChange={(next) => { setTheme(next); setSection("appearance"); }}
-        onAccentChange={(next) => { setAccent(next); setSection("appearance"); }}
         onHapticsChange={(next) => { setHapticsOn(next); setSection("preferences"); }}
         onSelect={setSection}
         onReplayTutorial={() => setSection("tutorial")}

@@ -1,5 +1,6 @@
 import { Modal, Pressable, Text, View } from "react-native";
-import { CheckSquare, FileText } from "./AppIcons";
+import { FileText } from "./AppIcons";
+import { Checkbox } from "./ui/Checkbox";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
 import { useI18n, type TKey } from "../lib/i18n";
@@ -15,10 +16,9 @@ const OPTIONS: {
   kind: NoteKind;
   labelKey: TKey;
   hintKey: TKey;
-  icon: typeof FileText;
 }[] = [
-  { kind: "text", labelKey: "notesNewText", hintKey: "notesNewTextHint", icon: FileText },
-  { kind: "checklist", labelKey: "notesNewChecklist", hintKey: "notesNewChecklistHint", icon: CheckSquare },
+  { kind: "text", labelKey: "notesNewText", hintKey: "notesNewTextHint" },
+  { kind: "checklist", labelKey: "notesNewChecklist", hintKey: "notesNewChecklistHint" },
 ];
 
 export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserProps) {
@@ -49,7 +49,9 @@ export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserP
               accessibilityLabel={t(option.labelKey)}
             >
               <View className="h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <option.icon size={20} color={colors.primary} />
+                {option.kind === "checklist"
+                  ? <Checkbox displayOnly checked />
+                  : <FileText size={20} color={colors.primary} />}
               </View>
               <View className="flex-1">
                 <Text className="text-base font-medium text-foreground">

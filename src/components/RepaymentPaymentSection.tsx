@@ -1,5 +1,6 @@
-import { Pressable, Text, View } from "react-native";
-import { Check, CreditCard, Landmark } from "./AppIcons";
+import { Text, View } from "react-native";
+import { CreditCard, Landmark } from "./AppIcons";
+import { Checkbox } from "./ui/Checkbox";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { formatCurrency, withAlpha } from "../lib/utils";
@@ -34,14 +35,11 @@ export function RepaymentPaymentSection({ plan, month, paid, onToggle }: Props) 
         </View>
       </> : <Text className="text-sm text-muted-foreground">{t("paymentsRecorded", { count: plan.monthsPaid })}</Text>}
     </View>
-    <Pressable onPress={onToggle} accessible accessibilityRole="checkbox" accessibilityState={{ checked: paid }} accessibilityLabel={t("creditCardPaymentFor", { name })} className="min-h-[44px] flex-row items-center justify-between rounded-lg bg-muted p-3 active:opacity-70" android_ripple={{ color: withAlpha(colors.primary, 0.125) }}>
-      <View className="flex-row items-center gap-2">
-        <View className={`h-6 w-6 items-center justify-center rounded-md border-2 ${paid ? "border-primary bg-primary/15" : "border-muted-foreground/50 bg-secondary"}`}>
-          {paid && <Check size={14} color={colors.primary} />}
-        </View>
+    <Checkbox checked={paid} onPress={onToggle} accessibilityLabel={t("creditCardPaymentFor", { name })} className="min-h-[44px] flex-row items-center justify-between rounded-lg bg-muted p-3 active:opacity-70" android_ripple={{ color: withAlpha(colors.primary, 0.125) }}>
+      <View className="min-w-0 flex-1 flex-row items-center justify-between gap-2">
         <Text className={paid ? "text-sm text-muted-foreground line-through" : "text-sm text-foreground"}>{t("monthlyPayment")}</Text>
+        <Text className={paid ? "text-sm text-muted-foreground line-through" : "text-sm font-medium text-foreground"}>{formatCurrency(payment)}</Text>
       </View>
-      <Text className={paid ? "text-sm text-muted-foreground line-through" : "text-sm font-medium text-foreground"}>{formatCurrency(payment)}</Text>
-    </Pressable>
+    </Checkbox>
   </View>;
 }

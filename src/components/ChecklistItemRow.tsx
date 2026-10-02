@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Pressable, TextInput, View, type TextInput as TextInputType } from "react-native";
 import { GripVertical, X } from "./AppIcons";
-import { CheckboxSquare } from "./CheckboxSquare";
+import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
@@ -58,17 +58,12 @@ export function ChecklistItemRow({
         <GripVertical size={18} color={colors.mutedForeground} />
       </Pressable>
 
-      <Pressable
+      <Checkbox checked={item.checked}
         onPress={() => onToggle(item.key)}
         disabled={disabled}
         className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
-        accessible
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: item.checked, disabled }}
         accessibilityLabel={item.text || t("notesItemPlaceholder")}
-      >
-        <CheckboxSquare checked={item.checked} />
-      </Pressable>
+      />
 
       <TextInput
         ref={inputRef}

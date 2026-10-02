@@ -144,7 +144,7 @@ export default function TutorialScreen() {
                 </View>
                 {active ? (
                   <Animated.View entering={FadeInUp.duration(300).reduceMotion(ReduceMotion.System)} className="gap-3">
-                    {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("tutorialSamplePreview")}</Text>}
+                    {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(page.titleKey === "tutorialSettings" ? "tutorialLiveThemePreview" : "tutorialSamplePreview")}</Text>}
                     <Preview />
                   </Animated.View>
                 ) : null}

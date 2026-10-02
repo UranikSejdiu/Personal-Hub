@@ -20,9 +20,9 @@ import {
   Strikethrough,
   List,
   ListOrdered,
-  CheckSquare,
   Plus,
 } from "../../src/components/AppIcons";
+import { Checkbox } from "../../src/components/ui/Checkbox";
 import { EnrichedTextInput } from "react-native-enriched-html";
 import type {
   EnrichedTextInputInstance,
@@ -86,6 +86,10 @@ const TEXT_SHORTCUTS: TextShortcut[] = [
   { trigger: "[] ", style: "checkbox_list" },
 ];
 
+function ChecklistIcon() {
+  return <Checkbox displayOnly checked />;
+}
+
 const FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "bold",
@@ -125,7 +129,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "checklist",
     labelKey: "notesChecklist",
-    icon: CheckSquare,
+    icon: ChecklistIcon,
     stateKey: "checkboxList",
     toggle: (editor) => editor.toggleCheckboxList(false),
   },
@@ -213,7 +217,7 @@ export default function NotesEditorScreen() {
       ol: { gapWidth: 12, marginLeft: 4, markerFontWeight: "500", markerColor: colors.mutedForeground },
       ulCheckbox: {
         boxColor: colors.primary,
-        boxSize: 18,
+        boxSize: 20,
         gapWidth: 8,
         marginLeft: 2,
       },
@@ -232,6 +236,7 @@ export default function NotesEditorScreen() {
       backgroundColor: "transparent",
       color: colors.foreground,
       fontSize: 16,
+      fontFamily: "Urbanist-Regular",
     }),
     [colors.foreground]
   );
