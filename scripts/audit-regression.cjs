@@ -86,6 +86,7 @@ const budget = load(path.join(root, 'src/lib/budget.ts'));
 const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
 const notes = load(path.join(root, 'src/lib/notes.ts'));
 const savings = load(path.join(root, 'src/lib/savings.ts'));
+const dhikr = load(path.join(root, 'src/lib/dhikr.ts'));
 const backup = load(path.join(root, 'src/lib/backup.ts'));
 const sample = load(path.join(root, 'src/lib/sampleData.ts'));
 const calculations = load(path.join(root, 'src/lib/calculations.ts'));
@@ -163,6 +164,20 @@ function migrationModule(fixture) {
   });
   await verify('Dhikr Arrange previews, cancellation, saves, and failure retry', async () => {
     await require('./dhikr-list-regression.cjs')(root);
+  });
+  await verify('Editing a dhikr total persists and rejects invalid counts without changing the record', async () => {
+    const created = await dhikr.addDhikr('Test', 100);
+    await dhikr.updateDhikr(created.id, { total_count: 0 });
+    assert.equal((await dhikr.loadDhikrs())[0].total_count, 0);
+    await dhikr.updateDhikr(created.id, { name: 'Updated', total_count: 42 });
+    assert.equal(await dhikr.incrementDhikr(created.id), true);
+    const updated = (await dhikr.loadDhikrs())[0];
+    assert.equal(updated.name, 'Updated');
+    assert.equal(updated.total_count, 43);
+    assert.equal(updated.daily_count, 1);
+    await assert.rejects(dhikr.updateDhikr(created.id, { total_count: -1 }), RangeError);
+    await assert.rejects(dhikr.updateDhikr(created.id, { total_count: Number.MAX_SAFE_INTEGER + 1 }), RangeError);
+    assert.equal((await dhikr.loadDhikrs())[0].total_count, 43);
   });
   await verify('Recurring population skips an existing matching expense', async () => {
     const b = await budget.saveBudget('2026-09', 1000, false, false);

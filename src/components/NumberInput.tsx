@@ -40,6 +40,11 @@ export function NumberInput({
       const cleaned = input.replace(/[^0-9.,\-]/g, "").replace(",", ".");
       setText(cleaned);
 
+      if (cleaned === "") {
+        onChange(0);
+        return;
+      }
+
       const num = parseFloat(cleaned);
       if (!isNaN(num)) {
         const clamped = Math.min(max, Math.max(min, num));

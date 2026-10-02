@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackHandler, Pressable, Text, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
 import { useFonts } from "expo-font";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
-import { ThemeProvider, useTheme, useThemeVariables } from "../src/lib/theme";
+import { ThemeProvider, useTheme, useThemeColors, useThemeVariables } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { UpdateProvider } from "../src/lib/UpdateContext";
 import { initDatabase } from "../src/lib/db";
@@ -22,6 +22,8 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 
 function RootLayoutInner() {
   const { resolvedTheme } = useTheme();
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const themeVariables = useThemeVariables();
   const { t } = useI18n();
   const router = useRouter();
@@ -60,10 +62,24 @@ function RootLayoutInner() {
         <Stack.Screen name="settings/[section]" />
       </Stack>
       <Toaster
-        position="bottom-center"
+        position="top-center"
+        offset={insets.top + 64}
+        positionerStyle={{ maxWidth: 400, alignSelf: "center" }}
         theme={resolvedTheme}
-        richColors
-        closeButton
+        visibleToasts={2}
+        toastOptions={{
+          style: {
+            marginHorizontal: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 11,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+          },
+          toastContentStyle: { gap: 10 },
+          titleStyle: { color: colors.foreground, fontSize: 14, lineHeight: 20 },
+        }}
       />
       <ConfirmDialog
         visible={showExitDialog}

@@ -64,7 +64,7 @@ export async function addDhikr(
 
 export async function updateDhikr(
   id: number,
-  fields: Partial<Pick<Dhikr, "name" | "daily_limit">>
+  fields: Partial<Pick<Dhikr, "name" | "daily_limit" | "total_count">>
 ): Promise<void> {
   const sets: string[] = [];
   const values: (string | number | null)[] = [];
@@ -75,6 +75,13 @@ export async function updateDhikr(
   if (fields.daily_limit !== undefined) {
     sets.push("daily_limit = ?");
     values.push(fields.daily_limit);
+  }
+  if (fields.total_count !== undefined) {
+    if (!Number.isSafeInteger(fields.total_count) || fields.total_count < 0) {
+      throw new RangeError("Total count must be a non-negative safe integer.");
+    }
+    sets.push("total_count = ?");
+    values.push(fields.total_count);
   }
   if (sets.length === 0) return;
   values.push(id);

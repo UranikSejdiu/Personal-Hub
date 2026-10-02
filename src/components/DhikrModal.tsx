@@ -27,6 +27,7 @@ export function DhikrModal(props: Props) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(dhikr?.name ?? "");
   const [limit, setLimit] = useState(dhikr?.daily_limit ?? 0);
+  const [totalCount, setTotalCount] = useState(dhikr?.total_count ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,6 +38,10 @@ export function DhikrModal(props: Props) {
     }
     if (Number.isNaN(limit) || limit < 0) {
       setError(t("errorLimitPositive"));
+      return;
+    }
+    if (mode === "edit" && (!Number.isSafeInteger(totalCount) || totalCount < 0)) {
+      setError(t("errorTotalCount"));
       return;
     }
     const lim = limit > 0 ? limit : null;
@@ -51,16 +56,17 @@ export function DhikrModal(props: Props) {
         await updateDhikr(dhikr.id, {
           name: name.trim(),
           daily_limit: lim,
+          total_count: totalCount,
         });
         void haptics?.light();
-        await onSave({ ...dhikr, name: name.trim(), daily_limit: lim });
+        await onSave({ ...dhikr, name: name.trim(), daily_limit: lim, total_count: totalCount });
       }
     } catch {
       setError(t("errorSavingData"));
     } finally {
       setSaving(false);
     }
-  }, [mode, name, limit, dhikr, onSave, haptics, t]);
+  }, [mode, name, limit, totalCount, dhikr, onSave, haptics, t]);
 
   if (props.mode === "actions") {
     return (
@@ -179,6 +185,19 @@ export function DhikrModal(props: Props) {
                 placeholder={t("limitPlaceholder")}
               />
             </View>
+            {mode === "edit" && (
+              <View>
+                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
+                  {t("totalCountLabel")}
+                </Text>
+                <NumberInput
+                  value={totalCount}
+                  onChange={setTotalCount}
+                  min={0}
+                  placeholder="0"
+                />
+              </View>
+            )}
           </View>
 
           <View className="mt-5 flex-row items-center justify-end gap-2">
