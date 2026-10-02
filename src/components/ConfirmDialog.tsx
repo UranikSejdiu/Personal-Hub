@@ -1,8 +1,10 @@
-import { Pressable, Text, Modal, View } from "react-native";
-import { useState } from "react";
+import { Pressable, Text, Modal, View, ScrollView } from "react-native";
+import { useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { toast } from "sonner-native";
 import { X } from "./AppIcons";
 import { useHaptics } from "../hooks/useHaptics";
-import { useThemeColors } from "../lib/theme";
+import { useThemeColors, useThemeVariables } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
 
 interface ConfirmDialogProps {
@@ -28,21 +30,30 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const haptics = useHaptics();
   const colors = useThemeColors();
+  const themeVariables = useThemeVariables();
+  const insets = useSafeAreaInsets();
   const { t } = useI18n();
   const [isConfirming, setIsConfirming] = useState(false);
+  const confirmingRef = useRef(false);
+
+  const handleClose = () => {
+    if (!confirmingRef.current) onClose();
+  };
 
   const resolvedConfirmLabel = confirmLabel ?? t("confirm");
   const resolvedCancelLabel = cancelLabel ?? t("cancel");
 
   const handleConfirm = async () => {
-    if (isConfirming) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     setIsConfirming(true);
     try {
       void (destructive ? haptics.warning() : haptics.light());
       await onConfirm();
     } catch {
-      // Error already handled by caller
+      toast.error(t("saveFailed"));
     } finally {
+      confirmingRef.current = false;
       setIsConfirming(false);
     }
   };
@@ -52,22 +63,28 @@ export function ConfirmDialog({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <Pressable
         className="flex-1 items-center justify-center bg-black/50 px-4"
-        onPress={onClose}
+        style={[themeVariables, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+        onPress={handleClose}
+        accessible={false}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl"
+          className="max-h-full w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl"
+          accessible={false}
+          accessibilityViewIsModal
         >
           <View className="flex-row items-center justify-between">
-            <Text className="flex-1 text-lg font-semibold text-foreground">
+            <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">
               {title}
             </Text>
             <Pressable
-              onPress={onClose}
+              onPress={handleClose}
+              disabled={isConfirming}
+              accessibilityState={{ disabled: isConfirming }}
               className="ml-2 h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
               accessible
               accessibilityRole="button"
@@ -77,11 +94,13 @@ export function ConfirmDialog({
             </Pressable>
           </View>
 
-          <Text className="mt-2 text-sm text-muted-foreground">{message}</Text>
+          <ScrollView className="mt-2 grow-0" contentContainerClassName="py-1">
+            <Text className="text-sm text-muted-foreground">{message}</Text>
+          </ScrollView>
 
           <View className="mt-6 flex-row flex-wrap items-center justify-end gap-3">
             <Pressable
-              onPress={onClose}
+              onPress={handleClose}
               className="min-h-[44px] justify-center rounded-lg px-4 py-2 active:bg-muted"
               accessible
               accessibilityRole="button"

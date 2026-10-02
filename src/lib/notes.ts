@@ -87,18 +87,26 @@ const LIST_COLUMNS =
 const ITEM_COLUMNS = "id, note_id, text, checked, position";
 
 /**
- * Attach the ordered items to every checklist note in one batched query.
- * A checklist note's full item list is needed for both the card preview and
- * the +N ticked summary, so this intentionally fetches all of them.
+ * Attach full checklist items for existing callers, or six active preview items
+ * and aggregate counts for paginated cards. Editors still load complete items.
  */
-async function attachChecklistItems(notes: Note[]): Promise<Note[]> {
+async function attachChecklistItems(notes: Note[], preview = false): Promise<Note[]> {
   const ids = notes.filter((note) => note.kind === "checklist").map((note) => note.id);
   if (ids.length === 0) return notes;
   const placeholders = ids.map(() => "?").join(", ");
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${ITEM_COLUMNS} FROM note_items WHERE note_id IN (${placeholders}) ORDER BY note_id, position, id`,
+    preview
+      ? `SELECT id, note_id, substr(text, 1, 300) AS text, checked, position FROM (
+           SELECT ${ITEM_COLUMNS}, ROW_NUMBER() OVER (PARTITION BY note_id ORDER BY position, id) AS preview_rank
+           FROM note_items WHERE checked = 0 AND note_id IN (${placeholders})
+         ) WHERE preview_rank <= 6 ORDER BY note_id, position, id`
+      : `SELECT ${ITEM_COLUMNS} FROM note_items WHERE note_id IN (${placeholders}) ORDER BY note_id, position, id`,
     ids
   );
+  const counts = preview ? await db.query<{ note_id: number; total: number; checked: number }>(
+    `SELECT note_id, COUNT(*) AS total, SUM(checked) AS checked FROM note_items WHERE note_id IN (${placeholders}) GROUP BY note_id`, ids
+  ) : [];
+  const countsByNote = new Map(counts.map((row) => [row.note_id, { total: row.total, checked: row.checked, active: row.total - row.checked }]));
   const byNote = new Map<number, NoteItem[]>();
   for (const row of rows) {
     const item = toNoteItem(row);
@@ -107,16 +115,19 @@ async function attachChecklistItems(notes: Note[]): Promise<Note[]> {
     else byNote.set(item.note_id, [item]);
   }
   return notes.map((note) =>
-    note.kind === "checklist" ? { ...note, items: byNote.get(note.id) ?? [] } : note
+    note.kind === "checklist" ? { ...note, items: byNote.get(note.id) ?? [], ...(preview ? { checklistPreview: countsByNote.get(note.id) ?? { total: 0, checked: 0, active: 0 } } : {}) } : note
   );
 }
 
-export async function loadNotes(sort: NoteSort = "updated"): Promise<Note[]> {
+interface ListPageOptions { limit: number; offset: number }
+
+export async function loadNotes(sort: NoteSort = "updated", page?: ListPageOptions): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY ${orderBy(sort)}`
+    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
+    page ? [page.limit, page.offset] : undefined
   );
-  return attachChecklistItems(rows.map(toNote));
+  return attachChecklistItems(rows.map(toNote), Boolean(page));
 }
 
 let backfillPromise: Promise<void> | null = null;
@@ -176,10 +187,10 @@ async function ensurePlainTextBackfill(): Promise<void> {
   return backfillPromise;
 }
 
-export async function searchNotes(query: string, sort: NoteSort = "updated"): Promise<Note[]> {
+export async function searchNotes(query: string, sort: NoteSort = "updated", page?: ListPageOptions): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return loadNotes(sort);
+  if (!normalized) return loadNotes(sort, page);
 
   if (db.isNotesFtsEnabled()) {
     // Token-prefix match: closer to the old substring behaviour while letting
@@ -193,10 +204,10 @@ export async function searchNotes(query: string, sort: NoteSort = "updated"): Pr
       const rows = await db.query<Record<string, unknown>>(
         `SELECT ${LIST_COLUMNS} FROM notes
           WHERE id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)
-          ORDER BY ${orderBy(sort)}`,
-        [ftsQuery]
+          ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
+        page ? [ftsQuery, page.limit, page.offset] : [ftsQuery]
       );
-      return attachChecklistItems(rows.map(toNote));
+      return attachChecklistItems(rows.map(toNote), Boolean(page));
     } catch {
       // Malformed FTS query — fall through to the LIKE path below.
     }
@@ -205,10 +216,21 @@ export async function searchNotes(query: string, sort: NoteSort = "updated"): Pr
   const escaped = normalized.replace(/[\\%_]/g, "\\$&");
   const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY ${orderBy(sort)}`,
-    [pattern, pattern]
+    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
+    page ? [pattern, pattern, page.limit, page.offset] : [pattern, pattern]
   );
-  return attachChecklistItems(rows.map(toNote));
+  return attachChecklistItems(rows.map(toNote), Boolean(page));
+}
+
+/** Bounded list query; editors continue to load complete note contents and items. */
+export async function loadNotesPage(query: string, sort: NoteSort, offset = 0, limit = 40): Promise<{ notes: Note[]; hasMore: boolean; nextOffset: number }> {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error("Invalid notes page");
+  }
+  const page = { limit: limit + 1, offset };
+  const result = query.trim() ? await searchNotes(query, sort, page) : await loadNotes(sort, page);
+  const notes = result.slice(0, limit);
+  return { notes, hasMore: result.length > limit, nextOffset: offset + notes.length };
 }
 
 export async function getNote(id: number): Promise<Note | undefined> {

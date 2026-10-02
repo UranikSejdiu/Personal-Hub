@@ -61,13 +61,15 @@ function fixture(root) {
     '../../src/components/ui/Button': { Button: 'Button', IconButton: 'IconButton' },
     '../../src/components/ui/Card': { Card: 'Card' },
     '../../src/components/DhikrModal': { DhikrModal: 'DhikrModal' },
+    '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
     '../../src/lib/i18n': { useI18n: () => ({ t }) },
     '../../src/lib/theme': { useThemeColors: () => ({}) },
     '../../src/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
     '../../src/hooks/useHaptics': { useHaptics: () => ({ light: async () => {} }) },
-    '../../src/lib/dhikrSelection': { setSelectedDhikrId: async () => {} },
+    '../../src/lib/dhikrSelection': { setSelectedDhikrId: async () => {}, clearSelectedDhikrIdIfMissing: async () => {} },
     '../../src/lib/dhikr': {
       loadDhikrs: () => read(),
+      deleteDhikr: async id => { persisted = persisted.filter(item => item.id !== id); },
       reorderDhikrs: order => new Promise((resolve, reject) => {
         writes.push({
           order,
@@ -112,6 +114,12 @@ function fixture(root) {
       }
     },
     list, button,
+    dialog: () => find(tree, node => node.type === 'ConfirmDialog').props,
+    actions: () => find(tree, node => node.type === 'DhikrModal').props,
+    openActions(id) {
+      const item = list().data.find(value => value.id === id);
+      list().renderItem({ item, index: list().data.indexOf(item) }).props.onActions(item);
+    },
     order: () => list().data.map(item => item.id),
     move(id, direction) {
       const item = list().data.find(value => value.id === id);
@@ -171,6 +179,19 @@ module.exports = async function verifyDhikrList(root) {
   finishRead(screen.list().data);
   await flush(); screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3], 'Refocus reloads the persisted order');
+
+  screen.openActions(2); screen.render();
+  screen.actions().onDelete(); screen.render();
+  assert.equal(screen.dialog().visible, true);
+  assert.deepEqual(screen.order(), [1, 2, 3], 'Requesting deletion must not write');
+  screen.dialog().onClose(); screen.render();
+  assert.equal(screen.dialog().visible, false);
+  assert.deepEqual(screen.order(), [1, 2, 3], 'Cancelling deletion preserves records');
+  screen.openActions(2); screen.render();
+  screen.actions().onDelete(); screen.render();
+  await screen.dialog().onConfirm(); screen.render();
+  assert.deepEqual(screen.order(), [1, 3], 'Confirmation removes only the selected record');
+  assert.equal(screen.dialog().visible, false);
 };
 
 if (require.main === module) {

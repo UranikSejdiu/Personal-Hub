@@ -1,4 +1,5 @@
 import * as db from "./db";
+import { syncMonthlyAutoDeposit } from "./savings";
 import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, creditCardScheduledMonths, isCreditCardActive, isCreditCardMonth, isCreditCardScheduleValid, isCreditCardValid, type CreditCardSlot } from "./creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
 import { allPaidRepayments, clearRepaymentsForMonth, listRepaymentPlans, repaymentForMonth, type RepaymentPlan } from "./repaymentPlans";
@@ -300,6 +301,24 @@ export async function saveSavingsGoal(
   );
 }
 
+/** Save the profile and apply income changes without rewriting past budgets. */
+export async function saveBudgetPreferences(goalAmount: number, salary: number): Promise<void> {
+  if (![goalAmount, salary].every((value) => Number.isFinite(value) && value >= 0)) {
+    throw new Error("Budget preferences must be finite non-negative amounts.");
+  }
+  await db.withTransaction(async (tx) => {
+    const previous = await loadSavingsGoal(tx);
+    await saveSavingsGoal(goalAmount, salary, tx);
+    if (previous.goal_amount !== goalAmount) await syncMonthlyAutoDeposit(goalAmount, tx);
+    if (previous.salary !== salary) {
+      await tx.execute(
+        "UPDATE budgets SET income = ?, updated_at = datetime('now') WHERE month >= ?",
+        [salary, currentMonth()]
+      );
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Recurring expenses (templates)
 // ---------------------------------------------------------------------------
@@ -326,6 +345,10 @@ export async function setExpenseRecurring(
   recurring: boolean
 ): Promise<void> {
   await db.withTransaction(async (tx) => {
+    const row = await tx.get<{ category: string; amount: number }>("SELECT category, amount FROM expenses WHERE id = ?", [expenseId]);
+    if (!row) throw new Error("Expense not found");
+    category = row.category;
+    amount = row.amount;
     await tx.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
       recurring ? 1 : 0,
       expenseId,
@@ -435,10 +458,8 @@ export async function createBudgetMonth(month: string): Promise<{ budget: Budget
   return db.withTransaction(async (tx) => {
     const existing = await loadBudget(month, tx);
     if (existing) return { budget: existing, created: false };
-    const previous = await loadBudget(addMonths(month, -1), tx);
     const { salary } = await loadSavingsGoal(tx);
-    const income = previous && previous.income > 0 ? previous.income : salary;
-    const budget = await saveBudget(month, income, false, false, tx);
+    const budget = await saveBudget(month, salary, false, false, tx);
     await populateRecurringExpenses(budget.id, tx);
     return { budget, created: true };
   });
@@ -507,6 +528,29 @@ export async function updateExpense(
   fields: Partial<Pick<Expense, "category" | "amount" | "paid" | "is_recurring">>,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  if (exec === db.defaultExecutor) {
+    return db.withTransaction((tx) => updateExpense(id, fields, tx));
+  }
+  const previous = await exec.get<{ category: string; amount: number; is_recurring: number }>(
+    "SELECT category, amount, is_recurring FROM expenses WHERE id = ?", [id]
+  );
+  if (!previous) throw new Error("Expense not found");
+  if (previous.is_recurring && (fields.category !== undefined || fields.amount !== undefined)) {
+    const nextCategory = fields.category ?? previous.category;
+    const nextAmount = fields.amount ?? previous.amount;
+    const template = await exec.get<{ id: number }>(
+      "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? ORDER BY id LIMIT 1",
+      [previous.category, previous.amount]
+    );
+    if (template && (nextCategory !== previous.category || nextAmount !== previous.amount)) {
+      const matching = await exec.get<{ id: number }>(
+        "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? AND id != ? LIMIT 1",
+        [nextCategory, nextAmount, template.id]
+      );
+      if (matching) await exec.execute("DELETE FROM recurring_expenses WHERE id = ?", [template.id]);
+      else await exec.execute("UPDATE recurring_expenses SET category = ?, amount = ? WHERE id = ?", [nextCategory, nextAmount, template.id]);
+    }
+  }
   const sets: string[] = [];
   const values: (number | string)[] = [];
   if (fields.category !== undefined) {
@@ -534,7 +578,15 @@ export async function updateExpense(
 }
 
 export async function removeExpense(id: number): Promise<void> {
-  await db.execute("DELETE FROM expenses WHERE id = ?", [id]);
+  await db.withTransaction(async (tx) => {
+    const expense = await tx.get<{ category: string; amount: number; is_recurring: number }>(
+      "SELECT category, amount, is_recurring FROM expenses WHERE id = ?", [id]
+    );
+    if (expense?.is_recurring) {
+      await tx.execute("DELETE FROM recurring_expenses WHERE category = ? AND amount = ?", [expense.category, expense.amount]);
+    }
+    await tx.execute("DELETE FROM expenses WHERE id = ?", [id]);
+  });
 }
 
 export async function copyBudgetFromMonth(
@@ -550,25 +602,20 @@ export async function copyBudgetFromMonth(
         expenses: await listExpenses(existingTarget.id),
       };
     }
-    const targetBudget = await saveBudget(targetMonth, 0, false, false);
+    const { salary } = await loadSavingsGoal();
+    const targetBudget = await saveBudget(targetMonth, salary, false, false);
     return { budget: targetBudget, expenses: [] };
   }
   const sourceExpenses = await listExpenses(sourceBudget.id);
 
   let targetBudget = await loadBudget(targetMonth);
   if (!targetBudget) {
+    const { salary } = await loadSavingsGoal();
     targetBudget = await saveBudget(
       targetMonth,
-      sourceBudget.income,
+      salary,
       false,
       false
-    );
-  } else if (targetBudget.income === 0 && sourceBudget.income > 0) {
-    targetBudget = await saveBudget(
-      targetMonth,
-      sourceBudget.income,
-      targetBudget.loan_paid,
-      targetBudget.cc_paid
     );
   }
 

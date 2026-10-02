@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
   Easing,
   cancelAnimation,
+  useReducedMotion,
 } from "react-native-reanimated";
 import { AppSwitcher } from "../AppSwitcher";
 import { PillNav } from "../PillNav";
@@ -22,6 +23,7 @@ import { useI18n } from "../../lib/i18n";
  * would in the app.
  */
 export function NavigationPreview() {
+  const reduceMotion = useReducedMotion();
   const { t } = useI18n();
   const [activeAppId, setActiveAppId] = useState<string>(HUB_APPS[0].id);
   const [lastTabs, setLastTabs] = useState<Record<string, string>>({});
@@ -29,6 +31,10 @@ export function NavigationPreview() {
 
   const hintPulse = useSharedValue(0);
   useEffect(() => {
+    if (reduceMotion) {
+      hintPulse.value = 1;
+      return;
+    }
     hintPulse.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
@@ -38,7 +44,7 @@ export function NavigationPreview() {
       true
     );
     return () => cancelAnimation(hintPulse);
-  }, [hintPulse]);
+  }, [reduceMotion, hintPulse]);
   const hintStyle = useAnimatedStyle(() => ({ opacity: 0.45 + hintPulse.value * 0.55 }));
 
   const tabs = hubTabs(activeAppId);

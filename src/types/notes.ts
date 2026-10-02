@@ -21,4 +21,6 @@ export interface Note {
   updated_at: string;
   /** Populated for checklist notes loaded through the list/get helpers. */
   items?: NoteItem[];
+  /** List previews contain only the first six active items, with full counts. */
+  checklistPreview?: { total: number; checked: number; active: number };
 }

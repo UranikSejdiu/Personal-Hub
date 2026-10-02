@@ -15,6 +15,7 @@ import { LoansPreview } from "./tutorial/LoansPreview";
 import { DhikrPreview } from "./tutorial/DhikrPreview";
 import { NotesPreview } from "./tutorial/NotesPreview";
 import { SettingsPreview } from "./tutorial/SettingsPreview";
+import Animated, { FadeInUp, ReduceMotion, useReducedMotion } from "react-native-reanimated";
 
 interface TutorialPage {
   titleKey: TKey;
@@ -43,12 +44,18 @@ export default function TutorialScreen() {
   const completingRef = useRef(false);
   const [completing, setCompleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const currentPageRef = useRef(currentPage);
+  const reduceMotion = useReducedMotion();
   const isLast = currentPage === PAGES.length - 1;
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   // Keep the current step aligned when the viewport changes size.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ x: currentPage * width, animated: false });
-  }, [width, currentPage]);
+    scrollRef.current?.scrollTo({ x: currentPageRef.current * width, animated: false });
+  }, [width]);
 
   const completeTutorial = useCallback(async () => {
     if (completingRef.current) return;
@@ -67,8 +74,9 @@ export default function TutorialScreen() {
 
   const goToPage = useCallback((page: number) => {
     void haptics.light();
-    scrollRef.current?.scrollTo({ x: page * width, animated: true });
-  }, [haptics, width]);
+    scrollRef.current?.scrollTo({ x: page * width, animated: !reduceMotion });
+    if (reduceMotion) setCurrentPage(page);
+  }, [haptics, width, reduceMotion]);
 
   const handleNext = useCallback(() => {
     if (isLast) {
@@ -135,10 +143,10 @@ export default function TutorialScreen() {
                   <Text className="text-sm leading-6 text-muted-foreground">{t(page.descKey)}</Text>
                 </View>
                 {active ? (
-                  <View className="gap-3">
+                  <Animated.View entering={FadeInUp.duration(300).reduceMotion(ReduceMotion.System)} className="gap-3">
                     {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("tutorialSamplePreview")}</Text>}
                     <Preview />
-                  </View>
+                  </Animated.View>
                 ) : null}
               </View>
             </ScrollView>

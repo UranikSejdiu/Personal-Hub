@@ -5,6 +5,7 @@ import {
   Pressable,
   TextInput,
   FlatList,
+  ActivityIndicator,
   Modal,
   StyleSheet,
   type ListRenderItemInfo,
@@ -15,8 +16,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, type TKey } from "../../../src/lib/i18n";
 import {
-  loadNotes,
-  searchNotes,
+  loadNotesPage,
   type Note,
   type NoteSort,
 } from "../../../src/lib/notes";
@@ -80,6 +80,9 @@ export default function NotesListScreen() {
   const [chooserVisible, setChooserVisible] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
+  const pagingRef = useRef({ offset: 0, hasMore: false, loading: false });
+  const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const searchRef = useRef("");
   const sortRef = useRef<NoteSort>("updated");
   const viewModeRef = useRef<NoteViewMode>("grid");
@@ -95,17 +98,32 @@ export default function NotesListScreen() {
   }, []);
 
   const load = useCallback(
-    async (query: string, nextSort: NoteSort) => {
-      const seq = ++searchSeqRef.current;
+    async (query: string, nextSort: NoteSort, append = false) => {
+      if (append && (pagingRef.current.loading || !pagingRef.current.hasMore)) return;
+      const seq = append ? searchSeqRef.current : ++searchSeqRef.current;
+      const offset = append ? pagingRef.current.offset : 0;
+      pagingRef.current.loading = true;
+      setLoading(true);
+      setLoadFailed(false);
       try {
         const q = query.trim();
-        const result = q ? await searchNotes(q, nextSort) : await loadNotes(nextSort);
+        const result = await loadNotesPage(q, nextSort, offset);
         if (seq !== searchSeqRef.current) return;
-        setNotes(result);
+        pagingRef.current = { offset: result.nextOffset, hasMore: result.hasMore, loading: true };
+        setNotes((current) => append ? [...current, ...result.notes] : result.notes);
       } catch {
         if (seq !== searchSeqRef.current) return;
-        setNotes([]);
+        if (!append) {
+          setNotes([]);
+          pagingRef.current = { offset: 0, hasMore: false, loading: true };
+        }
+        setLoadFailed(true);
         toast.error(t("errorLoadingData"));
+      } finally {
+        if (seq === searchSeqRef.current) {
+          pagingRef.current.loading = false;
+          setLoading(false);
+        }
       }
     },
     [t]
@@ -130,6 +148,8 @@ export default function NotesListScreen() {
 
   const debouncedSearch = useCallback(
     (query: string) => {
+      ++searchSeqRef.current;
+      pagingRef.current = { offset: 0, hasMore: false, loading: false };
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         void load(query, sortRef.current);
@@ -151,6 +171,11 @@ export default function NotesListScreen() {
   useFocusEffect(
     useCallback(() => {
       void load(searchRef.current, sortRef.current);
+      return () => {
+        ++searchSeqRef.current;
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        pagingRef.current.loading = false;
+      };
     }, [load])
   );
 
@@ -364,7 +389,16 @@ export default function NotesListScreen() {
         data={listData}
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
-        ListEmptyComponent={listEmpty}
+        ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel={t("loading")} /> : loadFailed ? (
+          <Pressable onPress={() => { void load(searchRef.current, sortRef.current); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel={t("retry")}>
+            <Text className="text-foreground">{t("retry")}</Text>
+          </Pressable>
+        ) : listEmpty}
+        onEndReached={() => { if (!loadFailed) void load(searchRef.current, sortRef.current, true); }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel={t("loading")} /> : notes.length > 0 && loadFailed ? (
+          <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel={t("retry")}><Text className="text-foreground">{t("retry")}</Text></Pressable>
+        ) : null}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         style={styles.list}

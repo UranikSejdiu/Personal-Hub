@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1000 1000">
+  <title>Personal Hub folded blue panels</title>
+  <g stroke-linejoin="round">
+    <path fill="#8BD6F5" d="M130 370 314 495 314 750 130 625Z"/>
+    <path fill="#71C5F2" d="M214 310 399 435 399 700 214 575Z"/>
+    <path fill="#339EED" d="M214 435 314 495 314 625 214 575Z"/>
+    <path fill="#8BD6F5" d="M870 370 686 495 686 750 870 625Z"/>
+    <path fill="#539EF0" d="M786 310 601 435 601 700 786 575Z"/>
+    <path fill="#287BEA" d="M786 435 686 495 686 625 786 575Z"/>
+    <path fill="#17B9ED" d="M314 245 500 370 500 665 314 540Z"/>
+    <path fill="#078DF0" d="M314 370 500 550 500 665 314 540Z"/>
+    <path fill="#1769F5" d="M686 245 500 370 500 665 686 540Z"/>
+    <path fill="#064AD2" d="M686 370 500 550 500 665 686 540Z"/>
+  </g>
+</svg>

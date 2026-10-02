@@ -51,7 +51,7 @@ interface ConfirmAction {
   message: string;
   confirmLabel?: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 export default function SavingsScreen() {
@@ -149,7 +149,7 @@ export default function SavingsScreen() {
         confirmLabel: t("delete"),
         destructive: true,
         onConfirm: () => {
-          void (async () => {
+          return (async () => {
             try {
               if (entry.kind === "auto" && entry.rawMonth) {
                 await deleteAutoDeposit(entry.rawMonth);
@@ -248,7 +248,7 @@ export default function SavingsScreen() {
             }),
             confirmLabel: t("closeYearLabel"),
             onConfirm: () => {
-              void (async () => {
+              return (async () => {
                 try {
                   const result = await closeYear(year, desc);
                   if (result.blockedYear !== undefined) {
@@ -329,7 +329,7 @@ export default function SavingsScreen() {
       confirmLabel: t("delete"),
       destructive: true,
       onConfirm: () => {
-        void (async () => {
+        return (async () => {
           try {
             if (editingKind === "auto") {
               if (!editingMonth) throw new Error("Missing auto-deposit month");

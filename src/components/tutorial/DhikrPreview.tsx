@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
   Easing,
   cancelAnimation,
+  useReducedMotion,
 } from "react-native-reanimated";
 import { ChevronLeft, ChevronRight } from "../AppIcons";
 import { DhikrCounterTitle } from "../DhikrCounterTitle";
@@ -18,20 +19,25 @@ import { SAMPLE_DHIKR } from "../../lib/sampleDataset";
 const COUNTER = 33;
 
 export function DhikrPreview() {
+  const reduceMotion = useReducedMotion();
   const colors = useThemeColors();
   const { t } = useI18n();
   const ripple = useSharedValue(1);
 
   useEffect(() => {
+    if (reduceMotion) {
+      ripple.value = 1;
+      return;
+    }
     ripple.value = withRepeat(
       withSequence(
-        withTiming(1.08, { duration: 150, easing: Easing.out(Easing.ease) }),
-        withTiming(1, { duration: 150, easing: Easing.in(Easing.ease) })
+        withTiming(1.08, { duration: 900, easing: Easing.out(Easing.ease) }),
+        withTiming(1, { duration: 900, easing: Easing.in(Easing.ease) })
       ),
       -1
     );
     return () => cancelAnimation(ripple);
-  }, [ripple]);
+  }, [reduceMotion, ripple]);
 
   const numStyle = useAnimatedStyle(() => ({
     transform: [{ scale: ripple.value }],

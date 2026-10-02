@@ -29,9 +29,9 @@ export const NoteCard = React.memo(function NoteCard({
   const checklistItems = note.kind === "checklist" ? note.items ?? [] : [];
   const isChecklist = note.kind === "checklist";
   const activeItems = checklistItems.filter((item) => !item.checked);
-  const checkedCount = checklistItems.filter((item) => item.checked).length;
+  const checkedCount = note.checklistPreview?.checked ?? checklistItems.filter((item) => item.checked).length;
   const visibleItems = activeItems.slice(0, MAX_VISIBLE_CHECKLIST_ITEMS);
-  const hiddenCount = activeItems.length - visibleItems.length;
+  const hiddenCount = (note.checklistPreview?.active ?? activeItems.length) - visibleItems.length;
 
   return (
     <Pressable
@@ -82,7 +82,7 @@ export const NoteCard = React.memo(function NoteCard({
             </Text>
           ) : null}
           <Text className="mt-1 text-sm font-medium leading-5 text-muted-foreground">
-            {t("notesChecklistProgress", { completed: checkedCount, total: checklistItems.length })}
+            {t("notesChecklistProgress", { completed: checkedCount, total: note.checklistPreview?.total ?? checklistItems.length })}
           </Text>
         </View>
       ) : previewLines.length > 0 ? (

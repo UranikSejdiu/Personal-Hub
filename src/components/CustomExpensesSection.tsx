@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { View, Text, Pressable, TextInput } from "react-native";
 import { Plus, Trash2, Copy, Check, Repeat } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
@@ -18,27 +18,10 @@ interface Props {
   previousMonthLabel?: string;
 }
 
-export function CustomExpensesSection({
-  expenses,
-  onAdd,
-  onUpdate,
-  onRemove,
-  onToggleRecurring,
-  onCopyPrevious,
-  previousMonthLabel,
-}: Props) {
+export function CustomExpensesHeader({ expenses, onAdd, onCopyPrevious, previousMonthLabel }: Pick<Props, "expenses" | "onAdd" | "onCopyPrevious" | "previousMonthLabel">) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const haptics = useHaptics();
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const { total, paidTotal } = useMemo(
-    () => ({
-      total: expenses.reduce((sum, e) => sum + e.amount, 0),
-      paidTotal: expenses.reduce((sum, e) => sum + (e.paid ? e.amount : 0), 0),
-    }),
-    [expenses]
-  );
-
   return (
     <View className="rounded-xl border border-border bg-card p-4">
       <View className="mb-4 flex-row items-center justify-between">
@@ -50,9 +33,9 @@ export function CustomExpensesSection({
           {expenses.length === 0 && onCopyPrevious && previousMonthLabel && (
             <Pressable
               onPress={() => { void haptics.light(); onCopyPrevious(); }}
-              className="flex-row items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5"
+              className="min-h-[44px] flex-row items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5"
               android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-              accessibilityRole="button"
+              accessible accessibilityRole="button"
               accessibilityLabel={t("copyFromPreviousMonth")}
             >
                <Copy size={14} color={colors.foreground} />
@@ -61,9 +44,9 @@ export function CustomExpensesSection({
           )}
           <Pressable
             onPress={() => { void haptics.light(); onAdd(); }}
-            className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
+            className="min-h-[44px] flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
             android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-            accessibilityRole="button"
+            accessible accessibilityRole="button"
             accessibilityLabel={t("addRow")}
           >
             <Plus size={14} color={colors.primaryForeground} />
@@ -83,9 +66,9 @@ export function CustomExpensesSection({
             {onCopyPrevious && previousMonthLabel && (
               <Pressable
                 onPress={() => { void haptics.light(); onCopyPrevious(); }}
-                className="flex-row items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2"
+                className="min-h-[44px] flex-row items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2"
                 android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                accessibilityRole="button"
+                accessible accessibilityRole="button"
                 accessibilityLabel={t("copyFromPreviousMonth")}
               >
                  <Copy size={14} color={colors.foreground} />
@@ -94,9 +77,9 @@ export function CustomExpensesSection({
             )}
             <Pressable
               onPress={() => { void haptics.light(); onAdd(); }}
-              className="flex-row items-center gap-1.5 rounded-lg bg-primary px-3 py-2"
+              className="min-h-[44px] flex-row items-center gap-1.5 rounded-lg bg-primary px-3 py-2"
               android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-              accessibilityRole="button"
+              accessible accessibilityRole="button"
               accessibilityLabel={t("addRow")}
             >
               <Plus size={14} color={colors.primaryForeground} />
@@ -104,101 +87,117 @@ export function CustomExpensesSection({
             </Pressable>
           </View>
         </View>
+      ) : null}
+    </View>
+  );
+}
+
+export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, onUpdate, onRemove, onToggleRecurring }: {
+  expense: Expense;
+} & Pick<Props, "onUpdate" | "onRemove" | "onToggleRecurring">) {
+  const { t } = useI18n();
+  const colors = useThemeColors();
+  const haptics = useHaptics();
+  const [editing, setEditing] = useState(false);
+  return (
+  <View
+    className="rounded-lg bg-muted/40 p-2 gap-2"
+  >
+    <View className="flex-row items-center gap-2">
+      <Pressable
+        onPress={() => { void haptics.light(); onUpdate(expense.id, { paid: !expense.paid }); }}
+        hitSlop={9}
+        className={`h-6 w-6 items-center justify-center rounded-md border-2 shrink-0 ${
+          expense.paid
+            ? "border-primary bg-primary/15"
+            : "border-muted-foreground/50 bg-secondary"
+        }`}
+        accessible accessibilityRole="checkbox"
+        accessibilityState={{ checked: expense.paid }}
+        accessibilityLabel={t("paid")}
+        android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+      >
+        {expense.paid && <Check size={14} color={colors.primary} />}
+      </Pressable>
+
+      {editing ? (
+        <TextInput
+          autoFocus
+          value={expense.category}
+          onChangeText={(text) => onUpdate(expense.id, { category: text })}
+          onBlur={() => setEditing(false)}
+          onSubmitEditing={() => setEditing(false)}
+          placeholder={t("addCategoryPlaceholder")}
+          placeholderTextColor={colors.mutedForeground}
+          className="flex-1 border-b border-border bg-transparent px-1 text-sm font-medium text-foreground"
+        />
       ) : (
-        <View className="gap-2">
-          {expenses.map((expense) => (
-            <View
-              key={expense.id}
-              className="rounded-lg bg-muted/40 p-2 gap-2"
-            >
-              <View className="flex-row items-center gap-2">
-                <Pressable
-                  onPress={() => { void haptics.light(); onUpdate(expense.id, { paid: !expense.paid }); }}
-                  className={`h-6 w-6 items-center justify-center rounded-md border-2 shrink-0 ${
-                    expense.paid
-                      ? "border-primary bg-primary/15"
-                      : "border-muted-foreground/50 bg-secondary"
-                  }`}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: expense.paid }}
-                  accessibilityLabel={t("paid")}
-                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                >
-                  {expense.paid && <Check size={14} color={colors.primary} />}
-                </Pressable>
-
-                {editingId === expense.id ? (
-                  <TextInput
-                    autoFocus
-                    value={expense.category}
-                    onChangeText={(text) => onUpdate(expense.id, { category: text })}
-                    onBlur={() => setEditingId(null)}
-                    onSubmitEditing={() => setEditingId(null)}
-                    placeholder={t("addCategoryPlaceholder")}
-                    placeholderTextColor={colors.mutedForeground}
-                    className="flex-1 border-b border-border bg-transparent px-1 text-sm font-medium text-foreground"
-                  />
-                ) : (
-                  <Pressable
-                    onPress={() => setEditingId(expense.id)}
-                    className="flex-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={expense.category || t("addCategoryPlaceholder")}
-                  >
-                    <Text
-                      className={`px-1 text-left text-sm font-medium ${
-                        expense.paid ? "text-muted-foreground line-through" : "text-foreground"
-                      } ${expense.category ? "" : "text-muted-foreground"}`}
-                      numberOfLines={1}
-                    >
-                      {expense.category || t("addCategoryPlaceholder")}
-                    </Text>
-                  </Pressable>
-                )}
-
-                <Pressable
-                  onPress={() => { void haptics.warning(); onRemove(expense.id); }}
-                  className="shrink-0 p-1"
-                  accessibilityLabel={t("delete")}
-                  accessibilityRole="button"
-                  android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
-                >
-                  <Trash2 size={18} color={colors.destructive} />
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    void haptics.light();
-                    if (onToggleRecurring) {
-                      onToggleRecurring(expense, !expense.is_recurring);
-                    } else {
-                      onUpdate(expense.id, { is_recurring: !expense.is_recurring });
-                    }
-                  }}
-                  className="shrink-0 p-1"
-                  accessibilityLabel={t("recurringToggle")}
-                  accessibilityRole="button"
-                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                >
-                  <Repeat size={16} color={expense.is_recurring ? colors.foreground : colors.mutedForeground} />
-                </Pressable>
-              </View>
-
-              <View className="pl-8">
-                <NumberInput
-                  value={expense.amount}
-                  onChange={(v) => onUpdate(expense.id, { amount: v })}
-                  min={0}
-                  decimals={2}
-                  placeholder="0.00"
-                  className="text-right"
-                />
-              </View>
-            </View>
-          ))}
-        </View>
+        <Pressable
+          onPress={() => setEditing(true)}
+          className="min-h-[44px] flex-1 justify-center active:opacity-70"
+          accessible accessibilityRole="button"
+          accessibilityLabel={expense.category || t("addCategoryPlaceholder")}
+        >
+          <Text
+            className={`px-1 text-left text-sm font-medium ${
+              expense.paid ? "text-muted-foreground line-through" : "text-foreground"
+            } ${expense.category ? "" : "text-muted-foreground"}`}
+            numberOfLines={1}
+          >
+            {expense.category || t("addCategoryPlaceholder")}
+          </Text>
+        </Pressable>
       )}
 
+      <Pressable
+        onPress={() => { void haptics.warning(); onRemove(expense.id); }}
+        className="h-11 w-11 shrink-0 items-center justify-center rounded-lg active:bg-muted"
+        accessibilityLabel={t("delete")}
+        accessible accessibilityRole="button"
+        android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
+      >
+        <Trash2 size={18} color={colors.destructive} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          void haptics.light();
+          if (onToggleRecurring) {
+            onToggleRecurring(expense, !expense.is_recurring);
+          } else {
+            onUpdate(expense.id, { is_recurring: !expense.is_recurring });
+          }
+        }}
+        className="h-11 w-11 shrink-0 items-center justify-center rounded-lg active:bg-muted"
+        accessibilityLabel={t("recurringToggle")}
+        accessible accessibilityRole="button"
+        android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+      >
+        <Repeat size={16} color={expense.is_recurring ? colors.foreground : colors.mutedForeground} />
+      </Pressable>
+    </View>
+
+    <View className="pl-8">
+      <NumberInput
+        value={expense.amount}
+        onChange={(v) => onUpdate(expense.id, { amount: v })}
+        min={0}
+        decimals={2}
+        placeholder="0.00"
+        className="text-right"
+      />
+    </View>
+  </View>
+  );
+});
+
+export function CustomExpensesTotals({ expenses }: Pick<Props, "expenses">) {
+  const { t } = useI18n();
+  const { total, paidTotal } = useMemo(() => ({
+    total: expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    paidTotal: expenses.reduce((sum, expense) => sum + (expense.paid ? expense.amount : 0), 0),
+  }), [expenses]);
+  return (
       <View className="mt-3 gap-1 rounded-lg bg-muted p-3">
         <View className="flex-row justify-between">
           <Text className="text-sm text-muted-foreground">{t("totalExpensesPlanned")}</Text>
@@ -209,6 +208,5 @@ export function CustomExpensesSection({
           <Text className="text-sm font-medium text-success">{formatCurrency(paidTotal)}</Text>
         </View>
       </View>
-    </View>
   );
 }

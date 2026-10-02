@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
-import { ActivityIndicator, Alert, BackHandler, Pressable, Text, View, type ListRenderItemInfo } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, Text, View, type ListRenderItemInfo } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { MoreHorizontal, ChevronDown, type AppIconProps } from "../../src/components/AppIcons";
 import { Button, IconButton } from "../../src/components/ui/Button";
@@ -10,6 +10,7 @@ import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { loadDhikrs, deleteDhikr, reorderDhikrs, type Dhikr } from "../../src/lib/dhikr";
 import { setSelectedDhikrId, clearSelectedDhikrIdIfMissing } from "../../src/lib/dhikrSelection";
+import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { DhikrModal } from "../../src/components/DhikrModal";
 import { useThemeColors } from "../../src/lib/theme";
 import { cn } from "../../src/lib/utils";
@@ -110,6 +111,7 @@ export default function DhikrListScreen() {
   const router = useRouter();
   const [dhikrs, setDhikrs] = useState<Dhikr[]>([]);
   const [modal, setModal] = useState<ModalState>({ visible: false });
+  const [dhikrToDelete, setDhikrToDelete] = useState<Dhikr | null>(null);
   // Draft IDs are separate from the persisted records; cancel never writes.
   const [draftOrder, setDraftOrder] = useState<number[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -244,26 +246,27 @@ export default function DhikrListScreen() {
   }, []);
 
   const handleDelete = useCallback((dhikr: Dhikr) => {
-    Alert.alert(t("deleteConfirmTitle"), t("deleteConfirmBody", { name: dhikr.name }), [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("delete"), style: "destructive", onPress: async () => {
-          try {
-            await deleteDhikr(dhikr.id);
-            ++loadSequenceRef.current;
-            setModal({ visible: false });
-            const remaining = dhikrs.filter((item) => item.id !== dhikr.id);
-            setDhikrs(remaining);
-            void clearSelectedDhikrIdIfMissing(remaining.map((item) => item.id)).catch(() => {
-              toast.error(t("errorSavingData"));
-            });
-          } catch {
-            toast.error(t("errorDeletingDhikr"));
-          }
-        },
-      },
-    ]);
-  }, [dhikrs, t]);
+    setModal({ visible: false });
+    setDhikrToDelete(dhikr);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!dhikrToDelete) return;
+    try {
+      await deleteDhikr(dhikrToDelete.id);
+      ++loadSequenceRef.current;
+      const remaining = dhikrs.filter((item) => item.id !== dhikrToDelete.id);
+      setDhikrs(remaining);
+      setDhikrToDelete(null);
+      try {
+        await clearSelectedDhikrIdIfMissing(remaining.map((item) => item.id));
+      } catch {
+        toast.error(t("errorSavingData"));
+      }
+    } catch {
+      toast.error(t("errorDeletingDhikr"));
+    }
+  }, [dhikrToDelete, dhikrs, t]);
 
   const handleActions = useCallback((dhikr: Dhikr) => {
     if (operationRef.current !== "idle") return;
@@ -336,6 +339,15 @@ export default function DhikrListScreen() {
           />
         </View>
       </View>
+      <ConfirmDialog
+        visible={dhikrToDelete !== null}
+        title={t("deleteConfirmTitle")}
+        message={t("deleteConfirmBody", { name: dhikrToDelete?.name ?? "" })}
+        confirmLabel={t("delete")}
+        destructive
+        onClose={() => setDhikrToDelete(null)}
+        onConfirm={confirmDelete}
+      />
       {modal.visible && (
         <DhikrModal haptics={haptics}
           {...(modal.mode === "add" ? { mode: modal.mode }

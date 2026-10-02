@@ -1,22 +1,20 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Keyboard, Pressable } from "react-native";
+import { View, Text, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
   loadBudget,
-  saveBudget,
+  createBudgetMonth,
   loadSavingsGoal,
   listExpenses,
   addExpense,
   updateExpense,
   setExpenseRecurring,
   removeExpense,
-  listRecurringExpenses,
-  removeRecurringExpense,
   copyBudgetFromMonth,
   currentMonth,
   addMonths,
@@ -26,16 +24,10 @@ import {
 } from "../../src/lib/budget";
 import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentPlan } from "../../src/lib/repaymentPlans";
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
-import { CustomExpensesSection } from "../../src/components/CustomExpensesSection";
+import { CustomExpensesHeader, CustomExpenseRow, CustomExpensesTotals } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 
-interface PendingBudgetSave {
-  month: string;
-  income: number;
-  loanPaid: boolean;
-  ccPaid: boolean;
-  current: string;
-}
+const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView {...props} bottomOffset={16} />;
 
 export default function BudgetScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
@@ -43,35 +35,23 @@ export default function BudgetScreen() {
   const { t, lang } = useI18n();
   const haptics = useHaptics();
   const month = initialMonth;
-  const prevMonthRef = useRef(month);
-  const activeMonthRef = useRef(month);
 
   const [loans, setLoans] = useState<Loans | null>(null);
   const [repayments, setRepayments] = useState<RepaymentPlan[]>([]);
   const [paidRepayments, setPaidRepayments] = useState<Set<number>>(new Set());
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const expensesRef = useRef<Expense[]>([]);
+  useEffect(() => { expensesRef.current = expenses; }, [expenses]);
   const [hasPreviousBudget, setHasPreviousBudget] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [savingsGoal, setSavingsGoal] = useState(0);
 
   const tRef = useRef(t);
   const budgetIdRef = useRef<number | null>(null);
-  const salaryRef = useRef(0);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persistedRef = useRef("");
-  const pendingSaveRef = useRef<PendingBudgetSave>(null);
-  /** Most recent desired budget snapshot, used to detect concurrent edits. */
-  const latestSaveRef = useRef<PendingBudgetSave>(null);
-  const saveInFlightRef = useRef(false);
-  const scheduleSaveRef = useRef<() => void>(() => {});
-  const flushSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const loadRequestRef = useRef(0);
   const toggleInFlightRef = useRef(false);
-  const saveQueueRef = useRef(Promise.resolve());
   const expenseTimersRef = useRef(
     new Map<number, ReturnType<typeof setTimeout>>()
   );
@@ -152,27 +132,6 @@ export default function BudgetScreen() {
     await expenseQueueRef.current;
   }, [flushExpenseUpdate]);
 
-  useEffect(() => {
-    if (prevMonthRef.current === month) return;
-    prevMonthRef.current = month;
-    activeMonthRef.current = month;
-    if (saveTimerRef.current || pendingSaveRef.current) {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      // Flush the pending edit for the month we are leaving so a debounced
-      // change is not silently dropped by this in-place month switch.
-      void flushSaveRef.current();
-    }
-    budgetIdRef.current = null;
-    salaryRef.current = 0;
-    persistedRef.current = "";
-    pendingSaveRef.current = null;
-    setSavingsGoal(0);
-    void flushAllExpenseUpdates();
-  }, [month, flushAllExpenseUpdates]);
-
   const previousMonth = addMonths(month, -1);
   const previousMonthLabel = monthLabelShort(lang, previousMonth);
 
@@ -196,7 +155,6 @@ export default function BudgetScreen() {
     setPaidRepayments(paidPlans);
     setHasPreviousBudget(!!pb);
     setSavingsGoal(sg.goal_amount);
-    salaryRef.current = sg.salary;
     budgetIdRef.current = b ? b.id : null;
     if (b) {
       const exps = await listExpenses(b.id);
@@ -217,20 +175,17 @@ export default function BudgetScreen() {
         updated_at: "",
       }
     );
-    persistedRef.current = JSON.stringify([
-      b ? b.income : seedIncome,
-      b ? b.loan_paid : false,
-      b ? b.cc_paid : false,
-    ]);
     setLoadError(null);
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       setLoadError(null);
       try {
+        await flushAllExpenseUpdates();
+        if (cancelled) return;
         await loadData(month);
         if (cancelled) return;
       } catch {
@@ -241,132 +196,19 @@ export default function BudgetScreen() {
     })();
     return () => {
       cancelled = true;
+      ++loadRequestRef.current;
     };
-  }, [month, loadData, t]);
-
-  const flushSave = useCallback(async () => {
-    const pending = pendingSaveRef.current;
-    if (!pending || pending.current === persistedRef.current) {
-      pendingSaveRef.current = null;
-      await saveQueueRef.current;
-      setIsSaving(false);
-      return;
-    }
-    pendingSaveRef.current = null;
-    saveInFlightRef.current = true;
-    setIsSaving(true);
-    saveQueueRef.current = saveQueueRef.current.then(async () => {
-      try {
-        const saved = await saveBudget(pending.month, pending.income, pending.loanPaid, pending.ccPaid);
-        if (pending.month === activeMonthRef.current) {
-          budgetIdRef.current = saved.id;
-          persistedRef.current = pending.current;
-          setSaveError(null);
-          // The user may have edited (or reverted) while this write was in
-          // flight; re-arm so the UI and the database converge.
-          const latest = latestSaveRef.current;
-          if (latest && latest.month === pending.month && latest.current !== pending.current) {
-            pendingSaveRef.current = { ...latest };
-            scheduleSaveRef.current();
-          }
-        }
-      } catch (err) {
-        if (pending.month === activeMonthRef.current) {
-          // Retry only when this snapshot is still the desired state. A newer
-          // snapshot is already queued or in flight, and re-queueing an older
-          // one here would overwrite it with stale data.
-          const latest = latestSaveRef.current;
-          if (!pendingSaveRef.current && latest && latest.current === pending.current) {
-            pendingSaveRef.current = pending;
-          }
-          setSaveError(err instanceof Error ? err.message : tRef.current("saveFailed"));
-        }
-      } finally {
-        saveInFlightRef.current = false;
-        if (pending.month === activeMonthRef.current) setIsSaving(false);
-      }
-    });
-    await saveQueueRef.current;
-  }, []);
-
-  const scheduleSave = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    setIsSaving(true);
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null;
-      void flushSave();
-    }, 1000);
-  }, [flushSave]);
-
-  useEffect(() => {
-    scheduleSaveRef.current = scheduleSave;
-    flushSaveRef.current = flushSave;
-  }, [scheduleSave, flushSave]);
-
-  useEffect(() => {
-    if (!budget || !loans) return;
-    const current = JSON.stringify([
-      budget.income,
-      budget.loan_paid,
-      budget.cc_paid,
-    ]);
-    const snapshot = {
-      month,
-      income: budget.income,
-      loanPaid: budget.loan_paid,
-      ccPaid: budget.cc_paid,
-      current,
-    };
-    latestSaveRef.current = snapshot;
-    if (current === persistedRef.current) {
-      // Reverted to the last persisted value inside the debounce window:
-      // drop the pending write so the abandoned value is never saved.
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-        if (!saveInFlightRef.current) setIsSaving(false);
-      }
-      pendingSaveRef.current = null;
-      return;
-    }
-    pendingSaveRef.current = snapshot;
-    scheduleSave();
-  }, [budget, loans, month, scheduleSave]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      void flushSave();
-    };
-  }, [flushSave]);
+  }, [month, loadData, t, flushAllExpenseUpdates]));
 
   const ensureBudget = useCallback(async (): Promise<Budget> => {
     // `id === 0` is the unsaved placeholder created by loadData for a month
     // with no row yet; it must be persisted before expenses can reference it.
     if (budget && budget.id !== 0) return budget;
-    const seedIncome = salaryRef.current;
-    const b = await saveBudget(month, seedIncome, false, false);
+    const { budget: b } = await createBudgetMonth(month);
     setBudget(b);
-    persistedRef.current = JSON.stringify([seedIncome, false, false]);
     budgetIdRef.current = b.id;
     return b;
   }, [month, budget]);
-
-  const handleIncomeChange = useCallback(
-    async (v: number) => {
-      try {
-        await ensureBudget();
-        setBudget((prev) => (prev ? { ...prev, income: v } : prev));
-        scheduleSave();
-      } catch {
-        toast.error(t("saveFailed"));
-      }
-    },
-    [ensureBudget, scheduleSave, t]
-  );
 
   const handleRepaymentToggle = useCallback(async (planId: number) => {
     if (toggleInFlightRef.current) return;
@@ -407,7 +249,7 @@ export default function BudgetScreen() {
       id: number,
       fields: Partial<Pick<Expense, "category" | "amount" | "paid">>
     ) => {
-      const prevExpense = expenses.find((e) => e.id === id);
+      const prevExpense = expensesRef.current.find((e) => e.id === id);
       setExpenses((prev) =>
         prev.map((e) => (e.id === id ? { ...e, ...fields } : e))
       );
@@ -434,18 +276,19 @@ export default function BudgetScreen() {
         }
       }
     },
-    [expenses, t, scheduleExpenseUpdate]
+    [t, scheduleExpenseUpdate]
   );
 
   const handleToggleRecurring = useCallback(
     async (expense: Expense, next: boolean) => {
-      const prevExpense = expenses.find((e) => e.id === expense.id);
+      const prevExpense = expensesRef.current.find((e) => e.id === expense.id);
       setExpenses((prev) =>
         prev.map((e) =>
           e.id === expense.id ? { ...e, is_recurring: next } : e
         )
       );
       try {
+        await flushAllExpenseUpdates();
         await setExpenseRecurring(expense.id, expense.category, expense.amount, next);
       } catch {
         if (prevExpense) {
@@ -456,58 +299,33 @@ export default function BudgetScreen() {
         toast.error(t("errorUpdatingExpense"));
       }
     },
-    [expenses, t]
+    [t, flushAllExpenseUpdates]
   );
 
   const handleRemoveExpense = useCallback(
     async (id: number) => {
       cancelExpenseUpdate(id);
-      const prevExpenses = expenses;
-      const target = expenses.find((e) => e.id === id);
+      const prevExpenses = expensesRef.current;
       setExpenses((curr) => curr.filter((e) => e.id !== id));
       try {
         await removeExpense(id);
-        if (target?.is_recurring) {
-          try {
-            const templates = await listRecurringExpenses();
-            const match = templates.find(
-              (x) => x.category === target.category && x.amount === target.amount
-            );
-            if (match) await removeRecurringExpense(match.id);
-          } catch (err) {
-            // Non-critical: expense itself was removed; a leftover template
-            // would recreate it next month, so surface the failure.
-            console.warn("[budget] failed to remove recurring template:", err);
-            toast.error(t("errorRemovingExpense"));
-          }
-        }
         void haptics.warning();
       } catch {
         setExpenses(prevExpenses);
         toast.error(t("errorRemovingExpense"));
       }
     },
-    [expenses, t, haptics, cancelExpenseUpdate]
+    [t, haptics, cancelExpenseUpdate]
   );
 
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;
     try {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      await flushSave();
       await flushAllExpenseUpdates();
       const result = await copyBudgetFromMonth(previousMonth, month);
       setBudget(result.budget);
       budgetIdRef.current = result.budget.id;
       setExpenses(result.expenses);
-      persistedRef.current = JSON.stringify([
-        result.budget.income,
-        result.budget.loan_paid,
-        result.budget.cc_paid,
-      ]);
       void haptics.success();
       toast.success(
         t("copiedFromPreviousMonth", { month: previousMonthLabel })
@@ -515,7 +333,7 @@ export default function BudgetScreen() {
     } catch {
       toast.error(t("noPreviousMonthFound"));
     }
-  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushSave, flushAllExpenseUpdates]);
+  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushAllExpenseUpdates]);
 
   useEffect(() => {
     return () => {
@@ -581,58 +399,35 @@ export default function BudgetScreen() {
   }
 
   return (
-    <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
-        {saveError ? (
-          <View className="rounded-md bg-destructive/15 p-3">
-            <Text className="text-sm font-medium text-destructive">{saveError}</Text>
-          </View>
-        ) : null}
-        {isSaving ? (
-          <Text className="text-right text-xs text-muted-foreground">
-            {t("savingAuto")}
-          </Text>
-        ) : null}
-        <View className="flex-row items-center justify-between">
+    <FlatList
+      className="flex-1 bg-background"
+      contentContainerClassName="w-full max-w-md self-center gap-3 p-4 pb-28"
+      data={expenses}
+      keyExtractor={(expense) => String(expense.id)}
+      renderScrollComponent={renderBudgetScroll}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      removeClippedSubviews={false}
+      renderItem={({ item }) => <CustomExpenseRow expense={item} onUpdate={handleUpdateExpense} onRemove={handleRemoveExpense} onToggleRecurring={handleToggleRecurring} />}
+      ListHeaderComponent={
+        <View className="gap-4">
           <Text className="text-xl font-bold text-foreground">{t("tabBudget")}</Text>
+          {repayments.map((plan) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
+          <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense}
+            onCopyPrevious={hasPreviousBudget ? handleCopyPrevious : undefined}
+            previousMonthLabel={expenses.length === 0 ? previousMonthLabel : undefined} />
         </View>
-
-        {budget && (
-          <>
-            {repayments.map((plan) => (
-              <RepaymentPaymentSection
-                key={plan.id}
-                plan={plan}
-                month={budget.month}
-                paid={paidRepayments.has(plan.id)}
-                onToggle={() => { void handleRepaymentToggle(plan.id); }}
-              />
-            ))}
-          </>
-        )}
-
-        <CustomExpensesSection
-          expenses={expenses}
-          onAdd={handleAddExpense}
-          onUpdate={handleUpdateExpense}
-          onRemove={handleRemoveExpense}
-          onToggleRecurring={handleToggleRecurring}
-          onCopyPrevious={hasPreviousBudget ? handleCopyPrevious : undefined}
-          previousMonthLabel={expenses.length === 0 ? previousMonthLabel : undefined}
-        />
-
-        {budget && (
-          <MonthlySummarySection
-            budget={budget}
-            expenses={expenses}
-            loans={loans}
-            repayments={repayments}
-            paidRepayments={paidRepayments}
-            savingsGoal={savingsGoal}
-            onIncomeChange={handleIncomeChange}
-          />
-        )}
-      </View>
-    </KeyboardAwareScrollView>
+      }
+      ListFooterComponent={
+        <View className="gap-4">
+          <CustomExpensesTotals expenses={expenses} />
+          <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}
+            repayments={repayments} paidRepayments={paidRepayments} savingsGoal={savingsGoal} />
+        </View>
+      }
+    />
   );
 }

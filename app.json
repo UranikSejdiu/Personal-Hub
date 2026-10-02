@@ -16,13 +16,14 @@
       "versionCode": 100,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#101A35",
-        "foregroundImage": "./assets/android-icon-foreground-personal-hub.png"
+        "backgroundColor": "#080F2E",
+        "foregroundImage": "./assets/android-icon-foreground-personal-hub.png",
+        "monochromeImage": "./assets/android-icon-monochrome-personal-hub.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/icon-personal-hub.png",
+      "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [

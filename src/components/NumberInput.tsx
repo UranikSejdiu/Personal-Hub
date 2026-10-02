@@ -12,6 +12,7 @@ interface NumberInputProps {
   decimals?: number;
   suffix?: string;
   className?: string;
+  accessibilityLabel?: string;
 }
 
 export function NumberInput({
@@ -23,6 +24,7 @@ export function NumberInput({
   decimals = 0,
   suffix,
   className,
+  accessibilityLabel,
 }: NumberInputProps) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [isFocused, setIsFocused] = useState(false);
@@ -70,6 +72,7 @@ export function NumberInput({
   return (
     <View className={cn("flex-row items-center gap-1", className)}>
       <TextInput
+        accessibilityLabel={accessibilityLabel}
         value={displayText}
         onChangeText={handleChange}
         onFocus={handleFocus}

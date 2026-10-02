@@ -10,8 +10,7 @@ import { useHaptics, getHapticsEnabled, setHapticsEnabled, isHapticsEnabled } fr
 import * as Haptics from "expo-haptics";
 import { getAppVersion } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
-import { loadSavingsGoal, saveSavingsGoal } from "../lib/budget";
-import { ensureMonthlyAutoDeposit } from "../lib/savings";
+import { loadSavingsGoal, saveBudgetPreferences } from "../lib/budget";
 import {
   exportAndShareBackup,
   importBackupFromJson,
@@ -19,7 +18,7 @@ import {
   restoreSafetyBackup,
   readJsonFromFileUri,
 } from "../lib/backup";
-import { NumberInput } from "./NumberInput";
+import { BudgetSettingsFields } from "./BudgetSettingsFields";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -123,10 +122,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
       const currentSalary = salaryRef.current;
       if (!options?.silent) setSaving(true);
       try {
-        await saveSavingsGoal(goal, currentSalary);
-        if (goal > 0) {
-          await ensureMonthlyAutoDeposit(goal);
-        }
+        await saveBudgetPreferences(goal, currentSalary);
         if (goalRef.current === goal && salaryRef.current === currentSalary) goalDirtyRef.current = false;
         return true;
       } catch {
@@ -449,39 +445,14 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
 
         {activeSection === "budget" && budgetLoadState === "ready" && (
           <View className="gap-4">
-            <View className="rounded-xl border border-border bg-card p-4">
-              <View className="flex-row items-center justify-between">
-                <Text className="flex-1 text-sm text-muted-foreground">{t("savingsGoalLabel")}</Text>
-                <NumberInput
-                  value={goalAmount}
-                  onChange={handleGoalChange}
-                  min={0}
-                  placeholder="0.00"
-                  className="w-28 text-right"
-                />
-              </View>
-             <View className="mt-2 flex-row items-center justify-between">
-                 <Text className="text-sm text-muted-foreground">{t("salaryLabel")}</Text>
-                 <NumberInput
-                   value={salary}
-                   onChange={handleSalaryChange}
-                   min={0}
-                   placeholder="0.00"
-                   className="w-28 text-right"
-                 />
-               </View>
-
-               {saving ? (
-                 <Text className="text-right text-xs text-muted-foreground">
-                   {t("savingAuto")}
-                 </Text>
-               ) : null}
-             </View>
+            <BudgetSettingsFields income={salary} goal={goalAmount} saving={saving}
+              onIncomeChange={handleSalaryChange} onGoalChange={handleGoalChange} />
           </View>
         )}
 
         {activeSection === "backup" && (
           <View className="gap-4">
+            <Text className="text-sm leading-6 text-muted-foreground">{t("settingsBackupHelp")}</Text>
             <View className="rounded-xl border border-border bg-card p-4 gap-3">
               <Pressable
                 onPress={() => { void haptics.light(); void handleExport(); }}
@@ -543,6 +514,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
 
         {activeSection === "about" && (
           <View className="gap-4">
+            <Text className="text-sm leading-6 text-muted-foreground">{t("settingsAboutHelp")}</Text>
             <UpdateCard />
             <View className="rounded-xl border border-border bg-card p-4">
               <View className="items-center gap-3 py-6">

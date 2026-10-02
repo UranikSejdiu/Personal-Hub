@@ -10,7 +10,6 @@ import {
   type Loans,
 } from "../lib/budget";
 import { formatCurrency } from "../lib/utils";
-import { NumberInput } from "./NumberInput";
 import { CREDIT_CARD_SLOTS, creditCardDetails, creditCardPaymentForMonth } from "../lib/creditCards";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 import { repaymentForMonth, type RepaymentPlan } from "../lib/repaymentPlans";
@@ -22,7 +21,6 @@ interface Props {
   savingsGoal: number;
   repayments: readonly RepaymentPlan[];
   paidRepayments: ReadonlySet<number>;
-  onIncomeChange: (income: number) => void;
 }
 
 export function MonthlySummarySection({
@@ -32,7 +30,6 @@ export function MonthlySummarySection({
   savingsGoal,
   repayments,
   paidRepayments,
-  onIncomeChange,
 }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
@@ -77,7 +74,8 @@ export function MonthlySummarySection({
 
       <View className="mb-3 gap-1.5">
         <Text className="text-sm text-muted-foreground">{t("monthlyIncome")}</Text>
-        <NumberInput value={budget.income} onChange={onIncomeChange} min={0} decimals={2} placeholder="0.00" />
+        <Text className="text-2xl font-semibold text-foreground">{formatCurrency(budget.income)}</Text>
+        <Text className="text-xs leading-5 text-muted-foreground">{t("incomeSettingsHint")}</Text>
       </View>
 
       {hasData && (

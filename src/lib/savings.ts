@@ -51,6 +51,21 @@ export async function ensureMonthlyAutoDeposit(
   });
 }
 
+/** Settings changes replace only this month's target snapshot; history stays intact. */
+export async function syncMonthlyAutoDeposit(goalAmount: number, tx: db.DbExecutor): Promise<void> {
+  const amount = sanitizeAmount(goalAmount);
+  if (amount === 0) {
+    await tx.execute("UPDATE savings_auto_deposits SET amount = 0 WHERE month = ?", [currentMonth()]);
+  } else {
+    await tx.execute(
+      `INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, '')
+       ON CONFLICT(month) DO UPDATE SET amount = excluded.amount`,
+      [currentMonth(), amount]
+    );
+  }
+  await refreshClosingBalances(tx);
+}
+
 export async function listAutoDeposits(): Promise<AutoDeposit[]> {
   const rows = await db.query<Record<string, unknown>>(
     "SELECT * FROM savings_auto_deposits ORDER BY month DESC"

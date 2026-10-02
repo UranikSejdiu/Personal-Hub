@@ -32,19 +32,20 @@ export default function LoansScreen() {
   const [choosingMonth, setChoosingMonth] = useState(false);
   const [startMonthTouched, setStartMonthTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const operationRef = useRef(false);
+  const readRequestRef = useRef(0);
   const listRef = useRef<FlatList<RepaymentPlan>>(null);
 
-  const refresh = useCallback(async () => {
-    setPlans(await listRepaymentPlans());
-  }, []);
   useFocusEffect(useCallback(() => {
     let active = true;
-    listRepaymentPlans().then((loadedPlans) => { if (active) setPlans(loadedPlans); }).catch(() => { if (active) toast.error(t("errorLoadingData")); });
+    const request = ++readRequestRef.current;
+    listRepaymentPlans().then((loadedPlans) => { if (active && request === readRequestRef.current) setPlans(loadedPlans); }).catch(() => { if (active && request === readRequestRef.current) toast.error(t("errorLoadingData")); });
     return () => { active = false; };
   }, [t]));
 
-  const start = (kind: RepaymentKind) => { setEditingId(null); setStartMonthTouched(false); setDraft(emptyPlan(kind)); listRef.current?.scrollToOffset({ offset: 0, animated: true }); void haptics.light(); };
+  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setEditingId(null); setStartMonthTouched(false); setDraft(emptyPlan(kind)); listRef.current?.scrollToOffset({ offset: 0, animated: true }); void haptics.light(); };
   const edit = (plan: RepaymentPlan) => {
+    if (operationRef.current) return;
     const { id, ...input } = plan;
     setEditingId(id);
     setStartMonthTouched(true);
@@ -52,31 +53,39 @@ export default function LoansScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     void haptics.light();
   };
-  const update = (change: Partial<RepaymentInput>) => setDraft((old) => old ? { ...old, ...change } : null);
+  const update = (change: Partial<RepaymentInput>) => {
+    if (!operationRef.current) setDraft((old) => old ? { ...old, ...change } : null);
+  };
   const save = async () => {
-    if (!draft || saving) return;
+    if (!draft || operationRef.current) return;
     if (!isValidRepaymentInput(draft)) { toast.error(t("paymentPlanInvalid")); return; }
+    operationRef.current = true;
+    readRequestRef.current++;
     setSaving(true);
     try {
-      await saveRepaymentPlan(draft, editingId ?? undefined);
-      await refresh();
+      const saved = await saveRepaymentPlan(draft, editingId ?? undefined);
+      setPlans((current) => [saved, ...current.filter((plan) => plan.id !== saved.id)].sort((a, b) => b.id - a.id));
       setDraft(null);
       setEditingId(null);
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
       void haptics.success();
     } catch {
       toast.error(t("paymentPlanSaveFailed"));
-    } finally { setSaving(false); }
+    } finally { operationRef.current = false; setSaving(false); }
   };
   const remove = async () => {
-    if (deletingId === null) return;
+    if (deletingId === null || operationRef.current) return;
+    operationRef.current = true;
+    readRequestRef.current++;
+    setSaving(true);
     try {
       await removeRepaymentPlan(deletingId);
-      await refresh();
+      setPlans((current) => current.filter((plan) => plan.id !== deletingId));
       if (editingId === deletingId) { setDraft(null); setEditingId(null); }
       setDeletingId(null);
       void haptics.success();
     } catch { toast.error(t("paymentPlanDeleteFailed")); }
+    finally { operationRef.current = false; setSaving(false); }
   };
 
   const draftPayment = draft && draft.term > 0 ? repaymentForMonth({ ...draft, id: editingId ?? 0 }, draft.startMonth) : 0;
@@ -92,10 +101,10 @@ export default function LoansScreen() {
       ListHeaderComponent={<View className="gap-3">
         <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
         <View className="flex-row gap-2">
-          <Button className="flex-1" label={t("addLoanPlan")} icon={Plus} variant="secondary" onPress={() => start("loan")} />
-          <Button className="flex-1" label={t("addCardInstallment")} icon={Plus} variant="secondary" onPress={() => start("card")} />
+          <Button disabled={saving} className="flex-1" label={t("addLoanPlan")} icon={Plus} variant="secondary" onPress={() => start("loan")} />
+          <Button disabled={saving} className="flex-1" label={t("addCardInstallment")} icon={Plus} variant="secondary" onPress={() => start("card")} />
         </View>
-        {draft && <View className="gap-3 rounded-xl border border-border bg-card p-4">
+        {draft && <View pointerEvents={saving ? "none" : "auto"} accessibilityState={{ busy: saving }} className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">{editingId === null ? t("addPaymentPlan") : t("edit")}</Text>
           <View><Text className="mb-1 text-sm text-muted-foreground">{t("paymentPlanName")}</Text><TextInput value={draft.name} onChangeText={(name) => update({ name })} maxLength={100} placeholder={t("paymentPlanNamePlaceholder")} placeholderTextColor={colors.mutedForeground} className="min-h-[44px] rounded-xl border border-border bg-background px-3 text-base text-foreground" /></View>
           <Text className="text-sm text-muted-foreground">{t(draft.kind === "card" ? "paymentPlanCardHint" : "paymentPlanLoanHint")}</Text>
@@ -112,13 +121,13 @@ export default function LoansScreen() {
             {draft.term > 0 ? <Text className="text-xs text-muted-foreground">{t("loanPaidOfTotal", { paid: draft.monthsPaid, total: draft.term })} · {t("paymentsRemaining", { count: Math.max(0, draft.term - draft.monthsPaid) })}</Text> : <Text className="text-xs text-muted-foreground">{t("paymentsRecorded", { count: draft.monthsPaid })}</Text>}
             <Text className="text-xs text-muted-foreground">{t("lastPaymentMonth")}: {draft.endMonth ?? (draft.unbounded ? t("noEndMonth") : draftEndMonth)}</Text>
           </View>}
-          <View className="flex-row gap-2"><Button className="flex-1" label={t("cancel")} variant="secondary" onPress={() => { setDraft(null); setEditingId(null); }} /><Button className="flex-1" label={t("save")} busy={saving} onPress={() => { void save(); }} /></View>
+          <View className="flex-row gap-2"><Button className="flex-1" label={t("cancel")} disabled={saving} variant="secondary" onPress={() => { setDraft(null); setEditingId(null); }} /><Button className="flex-1" label={t("save")} busy={saving} onPress={() => { void save(); }} /></View>
         </View>}
         {plans.length === 0 && !draft && <Text className="py-6 text-center text-sm text-muted-foreground">{t("paymentPlanEmpty")}</Text>}
       </View>}
       renderItem={({ item }) => {
         const info: RepaymentPlanCardInfo = { kind: item.kind, name: item.name, payment: repaymentForMonth(item, item.startMonth), monthsPaid: item.monthsPaid, term: item.term, startMonth: item.startMonth, endMonth: item.endMonth ?? (item.unbounded ? null : installmentEndMonth(item.startMonth, item.term)) };
-        return <RepaymentPlanCard info={info} onEdit={() => edit(item)} onDelete={() => setDeletingId(item.id)} />;
+        return <RepaymentPlanCard info={info} onEdit={() => edit(item)} onDelete={() => { if (!operationRef.current) setDeletingId(item.id); }} />;
       }}
     />
     {draft && choosingMonth && <DatePicker mode="month" initialDisplay="current" value={draft.startMonth} onChange={(startMonth) => { if (startMonth) { update({ startMonth, ...(draft.unbounded && draft.term > 0 ? { endMonth: installmentEndMonth(startMonth, draft.term) } : {}) }); setStartMonthTouched(true); } }} onClose={() => setChoosingMonth(false)} />}

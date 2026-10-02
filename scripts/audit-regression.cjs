@@ -39,7 +39,7 @@ const dbMock = {
   ...executor, defaultExecutor: executor, isNotesFtsEnabled: () => false,
   async withTransaction(fn) {
     database.exec('BEGIN');
-    try { const result = await fn(executor); database.exec('COMMIT'); return result; }
+    try { const result = await fn({ ...executor }); database.exec('COMMIT'); return result; }
     catch (e) { database.exec('ROLLBACK'); throw e; }
   },
 };
@@ -179,6 +179,70 @@ function migrationModule(fixture) {
     await assert.rejects(dhikr.updateDhikr(created.id, { total_count: Number.MAX_SAFE_INTEGER + 1 }), RangeError);
     assert.equal((await dhikr.loadDhikrs())[0].total_count, 43);
   });
+  await verify('Loan editor prevents duplicate saves and changes during pending operations', async () => {
+    await require('./loan-editor-regression.cjs')(root);
+  });
+  await verify('Recurring edits update templates without rewriting past month expenses', async () => {
+    const b = await budget.saveBudget('2026-09', 2500, false, false);
+    const e = await budget.addExpense(b.id, 'Rent', 100, false);
+    await budget.setExpenseRecurring(e.id, 'Rent', 100, true);
+    await budget.updateExpense(e.id, { category: 'Housing', amount: 200 });
+    assert.deepEqual((await budget.listRecurringExpenses()).map(r => [r.category, r.amount]), [['Housing', 200]]);
+    const next = await budget.createBudgetMonth('2026-10');
+    assert.equal((await budget.listExpenses(next.budget.id))[0].amount, 200);
+    await budget.updateExpense(e.id, { amount: 300 });
+    assert.equal((await budget.listExpenses(next.budget.id))[0].amount, 200);
+    await budget.setExpenseRecurring(e.id, 'stale UI name', 100, false);
+    assert.equal((await budget.listRecurringExpenses()).length, 0);
+  });
+  await verify('Recurring mutations roll back template changes when the expense write fails', async () => {
+    const b = await budget.saveBudget('2026-10', 2500, false, false);
+    const e = await budget.addExpense(b.id, 'Rent', 100, false);
+    await budget.setExpenseRecurring(e.id, 'Rent', 100, true);
+    failOn = sql => sql.startsWith('UPDATE expenses SET amount');
+    await assert.rejects(budget.updateExpense(e.id, { amount: 200 }));
+    failOn = null;
+    assert.equal((await budget.listRecurringExpenses())[0].amount, 100);
+    assert.equal((await budget.listExpenses(b.id))[0].amount, 100);
+    await budget.removeExpense(e.id);
+    assert.equal((await budget.listRecurringExpenses()).length, 0);
+  });
+  await verify('Settings target sync updates the current auto deposit and preserves past snapshots', async () => {
+    const month = budget.currentMonth();
+    const past = budget.addMonths(month, -1);
+    await executor.execute('INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)', [past, 80, 'Past']);
+    await budget.saveBudgetPreferences(100, 2500);
+    await budget.saveBudgetPreferences(200, 2500);
+    const rows = await savings.listAutoDeposits();
+    assert.equal(rows.find(r => r.month === month).amount, 200);
+    assert.equal(rows.find(r => r.month === past).amount, 80);
+    failOn = sql => sql.startsWith('INSERT INTO savings_auto_deposits');
+    await assert.rejects(budget.saveBudgetPreferences(300, 2500));
+    failOn = null;
+    assert.equal((await budget.loadSavingsGoal()).goal_amount, 200);
+    await budget.saveBudgetPreferences(0, 2500);
+    assert.equal((await savings.listAutoDeposits()).find(r => r.month === month).amount, 0);
+  });
+  await verify('Notes pages are bounded and checklist previews retain accurate totals', async () => {
+    for (let i = 0; i < 45; i++) await notes.createNote({ title: `Note ${String(i).padStart(2, '0')}`, content: 'searchable', is_pinned: i === 44 });
+    const first = await notes.loadNotesPage('', 'title');
+    assert.equal(first.notes.length, 40);
+    assert.equal(first.hasMore, true);
+    assert.equal(first.notes[0].is_pinned, true);
+    const second = await notes.loadNotesPage('', 'title', first.nextOffset);
+    assert.equal(second.notes.length, 5);
+    assert.equal(second.hasMore, false);
+    assert.equal(new Set([...first.notes, ...second.notes].map(n => n.id)).size, 45);
+    const search = await notes.loadNotesPage('Note 0', 'title', 0, 3);
+    assert.equal(search.notes.length, 3);
+    assert.equal(search.hasMore, true);
+    await assert.rejects(notes.loadNotesPage('', 'title', -1));
+    const checklist = await notes.createChecklistNote({ title: 'Preview checklist', is_pinned: true, color: 'default' }, Array.from({length: 100}, (_, i) => ({ text: `Item ${i}`, checked: i < 20 })));
+    const preview = (await notes.loadNotesPage('Preview checklist', 'updated')).notes[0];
+    assert.equal(preview.items.length, 6);
+    assert.deepEqual(preview.checklistPreview, { total: 100, checked: 20, active: 80 });
+    assert.equal((await notes.getChecklistItems(checklist.id)).length, 100);
+  });
   await verify('Recurring population skips an existing matching expense', async () => {
     const b = await budget.saveBudget('2026-09', 1000, false, false);
     await executor.execute('INSERT INTO recurring_expenses(category, amount) VALUES (?, ?)', ['Rent', 100]);
@@ -196,10 +260,11 @@ function migrationModule(fixture) {
     assert.equal(await budget.loadBudget('2026-11'), null);
     assert.deepEqual((await budget.listExpenses(result.budget.id)).map(e => [e.category, e.amount, e.paid]), [['Rent', 950, false]]);
   });
-  await verify('Creating a month inherits prior income and keeps an existing month intact', async () => {
+  await verify('Creating a month uses Settings income and keeps an existing month intact', async () => {
     await budget.saveBudget('2026-09', 1800, false, false);
+    await budget.saveSavingsGoal(0, 2500);
     const first = await budget.createBudgetMonth('2026-10');
-    assert.equal(first.budget.income, 1800);
+    assert.equal(first.budget.income, 2500);
     await budget.saveBudget('2026-10', 2200, true, true);
     await budget.addExpense(first.budget.id, 'Custom', 70);
     const second = await budget.createBudgetMonth('2026-10');
@@ -208,6 +273,38 @@ function migrationModule(fixture) {
     assert.equal(second.budget.loan_paid, true);
     assert.equal(second.budget.cc_paid, true);
     assert.equal((await budget.listExpenses(second.budget.id)).length, 1);
+  });
+  await verify('Settings income updates current and future months while preserving history and payments', async () => {
+    const month = budget.currentMonth();
+    const past = budget.addMonths(month, -1);
+    const future = budget.addMonths(month, 1);
+    await budget.saveSavingsGoal(100, 1800);
+    await budget.saveBudget(past, 1700, true, true);
+    await budget.saveBudget(month, 1800, true, false);
+    await budget.saveBudget(future, 1800, false, true);
+    await budget.saveBudgetPreferences(200, 2500);
+    assert.equal((await budget.loadBudget(past)).income, 1700);
+    assert.equal((await budget.loadBudget(month)).income, 2500);
+    assert.equal((await budget.loadBudget(month)).loan_paid, true);
+    assert.equal((await budget.loadBudget(future)).income, 2500);
+    assert.equal((await budget.loadBudget(future)).cc_paid, true);
+    assert.equal((await budget.loadSavingsGoal()).goal_amount, 200);
+    await budget.saveBudgetPreferences(200, 0);
+    await budget.copyBudgetFromMonth(past, month);
+    assert.equal((await budget.loadBudget(month)).income, 0, 'Copying expenses must preserve zero income');
+    assert.equal((await budget.createBudgetMonth(budget.addMonths(month, 2))).budget.income, 0);
+  });
+  await verify('A failed Settings income update rolls back the profile and budgets', async () => {
+    const month = budget.currentMonth();
+    await budget.saveSavingsGoal(100, 1800);
+    await budget.saveBudget(month, 1800, false, false);
+    failOn = sql => sql.startsWith('UPDATE budgets SET income');
+    await assert.rejects(budget.saveBudgetPreferences(200, 2500));
+    failOn = null;
+    assert.equal((await budget.loadSavingsGoal()).salary, 1800);
+    assert.equal((await budget.loadSavingsGoal()).goal_amount, 100);
+    assert.equal((await budget.loadBudget(month)).income, 1800);
+    for (const value of [-1, NaN, Infinity]) await assert.rejects(budget.saveBudgetPreferences(100, value));
   });
   await verify('A failed recurring write rolls back the entire new month', async () => {
     await executor.execute('INSERT INTO recurring_expenses(category, amount) VALUES (?, ?)', ['Rent', 950]);
