@@ -164,7 +164,7 @@ export default function DashboardScreen() {
         renderItem={renderMonth}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 128 }]}
         ListHeaderComponent={
-          <View className="gap-5">
+          <View className="gap-3">
             <View>
               <View className="flex-row flex-wrap items-center justify-between gap-3">
                 <Text accessibilityRole="header" className="text-3xl font-display text-foreground">{t("dashboardTitle")}</Text>
@@ -177,7 +177,7 @@ export default function DashboardScreen() {
                   onPress={() => { void handleCreateMonth(addMonths(thisMonth, 1)); }}
                 />
               </View>
-              <Text className="mt-2 text-sm leading-5 text-muted-foreground">{t("dashboardSubtitle")}</Text>
+              <Text className="mt-1 text-sm leading-5 text-muted-foreground">{t("dashboardSubtitle")}</Text>
             </View>
 
             {loadState === "loading" ? (
@@ -186,7 +186,7 @@ export default function DashboardScreen() {
                 <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
               </View>
             ) : loadState === "error" ? (
-              <Card className="gap-4">
+              <Card className="gap-3">
                 <Text className="text-sm text-foreground">{t("errorLoadingData")}</Text>
                 <Button label={t("retry")} onPress={() => { void refresh(); }} />
               </Card>
@@ -198,7 +198,7 @@ export default function DashboardScreen() {
                 onDelete={() => setMonthToDelete(currentSummary.month)}
               />
             ) : (
-              <Card className="gap-3 p-5">
+              <Card className="gap-3">
                 <Text className="text-lg font-semibold text-foreground">{t("dashboardNoCurrentMonth")}</Text>
                 <Text className="text-sm leading-5 text-muted-foreground">
                   {t("dashboardNoCurrentMonthHint", { month: monthLabelShort(lang, thisMonth) })}
@@ -241,5 +241,5 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { padding: 16, gap: 12 },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
 });

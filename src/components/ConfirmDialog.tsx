@@ -73,7 +73,7 @@ export function ConfirmDialog({
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="max-h-full w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl"
+          className="max-h-full w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl"
           accessible={false}
           accessibilityViewIsModal
         >
@@ -98,7 +98,7 @@ export function ConfirmDialog({
             <Text className="text-sm text-muted-foreground">{message}</Text>
           </ScrollView>
 
-          <View className="mt-6 flex-row flex-wrap items-center justify-end gap-3">
+          <View className="mt-4 flex-row flex-wrap items-center justify-end gap-3">
             <Pressable
               onPress={handleClose}
               className="min-h-[44px] justify-center rounded-lg px-4 py-2 active:bg-muted"

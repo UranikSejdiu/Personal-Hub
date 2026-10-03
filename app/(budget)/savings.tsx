@@ -361,7 +361,7 @@ export default function SavingsScreen() {
       const isLast = index === filteredEntries.length - 1;
 
       return (
-        <View className={`border-x border-border bg-card px-4 ${isLast ? "" : "pb-2"}`}>
+        <View className={`border-x border-border bg-card px-3 ${isLast ? "" : "pb-2"}`}>
           <View className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
             <Pressable
               onPress={() => handleTapEntry(entry)}
@@ -405,7 +405,7 @@ export default function SavingsScreen() {
 
   const listHeader = useMemo(
     () => (
-    <View className="gap-4">
+    <View className="gap-3">
       <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
 
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
@@ -413,7 +413,7 @@ export default function SavingsScreen() {
       {/* Activity card shell — closed by the footer strip so entry rows stay
           virtualized inside FlatList while preserving the card chrome. */}
       <View
-        className={`rounded-t-xl border-x border-t border-border bg-card px-4 pt-4 ${
+        className={`rounded-t-xl border-x border-t border-border bg-card px-3 pt-3 ${
           filteredEntries.length > 0 ? "pb-3" : ""
         }`}
       >
@@ -497,9 +497,9 @@ export default function SavingsScreen() {
 
   const listFooter = useMemo(
     () => (
-    <View className="gap-4">
-      <View className="h-4 rounded-b-xl border-x border-b border-border bg-card" />
-      <View className="rounded-xl border border-border bg-muted/40 p-4 gap-1.5">
+    <View className="gap-3">
+      <View className="h-3 rounded-b-xl border-x border-b border-border bg-card" />
+      <View className="rounded-xl border border-border bg-muted/40 p-3 gap-1.5">
         <View className="flex-row justify-between">
           <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
           <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
@@ -537,7 +537,7 @@ export default function SavingsScreen() {
         <KeyboardAvoidingView className="flex-1" behavior="padding" automaticOffset>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
           <View className="max-h-full w-full max-w-sm overflow-hidden rounded-2xl bg-card">
-          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-5">
+          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-4">
             <Text className="text-lg font-semibold text-foreground">
               {editingKind === "auto"
                 ? t("savingsAutoEditTitle")
@@ -546,7 +546,7 @@ export default function SavingsScreen() {
                   : t("savingsEditEntry")}
             </Text>
             {modalError ? <Text className="mt-2 text-sm text-destructive">{modalError}</Text> : null}
-            <View className="mt-4 gap-4">
+            <View className="mt-3 gap-3">
               {editingKind !== "auto" && (
                 <View>
                   <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsEntryType")}</Text>
@@ -602,7 +602,7 @@ export default function SavingsScreen() {
                 </View>
               )}
             </View>
-            <View className="mt-5 flex-row items-center justify-end gap-2">
+            <View className="mt-4 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (
                 <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("delete")}>
                   <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
@@ -648,6 +648,6 @@ export default function SavingsScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 112 },
   yearScrollContent: { gap: 8, paddingBottom: 4 },
 });

@@ -99,7 +99,7 @@ export function UpdateCard() {
   }, [latest, t, clearAppStateListener, handleManualInstall]);
 
   return (
-    <View className="rounded-xl border border-border bg-card p-4 gap-3">
+    <View className="rounded-xl border border-border bg-card p-3 gap-3">
       <View className="flex-row items-center gap-2">
         <Rocket size={16} color={colors.primary} />
         <Text className="text-sm font-semibold text-foreground">{t("updatesTitle")}</Text>

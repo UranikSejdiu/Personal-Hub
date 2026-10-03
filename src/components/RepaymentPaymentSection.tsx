@@ -21,7 +21,7 @@ export function RepaymentPaymentSection({ plan, month, paid, onToggle }: Props) 
   const name = plan.name || t(plan.kind === "loan" ? "loanSection" : "ccSection");
   const Icon = plan.kind === "loan" ? Landmark : CreditCard;
   const progress = plan.term > 0 ? Math.min(100, Math.round((plan.monthsPaid / plan.term) * 100)) : 0;
-  return <View className="rounded-xl border border-border bg-card p-4">
+  return <View className="rounded-xl border border-border bg-card p-3">
     <View className="mb-2 flex-row items-center gap-2">
       <Icon size={20} color={colors.foreground} />
       <Text className="flex-1 text-base font-semibold text-foreground">{name}</Text>

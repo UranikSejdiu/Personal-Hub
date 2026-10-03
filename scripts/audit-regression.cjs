@@ -760,5 +760,6 @@ function migrationModule(fixture) {
       assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 11);
     } finally { legacy.close(); }
   });
+  results.push(...await require('./updater-cache-regression.cjs')(root));
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => database.close());

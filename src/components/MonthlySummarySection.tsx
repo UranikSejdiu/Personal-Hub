@@ -69,7 +69,7 @@ export function MonthlySummarySection({
   const hasData = c.loanPayment > 0 || c.ccPayment > 0 || c.extraPlanned > 0 || c.totalExpenses > 0 || savingsGoal > 0;
 
   return (
-    <View className="rounded-xl border border-border bg-card p-4">
+    <View className="rounded-xl border border-border bg-card p-3">
       <Text className="mb-3 text-base font-semibold text-foreground">{t("sectionSummary")}</Text>
 
       <View className="mb-3 gap-1.5">

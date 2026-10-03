@@ -1,18 +1,19 @@
 import { Pressable, Switch, Text, View } from "react-native";
 import type { ComponentType } from "react";
-import { BookOpen, ChevronRight, Cloud, Info, Target } from "./AppIcons";
+import { BookOpen, ChevronRight, Cloud, Info, LayoutGrid, Target } from "./AppIcons";
 import type { AppIconProps } from "./AppIcons";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { type ThemeName } from "../constants/theme";
 import { withAlpha } from "../lib/utils";
 
-export type SettingsSection = "budget" | "backup" | "about";
+export type SettingsSection = "budget" | "backup" | "about" | "modules";
 
 interface SettingsMenuProps {
   theme: ThemeName;
   hapticsOn: boolean;
   budgetSummary: string;
+  enabledIds: string[];
   onThemeChange: (theme: ThemeName) => void;
   onHapticsChange: (enabled: boolean) => void;
   onSelect: (section: SettingsSection) => void;
@@ -30,7 +31,7 @@ function SettingsRow({ icon: Icon, labelKey, subtitle, onPress }: {
   return (
     <Pressable
       onPress={onPress}
-      className="min-h-[52px] flex-row items-center gap-3 px-4 py-3"
+      className="min-h-[48px] flex-row items-center gap-3 px-3 py-2"
       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
       accessible accessibilityRole="button"
       accessibilityLabel={subtitle ? `${t(labelKey)}, ${subtitle}` : t(labelKey)}
@@ -45,14 +46,14 @@ function SettingsRow({ icon: Icon, labelKey, subtitle, onPress }: {
   );
 }
 
-export function SettingsMenu({ theme, hapticsOn, budgetSummary, onThemeChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
+export function SettingsMenu({ theme, hapticsOn, budgetSummary, enabledIds, onThemeChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   return (
-    <View className="gap-5">
+    <View className="gap-3">
       <View className="gap-2">
         <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsAppearance")}</Text>
-        <View className="rounded-xl border border-border bg-card p-4">
+        <View className="rounded-xl border border-border bg-card p-3">
           <Text className="mb-2 text-sm font-medium text-foreground">{t("themeLabel")}</Text>
           <View className="flex-row rounded-xl bg-muted/60 p-1">
             {(["light", "dark"] as const).map((value) => (
@@ -76,18 +77,24 @@ export function SettingsMenu({ theme, hapticsOn, budgetSummary, onThemeChange, o
 
       <View className="gap-2">
         <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsPreferences")}</Text>
-        <View className="min-h-[52px] flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-2">
-          <Text className="flex-1 text-base font-medium text-foreground">{t("hapticsLabel")}</Text>
-          <Switch value={hapticsOn} onValueChange={onHapticsChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={theme === "dark" ? colors.foreground : colors.card} accessibilityLabel={t("hapticsLabel")} />
+        <View className="overflow-hidden rounded-xl border border-border bg-card">
+          <SettingsRow icon={LayoutGrid} labelKey="settingsModules" onPress={() => onSelect("modules")} />
+          <View className="ml-12 h-px bg-border" />
+          <View className="min-h-[48px] flex-row items-center justify-between px-3 py-2">
+            <Text className="flex-1 text-base font-medium text-foreground">{t("hapticsLabel")}</Text>
+            <Switch value={hapticsOn} onValueChange={onHapticsChange} trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={theme === "dark" ? colors.foreground : colors.card} accessibilityLabel={t("hapticsLabel")} />
+          </View>
         </View>
       </View>
 
-      <View className="gap-2">
-        <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsBudget")}</Text>
-        <View className="overflow-hidden rounded-xl border border-border bg-card">
-          <SettingsRow icon={Target} labelKey="settingsBudgetDetails" subtitle={budgetSummary} onPress={() => onSelect("budget")} />
+      {enabledIds.includes("budget") ? (
+        <View className="gap-2">
+          <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsBudget")}</Text>
+          <View className="overflow-hidden rounded-xl border border-border bg-card">
+            <SettingsRow icon={Target} labelKey="settingsBudgetDetails" subtitle={budgetSummary} onPress={() => onSelect("budget")} />
+          </View>
         </View>
-      </View>
+      ) : null}
       <View className="gap-2">
         <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsData")}</Text>
         <View className="overflow-hidden rounded-xl border border-border bg-card">

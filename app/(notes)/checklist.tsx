@@ -15,7 +15,7 @@ import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
-import { ArrowLeft, ChevronDown, ChevronRight, Pin, Plus, Trash2, X } from "../../src/components/AppIcons";
+import { ArrowLeft, ChevronDown, ChevronRight, Plus, X } from "../../src/components/AppIcons";
 import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -31,6 +31,7 @@ import { withTransaction } from "../../src/lib/db";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
+import { NoteActions } from "../../src/components/NoteActions";
 import { Checkbox } from "../../src/components/ui/Checkbox";
 import {
   ChecklistItemRow,
@@ -461,28 +462,8 @@ export default function ChecklistEditorScreen() {
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <View className="flex-row items-center gap-2">
-              <Pressable
-                onPress={handleTogglePin}
-                disabled={isBusy}
-                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
-                accessibilityRole="button"
-                accessibilityLabel={isPinned ? t("notesUnpin") : t("notesPin")}
-                accessibilityState={{ disabled: isBusy }}
-              >
-                <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
-              </Pressable>
-              {noteId ? (
-                <Pressable
-                  onPress={handleDelete}
-                  disabled={isBusy}
-                  className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 active:bg-muted"
-                  accessibilityRole="button"
-                  accessibilityLabel={t("notesDelete")}
-                  accessibilityState={{ disabled: isBusy }}
-                >
-                  <Trash2 size={20} color={colors.destructive} />
-                </Pressable>
-              ) : null}
+              <NoteActions isPinned={isPinned} canDelete={noteId !== null} disabled={isBusy}
+                onTogglePin={handleTogglePin} onDelete={handleDelete} />
               <Pressable
                 onPress={handleSave}
                 disabled={isBusy}

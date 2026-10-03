@@ -92,7 +92,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
       >
         <Pressable
           onPress={() => {}}
-          className="w-full max-w-xs rounded-xl border border-border bg-card p-4 shadow-xl"
+          className="w-full max-w-xs rounded-xl border border-border bg-card p-3.5 shadow-xl"
         >
           <View className="flex-row items-center justify-between">
             <Pressable
@@ -144,7 +144,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
                   <Pressable
                     key={month}
                     onPress={() => { onChange(`${display.getFullYear()}-${String(month + 1).padStart(2, "0")}`); onClose(); }}
-                    className={cn("min-h-[44px] w-1/3 items-center justify-center rounded-lg px-2 py-3 active:opacity-70", selected && "bg-primary")}
+                    className={cn("min-h-[44px] w-1/3 items-center justify-center rounded-lg px-2 py-2.5 active:opacity-70", selected && "bg-primary")}
                     accessible
                     accessibilityRole="button"
                     accessibilityLabel={`${label} ${display.getFullYear()}`}

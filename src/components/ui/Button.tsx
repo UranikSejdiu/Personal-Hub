@@ -52,7 +52,7 @@ export function Button({
       accessibilityState={{ ...accessibilityState, disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       className={cn(
-        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-4 py-3 active:opacity-70",
+        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 active:opacity-70",
         BACKGROUNDS[variant],
         (disabled || busy) && "opacity-60",
         className

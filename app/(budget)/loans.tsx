@@ -2,9 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { Plus } from "../../src/components/AppIcons";
+import { Plus, Landmark, CreditCard } from "../../src/components/AppIcons";
 import { RepaymentPlanCard, type RepaymentPlanCardInfo } from "../../src/components/RepaymentPlanCard";
 import { Button } from "../../src/components/ui/Button";
+import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
 import { NumberInput } from "../../src/components/NumberInput";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
@@ -35,6 +36,7 @@ export default function LoansScreen() {
   const operationRef = useRef(false);
   const readRequestRef = useRef(0);
   const listRef = useRef<FlatList<RepaymentPlan>>(null);
+  const { triggerRef: addButtonRef, anchor: addMenuAnchor, open: openAddMenu, close: closeAddMenu } = useAnchoredMenu();
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -97,14 +99,17 @@ export default function LoansScreen() {
       data={plans}
       keyExtractor={(item) => String(item.id)}
       keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-md self-center gap-3 p-4 pb-28"
+      contentContainerClassName="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28"
       ListHeaderComponent={<View className="gap-3">
-        <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
-        <View className="flex-row gap-2">
-          <Button disabled={saving} className="flex-1" label={t("addLoanPlan")} icon={Plus} variant="secondary" onPress={() => start("loan")} />
-          <Button disabled={saving} className="flex-1" label={t("addCardInstallment")} icon={Plus} variant="secondary" onPress={() => start("card")} />
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <Text className="text-xl font-bold text-foreground">{t("tabLoans")}</Text>
+          <View ref={addButtonRef} collapsable={false}>
+            <Button disabled={saving} label={t("addPaymentPlan")} icon={Plus} variant="secondary"
+              onPress={() => { void haptics.light(); openAddMenu(); }}
+              accessibilityState={{ expanded: addMenuAnchor !== null }} />
+          </View>
         </View>
-        {draft && <View pointerEvents={saving ? "none" : "auto"} accessibilityState={{ busy: saving }} className="gap-3 rounded-xl border border-border bg-card p-4">
+        {draft && <View pointerEvents={saving ? "none" : "auto"} accessibilityState={{ busy: saving }} className="gap-3 rounded-xl border border-border bg-card p-3">
           <Text className="text-base font-semibold text-foreground">{editingId === null ? t("addPaymentPlan") : t("edit")}</Text>
           <View><Text className="mb-1 text-sm text-muted-foreground">{t("paymentPlanName")}</Text><TextInput value={draft.name} onChangeText={(name) => update({ name })} maxLength={100} placeholder={t("paymentPlanNamePlaceholder")} placeholderTextColor={colors.mutedForeground} className="min-h-[44px] rounded-xl border border-border bg-background px-3 text-base text-foreground" /></View>
           <Text className="text-sm text-muted-foreground">{t(draft.kind === "card" ? "paymentPlanCardHint" : "paymentPlanLoanHint")}</Text>
@@ -130,6 +135,10 @@ export default function LoansScreen() {
         return <RepaymentPlanCard info={info} onEdit={() => edit(item)} onDelete={() => { if (!operationRef.current) setDeletingId(item.id); }} />;
       }}
     />
+    <AnchoredMenu anchor={addMenuAnchor} onClose={closeAddMenu} items={[
+      { key: "loan", label: t("addLoanPlan"), icon: Landmark, onPress: () => start("loan") },
+      { key: "card", label: t("addCardInstallment"), icon: CreditCard, onPress: () => start("card") },
+    ]} />
     {draft && choosingMonth && <DatePicker mode="month" initialDisplay="current" value={draft.startMonth} onChange={(startMonth) => { if (startMonth) { update({ startMonth, ...(draft.unbounded && draft.term > 0 ? { endMonth: installmentEndMonth(startMonth, draft.term) } : {}) }); setStartMonthTouched(true); } }} onClose={() => setChoosingMonth(false)} />}
     <ConfirmDialog visible={deletingId !== null} title={t("paymentPlanDeleteTitle")} message={t("paymentPlanDeleteMessage")} destructive confirmLabel={t("delete")} onClose={() => setDeletingId(null)} onConfirm={remove} />
   </KeyboardAvoidingView>;

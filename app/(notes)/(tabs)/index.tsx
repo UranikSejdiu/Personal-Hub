@@ -6,11 +6,10 @@ import {
   TextInput,
   FlatList,
   ActivityIndicator,
-  Modal,
   StyleSheet,
   type ListRenderItemInfo,
 } from "react-native";
-import { Check, FileText, LayoutGrid, List, Plus, Search, Sort, XCircle } from "../../../src/components/AppIcons";
+import { FileText, LayoutGrid, List, Plus, Search, Sort, XCircle } from "../../../src/components/AppIcons";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -27,13 +26,14 @@ import {
 } from "../../../src/lib/notesPreferences";
 import { NoteCard } from "../../../src/components/NoteCard";
 import { NoteTypeChooser } from "../../../src/components/NoteTypeChooser";
+import { AnchoredMenu, useAnchoredMenu } from "../../../src/components/ui/AnchoredMenu";
 import { useThemeColors } from "../../../src/lib/theme";
 import { useHaptics } from "../../../src/hooks/useHaptics";
 import type { NoteKind } from "../../../src/types/notes";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112 },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 112 },
 });
 
 const SORT_OPTIONS: { value: NoteSort; labelKey: TKey }[] = [
@@ -76,7 +76,7 @@ export default function NotesListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
   const [sort, setSort] = useState<NoteSort>("updated");
-  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+  const { triggerRef: sortButtonRef, anchor: sortMenuAnchor, open: openSortMenu, close: closeSortMenu } = useAnchoredMenu();
   const [chooserVisible, setChooserVisible] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
@@ -200,7 +200,7 @@ export default function NotesListScreen() {
 
   const handleSelectSort = useCallback(
     (next: NoteSort) => {
-      setSortMenuVisible(false);
+      closeSortMenu();
       if (next === sortRef.current) return;
       void haptics.light();
       sortRef.current = next;
@@ -208,7 +208,7 @@ export default function NotesListScreen() {
       void setNotesPreferences({ viewMode: viewModeRef.current, sort: next });
       void load(searchRef.current, next);
     },
-    [haptics, load]
+    [closeSortMenu, haptics, load]
   );
 
   const handleNotePress = useCallback(
@@ -267,7 +267,7 @@ export default function NotesListScreen() {
         return (
           <Text
             className={`mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground ${
-              item.spacedTop ? "mt-4" : ""
+              item.spacedTop ? "mt-3" : ""
             }`}
           >
             {t(item.labelKey)}
@@ -316,7 +316,7 @@ export default function NotesListScreen() {
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-4 p-4 pb-0">
+      <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-0">
         <View className="flex-row items-center justify-between">
           <Text className="text-base font-semibold text-foreground">
             {t("notesTitle")}
@@ -373,11 +373,13 @@ export default function NotesListScreen() {
             )}
           </Pressable>
           <Pressable
-            onPress={() => setSortMenuVisible(true)}
+            ref={sortButtonRef}
+            onPress={() => { void haptics.light(); openSortMenu(); }}
             className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("notesSort")}
+            accessibilityState={{ expanded: sortMenuAnchor !== null }}
           >
             <Sort size={18} color={colors.mutedForeground} />
           </Pressable>
@@ -407,43 +409,12 @@ export default function NotesListScreen() {
         windowSize={7}
       />
 
-      <Modal
-        visible={sortMenuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSortMenuVisible(false)}
-      >
-        <Pressable
-          className="flex-1 items-center justify-center bg-black/50 px-8"
-          onPress={() => setSortMenuVisible(false)}
-        >
-          <Pressable
-            onPress={(event) => event.stopPropagation()}
-            className="w-full max-w-sm gap-1 rounded-2xl bg-card p-2 shadow-xl"
-          >
-            <Text className="px-3 pb-1 pt-2 text-base font-semibold text-foreground">
-              {t("notesSort")}
-            </Text>
-            {SORT_OPTIONS.map((option) => {
-              const selected = option.value === sort;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => handleSelectSort(option.value)}
-                  className="min-h-[44px] flex-row items-center justify-between rounded-xl px-3 py-3 active:bg-muted"
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel={t(option.labelKey)}
-                  accessibilityState={{ selected }}
-                >
-                  <Text className="text-sm text-foreground">{t(option.labelKey)}</Text>
-                  {selected ? <Check size={18} color={colors.primary} /> : null}
-                </Pressable>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <AnchoredMenu anchor={sortMenuAnchor} onClose={closeSortMenu} items={SORT_OPTIONS.map((option) => ({
+        key: option.value,
+        label: t(option.labelKey),
+        selected: option.value === sort,
+        onPress: () => handleSelectSort(option.value),
+      }))} />
 
       <NoteTypeChooser
         visible={chooserVisible}

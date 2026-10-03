@@ -8,7 +8,8 @@ import { type Expense } from "../lib/budget";
 import { formatCurrency, withAlpha } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
 import { Checkbox } from "./ui/Checkbox";
-import { Button, IconButton } from "./ui/Button";
+import { IconButton } from "./ui/Button";
+import { AnchoredMenu, useAnchoredMenu } from "./ui/AnchoredMenu";
 
 interface Props {
   expenses: Expense[];
@@ -25,8 +26,8 @@ export function CustomExpensesHeader({ expenses, onAdd, onCopyPrevious, previous
   const colors = useThemeColors();
   const haptics = useHaptics();
   return (
-    <View className="rounded-t-2xl border border-b-0 border-border bg-card p-4">
-      <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
+    <View className="rounded-t-2xl border border-b-0 border-border bg-card p-3">
+      <View className="mb-3 flex-row flex-wrap items-center justify-between gap-3">
         <View className="flex-row items-center gap-2">
           <Check size={20} color={colors.foreground} />
           <Text className="text-base font-semibold text-foreground">{t("sectionExpenses")}</Text>
@@ -58,7 +59,7 @@ export function CustomExpensesHeader({ expenses, onAdd, onCopyPrevious, previous
       </View>
 
       {expenses.length === 0 ? (
-        <View className="items-center rounded-lg border border-dashed border-border p-6">
+        <View className="items-center rounded-lg border border-dashed border-border p-4">
           <Text className="mb-3 text-center text-sm text-muted-foreground">
             {previousMonthLabel && onCopyPrevious
               ? t("copyFromPreviousMonthDesc", { month: previousMonthLabel })
@@ -102,7 +103,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
   const colors = useThemeColors();
   const haptics = useHaptics();
   const [editing, setEditing] = useState<"category" | "amount" | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
 
   return (
     <View className={`py-1 ${isLast ? "" : "border-b border-border/50"}`}>
@@ -129,7 +130,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
           />
         ) : (
           <Pressable
-            onPress={() => { setMenuOpen(false); setEditing("category"); }}
+            onPress={() => { close(); setEditing("category"); }}
             className="min-h-[44px] min-w-0 flex-1 flex-row items-center gap-1.5 rounded-lg active:opacity-70"
             accessible accessibilityRole="button"
             accessibilityLabel={`${t("edit")}: ${expense.category || t("addCategoryPlaceholder")}`}
@@ -142,7 +143,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         )}
 
         <Pressable
-          onPress={() => { setMenuOpen(false); setEditing(editing === "amount" ? null : "amount"); }}
+          onPress={() => { close(); setEditing(editing === "amount" ? null : "amount"); }}
           className="min-h-[44px] shrink-0 justify-center rounded-lg px-2 active:bg-muted"
           accessible accessibilityRole="button"
           accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })}
@@ -152,13 +153,15 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
             {formatCurrency(expense.amount)}
           </Text>
         </Pressable>
-        <IconButton
-          icon={MoreHorizontal}
-          selected={menuOpen}
-          onPress={() => { void haptics.light(); setEditing(null); setMenuOpen((open) => !open); }}
-          accessibilityLabel={t("expenseOptions", { category: expense.category || t("category") })}
-          accessibilityState={{ expanded: menuOpen }}
-        />
+        <View ref={triggerRef} collapsable={false}>
+          <IconButton
+            icon={MoreHorizontal}
+            selected={anchor !== null}
+            onPress={() => { void haptics.light(); setEditing(null); open(); }}
+            accessibilityLabel={t("expenseOptions", { category: expense.category || t("category") })}
+            accessibilityState={{ expanded: anchor !== null }}
+          />
+        </View>
       </View>
 
       {editing === "amount" && (
@@ -176,29 +179,16 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         </View>
       )}
 
-      {menuOpen && (
-        <View className="flex-row flex-wrap gap-2 pb-2 pl-11">
-          <Button
-            label={t("recurringToggle")}
-            icon={Repeat}
-            variant="secondary"
-            accessibilityState={{ selected: expense.is_recurring }}
-            className={expense.is_recurring ? "border border-primary" : undefined}
-            onPress={() => {
-              void haptics.light();
-              setMenuOpen(false);
-              if (onToggleRecurring) onToggleRecurring(expense, !expense.is_recurring);
-              else onUpdate(expense.id, { is_recurring: !expense.is_recurring });
-            }}
-          />
-          <Button
-            label={t("delete")}
-            icon={Trash2}
-            variant="destructive"
-            onPress={() => { void haptics.warning(); setMenuOpen(false); onRemove(expense.id); }}
-          />
-        </View>
-      )}
+      <AnchoredMenu anchor={anchor} onClose={close} items={[
+        { key: "recurring", label: t("recurringToggle"), icon: Repeat, selected: expense.is_recurring,
+          onPress: () => {
+            void haptics.light();
+            if (onToggleRecurring) onToggleRecurring(expense, !expense.is_recurring);
+            else onUpdate(expense.id, { is_recurring: !expense.is_recurring });
+          } },
+        { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
+          onPress: () => { void haptics.warning(); onRemove(expense.id); } },
+      ]} />
     </View>
   );
 });

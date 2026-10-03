@@ -24,10 +24,12 @@ import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
 import { formatCurrency, withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
+import { toggleEnabledModule, useModulePreferences } from "../hub/ModulePreferences";
 import { setTutorialSeen } from "../lib/tutorial";
 import { clearSampleData, hasSampleData } from "../lib/sampleData";
 import { resetPlainTextBackfill } from "../lib/notes";
 import { SettingsMenu, type SettingsSection } from "./SettingsMenu";
+import { ModuleChooser } from "./ModuleChooser";
 
 type Section = SettingsSection | null;
 
@@ -50,8 +52,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   const { theme, setTheme } = useTheme();
   const colors = useThemeColors();
   const haptics = useHaptics();
+  const { enabledIds, saveEnabledIds } = useModulePreferences();
   const activeSection: Section = section ?? null;
   const [hapticsOn, setHapticsOn] = useState<boolean>(isHapticsEnabled);
+  const [modulesBusy, setModulesBusy] = useState(false);
+  const modulesBusyRef = useRef(false);
   const [goalAmount, setGoalAmount] = useState(0);
   const [salary, setSalary] = useState(0);
   const [budgetLoadState, setBudgetLoadState] = useState<"loading" | "ready" | "failed">("loading");
@@ -281,6 +286,22 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     }
   }, [t]);
 
+  const toggleModule = useCallback(async (id: string) => {
+    if (modulesBusyRef.current) return;
+    const next = toggleEnabledModule(enabledIds, id);
+    if (next === enabledIds) return;
+    modulesBusyRef.current = true;
+    setModulesBusy(true);
+    try {
+      await saveEnabledIds(next);
+    } catch {
+      toast.error(t("saveFailed"));
+    } finally {
+      modulesBusyRef.current = false;
+      setModulesBusy(false);
+    }
+  }, [enabledIds, saveEnabledIds, t]);
+
   const openSection = useCallback((next: SettingsSection) => {
     void haptics.light();
     router.push({ pathname: "/settings/[section]", params: { section: next, from: activeAppId } } as Href);
@@ -400,11 +421,12 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     return (
       <>
         <ScrollView className="flex-1 bg-background">
-          <View className="w-full max-w-md self-center gap-5 px-4 pt-4 pb-28">
+          <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
             <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
             <SettingsMenu
               theme={theme}
               hapticsOn={hapticsOn}
+              enabledIds={enabledIds}
               budgetSummary={budgetLoadState === "ready"
                 ? t("settingsBudgetSummary", { salary: formatCurrency(salary), target: formatCurrency(goalAmount) })
                 : t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}
@@ -422,7 +444,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   return (
     <>
       <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+        <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
           <View className="flex-row items-center gap-2">
             <Pressable
               onPress={() => { void leaveDetail(); }}
@@ -433,25 +455,32 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <Text className="text-2xl font-bold text-foreground">
-              {activeSection === "budget" ? t("settingsBudgetDetails") : activeSection === "backup" ? t("settingsBackupRestore") : t("settingsAboutUpdates")}
+              {activeSection === "budget" ? t("settingsBudgetDetails") : activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")}
             </Text>
           </View>
+
+        {activeSection === "modules" && (
+          <View className="gap-3">
+            <Text className="text-sm leading-6 text-muted-foreground">{t("settingsModulesHelp")}</Text>
+            <ModuleChooser enabledIds={enabledIds} onToggle={(id) => { void toggleModule(id); }} disabled={modulesBusy} />
+          </View>
+        )}
 
         {activeSection === "budget" && budgetLoadState !== "ready" ? (
           <Text className="text-sm text-muted-foreground">{t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}</Text>
         ) : null}
 
         {activeSection === "budget" && budgetLoadState === "ready" && (
-          <View className="gap-4">
+          <View className="gap-3">
             <BudgetSettingsFields income={salary} goal={goalAmount} saving={saving}
               onIncomeChange={handleSalaryChange} onGoalChange={handleGoalChange} />
           </View>
         )}
 
         {activeSection === "backup" && (
-          <View className="gap-4">
+          <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsBackupHelp")}</Text>
-            <View className="rounded-xl border border-border bg-card p-4 gap-3">
+            <View className="rounded-xl border border-border bg-card p-3 gap-3">
               <Pressable
                 onPress={() => { void haptics.light(); void handleExport(); }}
                 disabled={backupBusy}
@@ -495,7 +524,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
                 <Pressable
                   onPress={handleClearSampleData}
                   disabled={backupBusy}
-                  className="min-h-[52px] flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 active:bg-muted/60 disabled:opacity-60"
+                  className="min-h-[48px] flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 active:bg-muted/60 disabled:opacity-60"
                   android_ripple={{ color: withAlpha(colors.destructive, 0.125) }}
                   accessible accessibilityRole="button" accessibilityLabel={t("sampleDataClear")}
                 >
@@ -511,11 +540,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
         )}
 
         {activeSection === "about" && (
-          <View className="gap-4">
+          <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsAboutHelp")}</Text>
             <UpdateCard />
-            <View className="rounded-xl border border-border bg-card p-4">
-              <View className="items-center gap-3 py-6">
+            <View className="rounded-xl border border-border bg-card p-3">
+              <View className="items-center gap-3 py-4">
                 <Image source={require("../../assets/icon-personal-hub.png")} className="h-16 w-16 rounded-xl" />
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
                 <Text className="text-sm text-muted-foreground">{t("version")}: {getAppVersion()}</Text>

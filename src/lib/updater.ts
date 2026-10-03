@@ -188,7 +188,30 @@ async function loadCheckCache(): Promise<CheckResult | null> {
   }
 }
 
+export async function cleanupInstalledApks(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  const installed = parseVersion(`v${Application.nativeApplicationVersion ?? ""}`);
+  if (!installed || !Paths.cache.exists) return;
+
+  // Only remove this updater's installers for versions already installed.
+  // A newer APK may still be needed by the system installer or for a retry.
+  for (const entry of Paths.cache.list()) {
+    if (!(entry instanceof File)) continue;
+    const match = /^Personal-Hub-(\d+\.\d+\.\d+)\.apk$/.exec(entry.name);
+    if (!match) continue;
+    const version = parseVersion(`v${match[1]}`);
+    if (version && version.code <= installed.code && entry.exists) entry.delete();
+  }
+}
+
 export async function checkForUpdate(): Promise<CheckResult> {
+  // Run before the network check so cleanup also works offline after an update.
+  try {
+    await cleanupInstalledApks();
+  } catch (error) {
+    // Cache maintenance must not prevent update checks; retry on the next check.
+    console.warn("[updater] installed APK cleanup failed:", error);
+  }
   const currentVersion = await getCurrentVersion();
   const cachedOrError = async (): Promise<CheckResult> => {
     const cached = await loadCheckCache();
@@ -257,7 +280,22 @@ export async function checkForUpdate(): Promise<CheckResult> {
   }
 }
 
+let downloadInProgress = false;
+
 export async function downloadApk(
+  info: UpdateInfo,
+  options?: InstallOptions
+): Promise<File> {
+  if (downloadInProgress) throw new Error("An update download is already in progress.");
+  downloadInProgress = true;
+  try {
+    return await performApkDownload(info, options);
+  } finally {
+    downloadInProgress = false;
+  }
+}
+
+async function performApkDownload(
   info: UpdateInfo,
   options?: InstallOptions
 ): Promise<File> {
@@ -267,11 +305,7 @@ export async function downloadApk(
   const downloadUrl = await resolveDownloadUrl(info.downloadUrl, info.versionName);
 
   const destination = new File(Paths.cache, `Personal-Hub-${info.versionName}.apk`);
-  try {
-    if (destination.exists) await destination.delete();
-  } catch {
-    // ignore — idempotent download will handle leftover file
-  }
+  if (destination.exists) destination.delete();
 
   try {
     options?.onProgress?.(1);
@@ -290,16 +324,20 @@ export async function downloadApk(
     },
   });
 
-  let apk: File | null = null;
   try {
-    apk = await task.downloadAsync();
+    const apk = await task.downloadAsync();
+    if (!apk || !apk.exists || apk.size <= 0) throw new Error("Empty APK file.");
+    options?.onProgress?.(100);
+    return apk;
   } catch (e) {
+    // Android streams directly to the destination, including on failed downloads.
+    try {
+      if (destination.exists) destination.delete();
+    } catch (cleanupError) {
+      console.warn("[updater] incomplete APK cleanup failed:", cleanupError);
+    }
     throw new Error(e instanceof Error ? `Download failed: ${e.message}` : "Download failed");
   }
-
-  if (!apk || !apk.exists || apk.size <= 0) throw new Error("Download failed: empty APK file.");
-  options?.onProgress?.(100);
-  return apk;
 }
 
 export async function installApk(apk: File): Promise<void> {

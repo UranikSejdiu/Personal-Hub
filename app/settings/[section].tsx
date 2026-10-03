@@ -6,7 +6,7 @@ import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 import { HUB_APPS } from "../../src/hub/registry";
 
 function isSettingsSection(value: unknown): value is SettingsSection {
-  return value === "budget" || value === "backup" || value === "about";
+  return value === "budget" || value === "backup" || value === "about" || value === "modules";
 }
 
 export default function SettingsDetailRoute() {

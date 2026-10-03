@@ -15,6 +15,7 @@ import { initDatabase } from "../src/lib/db";
 import { migrateLegacyRepayments } from "../src/lib/repaymentMigration";
 import { seedSampleData } from "../src/lib/sampleData";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
+import { ModulePreferencesProvider, useModulePreferences } from "../src/hub/ModulePreferences";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden or unsupported — safe to ignore.
@@ -97,6 +98,7 @@ function RootLayoutInner() {
 
 function BootstrapGate() {
   const themeVariables = useThemeVariables();
+  const { ready: modulesReady } = useModulePreferences();
   const { t } = useI18n();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
@@ -126,12 +128,12 @@ function BootstrapGate() {
   }, []);
 
   useEffect(() => {
-    if (dbReady || dbError) {
+    if ((dbReady && modulesReady) || dbError) {
       void SplashScreen.hideAsync().catch(() => {
         // Already hidden — safe to ignore.
       });
     }
-  }, [dbReady, dbError]);
+  }, [dbReady, modulesReady, dbError]);
 
   const retryDb = useCallback(() => {
     setDbError(null);
@@ -164,7 +166,7 @@ function BootstrapGate() {
     );
   }
 
-  if (!dbReady) return null;
+  if (!dbReady || !modulesReady) return null;
 
   return <RootLayoutInner />;
 }
@@ -194,7 +196,9 @@ export default function RootLayout() {
           <ThemeProvider>
             <I18nProvider>
               <UpdateProvider>
-                <BootstrapGate />
+                <ModulePreferencesProvider>
+                  <BootstrapGate />
+                </ModulePreferencesProvider>
               </UpdateProvider>
             </I18nProvider>
           </ThemeProvider>

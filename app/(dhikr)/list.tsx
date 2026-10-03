@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, BackHandler, Pressable, Text, View, type ListRenderItemInfo } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
-import { MoreHorizontal, ChevronDown, type AppIconProps } from "../../src/components/AppIcons";
+import { MoreHorizontal, ChevronDown, Pencil, Trash2, type AppIconProps } from "../../src/components/AppIcons";
 import { Button, IconButton } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
+import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -18,7 +19,7 @@ import { cn } from "../../src/lib/utils";
 type ModalState =
   | { visible: false }
   | { visible: true; mode: "add" }
-  | { visible: true; mode: "edit" | "actions"; dhikr: Dhikr };
+  | { visible: true; mode: "edit"; dhikr: Dhikr };
 
 const ROW_TRANSITION = LinearTransition.duration(180);
 const LIST_CONTENT_STYLE = { paddingBottom: 112 };
@@ -34,7 +35,7 @@ function applyOrder(items: Dhikr[], order: number[]): Dhikr[] {
   );
 }
 
-function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onActions, onSelect }: {
+function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit, onDelete, onSelect }: {
   item: Dhikr;
   index: number;
   count: number;
@@ -42,15 +43,18 @@ function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onActi
   saving: boolean;
   t: ReturnType<typeof useI18n>["t"];
   onMove: (id: number, direction: -1 | 1) => void;
-  onActions: (dhikr: Dhikr) => void;
+  onEdit: (dhikr: Dhikr) => void;
+  onDelete: (dhikr: Dhikr) => void;
   onSelect: (dhikr: Dhikr) => void;
 }) {
+  const haptics = useHaptics();
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
   const dailyLimit = item.daily_limit;
   const hasGoal = dailyLimit != null && dailyLimit > 0;
   const goalComplete = hasGoal && item.daily_count >= dailyLimit;
 
   return (
-    <Card className="mb-3 px-4 py-3">
+    <Card className="mb-2.5 p-3">
       <View className="flex-row items-center gap-3">
         {arranging && (
           <Text className="w-5 text-sm font-medium text-muted-foreground">{index + 1}</Text>
@@ -79,8 +83,12 @@ function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onActi
               accessibilityLabel={t("dhikrMoveDown", { name: item.name })} />
           </View>
         ) : (
-          <IconButton icon={MoreHorizontal} onPress={() => onActions(item)} disabled={saving}
-            accessibilityLabel={t("dhikrActionsFor", { name: item.name })} />
+          <View ref={triggerRef} collapsable={false}>
+            <IconButton icon={MoreHorizontal} onPress={() => { void haptics.light(); open(); }} disabled={saving}
+              selected={anchor !== null}
+              accessibilityLabel={t("dhikrActionsFor", { name: item.name })}
+              accessibilityState={{ expanded: anchor !== null }} />
+          </View>
         )}
       </View>
       {hasGoal && (
@@ -100,6 +108,12 @@ function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onActi
           </View>
         </View>
       )}
+      <AnchoredMenu anchor={anchor} onClose={close} items={[
+        { key: "edit", label: t("editDhikr"), icon: Pencil,
+          onPress: () => { void haptics.light(); onEdit(item); } },
+        { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
+          onPress: () => { void haptics.warning(); onDelete(item); } },
+      ]} />
     </Card>
   );
 }
@@ -268,21 +282,15 @@ export default function DhikrListScreen() {
     }
   }, [dhikrToDelete, dhikrs, t]);
 
-  const handleActions = useCallback((dhikr: Dhikr) => {
-    if (operationRef.current !== "idle") return;
-    void haptics.light();
-    setModal({ visible: true, mode: "actions", dhikr });
-  }, [haptics]);
-
   const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Dhikr>) => (
     <DhikrListRow item={item} index={index} count={displayedDhikrs.length} arranging={arranging} saving={isSaving}
-      t={t} onMove={moveDhikr} onActions={handleActions} onSelect={handleSelect} />
-  ), [arranging, displayedDhikrs.length, handleActions, handleSelect, isSaving, moveDhikr, t]);
+      t={t} onMove={moveDhikr} onEdit={handleEdit} onDelete={handleDelete} onSelect={handleSelect} />
+  ), [arranging, displayedDhikrs.length, handleDelete, handleEdit, handleSelect, isSaving, moveDhikr, t]);
 
   return (
     <>
       <View className="flex-1 bg-background">
-        <View className="w-full max-w-md flex-1 self-center px-4 pt-4">
+        <View className="w-full max-w-md flex-1 self-center px-4 pt-3">
           <View className="mb-3 gap-1">
             <View className="min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
               <Text className="text-xl font-bold text-foreground">{t(arranging ? "dhikrArrangeTitle" : "myDhikrs")}</Text>
@@ -351,8 +359,7 @@ export default function DhikrListScreen() {
       {modal.visible && (
         <DhikrModal haptics={haptics}
           {...(modal.mode === "add" ? { mode: modal.mode }
-            : modal.mode === "edit" ? { mode: modal.mode, dhikr: modal.dhikr }
-              : { mode: modal.mode, dhikr: modal.dhikr, onEdit: () => handleEdit(modal.dhikr), onDelete: () => handleDelete(modal.dhikr) })}
+            : { mode: modal.mode, dhikr: modal.dhikr })}
           onClose={() => setModal({ visible: false })}
           onSave={(dhikr) => {
             ++loadSequenceRef.current;

@@ -371,7 +371,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-4 p-4 pb-28">
+        <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -382,7 +382,7 @@ export default function BudgetScreen() {
               className="space-y-4 rounded-lg border bg-card p-6"
             >
               <View className="h-5 w-40 animate-pulse rounded bg-muted" />
-              <View className="grid grid-cols-1 gap-4">
+              <View className="grid grid-cols-1 gap-3">
                 {[1, 2, 3].map((j) => (
                   <View key={j} className="space-y-2">
                     <View className="h-3 w-24 animate-pulse rounded bg-muted" />
@@ -401,7 +401,7 @@ export default function BudgetScreen() {
   return (
     <FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center p-4 pb-28"
+      contentContainerClassName="w-full max-w-md self-center px-4 pt-3 pb-28"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -412,12 +412,12 @@ export default function BudgetScreen() {
       windowSize={7}
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
-        <View className="border-x border-border bg-card px-4">
+        <View className="border-x border-border bg-card px-3">
           <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={handleRemoveExpense} onToggleRecurring={handleToggleRecurring} />
         </View>
       )}
       ListHeaderComponent={
-        <View className="gap-4">
+        <View className="gap-3">
           <Text className="text-xl font-bold text-foreground">{t("tabBudget")}</Text>
           {repayments.map((plan) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
           <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense}
@@ -426,7 +426,7 @@ export default function BudgetScreen() {
         </View>
       }
       ListFooterComponent={
-        <View className="gap-4">
+        <View className="gap-3">
           <View className="h-3 rounded-b-2xl border border-t-0 border-border bg-card" />
           <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}
             repayments={repayments} paidRepayments={paidRepayments} savingsGoal={savingsGoal} />

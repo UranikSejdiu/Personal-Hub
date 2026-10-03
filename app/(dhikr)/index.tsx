@@ -251,7 +251,7 @@ export default function CounterScreen() {
       >
         <View className="flex-1 items-center">
           {/* Top selector: name + prev/next chevrons */}
-          <View className="w-full flex-row items-center justify-center gap-4 px-5 pt-10">
+          <View className="w-full flex-row items-center justify-center gap-3 px-4 pt-6">
             <Pressable
               onPress={handlePrev}
               className="h-14 w-14 items-center justify-center rounded-xl active:bg-muted"
@@ -304,7 +304,7 @@ export default function CounterScreen() {
             )}
             <Pressable
               onPress={handleReset}
-              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary px-5 py-3 active:opacity-70"
+              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary px-4 py-2.5 active:opacity-70"
               accessible
               accessibilityRole="button"
               accessibilityLabel={t("resetLabel")}

@@ -4,7 +4,8 @@ import { Trash2, ChevronDown, MoreHorizontal } from "./AppIcons";
 import { useI18n, monthLabelShort } from "../lib/i18n";
 import { useHaptics } from "../hooks/useHaptics";
 import { formatCurrency, cn } from "../lib/utils";
-import { Button, IconButton } from "./ui/Button";
+import { IconButton } from "./ui/Button";
+import { AnchoredMenu, useAnchoredMenu } from "./ui/AnchoredMenu";
 import { Card } from "./ui/Card";
 import type { MonthSummary } from "../types/budget";
 
@@ -30,7 +31,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
   const haptics = useHaptics();
   const monthLabel = monthLabelShort(lang, summary.month);
   const featured = variant === "featured";
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
 
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
@@ -60,7 +61,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
             <Text className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">{t("dashboardCurrentMonth")}</Text>
           )}
           <Text className={cn("text-foreground", featured ? "text-lg font-semibold" : "text-base font-semibold")}>{monthLabel}</Text>
-          <Text className="mt-3 text-xs text-muted-foreground">
+          <Text className="mt-1.5 text-xs text-muted-foreground">
             {t(featured ? "dashboardActualRemaining" : "dashboardPlannedRemaining")}
           </Text>
           <Text
@@ -81,24 +82,25 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
             accessibilityLabel={isExpanded ? t("collapse") : t("expand")}
             accessibilityState={{ expanded: isExpanded }}
           />
-          <IconButton
-            icon={MoreHorizontal}
-            selected={menuOpen}
-            onPress={() => { void haptics.light(); setMenuOpen((value) => !value); }}
-            accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })}
-            accessibilityState={{ expanded: menuOpen }}
-          />
+          <View ref={triggerRef} collapsable={false}>
+            <IconButton
+              icon={MoreHorizontal}
+              selected={anchor !== null}
+              onPress={() => { void haptics.light(); open(); }}
+              accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })}
+              accessibilityState={{ expanded: anchor !== null }}
+            />
+          </View>
         </View>
       </View>
 
-      {menuOpen && (
-        <View className="mt-3 border-t border-border/60 pt-3">
-          <Button label={t("delete")} icon={Trash2} variant="destructive" onPress={() => { setMenuOpen(false); onDelete(); }} />
-        </View>
-      )}
+      <AnchoredMenu anchor={anchor} onClose={close} items={[
+        { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
+          onPress: () => { void haptics.warning(); onDelete(); } },
+      ]} />
 
       {featured && (
-        <View className="mt-4 flex-row flex-wrap gap-4 rounded-xl bg-surface p-3">
+        <View className="mt-2.5 flex-row flex-wrap gap-3 rounded-xl bg-surface p-2.5">
           <View className="min-w-[112px] flex-1 gap-1">
             <Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text>
             <Text className={cn("text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
@@ -111,7 +113,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
       )}
 
       {isExpanded && (
-        <View className="mt-4 gap-3 border-t border-border/60 pt-4">
+        <View className="mt-3 gap-2.5 border-t border-border/60 pt-3">
           {details.map((detail) => (
             <View key={detail.label} className="flex-row flex-wrap justify-between gap-2">
               <Text className="shrink text-sm text-muted-foreground">{detail.label}</Text>
@@ -122,7 +124,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
       )}
 
       {summary.savingsGoal > 0 && (featured || isExpanded) && (
-        <View className="mt-4 gap-2">
+        <View className="mt-2.5 gap-1.5">
           <View className="flex-row flex-wrap items-center justify-between gap-2">
             <Text className="text-xs text-muted-foreground">{t("dashboardSavingsProgress")}</Text>
             <Text className={cn("text-xs font-semibold", summary.goalMet ? "text-success" : "text-foreground")}>

@@ -11,7 +11,7 @@ export function SavingsGoalCard({ goalAmount, balance }: { goalAmount: number; b
   const goalMet = balance >= goalAmount;
   const progress = Math.max(0, Math.min(100, (balance / goalAmount) * 100));
   return (
-    <View className="rounded-xl border border-border bg-card p-4">
+    <View className="rounded-xl border border-border bg-card p-3">
       <View className="mb-3 flex-row flex-wrap items-center justify-between gap-2">
         <Text className="text-base font-semibold text-foreground">{t("savingsGoalLabel")}</Text>
         {goalMet && (

@@ -4,14 +4,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { useI18n, type TKey } from "../lib/i18n";
 import { setTutorialSeen } from "../lib/tutorial";
+import { toggleEnabledModule, useModulePreferences } from "../hub/ModulePreferences";
+import { getHubRoute, HUB_APPS } from "../hub/registry";
 import { useHaptics } from "../hooks/useHaptics";
 import { toast } from "sonner-native";
 import { Button } from "./ui/Button";
+import { ModuleChooser } from "./ModuleChooser";
 import { WelcomePreview } from "./tutorial/WelcomePreview";
 import { NavigationPreview } from "./tutorial/NavigationPreview";
-import { DashboardPreview } from "./tutorial/DashboardPreview";
-import { SavingsPreview } from "./tutorial/SavingsPreview";
-import { LoansPreview } from "./tutorial/LoansPreview";
+import { BudgetTourPreview } from "./tutorial/BudgetTourPreview";
 import { DhikrPreview } from "./tutorial/DhikrPreview";
 import { NotesPreview } from "./tutorial/NotesPreview";
 import { SettingsPreview } from "./tutorial/SettingsPreview";
@@ -20,18 +21,17 @@ import Animated, { FadeInUp, ReduceMotion, useReducedMotion } from "react-native
 interface TutorialPage {
   titleKey: TKey;
   descKey: TKey;
-  preview: React.ComponentType;
+  preview?: React.ComponentType;
 }
 
 const PAGES: TutorialPage[] = [
   { titleKey: "tutorialWelcome", descKey: "tutorialWelcomeDesc", preview: WelcomePreview },
   { titleKey: "tutorialNavigation", descKey: "tutorialNavigationDesc", preview: NavigationPreview },
-  { titleKey: "tutorialDashboard", descKey: "tutorialDashboardDesc", preview: DashboardPreview },
-  { titleKey: "tutorialSavings", descKey: "tutorialSavingsDesc", preview: SavingsPreview },
-  { titleKey: "tutorialLoans", descKey: "tutorialLoansDesc", preview: LoansPreview },
+  { titleKey: "tutorialBudget", descKey: "tutorialBudgetDesc", preview: BudgetTourPreview },
   { titleKey: "tutorialDhikr", descKey: "tutorialDhikrDesc", preview: DhikrPreview },
   { titleKey: "tutorialNotes", descKey: "tutorialNotesDesc", preview: NotesPreview },
   { titleKey: "tutorialSettings", descKey: "tutorialSettingsDesc", preview: SettingsPreview },
+  { titleKey: "tutorialChooseModules", descKey: "tutorialChooseModulesDesc" },
 ];
 
 export default function TutorialScreen() {
@@ -40,6 +40,8 @@ export default function TutorialScreen() {
   const router = useRouter();
   const { t } = useI18n();
   const haptics = useHaptics();
+  const { enabledIds, saveEnabledIds } = useModulePreferences();
+  const [chosenIds, setChosenIds] = useState(enabledIds);
   const scrollRef = useRef<ScrollView>(null);
   const completingRef = useRef(false);
   const [completing, setCompleting] = useState(false);
@@ -62,15 +64,20 @@ export default function TutorialScreen() {
     completingRef.current = true;
     setCompleting(true);
     try {
+      await saveEnabledIds(chosenIds);
       await setTutorialSeen(true);
-      router.replace("/(budget)" as Href);
+      router.replace(getHubRoute(HUB_APPS.find((app) => chosenIds.includes(app.id))?.id ?? "budget") as Href);
     } catch {
       toast.error(t("saveFailed"));
     } finally {
       completingRef.current = false;
       setCompleting(false);
     }
-  }, [router, t]);
+  }, [chosenIds, router, saveEnabledIds, t]);
+
+  const toggleModule = useCallback((id: string) => {
+    setChosenIds((current) => toggleEnabledModule(current, id));
+  }, []);
 
   const goToPage = useCallback((page: number) => {
     void haptics.light();
@@ -98,17 +105,19 @@ export default function TutorialScreen() {
         <Text accessibilityLiveRegion="polite" className="text-xs font-medium text-muted-foreground">
           {t("tutorialStep", { current: currentPage + 1, total: PAGES.length })}
         </Text>
-        <Pressable
-          onPress={() => { void haptics.light(); void completeTutorial(); }}
-          disabled={completing}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={t("tutorialSkip")}
-          accessibilityState={{ disabled: completing }}
-          className="min-h-[44px] items-center justify-center rounded-xl px-3 active:bg-muted"
-        >
-          <Text className="text-sm font-medium text-muted-foreground">{t("tutorialSkip")}</Text>
-        </Pressable>
+        {!isLast ? (
+          <Pressable
+            onPress={() => { void haptics.light(); goToPage(PAGES.length - 1); }}
+            disabled={completing}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("tutorialSkip")}
+            accessibilityState={{ disabled: completing }}
+            className="min-h-[44px] items-center justify-center rounded-xl px-3 active:bg-muted"
+          >
+            <Text className="text-sm font-medium text-muted-foreground">{t("tutorialSkip")}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView
@@ -144,8 +153,12 @@ export default function TutorialScreen() {
                 </View>
                 {active ? (
                   <Animated.View entering={FadeInUp.duration(300).reduceMotion(ReduceMotion.System)} className="gap-3">
-                    {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(page.titleKey === "tutorialSettings" ? "tutorialLiveThemePreview" : "tutorialSamplePreview")}</Text>}
-                    <Preview />
+                    {Preview ? (
+                      <>
+                        {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(page.titleKey === "tutorialSettings" ? "tutorialLiveThemePreview" : "tutorialSamplePreview")}</Text>}
+                        <Preview />
+                      </>
+                    ) : <ModuleChooser enabledIds={chosenIds} onToggle={toggleModule} disabled={completing} />}
                   </Animated.View>
                 ) : null}
               </View>

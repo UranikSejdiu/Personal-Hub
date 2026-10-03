@@ -1,12 +1,14 @@
+import { useEffect } from "react";
 import { View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Rocket } from "./AppIcons";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { AppSwitcher } from "./AppSwitcher";
-import { HUB_APPS } from "../hub/registry";
+import { getHubRoute, HUB_APPS } from "../hub/registry";
 import { useUpdate } from "../lib/UpdateContext";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
+import { useModulePreferences } from "../hub/ModulePreferences";
 
 interface HubHeaderProps {
   activeAppId: string;
@@ -19,15 +21,22 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
   const colors = useThemeColors();
   const { t } = useI18n();
   const router = useRouter();
+  const { enabledIds } = useModulePreferences();
+
+  useEffect(() => {
+    if (!enabledIds.includes(activeAppId)) {
+      router.replace(getHubRoute(enabledIds[0]) as Href);
+    }
+  }, [activeAppId, enabledIds, router]);
 
   return (
     <View
       className="bg-background"
       style={{ paddingTop: insets.top }}
     >
-      <View className="w-full max-w-md self-center flex-row items-center justify-between px-4 py-2">
+      <View className="w-full max-w-md self-center flex-row items-center justify-between px-4 py-1.5">
         <AppSwitcher
-          apps={HUB_APPS}
+          apps={HUB_APPS.filter((app) => enabledIds.includes(app.id))}
           activeAppId={activeAppId}
           onAppSelect={onAppSelect}
         />
