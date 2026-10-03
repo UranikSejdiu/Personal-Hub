@@ -69,15 +69,16 @@ export default function CounterScreen() {
   );
 
   const activeDhikr = dhikrs.find((d) => d.id === selectedId) ?? dhikrs[0] ?? null;
-  const activeDhikrRef = useRef(activeDhikr);
+  const activeDhikrRef = useRef<Dhikr | null>(null);
   useEffect(() => {
     activeDhikrRef.current = activeDhikr;
   }, [activeDhikr]);
 
   const selectDhikr = useCallback((id: number) => {
+    activeDhikrRef.current = dhikrs.find((d) => d.id === id) ?? null;
     setSelectedId(id);
     void setSelectedDhikrId(id);
-  }, []);
+  }, [dhikrs]);
 
   // Queued write: we fire optimistic UI immediately and let the DB flush
   // sequentially via a ref-based mutex — rapid taps are never dropped.
@@ -113,6 +114,14 @@ export default function CounterScreen() {
     const willHitLimit =
       limit != null && limit > 0 && dhikr.daily_count + 1 >= limit;
 
+    // React can batch presses before rendering; the next press must see this
+    // optimistic increment even while the database write is still queued.
+    activeDhikrRef.current = {
+      ...dhikr,
+      daily_count: dhikr.daily_count + 1,
+      total_count: dhikr.total_count + 1,
+    };
+
     setDhikrs((prev) =>
       prev.map((d) =>
         d.id === dhikr.id
@@ -134,6 +143,13 @@ export default function CounterScreen() {
       try {
         const accepted = await incrementDhikr(dhikr.id);
         if (!accepted) {
+          if (activeDhikrRef.current?.id === dhikr.id) {
+            activeDhikrRef.current = {
+              ...activeDhikrRef.current,
+              daily_count: Math.max(0, activeDhikrRef.current.daily_count - 1),
+              total_count: Math.max(0, activeDhikrRef.current.total_count - 1),
+            };
+          }
           setDhikrs((prev) =>
             prev.map((d) =>
               d.id === dhikr.id
@@ -148,6 +164,13 @@ export default function CounterScreen() {
         }
       } catch {
         // Revert optimistic update on failure using functional state to avoid race conditions.
+        if (activeDhikrRef.current?.id === dhikr.id) {
+          activeDhikrRef.current = {
+            ...activeDhikrRef.current,
+            daily_count: Math.max(0, activeDhikrRef.current.daily_count - 1),
+            total_count: Math.max(0, activeDhikrRef.current.total_count - 1),
+          };
+        }
         setDhikrs((prev) =>
           prev.map((d) =>
             d.id === dhikr.id
@@ -175,6 +198,9 @@ export default function CounterScreen() {
         // clobber in-flight optimistic increments for other dhikrs.
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        if (activeDhikrRef.current?.id === id) {
+          activeDhikrRef.current = { ...activeDhikrRef.current, daily_count: 0, total_count: 0, last_reset_date: todayStr };
+        }
         setDhikrs((prev) =>
           prev.map((d) =>
             d.id === id

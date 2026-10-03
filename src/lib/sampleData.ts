@@ -170,7 +170,9 @@ export async function hasSampleData(): Promise<boolean> {
 
 /** Invalidate demo ownership before replacing database contents from a backup. */
 export async function invalidateSampleData(): Promise<void> {
-  await SecureStore.deleteItemAsync(SAMPLE_STATE_KEY);
+  // A restored backup may intentionally be empty. Keep a cleared marker so
+  // the startup seeder does not turn that empty backup into demo content.
+  await writeRecord({ state: "cleared", months: [], noteIds: [] });
 }
 
 function loansMatchSample(loans: Loans): boolean {
@@ -178,6 +180,57 @@ function loansMatchSample(loans: Loans): boolean {
     const key = field as keyof Loans;
     return loans[key] === SAMPLE_LOANS[key];
   });
+}
+
+async function isUnchangedSampleNote(
+  tx: db.DbExecutor,
+  noteId: number,
+  sample: (typeof SAMPLE_NOTES)[number] | undefined
+): Promise<boolean> {
+  if (!sample) return false;
+  const note = await tx.get<Record<string, unknown>>("SELECT title, content, kind, is_pinned, color FROM notes WHERE id = ?", [noteId]);
+  if (!note || note.title !== sample.title || note.content !== sample.content ||
+      note.kind !== sample.kind || note.is_pinned !== (sample.is_pinned ? 1 : 0) ||
+      note.color !== sample.color) return false;
+
+  const items = await tx.query<{ text: string; checked: number; position: number }>(
+    "SELECT text, checked, position FROM note_items WHERE note_id = ? ORDER BY position, id", [noteId]
+  );
+  const expected = sample.items ?? [];
+  return items.length === expected.length && items.every((item, index) =>
+    item.text === expected[index].text && item.checked === (expected[index].checked ? 1 : 0) && item.position === index
+  );
+}
+
+async function isUnchangedSampleMonth(
+  tx: db.DbExecutor,
+  key: string,
+  sample: (typeof SAMPLE_MONTHS)[number] | undefined,
+  removablePlanIds: ReadonlySet<number>
+): Promise<boolean> {
+  if (!sample) return false;
+  const budget = await tx.get<{ id: number; income: number; loan_paid: number; cc_paid: number; cc2_paid: number }>(
+    "SELECT id, income, loan_paid, cc_paid, cc2_paid FROM budgets WHERE month = ?", [key]
+  );
+  if (!budget || budget.income !== sample.income || budget.loan_paid !== (sample.loanPaid ? 1 : 0) ||
+      budget.cc_paid !== (sample.ccPaid ? 1 : 0) || budget.cc2_paid !== 0) return false;
+
+  const expenses = await tx.query<{ category: string; amount: number; paid: number; is_recurring: number }>(
+    "SELECT category, amount, paid, is_recurring FROM expenses WHERE budget_id = ? ORDER BY id", [budget.id]
+  );
+  const expected = sampleExpenses(sample);
+  if (expenses.length !== expected.length || !expenses.every((expense, index) =>
+    expense.category === expected[index].category && expense.amount === expected[index].amount &&
+    expense.paid === (expected[index].paid ? 1 : 0) &&
+    expense.is_recurring === (expected[index].is_recurring ? 1 : 0)
+  )) return false;
+
+  // Removing a month also removes its payment history. Preserve the month if
+  // any payment belongs to a user plan or to an edited sample plan.
+  const payments = await tx.query<{ plan_id: number }>(
+    "SELECT plan_id FROM repayment_payments WHERE month = ?", [key]
+  );
+  return payments.every((payment) => removablePlanIds.has(payment.plan_id));
 }
 
 /**
@@ -255,9 +308,9 @@ export async function seedSampleData(): Promise<void> {
 }
 
 /**
- * Removes the demo rows recorded at seed time. Deletes are driven by the stored
- * ids rather than today's dataset, so the reset still works after a later
- * version changes what the demo looks like.
+ * Removes only demo rows that still match the bundled sample. Older ownership
+ * records also use this comparison; if the sample changed between releases,
+ * preserving a row is safer than deleting a user's edits.
  *
  * The loan and savings singletons are only reset while they still hold the demo
  * values, so real figures entered after seeding are never discarded.
@@ -267,36 +320,43 @@ export async function clearSampleData(): Promise<boolean> {
   if (!record || record.state !== "seeded") return false;
 
   await db.withTransaction(async (tx) => {
+    const unchangedPlans: NonNullable<SampleDataRecord["planSnapshots"]> = [];
     for (const snapshot of record.planSnapshots ?? []) {
       const plan = await tx.get<Record<string, unknown>>("SELECT * FROM repayment_plans WHERE id = ?", [snapshot.id]);
       const payments = await tx.query<Record<string, unknown>>("SELECT * FROM repayment_payments WHERE plan_id = ? ORDER BY month", [snapshot.id]);
       if (plan && JSON.stringify(plan) === JSON.stringify(snapshot.plan) && JSON.stringify(payments) === JSON.stringify(snapshot.payments)) {
+        unchangedPlans.push(snapshot);
+      }
+    }
+    const candidatePlanIds = new Set(unchangedPlans.map((snapshot) => snapshot.id));
+    const allMonthsUnchanged = (await Promise.all(record.months.map((month, index) =>
+      isUnchangedSampleMonth(tx, month, SAMPLE_MONTHS[index], candidatePlanIds)
+    ))).every(Boolean);
+    // A sample plan may still be useful to an edited month. Keep every plan
+    // when any owned month has changed, and only remove payment-free months.
+    const removablePlanIds = allMonthsUnchanged ? candidatePlanIds : new Set<number>();
+    if (allMonthsUnchanged) {
+      for (const snapshot of unchangedPlans) {
         await tx.execute("DELETE FROM repayment_payments WHERE plan_id = ?", [snapshot.id]);
         await tx.execute("DELETE FROM repayment_plans WHERE id = ?", [snapshot.id]);
       }
     }
-    for (const noteId of record.noteIds) {
-      const note = await tx.get<{ id: number }>("SELECT id FROM notes WHERE id = ?", [noteId]);
-      if (note) await deleteNote(noteId, tx);
+    for (const [index, noteId] of record.noteIds.entries()) {
+      if (await isUnchangedSampleNote(tx, noteId, SAMPLE_NOTES[index])) {
+        await deleteNote(noteId, tx);
+      }
     }
 
-    for (const month of record.months) {
-      const budget = await tx.get<{ id: number }>(
-        "SELECT id FROM budgets WHERE month = ?",
-        [month]
-      );
-      if (budget) await deleteBudget(month, tx);
+    for (const [index, month] of record.months.entries()) {
+      if (await isUnchangedSampleMonth(tx, month, SAMPLE_MONTHS[index], removablePlanIds)) {
+        await deleteBudget(month, tx);
+      }
     }
 
-    if (record.months.length > 0) {
-      const placeholders = record.months.map(() => "?").join(", ");
-      await tx.execute(
-        `DELETE FROM savings_auto_deposits WHERE month IN (${placeholders})`,
-        record.months
-      );
-    }
-
-    if (loansMatchSample(await loadLoans(tx))) {
+    // The legacy loan fields still describe sample plans. If a plan was
+    // changed, keep those fields as well so the two representations agree.
+    if (allMonthsUnchanged && unchangedPlans.length === (record.planSnapshots?.length ?? 0) &&
+        loansMatchSample(await loadLoans(tx))) {
       await saveLoans({ ...EMPTY_LOANS }, tx);
     }
 

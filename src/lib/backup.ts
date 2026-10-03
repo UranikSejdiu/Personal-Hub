@@ -15,6 +15,8 @@ export const BACKUP_FORMAT = "personal-hub.backup";
 export const BACKUP_VERSION = 3;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
+const EXPORTED_BACKUP_NAME = /^personal-hub-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/;
+const MAX_CACHED_EXPORTS = 3;
 // Real backups are well under this; the cap keeps a hostile or mistaken file
 // from forcing a huge read plus JSON.parse before validation can reject it.
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -449,6 +451,16 @@ export async function exportBackupToFile(): Promise<string> {
   const name = `personal-hub-backup-${ts}.json`;
   const file = new File(Paths.cache, name);
   await writeTextFile(file, json);
+  // Keep a few recent exports so share targets can finish reading them, while
+  // old plaintext JSON copies cannot grow the app cache without bound.
+  try {
+    const exports = Paths.cache.list()
+      .filter((entry): entry is File => entry instanceof File && EXPORTED_BACKUP_NAME.test(entry.name))
+      .sort((a, b) => b.name.localeCompare(a.name));
+    for (const stale of exports.slice(MAX_CACHED_EXPORTS)) stale.delete();
+  } catch (error) {
+    console.warn("[backup] cached export cleanup failed", error);
+  }
   return file.uri;
 }
 
@@ -763,12 +775,27 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
 export async function readJsonFromFileUri(uri: string): Promise<string> {
   const file = new File(uri);
-  if (!file.exists) throw new Error("File not found");
-  const size = file.size;
-  if (size !== null && size > MAX_IMPORT_BYTES) {
-    throw new Error("Backup file is too large");
+  const cacheRoot = Paths.cache.uri.replace(/\/$/, "");
+  const isPickerCacheCopy = file.uri.startsWith(`${cacheRoot}/`);
+  try {
+    if (!file.exists) throw new Error("File not found");
+    const size = file.size;
+    if (size !== null && size > MAX_IMPORT_BYTES) {
+      throw new Error("Backup file is too large");
+    }
+    const content = await readTextFile(file);
+    if (content.startsWith("SQLite format 3")) throw new Error("Invalid backup: SQLite file");
+    return content;
+  } finally {
+    // DocumentPicker.copyToCacheDirectory creates a temporary copy. The JSON
+    // has been read into memory before confirmation, so the copy is no longer
+    // needed. Never delete a file outside this app's cache directory.
+    if (isPickerCacheCopy && file.exists) {
+      try {
+        file.delete();
+      } catch (error) {
+        console.warn("[backup] imported cache copy cleanup failed", error);
+      }
+    }
   }
-  const content = await readTextFile(file);
-  if (content.startsWith("SQLite format 3")) throw new Error("Invalid backup: SQLite file");
-  return content;
 }

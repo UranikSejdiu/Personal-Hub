@@ -52,30 +52,30 @@ export default function BudgetScreen() {
   const budgetIdRef = useRef<number | null>(null);
   const loadRequestRef = useRef(0);
   const toggleInFlightRef = useRef(false);
-  const expenseTimersRef = useRef(
-    new Map<number, ReturnType<typeof setTimeout>>()
-  );
-  const expensePendingRef = useRef(
-    new Map<
-      number,
-      {
-        fields: Partial<Pick<Expense, "category" | "amount">>;
-        prevExpense: Expense | undefined;
-      }
-    >()
-  );
+  const expensePendingRef = useRef(new Map<number, Partial<Pick<Expense, "category" | "amount">>>());
+  const expenseQueuedIdsRef = useRef(new Set<number>());
   const expenseQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const expenseEditRevisionRef = useRef(new Map<number, number>());
 
   const flushExpenseUpdate = useCallback(async (id: number) => {
     const pending = expensePendingRef.current.get(id);
     expensePendingRef.current.delete(id);
     if (!pending) return;
+    const revision = expenseEditRevisionRef.current.get(id);
     try {
-      await updateExpense(id, pending.fields);
+      await updateExpense(id, pending);
     } catch {
       try {
-        if (budgetIdRef.current !== null) {
-          setExpenses(await listExpenses(budgetIdRef.current));
+        const budgetId = budgetIdRef.current;
+        if (revision === expenseEditRevisionRef.current.get(id) &&
+            !expensePendingRef.current.has(id) && budgetId !== null) {
+          const savedExpense = (await listExpenses(budgetId)).find((expense) => expense.id === id);
+          if (savedExpense && revision === expenseEditRevisionRef.current.get(id) &&
+              budgetId === budgetIdRef.current) {
+            setExpenses((current) => current.map((expense) => expense.id === id
+              ? { ...expense, category: savedExpense.category, amount: savedExpense.amount }
+              : expense));
+          }
         }
       } catch {
         // Keep optimistic values when reload also fails; user sees the toast.
@@ -87,50 +87,36 @@ export default function BudgetScreen() {
   const scheduleExpenseUpdate = useCallback(
     (
       id: number,
-      fields: Partial<Pick<Expense, "category" | "amount">>,
-      prevExpense: Expense | undefined
+      fields: Partial<Pick<Expense, "category" | "amount">>
     ) => {
+      expenseEditRevisionRef.current.set(id, (expenseEditRevisionRef.current.get(id) ?? 0) + 1);
       const existing = expensePendingRef.current.get(id);
-      expensePendingRef.current.set(id, {
-        fields: { ...(existing?.fields ?? {}), ...fields },
-        prevExpense: existing?.prevExpense ?? prevExpense,
+      expensePendingRef.current.set(id, { ...existing, ...fields });
+      if (expenseQueuedIdsRef.current.has(id)) return;
+      expenseQueuedIdsRef.current.add(id);
+      expenseQueueRef.current = expenseQueueRef.current.then(async () => {
+        try {
+          while (expensePendingRef.current.has(id)) await flushExpenseUpdate(id);
+        } finally {
+          expenseQueuedIdsRef.current.delete(id);
+        }
       });
-      const timer = expenseTimersRef.current.get(id);
-      if (timer) clearTimeout(timer);
-      expenseTimersRef.current.set(
-        id,
-        setTimeout(() => {
-          expenseTimersRef.current.delete(id);
-          expenseQueueRef.current = expenseQueueRef.current.then(() =>
-            flushExpenseUpdate(id)
-          );
-        }, 400)
-      );
     },
     [flushExpenseUpdate]
   );
 
   const cancelExpenseUpdate = useCallback((id: number) => {
-    const timer = expenseTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      expenseTimersRef.current.delete(id);
-    }
+    expenseEditRevisionRef.current.set(id, (expenseEditRevisionRef.current.get(id) ?? 0) + 1);
     expensePendingRef.current.delete(id);
   }, []);
 
   const flushAllExpenseUpdates = useCallback(async () => {
-    for (const timer of expenseTimersRef.current.values()) {
-      clearTimeout(timer);
-    }
-    expenseTimersRef.current.clear();
-    for (const id of [...expensePendingRef.current.keys()]) {
-      expenseQueueRef.current = expenseQueueRef.current.then(() =>
-        flushExpenseUpdate(id)
-      );
-    }
-    await expenseQueueRef.current;
-  }, [flushExpenseUpdate]);
+    let pending: Promise<void>;
+    do {
+      pending = expenseQueueRef.current;
+      await pending;
+    } while (pending !== expenseQueueRef.current);
+  }, []);
 
   const previousMonth = addMonths(month, -1);
   const previousMonthLabel = monthLabelShort(lang, previousMonth);
@@ -258,7 +244,7 @@ export default function BudgetScreen() {
       if (fields.category !== undefined) textFields.category = fields.category;
       if (fields.amount !== undefined) textFields.amount = fields.amount;
       if (Object.keys(textFields).length > 0) {
-        scheduleExpenseUpdate(id, textFields, prevExpense);
+        scheduleExpenseUpdate(id, textFields);
       }
 
       if (fields.paid !== undefined) {
@@ -308,6 +294,7 @@ export default function BudgetScreen() {
       const prevExpenses = expensesRef.current;
       setExpenses((curr) => curr.filter((e) => e.id !== id));
       try {
+        await flushAllExpenseUpdates();
         await removeExpense(id);
         void haptics.warning();
       } catch {
@@ -315,7 +302,7 @@ export default function BudgetScreen() {
         toast.error(t("errorRemovingExpense"));
       }
     },
-    [t, haptics, cancelExpenseUpdate]
+    [t, haptics, cancelExpenseUpdate, flushAllExpenseUpdates]
   );
 
   const handleCopyPrevious = useCallback(async () => {

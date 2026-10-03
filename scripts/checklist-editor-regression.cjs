@@ -73,6 +73,7 @@ function fixture(root) {
     '../../src/lib/theme': { useThemeColors: () => ({}) },
     '../../src/hooks/useHaptics': { useHaptics: () => haptics },
     '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
+    '../../src/components/NoteActions': { NoteActions: 'NoteActions' },
     '../../src/components/ui/Checkbox': { Checkbox: 'Checkbox' },
     '../../src/components/ChecklistItemRow': { ChecklistItemRow: 'ChecklistItemRow' },
     '../../src/lib/db': { withTransaction: fn => fn({}) },

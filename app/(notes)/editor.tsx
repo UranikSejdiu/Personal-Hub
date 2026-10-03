@@ -171,6 +171,7 @@ export default function NotesEditorScreen() {
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
   const [initialHtml, setInitialHtml] = useState("<p></p>");
   const [isSaving, setIsSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
@@ -181,7 +182,9 @@ export default function NotesEditorScreen() {
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   // Snapshot of the last persisted/loaded state, used to decide whether there
   // are actually unsaved changes instead of a fragile dirty flag.
-  const savedSnapshotRef = useRef<{ title: string; html: string; pinned: boolean } | null>(null);
+  const savedSnapshotRef = useRef<string | null>(null);
+  const contentChangedBeforeSnapshotRef = useRef(false);
+  const initialFieldsRef = useRef({ title: "", pinned: false });
   const checkedStatesRef = useRef<boolean[] | null>(null);
   const titleRef = useRef(title);
   const pinnedRef = useRef(isPinned);
@@ -238,11 +241,13 @@ export default function NotesEditorScreen() {
 
     let cancelled = false;
     savedSnapshotRef.current = null;
+    contentChangedBeforeSnapshotRef.current = false;
     checkedStatesRef.current = null;
     getNote(loadTarget.id)
       .then((note) => {
         if (cancelled) return;
         if (note) {
+          initialFieldsRef.current = { title: note.title, pinned: note.is_pinned };
           setNoteId(note.id);
           setTitle(note.title);
           setIsPinned(note.is_pinned);
@@ -252,6 +257,7 @@ export default function NotesEditorScreen() {
           setTitle("");
           setIsPinned(false);
           setInitialHtml("<p></p>");
+          initialFieldsRef.current = { title: "", pinned: false };
           setAsyncLoadFailed(true);
         }
         setLoading(false);
@@ -275,16 +281,12 @@ export default function NotesEditorScreen() {
     let cancelled = false;
     const frame = requestAnimationFrame(() => {
       const editor = editorRef.current;
-      if (!editor || savedSnapshotRef.current) return;
+      if (!editor || savedSnapshotRef.current !== null) return;
       void editor
         .getHTML()
         .then((html) => {
-          if (cancelled || savedSnapshotRef.current) return;
-          savedSnapshotRef.current = {
-            title: titleRef.current,
-            html,
-            pinned: pinnedRef.current,
-          };
+          if (cancelled || savedSnapshotRef.current !== null) return;
+          savedSnapshotRef.current = html;
           checkedStatesRef.current = hasCheckboxMarkup(html) ? parseCheckedStates(html) : [];
         })
         .catch(() => {
@@ -300,12 +302,8 @@ export default function NotesEditorScreen() {
   const handleChangeHtml = useCallback((event: { nativeEvent: OnChangeHtmlEvent }) => {
     const value = event.nativeEvent.value;
 
-    if (!savedSnapshotRef.current) {
-      savedSnapshotRef.current = {
-        title: titleRef.current,
-        html: value,
-        pinned: pinnedRef.current,
-      };
+    if (savedSnapshotRef.current === null) {
+      savedSnapshotRef.current = value;
       checkedStatesRef.current = hasCheckboxMarkup(value) ? parseCheckedStates(value) : [];
       return;
     }
@@ -410,16 +408,20 @@ export default function NotesEditorScreen() {
   const isDirtyNow = useCallback(async (): Promise<boolean> => {
     const snapshot = savedSnapshotRef.current;
     const editor = editorRef.current;
-    if (!snapshot || !editor) return false;
+    const fieldsChanged =
+      titleRef.current !== initialFieldsRef.current.title ||
+      pinnedRef.current !== initialFieldsRef.current.pinned;
+    if (contentChangedBeforeSnapshotRef.current) return true;
+    if (snapshot === null || !editor) return fieldsChanged;
     try {
       const html = await editor.getHTML();
       return (
-        titleRef.current !== snapshot.title ||
-        pinnedRef.current !== snapshot.pinned ||
-        html !== snapshot.html
+        fieldsChanged ||
+        html !== snapshot
       );
     } catch {
-      return false;
+      // An unreadable editor may contain unsaved text; ask before leaving.
+      return true;
     }
   }, []);
 
@@ -469,9 +471,10 @@ export default function NotesEditorScreen() {
   }, [router]);
 
   const handleSave = useCallback(async () => {
-    if (isSaving || loadFailed) return;
+    if (saveInFlightRef.current || loadFailed) return;
     const editor = editorRef.current;
     if (!editor) return;
+    saveInFlightRef.current = true;
     setIsSaving(true);
     try {
       // Normalize before persisting so the stored HTML, the search index and
@@ -483,7 +486,8 @@ export default function NotesEditorScreen() {
         const created = await createNote({ title, content, is_pinned: isPinned });
         setNoteId(created.id);
       }
-      savedSnapshotRef.current = { title, html: content, pinned: isPinned };
+      savedSnapshotRef.current = content;
+      contentChangedBeforeSnapshotRef.current = false;
       checkedStatesRef.current = parseCheckedStates(content);
       allowRemoveRef.current = true;
       void haptics.success();
@@ -492,9 +496,10 @@ export default function NotesEditorScreen() {
     } catch {
       toast.error(t("saveFailed"));
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [haptics, isPinned, isSaving, loadFailed, noteId, router, t, title]);
+  }, [haptics, isPinned, loadFailed, noteId, router, t, title]);
 
   const handleDelete = useCallback(() => {
     if (noteId) setConfirmState({ kind: "delete" });
@@ -515,7 +520,8 @@ export default function NotesEditorScreen() {
 
   const handleTogglePin = useCallback(() => {
     void haptics.light();
-    setIsPinned((previous) => !previous);
+    pinnedRef.current = !pinnedRef.current;
+    setIsPinned(pinnedRef.current);
   }, [haptics]);
 
   if (loading) {
@@ -587,7 +593,10 @@ export default function NotesEditorScreen() {
             <View className="w-full max-w-md flex-grow self-center">
               <TextInput
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={(value) => {
+                  titleRef.current = value;
+                  setTitle(value);
+                }}
                 placeholder={t("notesTitlePlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
                 className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
@@ -607,6 +616,11 @@ export default function NotesEditorScreen() {
                   scrollEnabled={false}
                   textShortcuts={TEXT_SHORTCUTS}
                   onChangeHtml={handleChangeHtml}
+                  onFocus={() => {
+                    // If the user reaches the editor before the native baseline
+                    // is available, never treat their first edit as saved.
+                    if (savedSnapshotRef.current === null) contentChangedBeforeSnapshotRef.current = true;
+                  }}
                   onChangeState={handleChangeState}
                   onChangeSelection={handleChangeSelection}
                   onChangeText={handleChangeText}

@@ -60,12 +60,16 @@ function fixture(root) {
     '../../src/components/AppIcons': new Proxy({}, { get: (_target, name) => name }),
     '../../src/components/ui/Button': { Button: 'Button', IconButton: 'IconButton' },
     '../../src/components/ui/Card': { Card: 'Card' },
+    '../../src/components/ui/AnchoredMenu': {
+      AnchoredMenu: 'AnchoredMenu',
+      useAnchoredMenu: () => ({ triggerRef: { current: null }, anchor: null, open() {}, close() {} }),
+    },
     '../../src/components/DhikrModal': { DhikrModal: 'DhikrModal' },
     '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
     '../../src/lib/i18n': { useI18n: () => ({ t }) },
     '../../src/lib/theme': { useThemeColors: () => ({}) },
     '../../src/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
-    '../../src/hooks/useHaptics': { useHaptics: () => ({ light: async () => {} }) },
+    '../../src/hooks/useHaptics': { useHaptics: () => ({ light: async () => {}, warning: async () => {} }) },
     '../../src/lib/dhikrSelection': { setSelectedDhikrId: async () => {}, clearSelectedDhikrIdIfMissing: async () => {} },
     '../../src/lib/dhikr': {
       loadDhikrs: () => read(),
@@ -115,10 +119,14 @@ function fixture(root) {
     },
     list, button,
     dialog: () => find(tree, node => node.type === 'ConfirmDialog').props,
-    actions: () => find(tree, node => node.type === 'DhikrModal').props,
-    openActions(id) {
+    deleteFromMenu(id) {
       const item = list().data.find(value => value.id === id);
-      list().renderItem({ item, index: list().data.indexOf(item) }).props.onActions(item);
+      const row = list().renderItem({ item, index: list().data.indexOf(item) });
+      const menu = find(row.type(row.props), node => node.type === 'AnchoredMenu');
+      assert.ok(menu, 'Each row must offer an actions menu');
+      const deleteAction = menu.props.items.find(action => action.key === 'delete');
+      assert.ok(deleteAction, 'The actions menu must offer delete');
+      deleteAction.onPress();
     },
     order: () => list().data.map(item => item.id),
     move(id, direction) {
@@ -180,15 +188,13 @@ module.exports = async function verifyDhikrList(root) {
   await flush(); screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3], 'Refocus reloads the persisted order');
 
-  screen.openActions(2); screen.render();
-  screen.actions().onDelete(); screen.render();
+  screen.deleteFromMenu(2); screen.render();
   assert.equal(screen.dialog().visible, true);
   assert.deepEqual(screen.order(), [1, 2, 3], 'Requesting deletion must not write');
   screen.dialog().onClose(); screen.render();
   assert.equal(screen.dialog().visible, false);
   assert.deepEqual(screen.order(), [1, 2, 3], 'Cancelling deletion preserves records');
-  screen.openActions(2); screen.render();
-  screen.actions().onDelete(); screen.render();
+  screen.deleteFromMenu(2); screen.render();
   await screen.dialog().onConfirm(); screen.render();
   assert.deepEqual(screen.order(), [1, 3], 'Confirmation removes only the selected record');
   assert.equal(screen.dialog().visible, false);

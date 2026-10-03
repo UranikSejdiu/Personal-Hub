@@ -46,13 +46,18 @@ const dbMock = {
 const stored = new Map();
 const files = new Map();
 class FakeFile {
-  constructor(...parts) { this.uri = parts.join('/'); }
+  constructor(...parts) { this.uri = parts.map(part => typeof part === 'string' ? part : part.uri).join('/'); }
+  get name() { return this.uri.split('/').at(-1); }
   get exists() { return files.has(this.uri); }
   get size() { return Buffer.byteLength(files.get(this.uri) || ''); }
   write(value) { files.set(this.uri, value); }
   async text() { return files.get(this.uri); }
   delete() { files.delete(this.uri); }
   move(target) { files.set(target.uri, files.get(this.uri)); files.delete(this.uri); }
+}
+class FakeDirectory {
+  constructor(uri) { this.uri = uri; }
+  list() { return [...files.keys()].filter(uri => uri.startsWith(`${this.uri}/`)).map(uri => new FakeFile(uri)); }
 }
 const mocks = {
   'expo-secure-store': {
@@ -62,7 +67,7 @@ const mocks = {
   },
   'expo-application': { nativeApplicationVersion: '1.19.6' },
   'react-native': { Platform: { OS: 'android' } },
-  'expo-file-system': { File: FakeFile, Paths: { document: 'document', cache: 'cache' } },
+  'expo-file-system': { File: FakeFile, Paths: { document: new FakeDirectory('document'), cache: new FakeDirectory('cache') } },
   'expo-sharing': {},
 };
 const modules = new Map();
@@ -592,6 +597,58 @@ function migrationModule(fixture) {
     await sample.clearSampleData();
     assert.equal((await budget.loadLoans()).cc2_payment, 100);
     assert.equal((await budget.loadLoans()).cc2_name, 'My card');
+  });
+  await verify('Demo cleanup removes untouched rows but preserves edited notes and checklist items', async () => {
+    await sample.seedSampleData();
+    const record = JSON.parse(stored.get('app_sample_data_state'));
+    await executor.execute('UPDATE notes SET title = ? WHERE id = ?', ['My note', record.noteIds[0]]);
+    await executor.execute('UPDATE note_items SET checked = 1 WHERE note_id = ? AND position = 0', [record.noteIds[1]]);
+    await sample.clearSampleData();
+    assert.equal((await executor.get('SELECT title FROM notes WHERE id = ?', [record.noteIds[0]])).title, 'My note');
+    assert.equal((await executor.get('SELECT COUNT(*) AS count FROM note_items WHERE note_id = ?', [record.noteIds[1]])).count, 4);
+    assert.equal(await sample.hasSampleData(), false);
+  });
+  await verify('Demo cleanup preserves edited months and user auto deposits', async () => {
+    await sample.seedSampleData();
+    const record = JSON.parse(stored.get('app_sample_data_state'));
+    const firstMonth = record.months[0];
+    const secondMonth = record.months[1];
+    const firstBudget = await budget.loadBudget(firstMonth);
+    await budget.addExpense(firstBudget.id, 'My expense', 42, false);
+    await executor.execute('INSERT INTO savings_auto_deposits(month, amount) VALUES (?, ?)', [secondMonth, 75]);
+    await sample.clearSampleData();
+    assert.ok(await budget.loadBudget(firstMonth));
+    assert.equal((await executor.get('SELECT COUNT(*) AS count FROM expenses WHERE budget_id = ?', [firstBudget.id])).count, 5);
+    assert.equal((await executor.get('SELECT amount FROM savings_auto_deposits WHERE month = ?', [secondMonth])).amount, 75);
+    assert.equal(await budget.loadBudget(secondMonth), null);
+  });
+  await verify('Restoring an intentionally empty backup does not reseed demo data', async () => {
+    await sample.seedSampleData();
+    const empty = await backup.buildBackupEnvelope();
+    for (const rows of Object.values(empty.tables)) {
+      if (Array.isArray(rows)) rows.length = 0;
+    }
+    empty.tables.loans = null;
+    empty.tables.savingsGoal = null;
+    await backup.importBackupFromJson(JSON.stringify(empty));
+    assert.equal(await sample.shouldSeedSampleData(), false);
+    assert.equal(await sample.hasSampleData(), false);
+  });
+  await verify('Backup exports prune old cache files and import reads remove picker copies', async () => {
+    for (let day = 1; day <= 4; day++) {
+      new FakeFile(`cache/personal-hub-backup-2026-01-0${day}T00-00-00-000Z.json`).write('{}');
+    }
+    new FakeFile('cache/unrelated.json').write('keep');
+    const exported = await backup.exportBackupToFile();
+    assert.equal(files.has(exported), true);
+    assert.equal([...files.keys()].filter(uri => uri.startsWith('cache/personal-hub-backup-')).length, 3);
+    assert.equal(files.get('cache/unrelated.json'), 'keep');
+    new FakeFile('cache/picker-import.json').write('{"example":true}');
+    assert.equal(await backup.readJsonFromFileUri('cache/picker-import.json'), '{"example":true}');
+    assert.equal(files.has('cache/picker-import.json'), false);
+    new FakeFile('document/user-backup.json').write('{"example":true}');
+    await backup.readJsonFromFileUri('document/user-backup.json');
+    assert.equal(files.has('document/user-backup.json'), true);
   });
   await verify('Closing after an inactive year preserves earlier savings', async () => {
     await savings.addTransaction('deposit', 'Initial savings', 100, '2023-06-01');

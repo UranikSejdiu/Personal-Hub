@@ -179,8 +179,8 @@ async function ensurePlainTextBackfill(): Promise<void> {
       }
     } catch (error) {
       // Best-effort: a failed backfill write must never fail the read. Rows are
-      // still returned as-is and the backfill is retried on the next launch (or
-      // after a restore via resetPlainTextBackfill).
+      // still returned as-is and the backfill is retried on the next read.
+      backfillPromise = null;
       console.warn("[notes] plain_text backfill failed", error);
     }
   })();

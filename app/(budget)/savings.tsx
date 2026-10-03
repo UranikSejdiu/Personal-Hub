@@ -74,6 +74,7 @@ export default function SavingsScreen() {
   const [modalError, setModalError] = useState("");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [saving, setSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   const tRef = useRef(t);
@@ -282,9 +283,10 @@ export default function SavingsScreen() {
   );
 
   const handleSave = useCallback(async () => {
-    if (saving) return;
-    const parsed = parseFloat(formAmount.replace(",", "."));
-    if (Number.isNaN(parsed) || parsed <= 0) {
+    if (saveInFlightRef.current) return;
+    const amountText = formAmount.trim();
+    const parsed = Number(amountText.replace(",", "."));
+    if (!/^(?:\d+(?:[.,]\d{0,2})?|[.,]\d{1,2})$/.test(amountText) || !Number.isFinite(parsed) || parsed <= 0) {
       setModalError(t("savingsErrorAmount"));
       return;
     }
@@ -292,6 +294,7 @@ export default function SavingsScreen() {
       setModalError(t("savingsErrorDate"));
       return;
     }
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
       if (editingKind === "auto") {
@@ -317,9 +320,10 @@ export default function SavingsScreen() {
     } catch {
       toast.error(editingId === null ? t("errorAddingSavings") : t("errorUpdatingSavings"));
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics, saving]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null && editingKind !== "auto") return;

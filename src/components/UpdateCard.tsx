@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, Pressable, AppState } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
 import { toast } from "sonner-native";
 import { useI18n } from "../lib/i18n";
@@ -16,23 +16,17 @@ export function UpdateCard() {
   const { hasUpdate, latest, currentVersion, checking, refresh } = useUpdate();
   const [state, setState] = useState<UpdateState>("idle");
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
-  const [needPermission, setNeedPermission] = useState(false);
+  const [installFailed, setInstallFailed] = useState(false);
   const pendingApkRef = useRef<File | null>(null);
-  const appStateSubRef = useRef<{ remove: () => void } | null>(null);
   const mountedRef = useRef(true);
-
-  const clearAppStateListener = useCallback(() => {
-    appStateSubRef.current?.remove();
-    appStateSubRef.current = null;
-  }, []);
+  const installInFlightRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      clearAppStateListener();
     };
-  }, [clearAppStateListener]);
+  }, []);
 
   const handleCheck = useCallback(async () => {
     const result = await refresh();
@@ -47,24 +41,33 @@ export function UpdateCard() {
 
   const handleManualInstall = useCallback(async () => {
     const apk = pendingApkRef.current;
-    if (!apk) return;
+    if (!apk || installInFlightRef.current) return;
+    installInFlightRef.current = true;
     try {
       await installApk(apk);
       if (!mountedRef.current) return;
-      setNeedPermission(false);
+      setInstallFailed(false);
       toast.success(t("updateInstallerOpened"));
     } catch {
       if (!mountedRef.current) return;
-      toast(t("updatePermissionNeeded"));
-      openInstallSettings();
+      if (!apk.exists) {
+        pendingApkRef.current = null;
+        setState("idle");
+      }
+      setInstallFailed(true);
+      toast.error(t("updateInstallFailed"));
+    } finally {
+      installInFlightRef.current = false;
     }
   }, [t]);
 
   const handleInstall = useCallback(async () => {
-    if (!latest) return;
+    if (!latest || installInFlightRef.current) return;
+    installInFlightRef.current = true;
     setState("downloading");
     setDownloadProgress(null);
-    setNeedPermission(false);
+    setInstallFailed(false);
+    pendingApkRef.current = null;
     try {
       const apk = await downloadApk(latest, {
         onProgress: (p) => setDownloadProgress(p),
@@ -77,26 +80,20 @@ export function UpdateCard() {
         setState("ready");
         toast.success(t("updateInstallerOpened"));
       } catch {
-        setNeedPermission(true);
-        setState("idle");
-        toast(t("updatePermissionNeeded"));
-        openInstallSettings();
-
-        clearAppStateListener();
-        appStateSubRef.current = AppState.addEventListener("change", (next) => {
-          if (next !== "active" || !mountedRef.current) return;
-          clearAppStateListener();
-          void handleManualInstall();
-        });
+        setInstallFailed(true);
+        setState(apk.exists ? "ready" : "idle");
+        if (!apk.exists) pendingApkRef.current = null;
+        toast.error(t("updateInstallFailed"));
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       toast.error(msg || t("updateCheckFailed"));
       setState("idle");
     } finally {
+      installInFlightRef.current = false;
       setDownloadProgress(null);
     }
-  }, [latest, t, clearAppStateListener, handleManualInstall]);
+  }, [latest, t]);
 
   return (
     <View className="rounded-xl border border-border bg-card p-3 gap-3">
@@ -173,15 +170,14 @@ export function UpdateCard() {
             </Pressable>
           )}
 
-          {needPermission && (
+          {installFailed && (
             <View className="gap-2">
               <Text className="text-center text-[11px] text-muted-foreground">
-                {t("updatePermissionNeeded")}
+                {t("updateInstallSettingsHint")}
               </Text>
               <Pressable
                 onPress={() => {
                   void openInstallSettings();
-                  setNeedPermission(false);
                 }}
                 className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
                 accessibilityRole="button"
@@ -192,23 +188,18 @@ export function UpdateCard() {
             </View>
           )}
 
-          {needPermission && (
+          {installFailed && state === "ready" && (
             <Pressable
-              onPress={() => void handleManualInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+              onPress={() => void handleInstall()}
+              className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
               accessibilityRole="button"
-              accessibilityLabel={t("installNow")}
+              accessibilityLabel={t("updateDownloadAgain")}
             >
-              <Download size={14} color="#fff" />
-              <Text className="text-sm font-medium text-white">{t("installNow")}</Text>
+              <Download size={14} color={colors.foreground} />
+              <Text className="text-sm font-medium text-foreground">{t("updateDownloadAgain")}</Text>
             </Pressable>
           )}
 
-          {needPermission && (
-            <Text className="text-center text-[11px] text-muted-foreground">
-              {t("playProtectHint")}
-            </Text>
-          )}
         </View>
       ) : (
         <Pressable
