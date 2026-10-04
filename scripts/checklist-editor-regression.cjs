@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
-function fixture(root) {
+function fixture(root, { screen = 'checklist', archived = false, kind = screen === 'checklist' ? 'checklist' : 'text', id = '1' } = {}) {
   const ts = require('typescript');
   const slots = [];
   let cursor = 0;
@@ -12,10 +12,15 @@ function fixture(root) {
   let tree;
   let saveWait = Promise.resolve();
   const saved = [];
+  const deleted = [];
+  const restored = [];
   const errors = [];
   const successes = [];
   let backs = 0;
   let beforeRemove;
+  const html = '<p>Current draft</p>';
+  let htmlWait = Promise.resolve(html);
+  const nativeEditor = { getHTML: () => htmlWait };
   const initial = [
     { id: 1, text: 'first', checked: false },
     { id: 2, text: 'second', checked: false },
@@ -49,8 +54,12 @@ function fixture(root) {
       }
     },
   };
-  const element = (type, props) => ({ type, props });
-  const router = { back() { backs++; }, replace() { throw new Error('Unexpected redirect'); } };
+  const element = (type, props) => {
+    if (type === 'EnrichedTextInput' && props.ref) props.ref.current = nativeEditor;
+    return { type, props };
+  };
+  const redirects = [];
+  const router = { back() { backs++; }, replace(route) { redirects.push(route); } };
   const navigation = {
     addListener(event, callback) { assert.equal(event, 'beforeRemove'); beforeRemove = callback; return () => {}; },
     dispatch() { backs++; },
@@ -61,12 +70,13 @@ function fixture(root) {
     react: hooks,
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': Object.fromEntries(['Pressable', 'Text', 'TextInput', 'View'].map(name => [name, name])),
-    'react-native-keyboard-controller': { KeyboardAwareScrollView: 'KeyboardAwareScrollView' },
+    'react-native-keyboard-controller': { KeyboardAwareScrollView: 'KeyboardAwareScrollView', KeyboardStickyView: 'KeyboardStickyView', useKeyboardState: () => false },
+    'react-native-enriched-html': { EnrichedTextInput: 'EnrichedTextInput', EnrichedText: 'EnrichedText' },
     'react-native-gesture-handler': { ScrollView: 'GestureScrollView' },
     'react-native-reanimated': { default: { createAnimatedComponent: component => component }, __esModule: true },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     'react-native-draggable-flatlist': { default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator', __esModule: true },
-    'expo-router': { useRouter: () => router, useLocalSearchParams: () => ({ id: '1' }), useNavigation: () => navigation },
+    'expo-router': { useRouter: () => router, useLocalSearchParams: () => ({ id }), useNavigation: () => navigation },
     'sonner-native': { toast: { error: message => errors.push(message), success: message => successes.push(message) } },
     '../../src/components/AppIcons': new Proxy({}, { get: (_target, name) => name }),
     '../../src/lib/i18n': { useI18n: () => ({ t }) },
@@ -78,12 +88,21 @@ function fixture(root) {
     '../../src/components/ChecklistItemRow': { ChecklistItemRow: 'ChecklistItemRow' },
     '../../src/lib/db': { withTransaction: fn => fn({}) },
     '../../src/lib/notes': {
-      getNote: async () => ({ id: 1, kind: 'checklist', title: 'Shopping', is_pinned: false }),
+      getNote: async () => ({ id: 1, kind, title: 'Shopping', content: '<p>Loaded</p>', is_pinned: false, is_archived: archived }),
       getChecklistItems: async () => initial,
       saveChecklistNote: async (_id, fields, items) => { saved.push({ fields, items }); await saveWait; },
+      updateNote: async (_id, fields) => { saved.push({ fields }); await saveWait; },
+      createNote: async fields => { saved.push({ fields }); await saveWait; return { id: 2 }; },
+      deleteNote: async noteId => { deleted.push(noteId); await saveWait; },
+      restoreNote: async noteId => { restored.push(noteId); await saveWait; },
     },
+    '../../src/lib/noteContent': {
+      contentToEditorHtml: value => value, applyCheckedStrikethrough: value => value,
+      hasCheckboxMarkup: () => false, parseCheckedStates: () => [],
+    },
+    '../../src/lib/utils': { withAlpha: value => value },
   };
-  const filename = path.join(root, 'app/(notes)/checklist.tsx');
+  const filename = path.join(root, `app/(notes)/${screen}.tsx`);
   const js = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
@@ -92,11 +111,13 @@ function fixture(root) {
     if (!(name in mocks)) throw new Error(`Unexpected screen dependency: ${name}`);
     return mocks[name];
   };
-  vm.runInThisContext(`(function(require,module,exports){${js}\n})`, { filename })(localRequire, module, module.exports);
+  vm.runInThisContext(`(function(require,module,exports,requestAnimationFrame,cancelAnimationFrame){${js}\n})`, { filename })(
+    localRequire, module, module.exports, callback => setTimeout(callback, 0), clearTimeout
+  );
   const find = (node, predicate) => {
     if (!node || typeof node !== 'object') return undefined;
     if (Array.isArray(node)) return node.map(child => find(child, predicate)).find(Boolean);
-    return predicate(node) ? node : find(node.props?.children, predicate);
+    return predicate(node) ? node : find([node.props?.children, node.props?.ListHeaderComponent, node.props?.ListFooterComponent], predicate);
   };
   return {
     render() {
@@ -105,14 +126,25 @@ function fixture(root) {
       effects.forEach(fn => fn());
     },
     list: () => find(tree, node => node.type === 'DraggableFlatList').props,
-    save: () => find(tree, node => node.props?.accessibilityLabel === 'save').props,
+    save: () => find(tree, node => node.props?.accessibilityLabel === 'save')?.props,
+    actions: () => find(tree, node => node.type === 'NoteActions').props,
+    confirm: () => find(tree, node => node.type === 'ConfirmDialog').props,
+    title: () => find(tree, node => node.type === 'TextInput').props,
+    richEditor: () => find(tree, node => node.type === 'EnrichedTextInput')?.props,
+    richText: () => find(tree, node => node.type === 'EnrichedText')?.props,
+    control: label => find(tree, node => node.props?.accessibilityLabel === label)?.props,
     remove: event => beforeRemove(event),
     deferSave() {
       let finish;
       saveWait = new Promise((resolve, reject) => { finish = error => error ? reject(error) : resolve(); });
       return finish;
     },
-    saved, errors, successes,
+    deferHtml() {
+      let finish;
+      htmlWait = new Promise(resolve => { finish = () => resolve(html); });
+      return finish;
+    },
+    saved, deleted, restored, errors, successes, redirects,
     get backs() { return backs; },
   };
 }
@@ -185,6 +217,8 @@ module.exports = async function verifyChecklistEditor(root) {
   assert.equal(failed.backs, 1);
   assert.deepEqual(failed.successes, ['savedSuccess']);
 };
+
+module.exports.fixture = fixture;
 
 if (require.main === module) {
   module.exports(path.resolve(__dirname, '..')).then(() => console.log('Checklist editor lifecycle passed')).catch(error => {

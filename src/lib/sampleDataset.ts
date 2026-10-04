@@ -145,6 +145,7 @@ export function sampleNote(
     content: source.content,
     kind: source.kind,
     is_pinned: source.is_pinned,
+    is_archived: false,
     color: source.color,
     created_at: createdAt,
     updated_at: updatedAt,

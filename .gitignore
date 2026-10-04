@@ -48,3 +48,4 @@ yarn-error.*
 /SECRETS.md
 *.md
 !/app-audit.md
+!/TODO.md

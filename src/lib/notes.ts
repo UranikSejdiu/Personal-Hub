@@ -63,6 +63,7 @@ function toNote(row: Record<string, unknown>): Note {
     content: String(row.content ?? ""),
     kind: isNoteKind(rawKind) ? rawKind : "text",
     is_pinned: Number(row.is_pinned) === 1,
+    is_archived: Number(row.is_archived) === 1,
     color: isValidNoteColor(rawColor) ? rawColor : "default",
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
@@ -82,7 +83,7 @@ function toNoteItem(row: Record<string, unknown>): NoteItem {
 // The list only renders a short preview, so ship a bounded slice of the
 // pre-derived plain text instead of every note's full content blob.
 const LIST_COLUMNS =
-  "id, title, substr(plain_text, 1, 2000) AS content, kind, is_pinned, color, created_at, updated_at";
+  "id, title, substr(plain_text, 1, 2000) AS content, kind, is_pinned, is_archived, color, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, note_id, text, checked, position";
 
@@ -121,11 +122,11 @@ async function attachChecklistItems(notes: Note[], preview = false): Promise<Not
 
 interface ListPageOptions { limit: number; offset: number }
 
-export async function loadNotes(sort: NoteSort = "updated", page?: ListPageOptions): Promise<Note[]> {
+export async function loadNotes(sort: NoteSort = "updated", page?: ListPageOptions, archived = false): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
-    page ? [page.limit, page.offset] : undefined
+    `SELECT ${LIST_COLUMNS} FROM notes WHERE is_archived = ? ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
+    page ? [archived ? 1 : 0, page.limit, page.offset] : [archived ? 1 : 0]
   );
   return attachChecklistItems(rows.map(toNote), Boolean(page));
 }
@@ -187,10 +188,10 @@ async function ensurePlainTextBackfill(): Promise<void> {
   return backfillPromise;
 }
 
-export async function searchNotes(query: string, sort: NoteSort = "updated", page?: ListPageOptions): Promise<Note[]> {
+export async function searchNotes(query: string, sort: NoteSort = "updated", page?: ListPageOptions, archived = false): Promise<Note[]> {
   await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return loadNotes(sort, page);
+  if (!normalized) return loadNotes(sort, page, archived);
 
   if (db.isNotesFtsEnabled()) {
     // Token-prefix match: closer to the old substring behaviour while letting
@@ -203,9 +204,9 @@ export async function searchNotes(query: string, sort: NoteSort = "updated", pag
     try {
       const rows = await db.query<Record<string, unknown>>(
         `SELECT ${LIST_COLUMNS} FROM notes
-          WHERE id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)
+          WHERE is_archived = ? AND id IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)
           ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
-        page ? [ftsQuery, page.limit, page.offset] : [ftsQuery]
+        page ? [archived ? 1 : 0, ftsQuery, page.limit, page.offset] : [archived ? 1 : 0, ftsQuery]
       );
       return attachChecklistItems(rows.map(toNote), Boolean(page));
     } catch {
@@ -216,19 +217,19 @@ export async function searchNotes(query: string, sort: NoteSort = "updated", pag
   const escaped = normalized.replace(/[\\%_]/g, "\\$&");
   const pattern = `%${escaped}%`;
   const rows = await db.query<Record<string, unknown>>(
-    `SELECT ${LIST_COLUMNS} FROM notes WHERE plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
-    page ? [pattern, pattern, page.limit, page.offset] : [pattern, pattern]
+    `SELECT ${LIST_COLUMNS} FROM notes WHERE is_archived = ? AND (plain_text LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\') ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
+    page ? [archived ? 1 : 0, pattern, pattern, page.limit, page.offset] : [archived ? 1 : 0, pattern, pattern]
   );
   return attachChecklistItems(rows.map(toNote), Boolean(page));
 }
 
 /** Bounded list query; editors continue to load complete note contents and items. */
-export async function loadNotesPage(query: string, sort: NoteSort, offset = 0, limit = 40): Promise<{ notes: Note[]; hasMore: boolean; nextOffset: number }> {
+export async function loadNotesPage(query: string, sort: NoteSort, offset = 0, limit = 40, archived = false): Promise<{ notes: Note[]; hasMore: boolean; nextOffset: number }> {
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error("Invalid notes page");
   }
   const page = { limit: limit + 1, offset };
-  const result = query.trim() ? await searchNotes(query, sort, page) : await loadNotes(sort, page);
+  const result = query.trim() ? await searchNotes(query, sort, page, archived) : await loadNotes(sort, page, archived);
   const notes = result.slice(0, limit);
   return { notes, hasMore: result.length > limit, nextOffset: offset + notes.length };
 }
@@ -244,8 +245,9 @@ export async function getNote(id: number): Promise<Note | undefined> {
 
 export async function createNote(
   fields: Pick<Note, "title" | "content" | "is_pinned">,
-  exec: db.DbExecutor = db.defaultExecutor
+  exec?: db.DbExecutor
 ): Promise<Note> {
+  if (!exec) return db.withTransaction((tx) => createNote(fields, tx));
   const result = await exec.execute(
     "INSERT INTO notes (title, content, is_pinned, color, plain_text) VALUES (?, ?, ?, ?, ?)",
     [
@@ -266,7 +268,7 @@ export async function createNote(
 
 export async function updateNote(
   id: number,
-  fields: Partial<Pick<Note, "title" | "content" | "is_pinned">>,
+  fields: Partial<Pick<Note, "title" | "content" | "is_pinned" | "is_archived">>,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
   const sets: string[] = [];
@@ -285,13 +287,27 @@ export async function updateNote(
     sets.push("is_pinned = ?");
     values.push(fields.is_pinned ? 1 : 0);
   }
+  if (fields.is_archived !== undefined) {
+    sets.push("is_archived = ?");
+    values.push(fields.is_archived ? 1 : 0);
+  }
   if (sets.length === 0) return;
   sets.push("updated_at = datetime('now')");
   values.push(id);
-  await exec.execute(
-    `UPDATE notes SET ${sets.join(", ")} WHERE id = ?`,
+  const result = await exec.execute(
+    `UPDATE notes SET ${sets.join(", ")} WHERE id = ? AND is_archived = 0`,
     values
   );
+  if (result.changes !== 1) throw new Error("Note not found or archived.");
+}
+
+/** Restore without rewriting frozen content, search text, or checklist items. */
+export async function restoreNote(id: number, exec: db.DbExecutor = db.defaultExecutor): Promise<void> {
+  const result = await exec.execute(
+    "UPDATE notes SET is_archived = 0, updated_at = datetime('now') WHERE id = ? AND is_archived = 1",
+    [id]
+  );
+  if (result.changes !== 1) throw new Error("Archived note not found.");
 }
 
 async function insertChecklistItems(
@@ -341,29 +357,31 @@ export async function createChecklistNote(
 }
 
 /**
- * Replace a checklist note's items and title in one shot. Always run this
- * inside a transaction (see `db.withTransaction`); the delete/insert pair must
- * not be observable half-applied. `plain_text` is rebuilt so search and the
- * `updated_at` ordering stay in sync with the visible items.
+ * Replace a checklist note's items and title atomically. An existing transaction
+ * can supply its executor; standalone calls open their own. `plain_text` is
+ * rebuilt so search and `updated_at` ordering stay in sync with visible items.
  */
 export async function saveChecklistNote(
   noteId: number,
-  fields: Pick<Note, "title" | "is_pinned">,
+  fields: Pick<Note, "title" | "is_pinned"> & Partial<Pick<Note, "is_archived">>,
   items: readonly NewChecklistItem[],
-  exec: db.DbExecutor = db.defaultExecutor
+  exec?: db.DbExecutor
 ): Promise<void> {
-  await exec.execute(
-    "UPDATE notes SET title = ?, is_pinned = ?, plain_text = ?, updated_at = datetime('now') WHERE id = ?",
-    [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items), noteId]
+  if (!exec) return db.withTransaction((tx) => saveChecklistNote(noteId, fields, items, tx));
+  const result = await exec.execute(
+    "UPDATE notes SET title = ?, is_pinned = ?, is_archived = COALESCE(?, is_archived), plain_text = ?, updated_at = datetime('now') WHERE id = ? AND kind = 'checklist' AND is_archived = 0",
+    [fields.title, fields.is_pinned ? 1 : 0, fields.is_archived === undefined ? null : fields.is_archived ? 1 : 0, plainTextFromItems(items), noteId]
   );
+  if (result.changes !== 1) throw new Error("Checklist not found or archived.");
   await exec.execute("DELETE FROM note_items WHERE note_id = ?", [noteId]);
   await insertChecklistItems(exec, noteId, items);
 }
 
 export async function deleteNote(
   id: number,
-  exec: db.DbExecutor = db.defaultExecutor
+  exec?: db.DbExecutor
 ): Promise<void> {
+  if (!exec) return db.withTransaction((tx) => deleteNote(id, tx));
   // Delete items explicitly rather than relying on `ON DELETE CASCADE`: a
   // transaction runs on its own connection, where the `foreign_keys` pragma
   // set on the main connection is not guaranteed to be in effect.

@@ -25,9 +25,9 @@ import {
   createChecklistNote,
   saveChecklistNote,
   deleteNote,
+  restoreNote,
   type NewChecklistItem,
 } from "../../src/lib/notes";
-import { withTransaction } from "../../src/lib/db";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
@@ -71,7 +71,7 @@ export default function ChecklistEditorScreen() {
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
     const parsed = Number(id);
-    if (!Number.isInteger(parsed) || parsed <= 0) return { kind: "invalid" };
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) return { kind: "invalid" };
     return { kind: "note", id: parsed };
   }, [id]);
 
@@ -80,6 +80,7 @@ export default function ChecklistEditorScreen() {
   );
   const [title, setTitle] = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
   const [items, setItems] = useState<ChecklistEntry[]>([]);
   const [checkedExpanded, setCheckedExpanded] = useState(false);
   const [loading, setLoading] = useState(() => loadTarget.kind === "note");
@@ -88,7 +89,7 @@ export default function ChecklistEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   // A ref closes the interval before React commits the disabled controls.
-  const operationRef = useRef<"idle" | "dragging" | "saving">("idle");
+  const operationRef = useRef<"idle" | "dragging" | "saving" | "deleting">("idle");
   const isBusy = isSaving || isDragging;
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
@@ -141,6 +142,7 @@ export default function ChecklistEditorScreen() {
         setNoteId(note.id);
         setTitle(note.title);
         setIsPinned(note.is_pinned);
+        setIsArchived(note.is_archived);
         setItems(entries);
         snapshotRef.current = serialize(note.title, note.is_pinned, entries);
         setLoading(false);
@@ -172,7 +174,7 @@ export default function ChecklistEditorScreen() {
   }, []);
 
   const handleToggle = useCallback((key: string) => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     setItems((previous) => {
       const toggled = previous.map((item) =>
         item.key === key ? { ...item, checked: !item.checked } : item
@@ -180,23 +182,23 @@ export default function ChecklistEditorScreen() {
       // Keep the invariant that active items precede checked ones.
       return [...toggled.filter((item) => !item.checked), ...toggled.filter((item) => item.checked)];
     });
-  }, []);
+  }, [isArchived]);
 
   const handleChangeText = useCallback((key: string, text: string) => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     setItems((previous) =>
       previous.map((item) => (item.key === key ? { ...item, text } : item))
     );
-  }, []);
+  }, [isArchived]);
 
   const handleRemove = useCallback((key: string) => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     void haptics.light();
     setItems((previous) => previous.filter((item) => item.key !== key));
-  }, [haptics]);
+  }, [haptics, isArchived]);
 
   const handleAddItem = useCallback(() => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     const key = `new-${keyCounterRef.current++}`;
     pendingFocusRef.current = key;
     void haptics.light();
@@ -205,13 +207,13 @@ export default function ChecklistEditorScreen() {
       { key, text: "", checked: false },
       ...previous.filter((item) => item.checked),
     ]);
-  }, [haptics]);
+  }, [haptics, isArchived]);
 
   const handleDragBegin = useCallback(() => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     operationRef.current = "dragging";
     setIsDragging(true);
-  }, []);
+  }, [isArchived]);
 
   const handleDragEnd = useCallback(
     ({ data }: { data: ChecklistEntry[] }) => {
@@ -232,9 +234,10 @@ export default function ChecklistEditorScreen() {
   }, [router]);
 
   const isDirtyNow = useCallback((): boolean => {
+    if (isArchived) return false;
     if (snapshotRef.current === null) return false;
     return serialize(titleRef.current, pinnedRef.current, itemsRef.current) !== snapshotRef.current;
-  }, []);
+  }, [isArchived]);
 
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
   const checkingRemoveRef = useRef(false);
@@ -269,6 +272,7 @@ export default function ChecklistEditorScreen() {
   }, [isDirtyNow, navigation]);
 
   const handleConfirmDiscard = useCallback(() => {
+    if (operationRef.current !== "idle") return;
     const pending = pendingRemoveActionRef.current;
     pendingRemoveActionRef.current = null;
     setConfirmState(null);
@@ -280,33 +284,53 @@ export default function ChecklistEditorScreen() {
     }
   }, [router]);
 
-  const handleSave = useCallback(async () => {
-    if (operationRef.current !== "idle" || loading || loadFailed) return;
+  const persistNote = useCallback(async (archived?: boolean) => {
+    if (isArchived || operationRef.current !== "idle" || loading || loadFailed) return;
     operationRef.current = "saving";
     setIsSaving(true);
     const savedItems = itemsRef.current;
+    const savedTitle = titleRef.current;
+    const savedPinned = pinnedRef.current;
     try {
       const payload: NewChecklistItem[] = savedItems.map(({ text, checked }) => ({ text, checked }));
       if (noteId) {
-        await withTransaction((tx) =>
-          saveChecklistNote(noteId, { title, is_pinned: isPinned }, payload, tx)
-        );
+        await saveChecklistNote(noteId, { title: savedTitle, is_pinned: savedPinned, is_archived: archived }, payload);
       } else {
-        const created = await createChecklistNote({ title, is_pinned: isPinned }, payload);
+        const created = await createChecklistNote({ title: savedTitle, is_pinned: savedPinned }, payload);
         setNoteId(created.id);
       }
-      snapshotRef.current = serialize(title, isPinned, savedItems);
+      snapshotRef.current = serialize(savedTitle, savedPinned, savedItems);
       allowRemoveRef.current = true;
       void haptics.success();
-      toast.success(t("savedSuccess"));
+      toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
     } catch {
-      toast.error(t("saveFailed"));
+      toast.error(t(archived === undefined ? "saveFailed" : "notesArchiveFailed"));
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [haptics, isPinned, loading, loadFailed, noteId, router, t, title]);
+  }, [haptics, isArchived, loading, loadFailed, noteId, router, t]);
+
+  const handleSave = useCallback(() => persistNote(), [persistNote]);
+  const handleToggleArchive = useCallback(async () => {
+    if (!isArchived) return persistNote(true);
+    if (!noteId || operationRef.current !== "idle" || loading || loadFailed) return;
+    operationRef.current = "saving";
+    setIsSaving(true);
+    try {
+      await restoreNote(noteId);
+      allowRemoveRef.current = true;
+      void haptics.success();
+      toast.success(t("notesUnarchived"));
+      router.back();
+    } catch {
+      toast.error(t("notesRestoreFailed"));
+    } finally {
+      operationRef.current = "idle";
+      setIsSaving(false);
+    }
+  }, [haptics, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -314,7 +338,9 @@ export default function ChecklistEditorScreen() {
   }, [noteId]);
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!noteId) return;
+    if (!noteId || operationRef.current !== "idle") return;
+    operationRef.current = "deleting";
+    setIsSaving(true);
     setConfirmState(null);
     try {
       await deleteNote(noteId);
@@ -323,21 +349,26 @@ export default function ChecklistEditorScreen() {
       router.back();
     } catch {
       toast.error(t("deleteFailed"));
+    } finally {
+      operationRef.current = "idle";
+      setIsSaving(false);
     }
   }, [haptics, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
-    if (operationRef.current !== "idle") return;
+    if (isArchived || operationRef.current !== "idle") return;
     void haptics.light();
-    setIsPinned((previous) => !previous);
-  }, [haptics]);
+    pinnedRef.current = !pinnedRef.current;
+    setIsPinned(pinnedRef.current);
+  }, [haptics, isArchived]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<ChecklistEntry>) => (
       <ScaleDecorator>
         <ChecklistItemRow
           item={item}
-          disabled={isBusy}
+          readOnly={isArchived}
+          disabled={isArchived || isBusy}
           isActive={isActive}
           drag={drag}
           onToggle={handleToggle}
@@ -347,7 +378,7 @@ export default function ChecklistEditorScreen() {
         />
       </ScaleDecorator>
     ),
-    [handleChangeText, handleRemove, handleToggle, isBusy, registerInput]
+    [handleChangeText, handleRemove, handleToggle, isArchived, isBusy, registerInput]
   );
 
   if (loading) {
@@ -376,7 +407,7 @@ export default function ChecklistEditorScreen() {
 
   const listFooter = (
     <View>
-      <Pressable
+      {!isArchived && <Pressable
         onPress={handleAddItem}
         disabled={isBusy}
         className="min-h-[44px] flex-row items-center gap-2 px-4 active:bg-muted"
@@ -387,7 +418,7 @@ export default function ChecklistEditorScreen() {
       >
         <Plus size={16} color={colors.mutedForeground} />
         <Text className="text-sm text-muted-foreground">{t("notesAddItem")}</Text>
-      </Pressable>
+      </Pressable>}
 
       {checkedItems.length > 0 ? (
         <View className="mt-2">
@@ -417,7 +448,9 @@ export default function ChecklistEditorScreen() {
 
           {checkedExpanded
             ? checkedItems.map((item) => (
-                <View key={item.key} className="flex-row items-center gap-1 px-3">
+                isArchived ? <ChecklistItemRow key={item.key} item={item} readOnly disabled isActive={false}
+                  drag={() => {}} onToggle={handleToggle} onChangeText={handleChangeText}
+                  onRemove={handleRemove} registerInput={registerInput} /> : <View key={item.key} className="flex-row items-center gap-1 px-3">
                   <Checkbox checked
                     onPress={() => handleToggle(item.key)}
                     disabled={isBusy}
@@ -462,9 +495,9 @@ export default function ChecklistEditorScreen() {
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <View className="flex-row items-center gap-2">
-              <NoteActions isPinned={isPinned} canDelete={noteId !== null} disabled={isBusy}
-                onTogglePin={handleTogglePin} onDelete={handleDelete} />
-              <Pressable
+              <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isBusy}
+                onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
+              {!isArchived && <Pressable
                 onPress={handleSave}
                 disabled={isBusy}
                 className={`min-h-[44px] items-center justify-center rounded-lg px-4 py-2 active:opacity-70 ${!isBusy ? "bg-primary" : "bg-primary/50"}`}
@@ -475,9 +508,11 @@ export default function ChecklistEditorScreen() {
                 <Text accessibilityLiveRegion="polite" className="text-sm font-medium text-primary-foreground">
                   {t(isSaving ? "saving" : "save")}
                 </Text>
-              </Pressable>
+              </Pressable>}
             </View>
           </View>
+
+          {isArchived && <Text className="w-full max-w-md self-center px-4 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
 
           <DraggableFlatList
             className="w-full max-w-md self-center"
@@ -494,8 +529,12 @@ export default function ChecklistEditorScreen() {
             ListHeaderComponent={
               <TextInput
                 value={title}
-                editable={!isSaving}
-                onChangeText={setTitle}
+                editable={!isArchived && !isBusy}
+                onChangeText={(value) => {
+                  if (isArchived || operationRef.current !== "idle") return;
+                  titleRef.current = value;
+                  setTitle(value);
+                }}
                 placeholder={t("notesUntitled")}
                 placeholderTextColor={colors.mutedForeground}
                 className="mb-3 w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"

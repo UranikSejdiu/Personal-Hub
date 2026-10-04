@@ -10,6 +10,7 @@ module.exports = async function verifyUpdaterCache(root) {
   let download = async file => { files.set(file.uri, 100); return file; };
   let listError = false;
   let cacheExists = true;
+  let redirectUrl;
   const warnings = [];
   const application = { nativeApplicationVersion: '1.23.7' };
   const platform = { OS: 'android' };
@@ -49,7 +50,7 @@ module.exports = async function verifyUpdaterCache(root) {
     Error, URL, AbortController, setTimeout, clearTimeout,
     console: { warn: (...args) => warnings.push(args) },
     fetch: async (url, options) => {
-      if (options?.method === 'HEAD') return { ok: true, status: 200, url };
+      if (options?.method === 'HEAD') return { ok: true, status: 200, url: redirectUrl ?? url };
       throw new Error('Offline');
     },
   }, { filename });
@@ -88,6 +89,13 @@ module.exports = async function verifyUpdaterCache(root) {
 
   const info = { versionName: '1.23.8', versionCode: 1023008, body: '',
     downloadUrl: 'https://github.com/UranikSejdiu/Personal-Hub/releases/download/v1.23.8/app-release.apk' };
+  for (const downloadUrl of [info.downloadUrl.replace('https:', 'http:'), info.downloadUrl.replace('github.com', 'github.com.evil.example'), info.downloadUrl.replace('Personal-Hub', 'Other-App')]) {
+    await assert.rejects(updater.downloadApk({ ...info, downloadUrl }), /Invalid update metadata/);
+  }
+  await assert.rejects(updater.downloadApk({ ...info, versionCode: 1 }), /Invalid update metadata/);
+  redirectUrl = 'https://evil.example/app-release.apk';
+  await assert.rejects(updater.downloadApk(info), /unexpected host/);
+  redirectUrl = undefined;
   download = async file => { files.set(file.uri, 50); throw new Error('Disconnected'); };
   await assert.rejects(updater.downloadApk(info), /Download failed: Disconnected/);
   assert.ok(!files.has(pending));

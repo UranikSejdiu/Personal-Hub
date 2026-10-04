@@ -188,10 +188,10 @@ async function isUnchangedSampleNote(
   sample: (typeof SAMPLE_NOTES)[number] | undefined
 ): Promise<boolean> {
   if (!sample) return false;
-  const note = await tx.get<Record<string, unknown>>("SELECT title, content, kind, is_pinned, color FROM notes WHERE id = ?", [noteId]);
+  const note = await tx.get<Record<string, unknown>>("SELECT title, content, kind, is_pinned, is_archived, color FROM notes WHERE id = ?", [noteId]);
   if (!note || note.title !== sample.title || note.content !== sample.content ||
       note.kind !== sample.kind || note.is_pinned !== (sample.is_pinned ? 1 : 0) ||
-      note.color !== sample.color) return false;
+      note.is_archived !== 0 || note.color !== sample.color) return false;
 
   const items = await tx.query<{ text: string; checked: number; position: number }>(
     "SELECT text, checked, position FROM note_items WHERE note_id = ? ORDER BY position, id", [noteId]

@@ -29,6 +29,7 @@ export default function NotesTabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: t("navNotes") }} />
+      <Tabs.Screen name="archive" options={{ title: t("notesArchiveTitle") }} />
       <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
     </Tabs>
   );

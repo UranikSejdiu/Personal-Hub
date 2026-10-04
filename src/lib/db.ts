@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS repayment_plans (
@@ -152,10 +152,19 @@ const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: 
   { table: "budgets", column: "loan_counter_incremented", definition: "INTEGER" },
   { table: "notes", column: "plain_text", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "notes", column: "kind", definition: "TEXT NOT NULL DEFAULT 'text'" },
+  { table: "notes", column: "is_archived", definition: "INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1))" },
   { table: "savings_auto_deposits", column: "description", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "loan_name", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "loans", column: "cc_name", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "savings_transactions", column: "is_closing", definition: "INTEGER NOT NULL DEFAULT 0" },
+];
+
+// Each sort follows the archive filter and pinned grouping, including the id
+// tie-breaker. These must run after the archive column is added on upgrade.
+const NOTES_ARCHIVE_INDEXES: string[] = [
+  "CREATE INDEX IF NOT EXISTS idx_notes_archive_updated ON notes(is_archived, is_pinned DESC, updated_at DESC, id DESC);",
+  "CREATE INDEX IF NOT EXISTS idx_notes_archive_created ON notes(is_archived, is_pinned DESC, created_at DESC, id DESC);",
+  "CREATE INDEX IF NOT EXISTS idx_notes_archive_title ON notes(is_archived, is_pinned DESC, title COLLATE NOCASE ASC, id DESC);",
 ];
 
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -196,91 +205,99 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         }
       }
 
-      await database.execAsync("CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);");
-
-      await database.execAsync(
-        "UPDATE notes SET color = 'default' WHERE color != 'default';"
-      );
-
-      // v3: one-time repair of notes whose plain_text was polluted by raw
-      // Lexical JSON (legacy builds stored the editor document instead of its
-      // text). Runs at upgrade only — the runtime backfill no longer scans
-      // every note body on each launch.
-      const polluted = await database.getAllAsync<{ id: number; content: string }>(
-        `SELECT id, content FROM notes
-          WHERE plain_text != ''
-            AND plain_text LIKE '%"root"%'
-            AND plain_text LIKE '%"children"%';`
-      );
-      for (const row of polluted) {
-        if (!isLexicalJson(row.content)) continue;
-        await database.runAsync("UPDATE notes SET plain_text = ? WHERE id = ?", [
-          contentToMarkdown(row.content),
-          row.id,
-        ]);
+      for (const statement of NOTES_ARCHIVE_INDEXES) {
+        await database.execAsync(statement);
       }
 
-      // v4: an indexed closing marker for savings, and FTS5 search for notes.
-      await database.execAsync(
-        "CREATE INDEX IF NOT EXISTS idx_savings_tx_closing ON savings_transactions(is_closing);"
-      );
-      await database.execAsync(
-        `UPDATE savings_transactions SET is_closing = 1
-          WHERE is_closing = 0
-            AND (description LIKE '[system:closing]%'
-              OR description LIKE '%Bilanci mbyllës%'
-              OR description LIKE '%Closing balance%');`
-      );
+      // v12 adds archives without rerunning older data repairs or rebuilding
+      // an existing search index on already-upgraded databases.
+      if (userVersion < 11) {
+        await database.execAsync("CREATE INDEX IF NOT EXISTS idx_notes_plain_text ON notes(plain_text);");
 
-      // v6: earlier releases could write an incomplete or stale carry-forward.
-      // Rebuild markers from source activity in the migration transaction so
-      // an existing user's balance is repaired immediately after upgrade.
-      const closingRows = await database.getAllAsync<{ id: number; date: string }>(
-        "SELECT id, date FROM savings_transactions WHERE is_closing = 1 ORDER BY date, id"
-      );
-      for (const marker of closingRows) {
-        const auto = await database.getFirstAsync<{ total: number }>(
-          "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month < ?",
-          [marker.date.slice(0, 7)]
+        await database.execAsync(
+          "UPDATE notes SET color = 'default' WHERE color != 'default';"
         );
-        const manual = await database.getFirstAsync<{ total: number }>(
-          `SELECT COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE -amount END), 0) AS total
-           FROM savings_transactions WHERE is_closing = 0 AND date < ?`,
-          [marker.date]
-        );
-        const net = Number(auto?.total ?? 0) + Number(manual?.total ?? 0);
-        await database.runAsync(
-          "UPDATE savings_transactions SET type = ?, amount = ? WHERE id = ?",
-          [net >= 0 ? "deposit" : "purchase", Math.abs(net), marker.id]
-        );
-      }
 
-      // FTS5 is optional: some SQLite builds omit it. On failure the partial
-      // objects are dropped and note search falls back to LIKE, so a missing
-      // FTS5 can never break the app or leave half-synced triggers behind.
-      try {
-        await database.execAsync(
-          "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(title, plain_text, content='notes', content_rowid='id');"
+        // v3: one-time repair of notes whose plain_text was polluted by raw
+        // Lexical JSON (legacy builds stored the editor document instead of its
+        // text). Runs at upgrade only — the runtime backfill no longer scans
+        // every note body on each launch.
+        const polluted = await database.getAllAsync<{ id: number; content: string }>(
+          `SELECT id, content FROM notes
+            WHERE plain_text != ''
+              AND plain_text LIKE '%"root"%'
+              AND plain_text LIKE '%"children"%';`
         );
-        await database.execAsync("INSERT INTO notes_fts(notes_fts) VALUES('rebuild');");
+        for (const row of polluted) {
+          if (!isLexicalJson(row.content)) continue;
+          await database.runAsync("UPDATE notes SET plain_text = ? WHERE id = ?", [
+            contentToMarkdown(row.content),
+            row.id,
+          ]);
+        }
+
+        // v4: an indexed closing marker for savings, and FTS5 search for notes.
         await database.execAsync(
-          "CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN " +
-            "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+          "CREATE INDEX IF NOT EXISTS idx_savings_tx_closing ON savings_transactions(is_closing);"
         );
         await database.execAsync(
-          "CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN " +
-            "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); END;"
+          `UPDATE savings_transactions SET is_closing = 1
+            WHERE is_closing = 0
+              AND (description LIKE '[system:closing]%'
+                OR description LIKE '%Bilanci mbyllës%'
+                OR description LIKE '%Closing balance%');`
         );
-        await database.execAsync(
-          "CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN " +
-            "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); " +
-            "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+
+        // v6: earlier releases could write an incomplete or stale carry-forward.
+        // Rebuild markers from source activity in the migration transaction so
+        // an existing user's balance is repaired immediately after upgrade.
+        const closingRows = await database.getAllAsync<{ id: number; date: string }>(
+          "SELECT id, date FROM savings_transactions WHERE is_closing = 1 ORDER BY date, id"
         );
-      } catch {
-        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ai;").catch(() => {});
-        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ad;").catch(() => {});
-        await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_au;").catch(() => {});
-        await database.execAsync("DROP TABLE IF EXISTS notes_fts;").catch(() => {});
+        for (const marker of closingRows) {
+          const auto = await database.getFirstAsync<{ total: number }>(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month < ?",
+            [marker.date.slice(0, 7)]
+          );
+          const manual = await database.getFirstAsync<{ total: number }>(
+            `SELECT COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE -amount END), 0) AS total
+             FROM savings_transactions WHERE is_closing = 0 AND date < ?`,
+            [marker.date]
+          );
+          const net = Number(auto?.total ?? 0) + Number(manual?.total ?? 0);
+          await database.runAsync(
+            "UPDATE savings_transactions SET type = ?, amount = ? WHERE id = ?",
+            [net >= 0 ? "deposit" : "purchase", Math.abs(net), marker.id]
+          );
+        }
+
+        // FTS5 is optional: some SQLite builds omit it. On failure the partial
+        // objects are dropped and note search falls back to LIKE, so a missing
+        // FTS5 can never break the app or leave half-synced triggers behind.
+        try {
+          await database.execAsync(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(title, plain_text, content='notes', content_rowid='id');"
+          );
+          await database.execAsync("INSERT INTO notes_fts(notes_fts) VALUES('rebuild');");
+          await database.execAsync(
+            "CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN " +
+              "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+          );
+          await database.execAsync(
+            "CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN " +
+              "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); END;"
+          );
+          await database.execAsync(
+            "CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN " +
+              "INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); " +
+              "INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;"
+          );
+        } catch {
+          await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ai;").catch(() => {});
+          await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_ad;").catch(() => {});
+          await database.execAsync("DROP TRIGGER IF EXISTS notes_fts_au;").catch(() => {});
+          await database.execAsync("DROP TABLE IF EXISTS notes_fts;").catch(() => {});
+        }
       }
 
       await database.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);

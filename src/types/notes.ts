@@ -16,6 +16,7 @@ export interface Note {
   content: string;
   kind: NoteKind;
   is_pinned: boolean;
+  is_archived: boolean;
   color: NoteColor;
   created_at: string;
   updated_at: string;

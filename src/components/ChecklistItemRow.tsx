@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Pressable, TextInput, View, type TextInput as TextInputType } from "react-native";
+import { Pressable, Text, TextInput, View, type TextInput as TextInputType } from "react-native";
 import { GripVertical, X } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";
@@ -16,6 +16,7 @@ export interface ChecklistEntry {
 interface ChecklistItemRowProps {
   item: ChecklistEntry;
   disabled?: boolean;
+  readOnly?: boolean;
   isActive: boolean;
   drag: () => void;
   onToggle: (key: string) => void;
@@ -27,6 +28,7 @@ interface ChecklistItemRowProps {
 export function ChecklistItemRow({
   item,
   disabled = false,
+  readOnly = false,
   isActive,
   drag,
   onToggle,
@@ -39,9 +41,24 @@ export function ChecklistItemRow({
   const inputRef = useRef<TextInputType>(null);
 
   useEffect(() => {
+    if (readOnly) return;
     registerInput(item.key, inputRef.current);
     return () => registerInput(item.key, null);
-  }, [item.key, registerInput]);
+  }, [item.key, readOnly, registerInput]);
+
+  if (readOnly) {
+    return (
+      <View className="min-h-[44px] flex-row items-start gap-3 px-4 py-2"
+        accessible accessibilityRole="checkbox"
+        accessibilityLabel={item.text || t("notesItemPlaceholder")}
+        accessibilityState={{ checked: item.checked, disabled: true }}>
+        <View className="pt-0.5"><Checkbox displayOnly checked={item.checked} /></View>
+        <Text selectable className={cn("min-w-0 flex-1 text-base", item.checked ? "text-muted-foreground line-through" : "text-foreground")}>
+          {item.text || t("notesItemPlaceholder")}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View className={cn("flex-row items-start gap-1 px-3", isActive && "bg-muted/40")}>

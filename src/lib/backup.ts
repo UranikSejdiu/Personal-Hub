@@ -12,7 +12,7 @@ import { isValidRepaymentInput, repaymentForMonth, type RepaymentInput, type Rep
 import { migrateLegacyRepayments } from "./repaymentMigration";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
 const EXPORTED_BACKUP_NAME = /^personal-hub-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/;
@@ -266,6 +266,7 @@ function validateNote(row: Record<string, unknown>): string | null {
     return "note fields invalid";
   }
   if (row.kind !== undefined && row.kind !== "text" && row.kind !== "checklist") return "note.kind invalid";
+  if (row.is_archived !== undefined && !isBinaryFlag(row.is_archived)) return "note.is_archived invalid";
   if (!requiredString(row, "created_at") || !requiredString(row, "updated_at")) return "note dates invalid";
   return null;
 }
@@ -283,7 +284,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const meta = raw.meta as Record<string, unknown> | undefined;
   if (!isObject(meta)) return { ok: false, error: "Missing meta" };
   if (meta.format !== BACKUP_FORMAT) return { ok: false, error: `Invalid format ${String(meta.format)}` };
-  if (meta.version !== 1 && meta.version !== 2 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
+  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
 
@@ -335,6 +336,9 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 
   // Optional checklist items (absent in backups written before v5).
   const noteItems = tables.noteItems;
+  if (meta.version >= 4 && (noteItems === undefined || (tables.notes as Record<string, unknown>[]).some((note) => note.is_archived === undefined))) {
+    return { ok: false, error: "Missing note archive or checklist fields" };
+  }
   if (noteItems !== undefined) {
     if (!Array.isArray(noteItems)) return { ok: false, error: "tables.noteItems must be array" };
     const noteIds = new Set<number>();
@@ -374,7 +378,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
       unbounded: row.unbounded === 1,
     };
     if ((row.end_month !== undefined && row.end_month !== null && typeof row.end_month !== "string") || (row.unbounded !== undefined && !isBinaryFlag(row.unbounded))) return { ok: false, error: "Invalid repayment schedule" };
-    if (meta.version === BACKUP_VERSION && (row.end_month === undefined || row.unbounded === undefined)) return { ok: false, error: "Missing repayment schedule fields" };
+    if (meta.version >= 3 && (row.end_month === undefined || row.unbounded === undefined)) return { ok: false, error: "Missing repayment schedule fields" };
     if (row.kind !== "loan" && row.kind !== "card" || !isValidRepaymentInput(plan)) return { ok: false, error: "Invalid repayment plan" };
     planIds.add(row.id);
     plansById.set(row.id, { id: row.id, ...plan });
@@ -736,12 +740,13 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = r as Record<string, unknown>;
       const kind = row.kind === "checklist" ? "checklist" : "text";
       const res = await tx.execute(
-        `INSERT INTO notes (title, content, kind, is_pinned, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notes (title, content, kind, is_pinned, is_archived, color, plain_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.title as string,
           row.content as string,
           kind,
           row.is_pinned ? 1 : 0,
+          row.is_archived === 1 ? 1 : 0,
           row.color as string,
           (row.plain_text as string | undefined) ?? "",
           row.created_at as string,

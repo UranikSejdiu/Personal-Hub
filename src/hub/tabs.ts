@@ -25,6 +25,7 @@ export const DHIKR_TABS: HubTabDef[] = [
 
 export const NOTES_TABS: HubTabDef[] = [
   { id: "index", labelKey: "navNotes", icon: "note-text" },
+  { id: "archive", labelKey: "notesArchiveTitle", icon: "archive" },
   { id: "settings", labelKey: "navSettings", icon: "cog" },
 ];
 

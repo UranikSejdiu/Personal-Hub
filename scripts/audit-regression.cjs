@@ -26,6 +26,7 @@ for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
   }
 }
 let failOn = null;
+let notesFtsEnabled = false;
 const executor = {
   async query(sql, values = []) { return database.prepare(sql).all(...values); },
   async get(sql, values = []) { return database.prepare(sql).get(...values); },
@@ -36,7 +37,7 @@ const executor = {
   },
 };
 const dbMock = {
-  ...executor, defaultExecutor: executor, isNotesFtsEnabled: () => false,
+  ...executor, defaultExecutor: executor, isNotesFtsEnabled: () => notesFtsEnabled,
   async withTransaction(fn) {
     database.exec('BEGIN');
     try { const result = await fn({ ...executor }); database.exec('COMMIT'); return result; }
@@ -97,6 +98,7 @@ const sample = load(path.join(root, 'src/lib/sampleData.ts'));
 const calculations = load(path.join(root, 'src/lib/calculations.ts'));
 const reset = () => {
   failOn = null;
+  notesFtsEnabled = false;
   for (const name of ['repayment_payments', 'repayment_plans', 'expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
   stored.clear(); files.clear();
 };
@@ -166,6 +168,9 @@ function migrationModule(fixture) {
   });
   await verify('Checklist editor blocks save/navigation until drop completes and prevents duplicate saves', async () => {
     await require('./checklist-editor-regression.cjs')(root);
+  });
+  await verify('Text/checklist editors save drafts when archiving, block overlapping operations, and recover from failures', async () => {
+    await require('./notes-editor-regression.cjs')(root);
   });
   await verify('Dhikr Arrange previews, cancellation, saves, and failure retry', async () => {
     await require('./dhikr-list-regression.cjs')(root);
@@ -339,6 +344,147 @@ function migrationModule(fixture) {
     ]));
     assert.equal((await executor.query('SELECT * FROM notes')).length, 0);
     assert.equal((await executor.query('SELECT * FROM note_items')).length, 0);
+  });
+  await verify('Standalone note deletion rolls back items on failure and removes both on success', async () => {
+    const note = await notes.createChecklistNote({ title: 'Keep me', is_pinned: true }, [
+      { text: 'first', checked: false }, { text: 'done', checked: true },
+    ]);
+    const original = await notes.getChecklistItems(note.id);
+    failOn = sql => sql.startsWith('DELETE FROM notes WHERE');
+    await assert.rejects(notes.deleteNote(note.id));
+    assert.deepEqual(await notes.getChecklistItems(note.id), original);
+    assert.equal((await notes.getNote(note.id)).title, 'Keep me');
+    failOn = null;
+    await notes.deleteNote(note.id);
+    assert.equal(await notes.getNote(note.id), undefined);
+    assert.deepEqual(await notes.getChecklistItems(note.id), []);
+  });
+  await verify('Standalone checklist save rolls back every write and rejects missing or text notes', async () => {
+    const note = await notes.createChecklistNote({ title: 'Keep me', is_pinned: false }, [{ text: 'original', checked: true }]);
+    const original = await notes.getChecklistItems(note.id);
+    failOn = sql => sql.startsWith('INSERT INTO note_items');
+    await assert.rejects(notes.saveChecklistNote(note.id, { title: 'Changed', is_pinned: true }, [{ text: 'changed', checked: false }]));
+    failOn = null;
+    assert.deepEqual(await notes.getChecklistItems(note.id), original);
+    assert.equal((await notes.getNote(note.id)).title, 'Keep me');
+    await assert.rejects(notes.saveChecklistNote(999999, { title: 'Missing', is_pinned: false }, [{ text: 'orphan', checked: false }]));
+    const text = await notes.createNote({ title: 'Text', content: 'body', is_pinned: false });
+    await assert.rejects(notes.saveChecklistNote(text.id, { title: 'Wrong editor', is_pinned: false }, []));
+    assert.equal((await notes.getNote(text.id)).content, 'body');
+    assert.deepEqual(await notes.getChecklistItems(text.id), []);
+    await assert.rejects(notes.updateNote(999999, { title: 'Missing' }));
+  });
+  await verify('Failed backup restore leaves original notes and checklist items intact', async () => {
+    const original = await notes.createChecklistNote({ title: 'Original', is_pinned: false }, [{ text: 'Safe item', checked: false }]);
+    const items = await notes.getChecklistItems(original.id);
+    const env = await backup.buildBackupEnvelope();
+    env.tables.notes[0].title = 'Imported';
+    failOn = sql => sql.startsWith('INSERT INTO note_items');
+    await assert.rejects(backup.importBackupFromJson(JSON.stringify(env)), /Restore failed/);
+    failOn = null;
+    assert.equal((await notes.getNote(original.id)).title, 'Original');
+    assert.deepEqual(await notes.getChecklistItems(original.id), items);
+  });
+  await verify('Archives freeze text/checklist contents and restore without changing frozen records', async () => {
+    const text = await notes.createNote({ title: 'Shared text', content: 'needle', is_pinned: true });
+    const list = await notes.createChecklistNote({ title: 'Shared list', is_pinned: false }, [{ text: 'needle', checked: true }]);
+    await notes.updateNote(text.id, { title: 'Archived text', content: 'edited needle', is_archived: true });
+    await notes.saveChecklistNote(list.id, { title: 'Archived list', is_pinned: true, is_archived: true }, [{ text: 'edited needle', checked: false }]);
+    assert.deepEqual(await notes.loadNotes(), []);
+    assert.deepEqual(await notes.searchNotes('needle'), []);
+    assert.deepEqual((await notes.searchNotes('needle', 'title', undefined, true)).map(n => n.id), [list.id, text.id]);
+    assert.equal((await notes.getNote(text.id)).content, 'edited needle');
+    assert.equal((await notes.getNote(text.id)).is_pinned, true);
+    const frozenText = await notes.getNote(text.id);
+    for (const fields of [{ title: 'Changed' }, { content: 'Changed' }, { is_pinned: false }, { title: 'Bypass', is_archived: false }]) {
+      await assert.rejects(notes.updateNote(text.id, fields), /archived/);
+      assert.deepEqual(await notes.getNote(text.id), frozenText);
+    }
+    const originalItems = await notes.getChecklistItems(list.id);
+    failOn = sql => sql.startsWith('INSERT INTO note_items');
+    await assert.rejects(notes.saveChecklistNote(list.id, { title: 'Bad move', is_pinned: false, is_archived: false }, [{ text: 'failed', checked: true }]));
+    failOn = null;
+    assert.equal((await notes.getNote(list.id)).is_archived, true);
+    assert.equal((await notes.getNote(list.id)).title, 'Archived list');
+    assert.deepEqual(await notes.getChecklistItems(list.id), originalItems);
+    await notes.restoreNote(text.id);
+    await notes.restoreNote(list.id);
+    assert.equal((await notes.getNote(text.id)).content, frozenText.content);
+    assert.equal((await notes.getNote(text.id)).title, frozenText.title);
+    assert.equal((await notes.getNote(list.id)).title, 'Archived list');
+    assert.deepEqual(await notes.getChecklistItems(list.id), originalItems, 'Restore preserves item IDs and positions');
+    await notes.updateNote(text.id, { title: 'Editable again' });
+    await notes.saveChecklistNote(list.id, { title: 'Restored list', is_pinned: true }, originalItems);
+    await assert.rejects(notes.restoreNote(999999));
+    assert.equal((await notes.loadNotes()).length, 2);
+    assert.deepEqual(await notes.loadNotes('updated', undefined, true), []);
+    assert.equal((await notes.getChecklistItems(list.id))[0].text, 'edited needle');
+  });
+  await verify('Archive pages filter before pagination for every sort and escaped LIKE search', async () => {
+    for (let i = 0; i < 95; i++) {
+      const note = await notes.createNote({ title: `Item ${String(i).padStart(3, '0')}`, content: 'needle 100%_safe', is_pinned: i === 90 });
+      if (i % 2 === 0) await notes.updateNote(note.id, { is_archived: true });
+    }
+    for (const archived of [false, true]) {
+      for (const sort of ['updated', 'created', 'title']) {
+        for (const query of ['', 'needle', '%_']) {
+          const first = await notes.loadNotesPage(query, sort, 0, 40, archived);
+          const second = await notes.loadNotesPage(query, sort, first.nextOffset, 40, archived);
+          const all = [...first.notes, ...second.notes];
+          assert.equal(first.hasMore, true);
+          assert.equal(second.hasMore, false);
+          assert.equal(all.length, archived ? 48 : 47);
+          assert.equal(new Set(all.map(n => n.id)).size, all.length);
+          assert.ok(all.every(n => n.is_archived === archived));
+          if (archived) assert.equal(first.notes[0].is_pinned, true);
+        }
+      }
+    }
+    await assert.rejects(notes.loadNotesPage('', 'updated', -1));
+    await assert.rejects(notes.loadNotesPage('', 'updated', 0, 101));
+  });
+  await verify('Archive backups round trip and legacy backups default to active notes; invalid flags are rejected', async () => {
+    const text = await notes.createNote({ title: 'Archive', content: 'body', is_pinned: false });
+    const list = await notes.createChecklistNote({ title: 'List', is_pinned: true }, [{ text: 'kept', checked: true }]);
+    await notes.updateNote(text.id, { is_archived: true });
+    await notes.updateNote(list.id, { is_archived: true });
+    const env = await backup.buildBackupEnvelope();
+    assert.equal(env.meta.version, 4);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    assert.deepEqual(await notes.loadNotes(), []);
+    const restored = await notes.loadNotes('updated', undefined, true);
+    assert.equal(restored.length, 2);
+    assert.equal(restored.find(n => n.kind === 'checklist').items[0].text, 'kept');
+    for (const version of [1, 2, 3]) {
+      const legacy = JSON.parse(JSON.stringify(env));
+      legacy.meta.version = version;
+      legacy.tables.notes.forEach(n => delete n.is_archived);
+      await backup.importBackupFromJson(JSON.stringify(legacy));
+      assert.equal((await notes.loadNotes()).length, 2);
+      assert.deepEqual(await notes.loadNotes('updated', undefined, true), []);
+    }
+    for (const flag of [2, -1, '1', true, null]) {
+      const invalid = JSON.parse(JSON.stringify(env));
+      invalid.tables.notes[0].is_archived = flag;
+      assert.equal(backup.validateEnvelope(invalid).ok, false);
+      await assert.rejects(backup.importBackupFromJson(JSON.stringify(invalid)));
+      assert.equal((await notes.loadNotes()).length, 2);
+    }
+    const incomplete = JSON.parse(JSON.stringify(env));
+    delete incomplete.tables.notes[0].is_archived;
+    assert.equal(backup.validateEnvelope(incomplete).ok, false);
+    incomplete.tables.notes[0].is_archived = 1;
+    delete incomplete.tables.noteItems;
+    assert.equal(backup.validateEnvelope(incomplete).ok, false);
+  });
+  await verify('Demo cleanup preserves archived sample notes and their checklist items', async () => {
+    await sample.seedSampleData();
+    const all = await notes.loadNotes();
+    for (const note of all) await notes.updateNote(note.id, { is_archived: true });
+    await sample.clearSampleData();
+    const kept = await notes.loadNotes('updated', undefined, true);
+    assert.equal(kept.length, all.length);
+    assert.deepEqual(kept.find(n => n.kind === 'checklist').items, all.find(n => n.kind === 'checklist').items);
   });
   await verify('Checklist reorder persists and a failed save preserves the prior order', async () => {
     const note = await notes.createChecklistNote({ title: 'Shopping', is_pinned: false }, [
@@ -761,7 +907,7 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 11);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 12);
   });
   await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
@@ -795,7 +941,7 @@ function migrationModule(fixture) {
       assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 11);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
     } finally { legacy.close(); }
   });
   await verify('Version 11 adds independent plans to an existing version 9 database without changing its debts', async () => {
@@ -814,8 +960,52 @@ function migrationModule(fixture) {
       await migrationModule(legacy).initDatabase();
       assert.equal(legacy.prepare('SELECT loan_name FROM loans WHERE id = 1').get().loan_name, 'Existing loan');
       assert.equal(legacy.prepare("SELECT COUNT(*) AS count FROM repayment_plans").get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 11);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
     } finally { legacy.close(); }
+  });
+  await verify('Version 12 archive migration preserves existing version 11 notes, items, and savings without replaying repairs', async () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      for (const s of declarations.get('SCHEMA_STATEMENTS').elements) legacy.exec(s.text);
+      for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
+        const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
+        if (fields.column === 'is_archived') continue;
+        if (!legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
+      }
+      legacy.exec("INSERT INTO notes(id, title, content, plain_text, kind, is_pinned, color) VALUES(42, 'Existing', 'body', 'body', 'checklist', 1, 'pink')");
+      legacy.exec("INSERT INTO note_items(note_id, text, checked, position) VALUES(42, 'Preserved', 1, 0)");
+      legacy.exec("INSERT INTO savings_transactions(type, description, amount, date, is_closing) VALUES('deposit', '[system:closing]', 123, '2026-01-01', 1)");
+      legacy.exec('PRAGMA user_version = 11');
+      const before = legacy.prepare('SELECT * FROM notes WHERE id = 42').get();
+      const originalItem = legacy.prepare('SELECT * FROM note_items').get();
+      await migrationModule(legacy).initDatabase();
+      assert.deepEqual({ ...legacy.prepare('SELECT * FROM notes WHERE id = 42').get() }, { ...before, is_archived: 0 });
+      assert.deepEqual(legacy.prepare('SELECT * FROM note_items').get(), originalItem);
+      assert.equal(legacy.prepare('SELECT amount FROM savings_transactions').get().amount, 123);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
+      assert.throws(() => legacy.prepare('UPDATE notes SET is_archived = 2 WHERE id = 42').run());
+    } finally { legacy.close(); }
+  });
+  await verify('FTS search keeps active/archive results separate across edits, restores, and deletion', async () => {
+    await migrationModule(database).initDatabase();
+    notesFtsEnabled = true;
+    assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE name = 'notes_fts'").get());
+    const active = await notes.createNote({ title: 'Active needle', content: 'needle', is_pinned: false });
+    const archived = await notes.createChecklistNote({ title: 'Archived needle', is_pinned: true }, [{ text: 'needle', checked: false }]);
+    await notes.updateNote(archived.id, { is_archived: true });
+    assert.deepEqual((await notes.searchNotes('needle')).map(n => n.id), [active.id]);
+    assert.deepEqual((await notes.searchNotes('needle', 'updated', undefined, true)).map(n => n.id), [archived.id]);
+    await assert.rejects(notes.saveChecklistNote(archived.id, { title: 'Archived needle', is_pinned: true }, [{ text: 'blocked needle', checked: true }]));
+    assert.deepEqual(await notes.searchNotes('blocked', 'updated', undefined, true), []);
+    await notes.restoreNote(archived.id);
+    await notes.saveChecklistNote(archived.id, { title: 'Archived needle', is_pinned: true, is_archived: true }, [{ text: 'changed needle', checked: true }]);
+    assert.equal((await notes.searchNotes('changed', 'updated', undefined, true)).length, 1);
+    const env = await backup.buildBackupEnvelope();
+    await backup.importBackupFromJson(JSON.stringify(env));
+    const restored = await notes.searchNotes('changed', 'updated', undefined, true);
+    assert.equal(restored.length, 1);
+    await notes.deleteNote(restored[0].id);
+    assert.deepEqual(await notes.searchNotes('changed', 'updated', undefined, true), []);
   });
   results.push(...await require('./updater-cache-regression.cjs')(root));
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));

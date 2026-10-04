@@ -10,6 +10,7 @@ import {
   Sparkles,
   ListOrdered,
   FileText,
+  Archive,
   CircleHelp,
 } from "./AppIcons";
 import { cn } from "../lib/utils";
@@ -26,6 +27,7 @@ const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>>
   "star-four-points": Sparkles,
   "format-list-numbered": ListOrdered,
   "note-text": FileText,
+  archive: Archive,
 };
 
 export interface PillNavTab {

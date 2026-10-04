@@ -17,7 +17,7 @@ import {
   Plus,
 } from "../../src/components/AppIcons";
 import { Checkbox } from "../../src/components/ui/Checkbox";
-import { EnrichedTextInput } from "react-native-enriched-html";
+import { EnrichedText, EnrichedTextInput } from "react-native-enriched-html";
 import type {
   EnrichedTextInputInstance,
   HtmlStyle,
@@ -35,6 +35,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  restoreNote,
 } from "../../src/lib/notes";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -156,14 +157,15 @@ export default function NotesEditorScreen() {
 
   const [noteId, setNoteId] = useState<number | null>(() => {
     const parsed = id ? Number(id) : null;
-    return parsed !== null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    return parsed !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
   });
   const [title, setTitle] = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
     const parsed = Number(id);
-    if (!Number.isInteger(parsed) || parsed <= 0) return { kind: "invalid" };
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) return { kind: "invalid" };
     return { kind: "note", id: parsed };
   }, [id]);
   const [loading, setLoading] = useState(() => loadTarget.kind === "note");
@@ -171,7 +173,7 @@ export default function NotesEditorScreen() {
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
   const [initialHtml, setInitialHtml] = useState("<p></p>");
   const [isSaving, setIsSaving] = useState(false);
-  const saveInFlightRef = useRef(false);
+  const mutationInFlightRef = useRef(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const allowRemoveRef = useRef(false);
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
@@ -247,10 +249,15 @@ export default function NotesEditorScreen() {
       .then((note) => {
         if (cancelled) return;
         if (note) {
+          if (note.kind === "checklist") {
+            router.replace({ pathname: "/(notes)/checklist", params: { id: String(note.id) } });
+            return;
+          }
           initialFieldsRef.current = { title: note.title, pinned: note.is_pinned };
           setNoteId(note.id);
           setTitle(note.title);
           setIsPinned(note.is_pinned);
+          setIsArchived(note.is_archived);
           setInitialHtml(applyCheckedStrikethrough(contentToEditorHtml(note.content)));
         } else {
           setNoteId(null);
@@ -272,7 +279,7 @@ export default function NotesEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, t]);
+  }, [loadTarget, router, t]);
 
   // Capture the editor's normalized HTML once it is ready so change checks
   // compare against the real serialized form, not the pre-parse default.
@@ -363,7 +370,8 @@ export default function NotesEditorScreen() {
 
   const handleAddListItem = useCallback(async () => {
     const editor = editorRef.current;
-    if (!editor || isAddingItem || isSaving) return;
+    if (!editor || isArchived || isAddingItem || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setIsAddingItem(true);
     try {
       const currentHtml = await editor.getHTML();
@@ -395,17 +403,20 @@ export default function NotesEditorScreen() {
     } catch {
       toast.error(t("notesAddItemFailed"));
     } finally {
+      mutationInFlightRef.current = false;
       setIsAddingItem(false);
     }
-  }, [haptics, isAddingItem, isSaving, t]);
+  }, [haptics, isArchived, isAddingItem, t]);
 
-  const showAddItem = styleState?.checkboxList.isActive === true && !isSaving;
+  const showAddItem = !isArchived && styleState?.checkboxList.isActive === true && !isSaving;
 
   const handleBack = useCallback(() => {
+    if (mutationInFlightRef.current || isAddingItem) return;
     router.back();
-  }, [router]);
+  }, [isAddingItem, router]);
 
   const isDirtyNow = useCallback(async (): Promise<boolean> => {
+    if (isArchived) return false;
     const snapshot = savedSnapshotRef.current;
     const editor = editorRef.current;
     const fieldsChanged =
@@ -423,7 +434,7 @@ export default function NotesEditorScreen() {
       // An unreadable editor may contain unsaved text; ask before leaving.
       return true;
     }
-  }, []);
+  }, [isArchived]);
 
   const navigation = useNavigation();
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
@@ -437,11 +448,14 @@ export default function NotesEditorScreen() {
       }) => {
         if (allowRemoveRef.current) return;
         event.preventDefault();
+        if (mutationInFlightRef.current || isAddingItem) return;
         if (checkingRemoveRef.current) return;
         const action = event.data.action;
         checkingRemoveRef.current = true;
         void isDirtyNow().then((dirty) => {
           checkingRemoveRef.current = false;
+          // A save can start while the native HTML read above is pending.
+          if (mutationInFlightRef.current) return;
           if (!dirty) {
             allowRemoveRef.current = true;
             navigation.dispatch(action as never);
@@ -456,9 +470,10 @@ export default function NotesEditorScreen() {
       }
     );
     return unsubscribe;
-  }, [isDirtyNow, navigation]);
+  }, [isAddingItem, isDirtyNow, navigation]);
 
   const handleConfirmDiscard = useCallback(() => {
+    if (mutationInFlightRef.current) return;
     const pending = pendingRemoveActionRef.current;
     pendingRemoveActionRef.current = null;
     setConfirmState(null);
@@ -470,20 +485,22 @@ export default function NotesEditorScreen() {
     }
   }, [router]);
 
-  const handleSave = useCallback(async () => {
-    if (saveInFlightRef.current || loadFailed) return;
+  const persistNote = useCallback(async (archived?: boolean) => {
+    if (isArchived || mutationInFlightRef.current || isAddingItem || loading || loadFailed) return;
     const editor = editorRef.current;
     if (!editor) return;
-    saveInFlightRef.current = true;
+    mutationInFlightRef.current = true;
     setIsSaving(true);
+    const savedTitle = titleRef.current;
+    const savedPinned = pinnedRef.current;
     try {
       // Normalize before persisting so the stored HTML, the search index and
       // the list preview can never show a struck-through unchecked item.
       const content = applyCheckedStrikethrough(await editor.getHTML());
       if (noteId) {
-        await updateNote(noteId, { title, content, is_pinned: isPinned });
+        await updateNote(noteId, { title: savedTitle, content, is_pinned: savedPinned, is_archived: archived });
       } else {
-        const created = await createNote({ title, content, is_pinned: isPinned });
+        const created = await createNote({ title: savedTitle, content, is_pinned: savedPinned });
         setNoteId(created.id);
       }
       savedSnapshotRef.current = content;
@@ -491,22 +508,45 @@ export default function NotesEditorScreen() {
       checkedStatesRef.current = parseCheckedStates(content);
       allowRemoveRef.current = true;
       void haptics.success();
-      toast.success(t("savedSuccess"));
+      toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
     } catch {
-      toast.error(t("saveFailed"));
+      toast.error(t(archived === undefined ? "saveFailed" : "notesArchiveFailed"));
     } finally {
-      saveInFlightRef.current = false;
+      mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [haptics, isPinned, loadFailed, noteId, router, t, title]);
+  }, [haptics, isArchived, isAddingItem, loading, loadFailed, noteId, router, t]);
+
+  const handleSave = useCallback(() => persistNote(), [persistNote]);
+  const handleToggleArchive = useCallback(async () => {
+    if (!isArchived) return persistNote(true);
+    if (!noteId || mutationInFlightRef.current || loading || loadFailed) return;
+    mutationInFlightRef.current = true;
+    setIsSaving(true);
+    try {
+      await restoreNote(noteId);
+      allowRemoveRef.current = true;
+      void haptics.success();
+      toast.success(t("notesUnarchived"));
+      router.back();
+    } catch {
+      toast.error(t("notesRestoreFailed"));
+    } finally {
+      mutationInFlightRef.current = false;
+      setIsSaving(false);
+    }
+  }, [haptics, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
+    if (mutationInFlightRef.current || isAddingItem) return;
     if (noteId) setConfirmState({ kind: "delete" });
-  }, [noteId]);
+  }, [isAddingItem, noteId]);
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!noteId) return;
+    if (!noteId || mutationInFlightRef.current || isAddingItem) return;
+    mutationInFlightRef.current = true;
+    setIsSaving(true);
     setConfirmState(null);
     try {
       await deleteNote(noteId);
@@ -515,14 +555,18 @@ export default function NotesEditorScreen() {
       router.back();
     } catch {
       toast.error(t("deleteFailed"));
+    } finally {
+      mutationInFlightRef.current = false;
+      setIsSaving(false);
     }
-  }, [haptics, noteId, router, t]);
+  }, [haptics, isAddingItem, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
+    if (isArchived || mutationInFlightRef.current || isAddingItem) return;
     void haptics.light();
     pinnedRef.current = !pinnedRef.current;
     setIsPinned(pinnedRef.current);
-  }, [haptics]);
+  }, [haptics, isArchived, isAddingItem]);
 
   if (loading) {
     return (
@@ -556,29 +600,33 @@ export default function NotesEditorScreen() {
           <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
             <Pressable
               onPress={handleBack}
+              disabled={isSaving || isAddingItem}
               className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
               accessibilityRole="button"
               accessibilityLabel={t("cancel")}
+              accessibilityState={{ disabled: isSaving || isAddingItem }}
             >
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <View className="flex-row items-center gap-2">
-              <NoteActions isPinned={isPinned} canDelete={noteId !== null} disabled={isSaving}
-                onTogglePin={handleTogglePin} onDelete={handleDelete} />
-              <Pressable
+              <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
+                onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
+              {!isArchived && <Pressable
                 onPress={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isAddingItem}
                 className={`min-h-[44px] items-center justify-center rounded-lg px-4 py-2 active:opacity-70 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
                 accessibilityRole="button"
                 accessibilityLabel={t("save")}
-                accessibilityState={{ disabled: isSaving, busy: isSaving }}
+                accessibilityState={{ disabled: isSaving || isAddingItem, busy: isSaving }}
               >
                 <Text accessibilityLiveRegion="polite" className="text-sm font-medium text-primary-foreground">
                   {t(isSaving ? "saving" : "save")}
                 </Text>
-              </Pressable>
+              </Pressable>}
             </View>
           </View>
+
+          {isArchived && <Text className="w-full max-w-md self-center px-4 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
 
           {/* Fill the available writing area and keep growing for longer notes. */}
           <KeyboardAwareScrollView
@@ -593,7 +641,9 @@ export default function NotesEditorScreen() {
             <View className="w-full max-w-md flex-grow self-center">
               <TextInput
                 value={title}
+                editable={!isArchived && !isSaving}
                 onChangeText={(value) => {
+                  if (isArchived || mutationInFlightRef.current) return;
                   titleRef.current = value;
                   setTitle(value);
                 }}
@@ -604,8 +654,13 @@ export default function NotesEditorScreen() {
               />
 
               <View className="mt-3 min-h-[240px]">
-                <EnrichedTextInput
+                {isArchived ? (
+                  <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={colors.primary}>
+                    {initialHtml}
+                  </EnrichedText>
+                ) : <EnrichedTextInput
                   ref={editorRef}
+                  editable={!isSaving}
                   defaultValue={initialHtml}
                   placeholder={t("notesContentPlaceholder")}
                   placeholderTextColor={colors.mutedForeground}
@@ -624,7 +679,7 @@ export default function NotesEditorScreen() {
                   onChangeState={handleChangeState}
                   onChangeSelection={handleChangeSelection}
                   onChangeText={handleChangeText}
-                />
+                />}
               </View>
 
               {showAddItem ? (
@@ -645,18 +700,18 @@ export default function NotesEditorScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-              <Pressable
+              {!isArchived ? <Pressable
                 onPress={() => editorRef.current?.focus()}
                 className="flex-grow"
                 accessible
                 accessibilityRole="button"
                 accessibilityLabel={t("notesContinueWriting")}
-              />
+              /> : <View className="flex-grow" />}
             </View>
           </KeyboardAwareScrollView>
 
           {/* Pinned toolbar — rides above the software keyboard. */}
-          <KeyboardStickyView
+          {!isArchived && <KeyboardStickyView
             className="w-full border-t border-border bg-background"
             style={toolbarStyle}
             onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
@@ -673,17 +728,17 @@ export default function NotesEditorScreen() {
                       <Pressable
                         onPress={() => {
                           const editor = editorRef.current;
-                          if (!editor || blocked) return;
+                          if (!editor || blocked || mutationInFlightRef.current) return;
                           button.toggle(editor);
                           void haptics.light();
                         }}
-                        disabled={blocked}
+                        disabled={blocked || isSaving || isAddingItem}
                         className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${
                           active ? "bg-primary/15" : blocked ? "opacity-40" : ""
                         }`}
                         accessibilityRole="button"
                         accessibilityLabel={t(button.labelKey)}
-                        accessibilityState={{ selected: active, disabled: blocked }}
+                        accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
                       >
                         <button.icon
                           size={18}
@@ -695,7 +750,7 @@ export default function NotesEditorScreen() {
                 })}
               </View>
             </View>
-          </KeyboardStickyView>
+          </KeyboardStickyView>}
         </View>
       </View>
 
