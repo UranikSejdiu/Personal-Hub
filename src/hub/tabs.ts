@@ -29,7 +29,14 @@ export const NOTES_TABS: HubTabDef[] = [
   { id: "settings", labelKey: "navSettings", icon: "cog" },
 ];
 
+export const TASKS_TABS: HubTabDef[] = [
+  { id: "index", labelKey: "tasksToday", icon: "check-square" },
+  { id: "all", labelKey: "tasksAll", icon: "format-list-numbered" },
+  { id: "settings", labelKey: "navSettings", icon: "cog" },
+];
+
 export function hubTabs(appId: string): HubTabDef[] {
+  if (appId === "tasks") return TASKS_TABS;
   if (appId === "dhikr") return DHIKR_TABS;
   if (appId === "notes") return NOTES_TABS;
   return BUDGET_TABS;

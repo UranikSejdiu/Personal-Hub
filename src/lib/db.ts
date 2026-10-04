@@ -10,9 +10,32 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 const SCHEMA_STATEMENTS: string[] = [
+  `CREATE TABLE IF NOT EXISTS task_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80)
+  );`,
+  `CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 200),
+    notes TEXT NOT NULL DEFAULT '',
+    list_id INTEGER REFERENCES task_lists(id) ON DELETE SET NULL,
+    due_date TEXT,
+    priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2)),
+    repeat TEXT NOT NULL DEFAULT 'none' CHECK (repeat IN ('none', 'daily', 'weekly', 'monthly')),
+    reminder_time TEXT,
+    repeat_day INTEGER CHECK (repeat_day BETWEEN 1 AND 31),
+    parent_id INTEGER UNIQUE REFERENCES tasks(id) ON DELETE SET NULL,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (repeat = 'none' OR due_date IS NOT NULL),
+    CHECK (reminder_time IS NULL OR due_date IS NOT NULL)
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(completed_at, due_date, priority);`,
+  `CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id, completed_at);`,
   `CREATE TABLE IF NOT EXISTS repayment_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL CHECK (kind IN ('loan', 'card')),

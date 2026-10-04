@@ -10,9 +10,11 @@ import { invalidateSampleData } from "./sampleData";
 import { creditCardScheduledMonths, installmentEndMonth, installmentPayments, isCreditCardScheduleValid } from "./creditCards";
 import { isValidRepaymentInput, repaymentForMonth, type RepaymentInput, type RepaymentPlan } from "./repaymentPlans";
 import { migrateLegacyRepayments } from "./repaymentMigration";
+import { isTaskDate, isTaskInput, isTaskTime } from "./taskDates";
+import { notifyTaskChanges } from "./taskEvents";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
 const EXPORTED_BACKUP_NAME = /^personal-hub-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/;
@@ -95,6 +97,8 @@ export interface BackupEnvelope {
     noteItems?: Record<string, unknown>[];
     repaymentPlans?: Record<string, unknown>[];
     repaymentPayments?: Record<string, unknown>[];
+    taskLists?: Record<string, unknown>[];
+    tasks?: Record<string, unknown>[];
   };
 }
 
@@ -279,14 +283,65 @@ function validateNoteItem(row: Record<string, unknown>): string | null {
   return null;
 }
 
+function isTaskTimestamp(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:[0-5]\d$/.test(value) &&
+    isTaskDate(value.slice(0, 10)) && isTaskTime(value.slice(11, 16));
+}
+
+function validateTaskTables(tables: Record<string, unknown>, version: number): string | null {
+  if (tables.tasks === undefined && tables.taskLists === undefined && version < 5) return null;
+  if (!Array.isArray(tables.tasks) || !Array.isArray(tables.taskLists)) return "Task tables must be arrays";
+  const listIds = new Set<number>();
+  for (const row of tables.taskLists) {
+    if (!isObject(row) || !isInteger(row.id) || row.id <= 0 || listIds.has(row.id) ||
+        typeof row.name !== "string" || !row.name.trim() || row.name.length > 80) return "Invalid task list";
+    listIds.add(row.id);
+  }
+  const tasks = new Map<number, Record<string, unknown>>();
+  for (const row of tables.tasks) {
+    if (!isObject(row) || !isTaskInput(row) || !isInteger(row.id) || row.id <= 0 || tasks.has(row.id) ||
+        !isTaskTimestamp(row.created_at) || !isTaskTimestamp(row.updated_at) ||
+        (row.completed_at !== null && !isTaskTimestamp(row.completed_at)) ||
+        (row.list_id !== null && !listIds.has(row.list_id)) ||
+        (row.parent_id !== null && (!isInteger(row.parent_id) || row.parent_id <= 0)) ||
+        (row.repeat === "monthly" ? !isInteger(row.repeat_day) || row.repeat_day < 1 || row.repeat_day > 31 : row.repeat_day !== null)) return "Invalid task";
+    tasks.set(row.id, row);
+  }
+  const parents = new Set<number>();
+  for (const row of tasks.values()) {
+    if (row.parent_id === null) continue;
+    const parentId = row.parent_id as number;
+    const parent = tasks.get(parentId);
+    if (!parent || parent.completed_at === null || parent.repeat === "none" || parents.has(parentId)) return "Invalid recurring task reference";
+    parents.add(parentId);
+  }
+  // A later occurrence can be freely rescheduled or made undated. Validate
+  // graph cycles directly instead of imposing chronology on edited tasks.
+  const checked = new Set<number>();
+  for (const id of tasks.keys()) {
+    const path = new Set<number>();
+    let current: number | null = id;
+    while (current !== null && !checked.has(current)) {
+      if (path.has(current)) return "Cyclic recurring task reference";
+      path.add(current);
+      const parent: unknown = tasks.get(current)?.parent_id;
+      current = typeof parent === "number" ? parent : null;
+    }
+    for (const visited of path) checked.add(visited);
+  }
+  return null;
+}
+
 export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope } | { ok: false; error: string } {
   if (!isObject(raw)) return { ok: false, error: "Root must be object" };
   const meta = raw.meta as Record<string, unknown> | undefined;
   if (!isObject(meta)) return { ok: false, error: "Missing meta" };
   if (meta.format !== BACKUP_FORMAT) return { ok: false, error: `Invalid format ${String(meta.format)}` };
-  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
+  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== 4 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
+  const taskError = validateTaskTables(tables, meta.version);
+  if (taskError) return { ok: false, error: taskError };
 
   const requiredArrays = ["budgets", "expenses", "recurringExpenses", "autoDeposits", "transactions", "dhikrs", "notes"] as const;
   for (const k of requiredArrays) {
@@ -406,7 +461,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
   return db.withTransaction(async (tx) => {
-    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems, repaymentPlans, repaymentPayments] =
+    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems, repaymentPlans, repaymentPayments, taskLists, tasks] =
       await Promise.all([
         tx.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
         tx.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
@@ -420,6 +475,8 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         tx.query<Record<string, unknown>>("SELECT * FROM note_items ORDER BY note_id, position, id"),
         tx.query<Record<string, unknown>>("SELECT * FROM repayment_plans ORDER BY id"),
         tx.query<Record<string, unknown>>("SELECT * FROM repayment_payments ORDER BY plan_id, month"),
+        tx.query<Record<string, unknown>>("SELECT * FROM task_lists ORDER BY id"),
+        tx.query<Record<string, unknown>>("SELECT * FROM tasks ORDER BY id"),
       ]);
 
     return {
@@ -443,6 +500,8 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         noteItems,
         repaymentPlans,
         repaymentPayments,
+        taskLists,
+        tasks,
       },
     };
   });
@@ -556,6 +615,22 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
 
   try {
     await db.withTransaction(async (tx) => {
+    // Pre-Tasks backups leave this module intact. New backups replace it
+    // atomically alongside the other modules, including an empty task set.
+    if (env.tables.tasks && env.tables.taskLists) {
+      await tx.execute("DELETE FROM tasks");
+      await tx.execute("DELETE FROM task_lists");
+      for (const row of env.tables.taskLists) {
+        await tx.execute("INSERT INTO task_lists (id, name) VALUES (?, ?)", [row.id, row.name]);
+      }
+      for (const row of env.tables.tasks) {
+        await tx.execute("INSERT INTO tasks (id, title, notes, list_id, due_date, priority, repeat, reminder_time, repeat_day, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [row.id, row.title, row.notes, row.list_id, row.due_date, row.priority, row.repeat, row.reminder_time, row.repeat_day, row.completed_at, row.created_at, row.updated_at]);
+      }
+      for (const row of env.tables.tasks) {
+        if (row.parent_id !== null) await tx.execute("UPDATE tasks SET parent_id = ? WHERE id = ?", [row.parent_id, row.id]);
+      }
+    }
     // Clear in FK-safe order
     await tx.execute("DELETE FROM expenses");
     await tx.execute("DELETE FROM repayment_payments");
@@ -776,6 +851,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Restore failed: ${reason}`);
   }
+  notifyTaskChanges();
 }
 
 export async function readJsonFromFileUri(uri: string): Promise<string> {

@@ -15,6 +15,7 @@ import { initDatabase } from "../src/lib/db";
 import { migrateLegacyRepayments } from "../src/lib/repaymentMigration";
 import { seedSampleData } from "../src/lib/sampleData";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
+import { useTaskReminders } from "../src/hooks/useTaskReminders";
 import { ModulePreferencesProvider, useModulePreferences } from "../src/hub/ModulePreferences";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
@@ -22,6 +23,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 function RootLayoutInner() {
+  useTaskReminders();
   const { resolvedTheme } = useTheme();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -60,6 +62,7 @@ function RootLayoutInner() {
         <Stack.Screen name="(budget)" />
         <Stack.Screen name="(dhikr)" />
         <Stack.Screen name="(notes)" />
+        <Stack.Screen name="(tasks)" />
         <Stack.Screen name="settings/[section]" />
       </Stack>
       <Toaster

@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Modal, View, Text, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, ChevronRight } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
-import { useThemeColors } from "../lib/theme";
+import { useThemeColors, useThemeVariables } from "../lib/theme";
 import { cn } from "../lib/utils";
 
 export interface DatePickerProps {
@@ -23,6 +24,8 @@ function parseValue(v: string | null): Date | null {
 export function DatePicker({ value, onChange, onClose, mode = "date", initialDisplay = "selected" }: DatePickerProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const variables = useThemeVariables();
+  const insets = useSafeAreaInsets();
   const today = useMemo(() => new Date(), []);
 
   const [display, setDisplay] = useState<Date>(initialDisplay === "current" ? today : parseValue(value) ?? today);
@@ -89,10 +92,14 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
       <Pressable
         onPress={onClose}
         className="flex-1 items-center justify-center bg-black/60 p-4"
+        style={[variables, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+        accessible={false}
       >
         <Pressable
           onPress={() => {}}
           className="w-full max-w-xs rounded-xl border border-border bg-card p-3.5 shadow-xl"
+          accessible={false}
+          accessibilityViewIsModal
         >
           <View className="flex-row items-center justify-between">
             <Pressable
@@ -174,7 +181,11 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
                   key={i}
                   onPress={blank ? undefined : () => selectDay(d as number)}
                   disabled={blank}
-                  className="h-10 w-[14.28%] items-center justify-center rounded-lg"
+                  className="min-h-[44px] w-[14.28%] items-center justify-center rounded-lg active:bg-muted"
+                  accessible={!blank}
+                  accessibilityRole="button"
+                  accessibilityLabel={blank ? undefined : new Date(display.getFullYear(), display.getMonth(), d).toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  accessibilityState={{ selected, disabled: blank }}
                   style={blank ? { opacity: 0 } : undefined}
                 >
                   {!blank && (

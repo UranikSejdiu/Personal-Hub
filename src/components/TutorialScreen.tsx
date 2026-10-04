@@ -15,6 +15,7 @@ import { NavigationPreview } from "./tutorial/NavigationPreview";
 import { BudgetTourPreview } from "./tutorial/BudgetTourPreview";
 import { DhikrPreview } from "./tutorial/DhikrPreview";
 import { NotesPreview } from "./tutorial/NotesPreview";
+import { TasksPreview } from "./tutorial/TasksPreview";
 import { SettingsPreview } from "./tutorial/SettingsPreview";
 import Animated, { FadeInUp, ReduceMotion, useReducedMotion } from "react-native-reanimated";
 
@@ -30,6 +31,7 @@ const PAGES: TutorialPage[] = [
   { titleKey: "tutorialBudget", descKey: "tutorialBudgetDesc", preview: BudgetTourPreview },
   { titleKey: "tutorialDhikr", descKey: "tutorialDhikrDesc", preview: DhikrPreview },
   { titleKey: "tutorialNotes", descKey: "tutorialNotesDesc", preview: NotesPreview },
+  { titleKey: "tutorialTasks", descKey: "tutorialTasksDesc", preview: TasksPreview },
   { titleKey: "tutorialSettings", descKey: "tutorialSettingsDesc", preview: SettingsPreview },
   { titleKey: "tutorialChooseModules", descKey: "tutorialChooseModulesDesc" },
 ];

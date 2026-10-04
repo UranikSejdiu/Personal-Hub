@@ -46,6 +46,12 @@ const dbMock = {
 };
 const stored = new Map();
 const files = new Map();
+const scheduledReminders = new Map();
+let reminderPermission = { granted: true, canAskAgain: true };
+let reminderNativeAvailable = true;
+let reminderScheduleFailure = false;
+let reminderPermissionRequests = 0;
+let reminderSchedules = 0;
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(part => typeof part === 'string' ? part : part.uri).join('/'); }
   get name() { return this.uri.split('/').at(-1); }
@@ -61,6 +67,20 @@ class FakeDirectory {
   list() { return [...files.keys()].filter(uri => uri.startsWith(`${this.uri}/`)).map(uri => new FakeFile(uri)); }
 }
 const mocks = {
+  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: () => reminderNativeAvailable ? {} : null },
+  'expo-notifications': {
+    setNotificationHandler() {},
+    AndroidImportance: { DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
+    async setNotificationChannelAsync() {},
+    async getPermissionsAsync() { return reminderPermission; },
+    async requestPermissionsAsync() { reminderPermissionRequests++; return reminderPermission; },
+    async getAllScheduledNotificationsAsync() { return [...scheduledReminders.values()]; },
+    async cancelScheduledNotificationAsync(id) { scheduledReminders.delete(id); },
+    async scheduleNotificationAsync(request) {
+      if (reminderScheduleFailure) throw new Error('Injected notification failure');
+      reminderSchedules++; scheduledReminders.set(request.identifier, request); return request.identifier;
+    },
+  },
   'expo-secure-store': {
     async getItemAsync(key) { return stored.get(key) || null; },
     async setItemAsync(key, value) { stored.set(key, value); },
@@ -93,14 +113,19 @@ const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
 const notes = load(path.join(root, 'src/lib/notes.ts'));
 const savings = load(path.join(root, 'src/lib/savings.ts'));
 const dhikr = load(path.join(root, 'src/lib/dhikr.ts'));
+const tasks = load(path.join(root, 'src/lib/tasks.ts'));
+const taskDates = load(path.join(root, 'src/lib/taskDates.ts'));
+const taskReminders = load(path.join(root, 'src/lib/taskReminders.ts'));
 const backup = load(path.join(root, 'src/lib/backup.ts'));
 const sample = load(path.join(root, 'src/lib/sampleData.ts'));
 const calculations = load(path.join(root, 'src/lib/calculations.ts'));
 const reset = () => {
   failOn = null;
   notesFtsEnabled = false;
-  for (const name of ['repayment_payments', 'repayment_plans', 'expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
+  for (const name of ['tasks', 'task_lists', 'repayment_payments', 'repayment_plans', 'expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
   stored.clear(); files.clear();
+  scheduledReminders.clear(); reminderPermission = { granted: true, canAskAgain: true };
+  reminderNativeAvailable = true; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
 };
 const results = [];
 async function verify(name, fn) { reset(); await fn(); results.push({ name, passed: true }); }
@@ -449,7 +474,7 @@ function migrationModule(fixture) {
     await notes.updateNote(text.id, { is_archived: true });
     await notes.updateNote(list.id, { is_archived: true });
     const env = await backup.buildBackupEnvelope();
-    assert.equal(env.meta.version, 4);
+    assert.equal(env.meta.version, 5);
     await backup.importBackupFromJson(JSON.stringify(env));
     assert.deepEqual(await notes.loadNotes(), []);
     const restored = await notes.loadNotes('updated', undefined, true);
@@ -907,7 +932,7 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 12);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 13);
   });
   await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
@@ -941,7 +966,7 @@ function migrationModule(fixture) {
       assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
     } finally { legacy.close(); }
   });
   await verify('Version 11 adds independent plans to an existing version 9 database without changing its debts', async () => {
@@ -960,7 +985,7 @@ function migrationModule(fixture) {
       await migrationModule(legacy).initDatabase();
       assert.equal(legacy.prepare('SELECT loan_name FROM loans WHERE id = 1').get().loan_name, 'Existing loan');
       assert.equal(legacy.prepare("SELECT COUNT(*) AS count FROM repayment_plans").get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
     } finally { legacy.close(); }
   });
   await verify('Version 12 archive migration preserves existing version 11 notes, items, and savings without replaying repairs', async () => {
@@ -982,7 +1007,7 @@ function migrationModule(fixture) {
       assert.deepEqual({ ...legacy.prepare('SELECT * FROM notes WHERE id = 42').get() }, { ...before, is_archived: 0 });
       assert.deepEqual(legacy.prepare('SELECT * FROM note_items').get(), originalItem);
       assert.equal(legacy.prepare('SELECT amount FROM savings_transactions').get().amount, 123);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 12);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
       assert.throws(() => legacy.prepare('UPDATE notes SET is_archived = 2 WHERE id = 42').run());
     } finally { legacy.close(); }
   });
@@ -1006,6 +1031,183 @@ function migrationModule(fixture) {
     assert.equal(restored.length, 1);
     await notes.deleteNote(restored[0].id);
     assert.deepEqual(await notes.searchNotes('changed', 'updated', undefined, true), []);
+  });
+  await verify('Tasks validate inputs, persist edits, complete and reopen without affecting other modules', async () => {
+    const input = { title: 'Plan groceries', notes: 'After work', list_id: null, due_date: null, priority: 2, repeat: 'none', reminder_time: null };
+    assert.deepEqual(await tasks.loadTasks(), []);
+    for (const invalid of [{ title: ' ' }, { priority: 3 }, { due_date: '2026-02-30' }, { repeat: 'daily' }, { reminder_time: '24:00' }, { list_id: 99999 }]) {
+      await assert.rejects(tasks.saveTask({ ...input, ...invalid }));
+    }
+    const id = await tasks.saveTask(input);
+    await tasks.saveTask({ ...input, title: 'Groceries', due_date: '2030-01-31', repeat: 'monthly' }, id);
+    assert.equal((await tasks.loadTasks())[0].repeat_day, 31);
+    await tasks.completeTask(id);
+    await tasks.completeTask(id); // Duplicate completion must not create extra occurrences.
+    const rows = await tasks.loadTasks();
+    assert.equal(rows.length, 2);
+    assert.equal(rows.find(t => t.parent_id === id).due_date, '2030-02-28');
+    await tasks.reopenTask(id);
+    assert.equal((await tasks.loadTasks()).length, 1);
+    assert.equal((await tasks.loadTasks())[0].completed_at, null);
+    await tasks.completeTask(id);
+    const child = (await tasks.loadTasks()).find(t => t.parent_id === id);
+    await tasks.saveTask({ ...child, title: 'Edited next occurrence' }, child.id);
+    await assert.rejects(tasks.reopenTask(id), tasks.TaskUndoError);
+    assert.equal((await tasks.loadTasks()).length, 2);
+    await tasks.saveTask({ ...child, due_date: null, repeat: 'none' }, child.id);
+    const rescheduled = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(rescheduled).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(rescheduled));
+    assert.equal((await tasks.loadTasks()).find(t => t.id === child.id).due_date, null);
+  });
+  await verify('Recurring schedules preserve month-end anchors, leap years, weekly cadence and local dates', async () => {
+    assert.equal(taskDates.nextTaskDate('2028-01-31', 'monthly', 31, '2028-01-31'), '2028-02-29');
+    assert.equal(taskDates.nextTaskDate('2028-02-29', 'monthly', 31, '2028-02-29'), '2028-03-31');
+    assert.equal(taskDates.nextTaskDate('2026-01-05', 'weekly', 5, '2026-01-20'), '2026-01-26');
+    assert.equal(taskDates.nextTaskDate('2026-12-31', 'daily', 31, '2026-12-31'), '2027-01-01');
+    assert.equal(taskDates.nextTaskDate('2026-03-28', 'daily', 28, '2026-03-28'), '2026-03-29');
+    assert.equal(taskDates.isTaskDate('2026-02-29'), false);
+    assert.equal(taskDates.isTaskDate('2028-02-29'), true);
+    const id = await tasks.saveTask({ title: 'Late recurring task', notes: '', list_id: null, due_date: '2020-01-01', priority: 0, repeat: 'weekly', reminder_time: null });
+    await tasks.completeTask(id);
+    assert.ok((await tasks.loadTasks()).find(t => t.parent_id === id).due_date > taskDates.taskDateKey());
+    await tasks.reopenTask(id);
+    assert.equal((await tasks.loadTasks()).length, 1);
+  });
+  await verify('Recurring completion rolls back entirely if creating the next occurrence fails', async () => {
+    const id = await tasks.saveTask({ title: 'Repeat', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'daily', reminder_time: null });
+    failOn = sql => sql.startsWith('INSERT INTO tasks');
+    await assert.rejects(tasks.completeTask(id));
+    failOn = null;
+    const rows = await tasks.loadTasks();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].completed_at, null);
+  });
+  await verify('Legacy list-linked tasks remain editable after list controls are removed', async () => {
+    const list = await executor.execute('INSERT INTO task_lists (name) VALUES (?)', ['Work']);
+    const id = await tasks.saveTask({ title: 'Keep me', notes: '', list_id: list.lastId, due_date: null, priority: 0, repeat: 'none', reminder_time: null });
+    assert.equal(await sample.isDatabaseEmpty(), false);
+    await tasks.saveTask({ title: 'Still here', notes: '', list_id: list.lastId, due_date: null, priority: 0, repeat: 'none', reminder_time: null }, id);
+    assert.equal((await tasks.loadTasks())[0].id, id);
+    assert.equal((await tasks.loadTasks())[0].list_id, list.lastId);
+    assert.equal((await tasks.loadTasks())[0].title, 'Still here');
+  });
+  await verify('Task backups round trip links and reminders; old backups preserve Tasks; corrupt backups cannot replace data', async () => {
+    const list = await executor.execute('INSERT INTO task_lists (name) VALUES (?)', ['Personal']);
+    const id = await tasks.saveTask({ title: 'Scheduled', notes: 'Keep details', list_id: list.lastId, due_date: '2030-01-31', priority: 1, repeat: 'monthly', reminder_time: '09:30' });
+    await tasks.completeTask(id);
+    const env = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(env).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(env));
+    assert.deepEqual((await tasks.loadTasks()).map(t => ({ ...t })), env.tables.tasks.toSorted((a,b) => Number(a.completed_at !== null) - Number(b.completed_at !== null)).map(t => ({ ...t })));
+    const legacy = JSON.parse(JSON.stringify(env));
+    legacy.meta.version = 4; delete legacy.tables.tasks; delete legacy.tables.taskLists;
+    await backup.importBackupFromJson(JSON.stringify(legacy));
+    assert.equal((await tasks.loadTasks()).length, 2);
+    for (const change of [
+      e => delete e.tables.tasks,
+      e => e.tables.tasks[0].due_date = '2030-02-30',
+      e => e.tables.tasks[0].list_id = 99999,
+      e => e.tables.tasks[0].reminder_time = '25:00',
+      e => e.tables.tasks[1].parent_id = 99999,
+      e => e.tables.tasks.push({ ...e.tables.tasks[0] }),
+    ]) {
+      const invalid = JSON.parse(JSON.stringify(env)); change(invalid);
+      assert.equal(backup.validateEnvelope(invalid).ok, false);
+      await assert.rejects(backup.importBackupFromJson(JSON.stringify(invalid)));
+      assert.equal((await tasks.loadTasks()).length, 2);
+    }
+    failOn = sql => sql.startsWith('INSERT INTO tasks');
+    await assert.rejects(backup.importBackupFromJson(JSON.stringify(env)));
+    failOn = null;
+    assert.equal((await tasks.loadTasks()).length, 2);
+    const empty = JSON.parse(JSON.stringify(env)); empty.tables.tasks = []; empty.tables.taskLists = [];
+    await backup.importBackupFromJson(JSON.stringify(empty));
+    assert.deepEqual(await tasks.loadTasks(), []);
+  });
+  await verify('Task reminder reconciliation updates edits, removes completed/deleted tasks, and keeps unrelated notifications', async () => {
+    const input = { title: 'Reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
+    const id = await tasks.saveTask(input);
+    await tasks.saveTask({ ...input, title: 'Past', due_date: '2020-01-01' });
+    scheduledReminders.set('unrelated', { identifier: 'unrelated', content: {} });
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(reminderPermissionRequests, 0); // Launch/resume never prompts for permission.
+    assert.equal(scheduledReminders.size, 2);
+    assert.equal(scheduledReminders.get(`personal-hub-task-${id}`).content.body, 'Reminder');
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(reminderSchedules, 1); // Unchanged reminders are retained.
+    await tasks.saveTask({ ...input, title: 'Updated', reminder_time: '10:30' }, id);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.get(`personal-hub-task-${id}`).content.body, 'Updated');
+    assert.equal(scheduledReminders.get(`personal-hub-task-${id}`).trigger.date.getHours(), 10);
+    assert.equal(scheduledReminders.get(`personal-hub-task-${id}`).trigger.date.getMinutes(), 30);
+    await tasks.completeTask(id);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 1);
+    await tasks.reopenTask(id);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 2);
+    await tasks.deleteTask(id);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 1);
+    assert.equal(scheduledReminders.has('unrelated'), true);
+  });
+  await verify('Task reminders handle denial, missing native builds and scheduling failure without losing tasks', async () => {
+    const id = await tasks.saveTask({ title: 'Keep me', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' });
+    reminderNativeAvailable = false;
+    assert.equal(await taskReminders.requestTaskReminderPermission('Task reminders'), 'unavailable');
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 0);
+    reminderNativeAvailable = true;
+    reminderPermission = { granted: false, canAskAgain: false };
+    assert.equal(await taskReminders.requestTaskReminderPermission('Task reminders'), 'denied');
+    assert.equal(reminderPermissionRequests, 0);
+    reminderPermission = { granted: false, canAskAgain: true };
+    assert.equal(await taskReminders.requestTaskReminderPermission('Task reminders'), 'denied');
+    assert.equal(reminderPermissionRequests, 1);
+    reminderPermission = { granted: true, canAskAgain: true };
+    reminderScheduleFailure = true;
+    await assert.rejects(taskReminders.syncTaskReminders('Task reminders'));
+    assert.equal((await tasks.loadTasks())[0].id, id);
+    reminderScheduleFailure = false;
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 1);
+    reminderPermission = { granted: false, canAskAgain: false };
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 0);
+  });
+  await verify('Task reminder queue survives rapid edits and schedules only the nearest 50', async () => {
+    const input = { title: 'Many reminders', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
+    for (let index = 0; index < 52; index++) await tasks.saveTask({ ...input, title: `Reminder ${index}` });
+    await Promise.all([taskReminders.syncTaskReminders('Task reminders'), taskReminders.syncTaskReminders('Task reminders')]);
+    assert.equal(scheduledReminders.size, 50);
+    assert.equal(reminderSchedules, 50);
+    const first = (await tasks.loadTasks()).find(t => t.title === 'Reminder 0');
+    await tasks.completeTask(first.id);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 50);
+    assert.equal(scheduledReminders.has(`personal-hub-task-${first.id}`), false);
+  });
+  await verify('Version 13 creates Tasks in an existing version 12 database without rewriting older module data', async () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      for (const s of declarations.get('SCHEMA_STATEMENTS').elements) {
+        if (/\btask_lists\b|\btasks\b/.test(s.text)) continue;
+        legacy.exec(s.text);
+      }
+      for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
+        const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
+        if (!legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
+      }
+      legacy.exec("INSERT INTO notes (title, content, is_archived) VALUES ('Preserve', 'body', 1)");
+      legacy.exec('PRAGMA user_version = 12');
+      const original = legacy.prepare('SELECT * FROM notes').get();
+      await migrationModule(legacy).initDatabase();
+      assert.deepEqual(legacy.prepare('SELECT * FROM notes').get(), original);
+      assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM tasks').get().count, 0);
+      assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM task_lists').get().count, 0);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
+    } finally { legacy.close(); }
   });
   results.push(...await require('./updater-cache-regression.cjs')(root));
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));

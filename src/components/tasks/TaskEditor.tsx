@@ -1,0 +1,163 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useI18n, type TKey } from "../../lib/i18n";
+import { useThemeColors, useThemeVariables } from "../../lib/theme";
+import { formatTaskDate, isTaskInput, taskDateKey } from "../../lib/taskDates";
+import { requestTaskReminderPermission, taskReminderDate } from "../../lib/taskReminders";
+import type { Task, TaskInput, TaskPriority, TaskRepeat } from "../../types/tasks";
+import { DatePicker } from "../DatePicker";
+import { X } from "../AppIcons";
+import { Button, IconButton } from "../ui/Button";
+import { cn } from "../../lib/utils";
+
+const PRIORITIES: readonly { value: TaskPriority; key: TKey }[] = [
+  { value: 0, key: "tasksPriorityNormal" }, { value: 1, key: "tasksPriorityMedium" }, { value: 2, key: "tasksPriorityHigh" },
+];
+const REPEATS: readonly { value: TaskRepeat; key: TKey }[] = [
+  { value: "none", key: "tasksRepeatNone" }, { value: "daily", key: "tasksRepeatDaily" },
+  { value: "weekly", key: "tasksRepeatWeekly" }, { value: "monthly", key: "tasksRepeatMonthly" },
+];
+
+function TaskFormDialog({ title, busy, onClose, children }: { title: string; busy: boolean; onClose: () => void; children: ReactNode }) {
+  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+  const variables = useThemeVariables();
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior="padding" automaticOffset className="flex-1" style={variables}>
+        <Pressable onPress={onClose} accessible={false} className="flex-1 items-center justify-center bg-black/50 px-4"
+          style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
+          <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
+            className="max-h-full w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card">
+            <View className="flex-row items-center justify-between px-4 pt-2">
+              <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">{title}</Text>
+              <IconButton icon={X} accessibilityLabel={t("cancel")} disabled={busy} onPress={onClose} />
+            </View>
+            {children}
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function Choice<T extends string | number>({ options, value, onChange, disabled }: {
+  options: readonly { value: T; key: TKey }[]; value: T; onChange: (value: T) => void; disabled: boolean;
+}) {
+  const { t } = useI18n();
+  return <View className="flex-row flex-wrap gap-2">{options.map((option) => (
+    <Pressable key={option.value} onPress={() => onChange(option.value)} disabled={disabled} accessible
+      accessibilityRole="radio" accessibilityLabel={t(option.key)} accessibilityState={{ checked: value === option.value, disabled }}
+      className={cn("min-h-[44px] items-center justify-center rounded-xl border px-3 py-2 active:opacity-70",
+        value === option.value ? "border-primary bg-primary/10" : "border-border bg-background")}>
+      <Text className={cn("text-sm font-medium", value === option.value ? "text-primary" : "text-muted-foreground")}>{t(option.key)}</Text>
+    </Pressable>
+  ))}</View>;
+}
+
+export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
+  task?: Task; initialDate?: string | null;
+  onSave: (input: TaskInput, id?: number) => Promise<void>; onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const colors = useThemeColors();
+  const [title, setTitle] = useState(task?.title ?? "");
+  const [notes, setNotes] = useState(task?.notes ?? "");
+  const [dueDate, setDueDate] = useState<string | null>(task ? task.due_date : initialDate);
+  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 0);
+  const [repeat, setRepeat] = useState<TaskRepeat>(task?.repeat ?? "none");
+  const [reminder, setReminder] = useState(task?.reminder_time !== null && task?.reminder_time !== undefined);
+  const [time, setTime] = useState(task?.reminder_time ?? "09:00");
+  const [showDate, setShowDate] = useState(false);
+  const [moreOptions, setMoreOptions] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  // The dialog remains mounted during saves; close cannot interrupt a write.
+  const close = () => { if (!busyRef.current) { mountedRef.current = false; onClose(); } };
+
+  const changeDate = (date: string | null) => {
+    setDueDate(date);
+    if (date === null) { setRepeat("none"); setReminder(false); }
+  };
+  const toggleReminder = async (enabled: boolean) => {
+    if (busyRef.current) return;
+    if (!enabled) { setReminder(false); return; }
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await requestTaskReminderPermission(t("tasksReminderChannel"));
+      if (!mountedRef.current) return;
+      if (result === "granted") setReminder(true);
+      else setError(t(result === "denied" ? "tasksReminderDenied" : "tasksReminderBuild"));
+    } catch {
+      if (mountedRef.current) setError(t("tasksReminderFailed"));
+    } finally { busyRef.current = false; if (mountedRef.current) setBusy(false); }
+  };
+  const save = async () => {
+    if (busyRef.current) return;
+    const input: TaskInput = { title: title.trim(), notes: notes.trim(), list_id: task?.list_id ?? null, due_date: dueDate, priority, repeat, reminder_time: reminder ? time.trim() : null };
+    if (!isTaskInput(input)) { setError(t("tasksInvalid")); return; }
+    const reminderDate = taskReminderDate(input);
+    if (reminderDate && reminderDate.getTime() <= Date.now()) { setError(t("tasksReminderPast")); return; }
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try { await onSave(input, task?.id); }
+    catch { if (mountedRef.current) setError(t("errorSavingData")); }
+    finally { busyRef.current = false; if (mountedRef.current) setBusy(false); }
+  };
+
+  const labelClass = "mb-2 text-xs font-semibold text-muted-foreground";
+  const inputClass = "min-h-[44px] rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground";
+  return (
+    <TaskFormDialog title={t(task ? "tasksEdit" : "tasksAdd")} busy={busy} onClose={close}>
+        <ScrollView className="grow-0" contentContainerClassName="gap-4 p-4" keyboardShouldPersistTaps="handled">
+          {error ? <Text accessibilityRole="alert" className="text-sm text-destructive">{error}</Text> : null}
+          <View><Text className={labelClass}>{t("tasksTitle")}</Text>
+            <TextInput value={title} onChangeText={setTitle} editable={!busy} maxLength={200} autoFocus={!task}
+              placeholder={t("tasksTitlePlaceholder")} placeholderTextColor={colors.mutedForeground} accessibilityLabel={t("tasksTitle")} className={inputClass} />
+          </View>
+          <View><Text className={labelClass}>{t("tasksDue")}</Text>
+            <Button variant="secondary" label={dueDate ? formatTaskDate(dueDate) : t("tasksNoDate")} disabled={busy} onPress={() => setShowDate(true)} />
+            <View className="mt-2 flex-row flex-wrap gap-2">
+              <Button variant="secondary" label={t("tasksToday")} disabled={busy} onPress={() => changeDate(taskDateKey())} />
+              <Button variant="secondary" label={t("tasksTomorrow")} disabled={busy} onPress={() => { const date = new Date(); date.setDate(date.getDate() + 1); changeDate(taskDateKey(date)); }} />
+              {dueDate ? <Button variant="secondary" label={t("clear")} disabled={busy} onPress={() => changeDate(null)} /> : null}
+            </View>
+          </View>
+          {dueDate ? <>
+            <View><Text className={labelClass}>{t("tasksRepeat")}</Text><Choice options={REPEATS} value={repeat} onChange={setRepeat} disabled={busy} />
+              {repeat !== "none" ? <Text className="mt-2 text-xs leading-5 text-muted-foreground">{t("tasksRepeatHint")}</Text> : null}
+            </View>
+            <View className="flex-row items-center justify-between gap-3"><Text className="flex-1 text-sm font-medium text-foreground">{t("tasksReminder")}</Text>
+              <Switch value={reminder} onValueChange={(enabled) => void toggleReminder(enabled)} disabled={busy} accessibilityLabel={t("tasksReminder")}
+                trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={colors.card} />
+            </View>
+            {reminder ? <View><Text className={labelClass}>{t("tasksReminderTime")}</Text>
+              <TextInput value={time} onChangeText={setTime} editable={!busy} maxLength={5} autoCapitalize="none" autoCorrect={false}
+                placeholder="09:00" placeholderTextColor={colors.mutedForeground} accessibilityLabel={t("tasksReminderTime")} className={inputClass} />
+              <Text className="mt-2 text-xs leading-5 text-muted-foreground">{t("tasksReminderHint", { date: formatTaskDate(dueDate) })}</Text>
+            </View> : null}
+          </> : null}
+          <Button variant="secondary" label={t(moreOptions ? "tasksFewerOptions" : "tasksMoreOptions")} disabled={busy}
+            accessibilityState={{ expanded: moreOptions }} onPress={() => setMoreOptions((current) => !current)} />
+          {moreOptions ? <>
+            <View><Text className={labelClass}>{t("tasksNotes")}</Text>
+              <TextInput value={notes} onChangeText={setNotes} editable={!busy} multiline maxLength={10000}
+                textAlignVertical="top" accessibilityLabel={t("tasksNotes")} className={cn(inputClass, "min-h-[80px]")} />
+            </View>
+            <View><Text className={labelClass}>{t("tasksPriority")}</Text><Choice options={PRIORITIES} value={priority} onChange={setPriority} disabled={busy} /></View>
+          </> : null}
+          <View className="flex-row justify-end gap-2"><Button variant="secondary" label={t("cancel")} disabled={busy} onPress={close} />
+            <Button label={t("save")} busy={busy} onPress={() => void save()} /></View>
+        </ScrollView>
+      {showDate ? <DatePicker value={dueDate} onChange={changeDate} onClose={() => setShowDate(false)} /> : null}
+    </TaskFormDialog>
+  );
+}

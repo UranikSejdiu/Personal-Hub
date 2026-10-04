@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { HUB_APPS } from "./registry";
 
 const MODULES_KEY = "hub_enabled_modules";
+const TASKS_INTRODUCED_KEY = "hub_tasks_introduced";
 const ALL_MODULE_IDS = HUB_APPS.map((app) => app.id);
 
 interface ModulePreferencesValue {
@@ -31,12 +32,15 @@ export function ModulePreferencesProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     let active = true;
-    void AsyncStorage.getItem(MODULES_KEY)
-      .then((raw) => {
-        if (!active || raw === null) return;
-        const parsed: unknown = JSON.parse(raw);
-        const valid = validModuleIds(parsed);
-        if (valid) setEnabledIds(valid);
+    void Promise.all([AsyncStorage.getItem(MODULES_KEY), AsyncStorage.getItem(TASKS_INTRODUCED_KEY)])
+      .then(async ([raw, introduced]) => {
+        const parsed: unknown = raw === null ? ALL_MODULE_IDS : JSON.parse(raw);
+        const valid = validModuleIds(parsed) ?? ALL_MODULE_IDS;
+        // Introduce Tasks once to existing installations. Later explicit
+        // disabling remains respected across restarts.
+        const next = introduced === null && !valid.includes("tasks") ? [...valid, "tasks"] : valid;
+        if (active) setEnabledIds(next);
+        if (introduced === null) await AsyncStorage.multiSet([[MODULES_KEY, JSON.stringify(next)], [TASKS_INTRODUCED_KEY, "true"]]);
       })
       .catch((error: unknown) => {
         console.warn("[hub] failed to load enabled modules", error);

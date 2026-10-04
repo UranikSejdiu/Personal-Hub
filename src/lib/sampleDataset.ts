@@ -7,6 +7,7 @@ import type {
 } from "../types/budget";
 import { EMPTY_LOANS } from "../types/budget";
 import type { Note, NoteKind } from "../types/notes";
+import type { Task } from "../types/tasks";
 import type { NoteColor } from "../constants/theme";
 
 /**
@@ -37,6 +38,16 @@ export const SAMPLE_SAVINGS: SavingsGoal = { goal_amount: 1200, salary: 2500 };
  * entry were later removed. The tour still shows the real shape of the counter.
  */
 export const SAMPLE_DHIKR = { name: "Istighfar", dailyLimit: 100 as number | null };
+
+/** A preview-only task with the same shape as a saved task. */
+export function sampleTask(today: string, title: string, notes: string): Task {
+  return {
+    id: 1, title, notes,
+    list_id: null, due_date: today, priority: 0, repeat: "none", reminder_time: null,
+    completed_at: null, repeat_day: null, parent_id: null,
+    created_at: `${today} 09:00:00`, updated_at: `${today} 09:00:00`,
+  };
+}
 
 export const SAMPLE_LOANS: Loans = {
   ...EMPTY_LOANS,

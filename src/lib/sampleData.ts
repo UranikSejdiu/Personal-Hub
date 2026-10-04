@@ -37,6 +37,8 @@ interface SampleDataRecord {
  * database look empty and let the seeder overwrite real data.
  */
 const CONTENT_TABLES = [
+  "tasks",
+  "task_lists",
   "budgets",
   "expenses",
   "notes",

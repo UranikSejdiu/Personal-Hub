@@ -7,6 +7,7 @@ import {
   FileText,
   LayoutGrid,
   CircleHelp,
+  ListOrdered,
 } from "./AppIcons";
 import { AnchoredMenu, useAnchoredMenu } from "./ui/AnchoredMenu";
 import { useI18n, type TKey } from "../lib/i18n";
@@ -18,6 +19,7 @@ const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>>
   "star-four-points": Sparkles,
   "note-text": FileText,
   apps: LayoutGrid,
+  "list-check": ListOrdered,
 };
 
 export interface AppInfo {

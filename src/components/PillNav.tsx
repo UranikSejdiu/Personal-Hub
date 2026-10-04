@@ -12,6 +12,7 @@ import {
   FileText,
   Archive,
   CircleHelp,
+  CheckSquare,
 } from "./AppIcons";
 import { cn } from "../lib/utils";
 import { useHaptics } from "../hooks/useHaptics";
@@ -28,6 +29,7 @@ const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>>
   "format-list-numbered": ListOrdered,
   "note-text": FileText,
   archive: Archive,
+  "check-square": CheckSquare,
 };
 
 export interface PillNavTab {

@@ -30,6 +30,13 @@
       "expo-router",
       "expo-sqlite",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome-personal-hub.png",
+          "color": "#71C5F2"
+        }
+      ],
+      [
         "expo-secure-store",
         {
           "iosAccessGroup": "com.uranik.offlinehub"
@@ -56,6 +63,7 @@
       "./plugins/withInstallPermission",
       "./plugins/withUnusedPermissions",
       "./plugins/withDarkSplash",
+      "./plugins/withNotificationLogo",
       "./plugins/withReleaseBuildConfig",
       "./plugins/withGradleProperties"
     ]
