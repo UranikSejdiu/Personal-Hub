@@ -1,7 +1,52 @@
 import * as db from "./db";
-import { isTaskInput, nextTaskDate, taskDateKey } from "./taskDates";
+import { isTaskDate, isTaskInput, nextTaskDate, taskDateKey } from "./taskDates";
 import { notifyTaskChanges } from "./taskEvents";
-import type { Task, TaskInput, TaskList } from "../types/tasks";
+import type { Task, TaskInput, TaskList, TaskPriority } from "../types/tasks";
+
+export type TaskFilter = "active" | "today" | "upcoming" | "undated" | "completed";
+export interface TaskPageOptions {
+  filter: TaskFilter;
+  today: string;
+  search?: string;
+  priority?: TaskPriority | null;
+  offset?: number;
+  limit?: number;
+}
+
+export async function loadTask(id: number): Promise<Task | undefined> {
+  return db.get<Task>("SELECT * FROM tasks WHERE id = ?", [id]);
+}
+
+/** Filter before pagination so every page contains only matching tasks. */
+export async function loadTasksPage({ filter, today, search = "", priority = null, offset = 0, limit = 40 }: TaskPageOptions) {
+  if (!isTaskDate(today) || (priority !== null && priority !== 0 && priority !== 1 && priority !== 2) ||
+      !["active", "today", "upcoming", "undated", "completed"].includes(filter) ||
+      !Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid task page");
+  const where = [filter === "completed" ? "completed_at IS NOT NULL" : "completed_at IS NULL"];
+  const values: (string | number)[] = [];
+  if (filter === "today" || filter === "upcoming") {
+    where.push(`due_date ${filter === "today" ? "<=" : ">"} ?`);
+    values.push(today);
+  } else if (filter === "undated") where.push("due_date IS NULL");
+  if (priority !== null) { where.push("priority = ?"); values.push(priority); }
+  if (search.trim()) {
+    where.push("(title LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");
+    const pattern = `%${search.trim().replace(/[\\%_]/g, "\\$&")}%`;
+    values.push(pattern, pattern);
+  }
+  const rows = await db.query<Task>(`SELECT * FROM tasks WHERE ${where.join(" AND ")}
+    ORDER BY due_date IS NULL, due_date, priority DESC, id DESC LIMIT ? OFFSET ?`, [...values, limit + 1, offset]);
+  const tasks = rows.slice(0, limit);
+  return { tasks, hasMore: rows.length > limit, nextOffset: offset + tasks.length };
+}
+
+/** Reminders need only the next 50 eligible tasks, rather than task history. */
+export async function loadReminderTasks(now = new Date()): Promise<Task[]> {
+  const today = taskDateKey(now);
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return db.query<Task>(`SELECT * FROM tasks WHERE completed_at IS NULL AND reminder_time IS NOT NULL
+    AND (due_date > ? OR (due_date = ? AND reminder_time > ?)) ORDER BY due_date, reminder_time, id LIMIT 50`, [today, today, time]);
+}
 
 export async function loadTasks(): Promise<Task[]> {
   return db.query<Task>("SELECT * FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, priority DESC, id DESC");

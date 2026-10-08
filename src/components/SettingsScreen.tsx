@@ -17,6 +17,7 @@ import {
   hasSafetyBackup,
   restoreSafetyBackup,
   readJsonFromFileUri,
+  previewBackupFromJson,
 } from "../lib/backup";
 import { BudgetSettingsFields } from "./BudgetSettingsFields";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -62,6 +63,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   const [budgetLoadState, setBudgetLoadState] = useState<"loading" | "ready" | "failed">("loading");
   const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const pickingBackup = useRef(false);
   const [canRestoreSafety, setCanRestoreSafety] = useState(false);
   const [sampleDataPresent, setSampleDataPresent] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -360,7 +362,9 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   }, [backupBusy, t]);
 
   const handleImportPick = useCallback(async () => {
-    if (backupBusy) return;
+    if (backupBusy || pickingBackup.current) return;
+    pickingBackup.current = true;
+    setBackupBusy(true);
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ["application/json", "text/json"],
@@ -376,9 +380,14 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
         toast.error(t("importInvalidFile"));
         return;
       }
+      const preview = previewBackupFromJson(json);
+      const previewDate = preview.exportedAt ? new Date(preview.exportedAt).toLocaleString() : t("backupPreviewUnknownDate");
+      const message = [t("importConfirmMessage"), t("backupPreviewDate", { date: previewDate }),
+        t("backupPreviewCounts", { tasks: preview.tasks ?? "—", notes: preview.notes, budgets: preview.budgets }),
+        preview.tasks === null ? t("backupPreviewTasksKept") : null].filter(Boolean).join("\n\n");
       setConfirmAction({
         title: t("importData"),
-        message: t("importConfirmMessage"),
+        message,
         confirmLabel: t("importData"),
         destructive: true,
         onConfirm: async () => {
@@ -414,6 +423,9 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       toast.error(t("importFailedReason", { reason }));
+    } finally {
+      pickingBackup.current = false;
+      setBackupBusy(false);
     }
   }, [backupBusy, t, reloadBudgetGoal, runSafetyRestore, cancelAndDrainGoalSave]);
 

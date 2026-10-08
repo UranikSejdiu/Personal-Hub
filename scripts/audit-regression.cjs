@@ -52,6 +52,9 @@ let reminderNativeAvailable = true;
 let reminderScheduleFailure = false;
 let reminderPermissionRequests = 0;
 let reminderSchedules = 0;
+let reminderTapListener;
+let lastReminderResponse = null;
+let removedReminderListeners = 0;
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(part => typeof part === 'string' ? part : part.uri).join('/'); }
   get name() { return this.uri.split('/').at(-1); }
@@ -75,6 +78,12 @@ const mocks = {
     async getPermissionsAsync() { return reminderPermission; },
     async requestPermissionsAsync() { reminderPermissionRequests++; return reminderPermission; },
     async getAllScheduledNotificationsAsync() { return [...scheduledReminders.values()]; },
+    addNotificationResponseReceivedListener(listener) {
+      reminderTapListener = listener;
+      return { remove() { removedReminderListeners++; } };
+    },
+    getLastNotificationResponse() { return lastReminderResponse; },
+    async clearLastNotificationResponseAsync() { lastReminderResponse = null; },
     async cancelScheduledNotificationAsync(id) { scheduledReminders.delete(id); },
     async scheduleNotificationAsync(request) {
       if (reminderScheduleFailure) throw new Error('Injected notification failure');
@@ -115,6 +124,7 @@ const savings = load(path.join(root, 'src/lib/savings.ts'));
 const dhikr = load(path.join(root, 'src/lib/dhikr.ts'));
 const tasks = load(path.join(root, 'src/lib/tasks.ts'));
 const taskDates = load(path.join(root, 'src/lib/taskDates.ts'));
+const numberInput = load(path.join(root, 'src/lib/numberInput.ts'));
 const taskReminders = load(path.join(root, 'src/lib/taskReminders.ts'));
 const backup = load(path.join(root, 'src/lib/backup.ts'));
 const sample = load(path.join(root, 'src/lib/sampleData.ts'));
@@ -126,6 +136,7 @@ const reset = () => {
   stored.clear(); files.clear();
   scheduledReminders.clear(); reminderPermission = { granted: true, canAskAgain: true };
   reminderNativeAvailable = true; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
+  reminderTapListener = undefined; lastReminderResponse = null; removedReminderListeners = 0;
 };
 const results = [];
 async function verify(name, fn) { reset(); await fn(); results.push({ name, passed: true }); }
@@ -1209,6 +1220,88 @@ function migrationModule(fixture) {
       assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
     } finally { legacy.close(); }
   });
+  await verify('Reminder taps carry the exact task ID, handle cold starts, and clear consumed responses', async () => {
+    const response = (identifier, data) => ({ notification: { request: { identifier, content: { data } } } });
+    const taps = [];
+    lastReminderResponse = response('personal-hub-task-42', { module: 'tasks', taskId: 42 });
+    const remove = await taskReminders.observeTaskReminderTaps(id => taps.push(id));
+    assert.deepEqual(taps, [42]); assert.equal(lastReminderResponse, null);
+    reminderTapListener(response('unrelated', { module: 'tasks', taskId: 99 }));
+    reminderTapListener(response('personal-hub-task-bad', { module: 'tasks', taskId: -1 }));
+    lastReminderResponse = response('personal-hub-task-77', { module: 'tasks', taskId: 77 });
+    reminderTapListener(lastReminderResponse);
+    await Promise.resolve();
+    assert.deepEqual(taps, [42, 77]); assert.equal(lastReminderResponse, null);
+    remove(); assert.equal(removedReminderListeners, 1);
+    const removeAgain = await taskReminders.observeTaskReminderTaps(id => taps.push(id));
+    assert.deepEqual(taps, [42, 77]); removeAgain();
+  });
+  await verify('Amount parsing supports grouped decimals and rejects malformed, partial, or unsafe numbers', async () => {
+    for (const [input, expected] of [['1,200.50', 1200.5], ['1.200,50', 1200.5], ['1 200,50', 1200.5], ['1\u202f200.50', 1200.5],
+      ['1,200', 1200], ['1.200', 1200], ['1,234,567.89', 1234567.89], ['1.234.567,89', 1234567.89], ['12,50', 12.5], ['.5', 0.5], ['-1,200.50', -1200.5], ['', 0]]) {
+      assert.equal(numberInput.parseNumberInput(input), expected, input);
+    }
+    for (const input of ['12.3.4', '1,20.50', '12 34', '1.2345', '0.123', '1234,567', '-', '.', '1e3', '100EUR', 'Infinity', '999999999999999999999']) {
+      assert.equal(numberInput.parseNumberInput(input), null, input);
+    }
+    assert.equal(numberInput.parseNumberInput('1.5', 0), null);
+    assert.equal(numberInput.parseNumberInput('1.234', 3), 1.234);
+  });
+  await verify('Task pages filter before paging, search literal wildcards, and keep stable page boundaries', async () => {
+    const input = { title: 'Task', notes: '', list_id: null, due_date: null, priority: 0, repeat: 'none', reminder_time: null };
+    for (let i = 0; i < 85; i++) await tasks.saveTask({ ...input, title: `Task ${i}`, priority: i % 3 });
+    const past = await tasks.saveTask({ ...input, title: 'Past', due_date: '2029-12-31' });
+    const today = await tasks.saveTask({ ...input, title: 'Today', due_date: '2030-01-01' });
+    const future = await tasks.saveTask({ ...input, title: 'Future 100%_\\literal', notes: 'Search details', due_date: '2030-01-02', priority: 2 });
+    const done = await tasks.saveTask({ ...input, title: 'Completed' });
+    await tasks.completeTask(done);
+    const options = { filter: 'active', today: '2030-01-01' };
+    const first = await tasks.loadTasksPage(options);
+    const second = await tasks.loadTasksPage({ ...options, offset: first.nextOffset });
+    const third = await tasks.loadTasksPage({ ...options, offset: second.nextOffset });
+    assert.equal(first.tasks.length, 40); assert.equal(first.hasMore, true);
+    assert.equal(third.hasMore, false);
+    const ids = [...first.tasks, ...second.tasks, ...third.tasks].map(task => task.id);
+    assert.equal(ids.length, 88); assert.equal(new Set(ids).size, ids.length); assert.ok(!ids.includes(done));
+    assert.deepEqual((await tasks.loadTasksPage({ ...options, filter: 'today' })).tasks.map(task => task.id), [past, today]);
+    assert.deepEqual((await tasks.loadTasksPage({ ...options, filter: 'upcoming' })).tasks.map(task => task.id), [future]);
+    assert.ok((await tasks.loadTasksPage({ ...options, filter: 'undated' })).tasks.every(task => task.due_date === null));
+    assert.deepEqual((await tasks.loadTasksPage({ ...options, filter: 'completed' })).tasks.map(task => task.id), [done]);
+    assert.deepEqual((await tasks.loadTasksPage({ ...options, search: '%_\\literal' })).tasks.map(task => task.id), [future]);
+    assert.deepEqual((await tasks.loadTasksPage({ ...options, search: 'details', priority: 2 })).tasks.map(task => task.id), [future]);
+    assert.ok((await tasks.loadTasksPage({ ...options, priority: 1 })).tasks.every(task => task.priority === 1));
+    assert.equal((await tasks.loadTask(future)).id, future);
+    assert.equal(await tasks.loadTask(999999), undefined);
+    await assert.rejects(tasks.loadTasksPage({ ...options, offset: -1 }));
+    await assert.rejects(tasks.loadTasksPage({ ...options, priority: 4 }));
+    await assert.rejects(tasks.loadTasksPage({ ...options, today: 'bad' }));
+  });
+  await verify('Reminder queries exclude history and elapsed times before limiting to the nearest 50', async () => {
+    const input = { title: 'Reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
+    await tasks.saveTask({ ...input, title: 'Elapsed', reminder_time: '08:00' });
+    await tasks.saveTask({ ...input, title: 'Same minute', reminder_time: '08:30' });
+    const done = await tasks.saveTask(input); await tasks.completeTask(done);
+    const next = await tasks.saveTask(input);
+    for (let i = 0; i < 60; i++) await tasks.saveTask({ ...input, due_date: '2030-01-02', title: `Later ${i}` });
+    const rows = await tasks.loadReminderTasks(new Date(2030, 0, 1, 8, 30));
+    assert.equal(rows.length, 50); assert.equal(rows[0].id, next);
+    assert.ok(rows.every(task => task.completed_at === null && task.title !== 'Elapsed' && task.title !== 'Same minute'));
+  });
+  await verify('Backup preview validates files and reports counts without changing data or recovery files', async () => {
+    await tasks.saveTask({ title: 'Keep', notes: '', list_id: null, due_date: null, priority: 0, repeat: 'none', reminder_time: null });
+    const envelope = await backup.buildBackupEnvelope();
+    const before = await tasks.loadTasks();
+    assert.deepEqual(backup.previewBackupFromJson(JSON.stringify(envelope)), { exportedAt: envelope.meta.exportedAt, tasks: 1, notes: 0, budgets: 0 });
+    assert.deepEqual(await tasks.loadTasks(), before); assert.equal(files.size, 0);
+    const legacy = structuredClone(envelope); legacy.meta.version = 4; delete legacy.tables.tasks; delete legacy.tables.taskLists;
+    assert.equal(backup.previewBackupFromJson(JSON.stringify(legacy)).tasks, null);
+    legacy.meta.exportedAt = 'bad'; assert.equal(backup.previewBackupFromJson(JSON.stringify(legacy)).exportedAt, null);
+    assert.throws(() => backup.previewBackupFromJson('bad'));
+    const invalid = structuredClone(envelope); invalid.tables.tasks[0].title = '';
+    assert.throws(() => backup.previewBackupFromJson(JSON.stringify(invalid)));
+    assert.deepEqual(await tasks.loadTasks(), before); assert.equal(files.size, 0);
+  });
+  results.push(...await require('./hub-improvements-regression.cjs')(root, numberInput.parseNumberInput));
   results.push(...await require('./updater-cache-regression.cjs')(root));
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => database.close());

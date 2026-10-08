@@ -11,6 +11,7 @@ import { DatePicker } from "../DatePicker";
 import { X } from "../AppIcons";
 import { Button, IconButton } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { ConfirmDialog } from "../ConfirmDialog";
 
 const PRIORITIES: readonly { value: TaskPriority; key: TKey }[] = [
   { value: 0, key: "tasksPriorityNormal" }, { value: 1, key: "tasksPriorityMedium" }, { value: 2, key: "tasksPriorityHigh" },
@@ -74,11 +75,20 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
   const [moreOptions, setMoreOptions] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [discard, setDiscard] = useState(false);
+  const initialSnapshot = useRef(JSON.stringify([task?.title ?? "", task?.notes ?? "", task ? task.due_date : initialDate,
+    task?.priority ?? 0, task?.repeat ?? "none", task?.reminder_time ?? null]));
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   // The dialog remains mounted during saves; close cannot interrupt a write.
-  const close = () => { if (!busyRef.current) { mountedRef.current = false; onClose(); } };
+  const discardChanges = () => { if (!busyRef.current) { mountedRef.current = false; onClose(); } };
+  const close = () => {
+    if (busyRef.current) return;
+    const snapshot = JSON.stringify([title, notes, dueDate, priority, repeat, reminder ? time : null]);
+    if (snapshot !== initialSnapshot.current) setDiscard(true);
+    else discardChanges();
+  };
 
   const changeDate = (date: string | null) => {
     setDueDate(date);
@@ -116,7 +126,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
   const labelClass = "mb-2 text-xs font-semibold text-muted-foreground";
   const inputClass = "min-h-[44px] rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground";
   return (
-    <TaskFormDialog title={t(task ? "tasksEdit" : "tasksAdd")} busy={busy} onClose={close}>
+    <><TaskFormDialog title={t(task ? "tasksEdit" : "tasksAdd")} busy={busy} onClose={close}>
         <ScrollView className="grow-0" contentContainerClassName="gap-4 p-4" keyboardShouldPersistTaps="handled">
           {error ? <Text accessibilityRole="alert" className="text-sm text-destructive">{error}</Text> : null}
           <View><Text className={labelClass}>{t("tasksTitle")}</Text>
@@ -159,5 +169,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
         </ScrollView>
       {showDate ? <DatePicker value={dueDate} onChange={changeDate} onClose={() => setShowDate(false)} /> : null}
     </TaskFormDialog>
+    <ConfirmDialog visible={discard} destructive title={t("tasksDiscardTitle")} message={t("tasksDiscardBody")}
+      confirmLabel={t("discard")} cancelLabel={t("keepEditing")} onConfirm={discardChanges} onClose={() => setDiscard(false)} /></>
   );
 }

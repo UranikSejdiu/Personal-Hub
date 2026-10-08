@@ -582,7 +582,7 @@ interface ImportOptions {
   skipSafetyBackup: boolean;
 }
 
-async function performImport(jsonStr: string, options: ImportOptions): Promise<void> {
+function parseBackupJson(jsonStr: string): BackupEnvelope {
   // Quick SQLite header guard: if user picked a .db file, first bytes are "SQLite format 3"
   if (jsonStr.startsWith("SQLite format 3")) {
     throw new Error("Invalid backup: SQLite file selected instead of JSON");
@@ -595,7 +595,22 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
   }
   const validated = validateEnvelope(raw);
   if (!validated.ok) throw new Error(validated.error);
-  const env = validated.data;
+  return validated.data;
+}
+
+/** Validate and summarize the selected file without writing to storage. */
+export function previewBackupFromJson(jsonStr: string): { exportedAt: string | null; tasks: number | null; notes: number; budgets: number } {
+  const env = parseBackupJson(jsonStr);
+  return {
+    exportedAt: typeof env.meta.exportedAt === "string" && Number.isFinite(Date.parse(env.meta.exportedAt)) ? env.meta.exportedAt : null,
+    tasks: env.tables.tasks && env.tables.taskLists ? env.tables.tasks.length : null,
+    notes: env.tables.notes.length,
+    budgets: env.tables.budgets.length,
+  };
+}
+
+async function performImport(jsonStr: string, options: ImportOptions): Promise<void> {
+  const env = parseBackupJson(jsonStr);
 
   // Keep a restorable copy before the first destructive statement. If it cannot
   // be created, abort rather than proceeding without the safety copy.

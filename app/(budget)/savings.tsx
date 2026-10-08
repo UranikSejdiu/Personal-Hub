@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, type ListRenderItemInfo } from "react-native";
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Plus, Trash2, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
@@ -29,6 +29,8 @@ import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { SavingsGoalCard } from "../../src/components/SavingsGoalCard";
+import { Button } from "../../src/components/ui/Button";
+import { parseNumberInput } from "../../src/lib/numberInput";
 
 function todayDate(): string {
   const now = new Date();
@@ -59,6 +61,9 @@ export default function SavingsScreen() {
   const colors = useThemeColors();
   const haptics = useHaptics();
   const [goalAmount, setGoalAmount] = useState(0);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
+  const loadSequence = useRef(0);
+  const focused = useRef(false);
   const [entries, setEntries] = useState<SavingsEntry[]>([]);
   const [summary, setSummary] = useState<SavingsSummary>({ balance: 0, totalSaved: 0, totalSpent: 0 });
   const [selectedYear, setSelectedYear] = useState<number | "all">(() => new Date().getFullYear());
@@ -81,6 +86,9 @@ export default function SavingsScreen() {
   useEffect(() => { tRef.current = t; }, [t]);
 
   const loadData = useCallback(async () => {
+    const request = ++loadSequence.current;
+    if (!focused.current) return;
+    setLoadState("loading");
     try {
       const [sg, ads, txs, sum] = await Promise.all([
         loadSavingsGoal(),
@@ -88,6 +96,7 @@ export default function SavingsScreen() {
         listTransactions(),
         getSavingsSummary(),
       ]);
+      if (!focused.current || request !== loadSequence.current) return;
       setGoalAmount(sg.goal_amount);
       setSummary(sum);
 
@@ -111,14 +120,20 @@ export default function SavingsScreen() {
       }));
       const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
       setEntries(merged);
+      setLoadState("ready");
     } catch {
-      toast.error(tRef.current("errorLoadingData"));
+      if (focused.current && request === loadSequence.current) {
+        setLoadState("failed");
+        toast.error(tRef.current("errorLoadingData"));
+      }
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
+      focused.current = true;
       void loadData();
+      return () => { focused.current = false; ++loadSequence.current; };
     }, [loadData])
   );
 
@@ -285,8 +300,8 @@ export default function SavingsScreen() {
   const handleSave = useCallback(async () => {
     if (saveInFlightRef.current) return;
     const amountText = formAmount.trim();
-    const parsed = Number(amountText.replace(",", "."));
-    if (!/^(?:\d+(?:[.,]\d{0,2})?|[.,]\d{1,2})$/.test(amountText) || !Number.isFinite(parsed) || parsed <= 0) {
+    const parsed = parseNumberInput(amountText, 2);
+    if (parsed === null || parsed <= 0) {
       setModalError(t("savingsErrorAmount"));
       return;
     }
@@ -525,7 +540,15 @@ export default function SavingsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <FlatList
+      {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 p-4">
+        <Text accessibilityRole="header" className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
+        <View className="items-center gap-3 rounded-xl border border-border bg-card px-4 py-8">
+          {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
+            <Text className="text-sm text-muted-foreground">{t("loading")}</Text></>
+            : <><Text accessibilityRole="alert" className="text-sm text-destructive">{t("errorLoadingData")}</Text>
+              <Button label={t("retry")} onPress={() => void loadData()} /></>}
+        </View>
+      </View> : <FlatList
         className="w-full max-w-md self-center"
         style={styles.list}
         data={filteredEntries}
@@ -535,7 +558,7 @@ export default function SavingsScreen() {
         ListFooterComponent={listFooter}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-      />
+      />}
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <KeyboardAvoidingView className="flex-1" behavior="padding" automaticOffset>

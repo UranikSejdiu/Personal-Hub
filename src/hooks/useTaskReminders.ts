@@ -10,9 +10,10 @@ import { useModulePreferences } from "../hub/ModulePreferences";
 export function useTaskReminders(): void {
   const { t } = useI18n();
   const router = useRouter();
-  const { enabledIds } = useModulePreferences();
+  const { enabledIds, ready } = useModulePreferences();
   const tasksEnabled = enabledIds.includes("tasks");
   useEffect(() => {
+    if (!ready) return;
     let active = true;
     let removeTapListener: (() => void) | undefined;
     const refresh = () => {
@@ -23,9 +24,9 @@ export function useTaskReminders(): void {
     refresh();
     const unsubscribe = subscribeTaskChanges(refresh);
     const appState = AppState.addEventListener("change", (state) => { if (state === "active") refresh(); });
-    void observeTaskReminderTaps(() => { if (active && tasksEnabled) router.push("/(tasks)/all"); })
+    void observeTaskReminderTaps((taskId) => { if (active && tasksEnabled) router.push({ pathname: "/(tasks)/all", params: { taskId: String(taskId) } }); })
       .then((remove) => { if (active) removeTapListener = remove; else remove(); })
       .catch(() => { if (active) toast.error(t("tasksReminderFailed")); });
     return () => { active = false; unsubscribe(); appState.remove(); removeTapListener?.(); };
-  }, [router, t, tasksEnabled]);
+  }, [ready, router, t, tasksEnabled]);
 }

@@ -26,6 +26,8 @@ import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentP
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
 import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
+import { ConfirmDialog } from "../../src/components/ConfirmDialog";
+import { formatCurrency } from "../../src/lib/utils";
 
 const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView {...props} className="flex-1 bg-background" bottomOffset={16} />;
 
@@ -41,6 +43,7 @@ export default function BudgetScreen() {
   const [paidRepayments, setPaidRepayments] = useState<Set<number>>(new Set());
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const expensesRef = useRef<Expense[]>([]);
   useEffect(() => { expensesRef.current = expenses; }, [expenses]);
   const [hasPreviousBudget, setHasPreviousBudget] = useState(false);
@@ -290,20 +293,24 @@ export default function BudgetScreen() {
 
   const handleRemoveExpense = useCallback(
     async (id: number) => {
-      cancelExpenseUpdate(id);
-      const prevExpenses = expensesRef.current;
-      setExpenses((curr) => curr.filter((e) => e.id !== id));
       try {
         await flushAllExpenseUpdates();
         await removeExpense(id);
+        cancelExpenseUpdate(id);
+        setExpenses((curr) => curr.filter((e) => e.id !== id));
+        setExpenseToDelete(null);
         void haptics.warning();
       } catch {
-        setExpenses(prevExpenses);
         toast.error(t("errorRemovingExpense"));
       }
     },
     [t, haptics, cancelExpenseUpdate, flushAllExpenseUpdates]
   );
+
+  const askRemoveExpense = useCallback((id: number) => {
+    const expense = expensesRef.current.find((item) => item.id === id);
+    if (expense) setExpenseToDelete(expense);
+  }, []);
 
   const handleCopyPrevious = useCallback(async () => {
     if (loading) return;
@@ -386,7 +393,7 @@ export default function BudgetScreen() {
   }
 
   return (
-    <FlatList
+    <><FlatList
       className="flex-1 bg-background"
       contentContainerClassName="w-full max-w-md self-center px-4 pt-3 pb-28"
       data={expenses}
@@ -400,7 +407,7 @@ export default function BudgetScreen() {
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
         <View className="border-x border-border bg-card px-3">
-          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={handleRemoveExpense} onToggleRecurring={handleToggleRecurring} />
+          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} />
         </View>
       )}
       ListHeaderComponent={
@@ -420,5 +427,9 @@ export default function BudgetScreen() {
         </View>
       }
     />
+    <ConfirmDialog visible={expenseToDelete !== null} destructive title={t("expenseDeleteTitle")}
+      message={t("expenseDeleteBody", { name: expenseToDelete?.category || t("category"), amount: formatCurrency(expenseToDelete?.amount ?? 0) })}
+      confirmLabel={t("delete")} onClose={() => setExpenseToDelete(null)}
+      onConfirm={async () => { if (expenseToDelete) await handleRemoveExpense(expenseToDelete.id); }} /></>
   );
 }

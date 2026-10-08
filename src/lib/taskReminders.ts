@@ -1,6 +1,6 @@
 import { isRunningInExpoGo, requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
-import { loadTasks } from "./tasks";
+import { loadReminderTasks } from "./tasks";
 import type { Task } from "../types/tasks";
 
 type NotificationsApi = typeof import("expo-notifications");
@@ -45,7 +45,7 @@ export function syncTaskReminders(channelName: string): Promise<void> {
   const next = syncQueue.then(async () => {
     const api = await getApi();
     if (!api) return;
-    const tasks = await loadTasks();
+    const tasks = await loadReminderTasks();
     const scheduled = await api.getAllScheduledNotificationsAsync();
     const permission = await api.getPermissionsAsync();
     const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
@@ -76,15 +76,20 @@ export function syncTaskReminders(channelName: string): Promise<void> {
   return next;
 }
 
-export async function observeTaskReminderTaps(onTap: () => void): Promise<() => void> {
+export async function observeTaskReminderTaps(onTap: (taskId: number) => void): Promise<() => void> {
   const api = await getApi();
   if (!api) return () => {};
   const handle = (response: import("expo-notifications").NotificationResponse) => {
     const ours = response.notification.request.identifier.startsWith(PREFIX) && response.notification.request.content.data?.module === "tasks";
-    if (ours) onTap();
+    const taskId = response.notification.request.content.data?.taskId;
+    if (ours && typeof taskId === "number" && Number.isSafeInteger(taskId) && taskId > 0) onTap(taskId);
     return ours;
   };
-  const subscription = api.addNotificationResponseReceivedListener(handle);
+  const subscription = api.addNotificationResponseReceivedListener((response) => {
+    if (handle(response)) void api.clearLastNotificationResponseAsync().catch((error: unknown) => {
+      console.warn("[tasks] failed to clear reminder response", error);
+    });
+  });
   try {
     const response = api.getLastNotificationResponse();
     if (response && handle(response)) await api.clearLastNotificationResponseAsync();

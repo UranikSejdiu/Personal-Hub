@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { TextInput, View, Text } from "react-native";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
+import { useI18n } from "../lib/i18n";
+import { parseNumberInput } from "../lib/numberInput";
 
 interface NumberInputProps {
   value: number;
@@ -28,27 +30,23 @@ export function NumberInput({
 }: NumberInputProps) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [isFocused, setIsFocused] = useState(false);
+  const [invalid, setInvalid] = useState(false);
   const colors = useThemeColors();
+  const { t } = useI18n();
 
-  const displayText = isFocused ? text : value === 0 ? "" : String(value);
+  const displayText = isFocused || invalid ? text : value === 0 ? "" : String(value);
 
   const handleFocus = useCallback(() => {
-    setText(value === 0 ? "" : String(value));
+    if (!invalid) setText(value === 0 ? "" : String(value));
     setIsFocused(true);
-  }, [value]);
+  }, [invalid, value]);
 
   const handleChange = useCallback(
     (input: string) => {
-      const cleaned = input.replace(/[^0-9.,\-]/g, "").replace(",", ".");
-      setText(cleaned);
-
-      if (cleaned === "") {
-        onChange(0);
-        return;
-      }
-
-      const num = parseFloat(cleaned);
-      if (!isNaN(num)) {
+      setText(input);
+      const num = parseNumberInput(input, decimals);
+      setInvalid(num === null);
+      if (num !== null) {
         const clamped = Math.min(max, Math.max(min, num));
         onChange(Number(clamped.toFixed(decimals)));
       }
@@ -58,10 +56,10 @@ export function NumberInput({
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
-    const num = parseFloat(text);
-    if (isNaN(num)) {
-      setText("");
-      onChange(0);
+    const num = parseNumberInput(text, decimals);
+    setInvalid(num === null);
+    if (num === null) {
+      return;
     } else {
       const clamped = Math.min(max, Math.max(min, num));
       onChange(Number(clamped.toFixed(decimals)));
@@ -70,7 +68,8 @@ export function NumberInput({
   }, [text, min, max, decimals, onChange]);
 
   return (
-    <View className={cn("flex-row items-center gap-1", className)}>
+    <View className={className}>
+      <View className="flex-row items-center gap-1">
       <TextInput
         accessibilityLabel={accessibilityLabel}
         value={displayText}
@@ -81,13 +80,15 @@ export function NumberInput({
         keyboardType="decimal-pad"
         className={cn(
           "flex-1 rounded-xl border px-3 py-2.5 text-base text-foreground bg-card",
-          isFocused ? "border-primary" : "border-border"
+          invalid ? "border-destructive" : isFocused ? "border-primary" : "border-border"
         )}
         placeholderTextColor={colors.mutedForeground}
       />
       {suffix && (
         <Text className="text-sm text-muted-foreground">{suffix}</Text>
       )}
+      </View>
+      {invalid ? <Text accessibilityRole="alert" className="mt-1 text-xs text-destructive">{t("numberInputInvalid")}</Text> : null}
     </View>
   );
 }
