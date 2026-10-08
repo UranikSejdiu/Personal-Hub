@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import {

@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, useWindowDimensions, StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { View, ScrollView, Pressable, useWindowDimensions, StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { useI18n, type TKey } from "../lib/i18n";

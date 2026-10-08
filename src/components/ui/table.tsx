@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, type ViewProps, type TextProps } from "react-native";
+import { Text } from "./Typography";
+import { View, ScrollView, type ViewProps, type TextProps } from "react-native";
 import { cn } from "../../lib/utils";
 
 interface TableProps extends ViewProps {

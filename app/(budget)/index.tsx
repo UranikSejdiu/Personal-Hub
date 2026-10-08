@@ -1,5 +1,6 @@
+import { Text } from "../../src/components/ui/Typography";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, View, Text, FlatList, StyleSheet } from "react-native";
+import { ActivityIndicator, View, FlatList, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus } from "../../src/components/AppIcons";
 import { useRouter, useFocusEffect } from "expo-router";

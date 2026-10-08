@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
 import { toast } from "sonner-native";
 import { useI18n } from "../lib/i18n";

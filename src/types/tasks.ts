@@ -1,4 +1,4 @@
-export type TaskRepeat = "none" | "daily" | "weekly" | "monthly";
+export type TaskRepeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
 export type TaskPriority = 0 | 1 | 2;
 
 export interface TaskInput {

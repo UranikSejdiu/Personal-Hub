@@ -23,7 +23,7 @@ export function isTaskInput(value: unknown): value is TaskInput {
     (input.list_id === null || (typeof input.list_id === "number" && Number.isSafeInteger(input.list_id) && input.list_id > 0)) &&
     (input.due_date === null || isTaskDate(input.due_date)) &&
     (input.priority === 0 || input.priority === 1 || input.priority === 2) &&
-    (input.repeat === "none" || input.repeat === "daily" || input.repeat === "weekly" || input.repeat === "monthly") &&
+    (input.repeat === "none" || input.repeat === "daily" || input.repeat === "weekly" || input.repeat === "monthly" || input.repeat === "yearly") &&
     (input.repeat === "none" || input.due_date !== null) &&
     (input.reminder_time === null || (isTaskTime(input.reminder_time) && input.due_date !== null));
 }
@@ -42,6 +42,12 @@ export function nextTaskDate(due: string, repeat: Exclude<TaskRepeat, "none">, a
       const month = date.getMonth() + 1;
       date.setDate(1);
       date.setMonth(month);
+      date.setDate(Math.min(anchorDay, new Date(year, month + 1, 0).getDate()));
+    } else if (repeat === "yearly") {
+      const year = date.getFullYear() + 1;
+      const month = date.getMonth();
+      date.setDate(1);
+      date.setFullYear(year);
       date.setDate(Math.min(anchorDay, new Date(year, month + 1, 0).getDate()));
     } else {
       date.setDate(date.getDate() + (repeat === "daily" ? 1 : 7));

@@ -1,5 +1,6 @@
+import { Text } from "../ui/Typography";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useI18n, type TKey } from "../../lib/i18n";
 import { DashboardPreview } from "./DashboardPreview";
 import { SavingsPreview } from "./SavingsPreview";

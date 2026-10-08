@@ -3,7 +3,7 @@ import { isTaskDate, isTaskInput, nextTaskDate, taskDateKey } from "./taskDates"
 import { notifyTaskChanges } from "./taskEvents";
 import type { Task, TaskInput, TaskList, TaskPriority } from "../types/tasks";
 
-export type TaskFilter = "active" | "today" | "upcoming" | "undated" | "completed";
+export type TaskFilter = "all" | "active" | "today" | "upcoming" | "undated" | "completed";
 export interface TaskPageOptions {
   filter: TaskFilter;
   today: string;
@@ -20,9 +20,9 @@ export async function loadTask(id: number): Promise<Task | undefined> {
 /** Filter before pagination so every page contains only matching tasks. */
 export async function loadTasksPage({ filter, today, search = "", priority = null, offset = 0, limit = 40 }: TaskPageOptions) {
   if (!isTaskDate(today) || (priority !== null && priority !== 0 && priority !== 1 && priority !== 2) ||
-      !["active", "today", "upcoming", "undated", "completed"].includes(filter) ||
+      !["all", "active", "today", "upcoming", "undated", "completed"].includes(filter) ||
       !Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid task page");
-  const where = [filter === "completed" ? "completed_at IS NOT NULL" : "completed_at IS NULL"];
+  const where = [filter === "all" ? "1 = 1" : filter === "completed" ? "completed_at IS NOT NULL" : "completed_at IS NULL"];
   const values: (string | number)[] = [];
   if (filter === "today" || filter === "upcoming") {
     where.push(`due_date ${filter === "today" ? "<=" : ">"} ?`);
@@ -35,7 +35,7 @@ export async function loadTasksPage({ filter, today, search = "", priority = nul
     values.push(pattern, pattern);
   }
   const rows = await db.query<Task>(`SELECT * FROM tasks WHERE ${where.join(" AND ")}
-    ORDER BY due_date IS NULL, due_date, priority DESC, id DESC LIMIT ? OFFSET ?`, [...values, limit + 1, offset]);
+    ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC LIMIT ? OFFSET ?`, [...values, limit + 1, offset]);
   const tasks = rows.slice(0, limit);
   return { tasks, hasMore: rows.length > limit, nextOffset: offset + tasks.length };
 }
@@ -49,7 +49,7 @@ export async function loadReminderTasks(now = new Date()): Promise<Task[]> {
 }
 
 export async function loadTasks(): Promise<Task[]> {
-  return db.query<Task>("SELECT * FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, priority DESC, id DESC");
+  return db.query<Task>("SELECT * FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC");
 }
 
 function inputValues(input: TaskInput): (string | number | null)[] {
@@ -64,12 +64,12 @@ export async function saveTask(input: TaskInput, id?: number): Promise<number> {
     if (id !== undefined) {
       const current = await tx.get<Task>("SELECT * FROM tasks WHERE id = ?", [id]);
       if (!current || current.completed_at) throw new Error("Task is no longer editable");
-      const day = input.repeat === "monthly" && input.due_date
-        ? (current.due_date === input.due_date && current.repeat === "monthly" ? current.repeat_day : Number(input.due_date.slice(8))) : null;
+      const day = (input.repeat === "monthly" || input.repeat === "yearly") && input.due_date
+        ? (current.due_date === input.due_date && current.repeat === input.repeat ? current.repeat_day : Number(input.due_date.slice(8))) : null;
       await tx.execute("UPDATE tasks SET title = ?, notes = ?, list_id = ?, due_date = ?, priority = ?, repeat = ?, reminder_time = ?, repeat_day = ?, updated_at = datetime('now') WHERE id = ?", [...values, day, id]);
       return id;
     }
-    const day = input.repeat === "monthly" && input.due_date ? Number(input.due_date.slice(8)) : null;
+    const day = (input.repeat === "monthly" || input.repeat === "yearly") && input.due_date ? Number(input.due_date.slice(8)) : null;
     const result = await tx.execute("INSERT INTO tasks (title, notes, list_id, due_date, priority, repeat, reminder_time, repeat_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [...values, day]);
     return result.lastId;
   });

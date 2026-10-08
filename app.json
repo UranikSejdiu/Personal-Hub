@@ -2,7 +2,7 @@
   "expo": {
     "name": "Personal Hub",
     "slug": "uraniks-hub",
-    "version": "1.25.1",
+    "version": "1.25.2",
     "orientation": "portrait",
     "icon": "./assets/icon-personal-hub.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.uranik.offlinehub",
-      "versionCode": 106,
+      "versionCode": 107,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#080F2E",
@@ -29,6 +29,44 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Urbanist",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Urbanist-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          },
+          "ios": {
+            "fonts": [
+              "./assets/fonts/Urbanist-Regular.ttf",
+              "./assets/fonts/Urbanist-Medium.ttf",
+              "./assets/fonts/Urbanist-SemiBold.ttf",
+              "./assets/fonts/Urbanist-Bold.ttf"
+            ]
+          }
+        }
+      ],
       [
         "expo-notifications",
         {

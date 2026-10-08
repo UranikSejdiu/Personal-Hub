@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { View } from "react-native";
 import { CreditCard, Landmark } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { useI18n } from "../lib/i18n";

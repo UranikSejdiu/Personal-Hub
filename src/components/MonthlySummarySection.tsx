@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { useMemo } from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { CircleCheck } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";

@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { useState } from "react";
-import { Text, useWindowDimensions } from "react-native";
+import { useWindowDimensions } from "react-native";
 
 function MeasuredTitle({ name }: { name: string }) {
   const [multiline, setMultiline] = useState(false);

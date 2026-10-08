@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { type ComponentType } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import {
   ChevronDown,
   Wallet,

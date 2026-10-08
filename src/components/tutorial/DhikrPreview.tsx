@@ -1,5 +1,6 @@
+import { Text } from "../ui/Typography";
 import { useEffect } from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -56,7 +57,7 @@ export function DhikrPreview() {
       </View>
       <Animated.View style={numStyle} className="my-6">
         <Text
-          style={{ fontSize: 72, fontWeight: "200", color: colors.foreground }}
+          style={{ fontFamily: "Urbanist", fontSize: 72, fontWeight: "200", color: colors.foreground }}
           accessibilityLabel={t("dhikrCountLabel", { count: COUNTER })}
         >
           {COUNTER}

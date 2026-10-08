@@ -1,4 +1,5 @@
-import { Pressable, Switch, Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { Pressable, Switch, View } from "react-native";
 import type { ComponentType } from "react";
 import { BookOpen, ChevronRight, Cloud, Info, LayoutGrid, Target } from "./AppIcons";
 import type { AppIconProps } from "./AppIcons";

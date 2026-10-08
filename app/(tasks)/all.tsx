@@ -1,5 +1,7 @@
-import { TasksScreen } from "../../src/components/tasks/TasksScreen";
+import { Redirect, useLocalSearchParams } from "expo-router";
 
+/** Preserve links from earlier releases. */
 export default function AllTasksScreen() {
-  return <TasksScreen view="all" />;
+  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
+  return <Redirect href={{ pathname: "/(tasks)", params: taskId ? { taskId } : {} }} />;
 }

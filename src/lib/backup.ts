@@ -304,7 +304,7 @@ function validateTaskTables(tables: Record<string, unknown>, version: number): s
         (row.completed_at !== null && !isTaskTimestamp(row.completed_at)) ||
         (row.list_id !== null && !listIds.has(row.list_id)) ||
         (row.parent_id !== null && (!isInteger(row.parent_id) || row.parent_id <= 0)) ||
-        (row.repeat === "monthly" ? !isInteger(row.repeat_day) || row.repeat_day < 1 || row.repeat_day > 31 : row.repeat_day !== null)) return "Invalid task";
+        ((row.repeat === "monthly" || row.repeat === "yearly") ? !isInteger(row.repeat_day) || row.repeat_day < 1 || row.repeat_day > 31 : row.repeat_day !== null)) return "Invalid task";
     tasks.set(row.id, row);
   }
   const parents = new Set<number>();

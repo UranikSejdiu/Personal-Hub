@@ -1,7 +1,8 @@
+import { Text } from "../src/components/ui/Typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { BackHandler, Pressable, Text, View } from "react-native";
+import { BackHandler, Pressable, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Toaster } from "sonner-native";
@@ -82,7 +83,8 @@ function RootLayoutInner() {
             backgroundColor: colors.card,
           },
           toastContentStyle: { gap: 10 },
-          titleStyle: { color: colors.foreground, fontSize: 14, lineHeight: 20 },
+          titleStyle: { color: colors.foreground, fontSize: 14, lineHeight: 20, fontFamily: "Urbanist-SemiBold", fontWeight: "normal" },
+          descriptionStyle: { fontFamily: "Urbanist-Regular", fontWeight: "normal" },
         }}
       />
       <ConfirmDialog
@@ -176,6 +178,7 @@ function BootstrapGate() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
+    Urbanist: require("../assets/fonts/Urbanist-Regular.ttf"),
     "Urbanist-Regular": require("../assets/fonts/Urbanist-Regular.ttf"),
     "Urbanist-Medium": require("../assets/fonts/Urbanist-Medium.ttf"),
     "Urbanist-SemiBold": require("../assets/fonts/Urbanist-SemiBold.ttf"),

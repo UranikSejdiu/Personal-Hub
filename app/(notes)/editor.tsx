@@ -1,10 +1,6 @@
+import { Text, TextInput } from "../../src/components/ui/Typography";
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  TextInput,
-} from "react-native";
+import { View, Pressable } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -228,7 +224,7 @@ export default function NotesEditorScreen() {
       backgroundColor: "transparent",
       color: colors.foreground,
       fontSize: 16,
-      fontFamily: "Urbanist-Regular",
+      fontFamily: "Urbanist",
     }),
     [colors.foreground]
   );

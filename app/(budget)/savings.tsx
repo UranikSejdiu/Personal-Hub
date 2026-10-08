@@ -1,5 +1,6 @@
+import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
+import { View, ScrollView, Pressable, Modal, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Plus, Trash2, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";

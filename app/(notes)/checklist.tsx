@@ -1,12 +1,6 @@
+import { Text, TextInput } from "../../src/components/ui/Typography";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import {
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  type TextInput as TextInputType,
-  type ScrollView as ScrollViewType,
-} from "react-native";
+import { Pressable, View, type TextInput as TextInputType, type ScrollView as ScrollViewType } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";

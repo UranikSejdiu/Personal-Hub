@@ -1,5 +1,6 @@
+import { Text } from "../../src/components/ui/Typography";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps } from "react-native";
+import { View, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";

@@ -1,5 +1,6 @@
+import { Text } from "../ui/Typography";
 import { useEffect, useState } from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,

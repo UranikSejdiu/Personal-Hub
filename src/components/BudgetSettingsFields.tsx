@@ -1,4 +1,5 @@
-import { View, Text } from "react-native";
+import { Text } from "./ui/Typography";
+import { View } from "react-native";
 import { NumberInput } from "./NumberInput";
 import { useI18n } from "../lib/i18n";
 

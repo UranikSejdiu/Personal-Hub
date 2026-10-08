@@ -1,5 +1,6 @@
+import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useCallback, useRef, useState } from "react";
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { Plus, Landmark, CreditCard } from "../../src/components/AppIcons";

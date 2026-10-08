@@ -1,5 +1,6 @@
+import { Text } from "../ui/Typography";
 import { useState } from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { BudgetSettingsFields } from "../BudgetSettingsFields";
 import { Button } from "../ui/Button";
 import { SettingsMenu, type SettingsSection } from "../SettingsMenu";

@@ -17,11 +17,10 @@ export default function TasksLayout() {
       tabs={TASKS_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))} activeTabId={state.routes[state.index].name}
       onTabPress={(id) => {
         if (id === "index") router.push("/(tasks)");
-        else if (id === "all") router.push("/(tasks)/all");
         else if (id === "settings") router.push("/(tasks)/settings");
       }} /> }>
-      <Tabs.Screen name="index" options={{ title: t("tasksToday") }} />
-      <Tabs.Screen name="all" options={{ title: t("tasksAll") }} />
+      <Tabs.Screen name="index" options={{ title: t("tutorialTasks") }} />
+      <Tabs.Screen name="all" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
     </Tabs>
   </>;

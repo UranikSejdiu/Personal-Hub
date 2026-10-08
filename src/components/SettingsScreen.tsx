@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, BackHandler, Image } from "react-native";
+import { View, ScrollView, Pressable, BackHandler, Image } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ArrowLeft, Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, useFocusEffect, type Href } from "expo-router";

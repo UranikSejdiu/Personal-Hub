@@ -1,5 +1,6 @@
+import { Text } from "../../src/components/ui/Typography";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, ScrollView, useWindowDimensions } from "react-native";
+import { View, Pressable, ScrollView, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DhikrCounterTitle } from "../../src/components/DhikrCounterTitle";
 import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";

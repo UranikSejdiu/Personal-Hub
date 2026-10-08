@@ -30,8 +30,7 @@ export const NOTES_TABS: HubTabDef[] = [
 ];
 
 export const TASKS_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "tasksToday", icon: "check-square" },
-  { id: "all", labelKey: "tasksAll", icon: "format-list-numbered" },
+  { id: "index", labelKey: "tutorialTasks", icon: "check-square" },
   { id: "settings", labelKey: "navSettings", icon: "cog" },
 ];
 

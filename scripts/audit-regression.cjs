@@ -943,7 +943,7 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 13);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 14);
   });
   await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
@@ -977,7 +977,7 @@ function migrationModule(fixture) {
       assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
     } finally { legacy.close(); }
   });
   await verify('Version 11 adds independent plans to an existing version 9 database without changing its debts', async () => {
@@ -996,7 +996,7 @@ function migrationModule(fixture) {
       await migrationModule(legacy).initDatabase();
       assert.equal(legacy.prepare('SELECT loan_name FROM loans WHERE id = 1').get().loan_name, 'Existing loan');
       assert.equal(legacy.prepare("SELECT COUNT(*) AS count FROM repayment_plans").get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
     } finally { legacy.close(); }
   });
   await verify('Version 12 archive migration preserves existing version 11 notes, items, and savings without replaying repairs', async () => {
@@ -1018,7 +1018,7 @@ function migrationModule(fixture) {
       assert.deepEqual({ ...legacy.prepare('SELECT * FROM notes WHERE id = 42').get() }, { ...before, is_archived: 0 });
       assert.deepEqual(legacy.prepare('SELECT * FROM note_items').get(), originalItem);
       assert.equal(legacy.prepare('SELECT amount FROM savings_transactions').get().amount, 123);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
       assert.throws(() => legacy.prepare('UPDATE notes SET is_archived = 2 WHERE id = 42').run());
     } finally { legacy.close(); }
   });
@@ -1072,6 +1072,10 @@ function migrationModule(fixture) {
     assert.equal((await tasks.loadTasks()).find(t => t.id === child.id).due_date, null);
   });
   await verify('Recurring schedules preserve month-end anchors, leap years, weekly cadence and local dates', async () => {
+    assert.equal(taskDates.nextTaskDate('2028-02-29', 'yearly', 29, '2028-02-29'), '2029-02-28');
+    assert.equal(taskDates.nextTaskDate('2029-02-28', 'yearly', 29, '2031-03-01'), '2032-02-29');
+    assert.equal(taskDates.nextTaskDate('2026-12-31', 'yearly', 31, '2026-12-31'), '2027-12-31');
+    assert.throws(() => taskDates.nextTaskDate('9999-12-31', 'yearly', 31, '9999-12-31'));
     assert.equal(taskDates.nextTaskDate('2028-01-31', 'monthly', 31, '2028-01-31'), '2028-02-29');
     assert.equal(taskDates.nextTaskDate('2028-02-29', 'monthly', 31, '2028-02-29'), '2028-03-31');
     assert.equal(taskDates.nextTaskDate('2026-01-05', 'weekly', 5, '2026-01-20'), '2026-01-26');
@@ -1199,7 +1203,45 @@ function migrationModule(fixture) {
     assert.equal(scheduledReminders.size, 50);
     assert.equal(scheduledReminders.has(`personal-hub-task-${first.id}`), false);
   });
-  await verify('Version 13 creates Tasks in an existing version 12 database without rewriting older module data', async () => {
+  await verify('Version 14 upgrades existing tasks with intact IDs, links, dates, reminders, and deleted-ID sequence', async () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      for (const s of declarations.get('SCHEMA_STATEMENTS').elements) legacy.exec(s.text.replace(", 'yearly'", ''));
+      for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
+        const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
+        if (!legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
+      }
+      legacy.exec("INSERT INTO task_lists(id, name) VALUES(3, 'Legacy list')");
+      legacy.exec("INSERT INTO tasks(id, title, notes, list_id, due_date, priority, repeat, reminder_time, repeat_day, completed_at) VALUES(7, 'Parent', 'Details', 3, '2028-01-31', 2, 'monthly', '09:30', 31, '2028-01-31 10:00:00')");
+      legacy.exec("INSERT INTO tasks(id, title, list_id, due_date, repeat, repeat_day, parent_id) VALUES(8, 'Next', 3, '2028-02-29', 'monthly', 31, 7)");
+      legacy.exec("INSERT INTO tasks(id, title) VALUES(100, 'Deleted'); DELETE FROM tasks WHERE id = 100; PRAGMA user_version = 13;");
+      const before = legacy.prepare('SELECT * FROM tasks ORDER BY id').all();
+      await migrationModule(legacy).initDatabase();
+      assert.deepEqual(legacy.prepare('SELECT * FROM tasks ORDER BY id').all(), before);
+      assert.deepEqual(legacy.prepare('PRAGMA foreign_key_check').all(), []);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare("INSERT INTO tasks(title, due_date, repeat, repeat_day) VALUES('Annual', '2028-02-29', 'yearly', 29)").run().lastInsertRowid, 101);
+      assert.equal(legacy.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_tasks_%'").get().n, 2);
+      await migrationModule(legacy).initDatabase();
+      assert.equal(legacy.prepare('SELECT COUNT(*) AS n FROM tasks').get().n, 3);
+    } finally { legacy.close(); }
+  });
+  await verify('Yearly tasks persist their leap-day anchor across completion, editing, reopening, and backup restore', async () => {
+    const id = await tasks.saveTask({ title: 'Annual', notes: '', list_id: null, due_date: '2028-02-29', priority: 0, repeat: 'yearly', reminder_time: '09:00' });
+    await tasks.completeTask(id);
+    const child = (await tasks.loadTasks()).find(task => task.parent_id === id);
+    assert.equal(child.due_date, '2029-02-28');
+    assert.equal(child.repeat_day, 29);
+    await tasks.saveTask({ ...child }, child.id);
+    assert.equal((await tasks.loadTask(child.id)).repeat_day, 29);
+    const envelope = await backup.buildBackupEnvelope();
+    assert.equal(backup.validateEnvelope(envelope).ok, true);
+    await backup.importBackupFromJson(JSON.stringify(envelope));
+    assert.equal((await tasks.loadTask(child.id)).repeat_day, 29);
+    await tasks.reopenTask(id);
+    assert.equal((await tasks.loadTasks()).length, 1);
+  });
+  await verify('Version 14 creates Tasks in an existing version 12 database without rewriting older module data', async () => {
     const legacy = new DatabaseSync(':memory:');
     try {
       for (const s of declarations.get('SCHEMA_STATEMENTS').elements) {
@@ -1217,7 +1259,7 @@ function migrationModule(fixture) {
       assert.deepEqual(legacy.prepare('SELECT * FROM notes').get(), original);
       assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM tasks').get().count, 0);
       assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM task_lists').get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 13);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
     } finally { legacy.close(); }
   });
   await verify('Reminder taps carry the exact task ID, handle cold starts, and clear consumed responses', async () => {
@@ -1256,6 +1298,11 @@ function migrationModule(fixture) {
     const done = await tasks.saveTask({ ...input, title: 'Completed' });
     await tasks.completeTask(done);
     const options = { filter: 'active', today: '2030-01-01' };
+    const all = await tasks.loadTasksPage({ ...options, filter: 'all', limit: 100 });
+    assert.equal(all.tasks.length, 89);
+    assert.deepEqual(all.tasks.slice(0, 3).map(task => task.id), [past, today, future]);
+    assert.equal(all.tasks.at(-1).id, done);
+    assert.deepEqual(all.tasks.slice(3, -1).map(task => task.id), all.tasks.slice(3, -1).map(task => task.id).toSorted((a, b) => b - a), 'Priority does not reorder the plain task list');
     const first = await tasks.loadTasksPage(options);
     const second = await tasks.loadTasksPage({ ...options, offset: first.nextOffset });
     const third = await tasks.loadTasksPage({ ...options, offset: second.nextOffset });

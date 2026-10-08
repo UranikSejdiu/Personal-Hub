@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { Pressable, View } from "react-native";
 import { Check } from "./AppIcons";
 import { HUB_APPS } from "../hub/registry";
 import { useI18n } from "../lib/i18n";

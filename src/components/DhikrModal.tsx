@@ -1,5 +1,6 @@
+import { Text, TextInput } from "./ui/Typography";
 import { useCallback, useState } from "react";
-import { View, Text, Pressable, TextInput, Modal, ScrollView } from "react-native";
+import { View, Pressable, Modal, ScrollView } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { X } from "./AppIcons";
 import { useI18n } from "../lib/i18n";

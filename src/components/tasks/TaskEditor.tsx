@@ -1,24 +1,23 @@
+import { Text, TextInput } from "../ui/Typography";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Switch, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n, type TKey } from "../../lib/i18n";
 import { useThemeColors, useThemeVariables } from "../../lib/theme";
 import { formatTaskDate, isTaskInput, taskDateKey } from "../../lib/taskDates";
 import { requestTaskReminderPermission, taskReminderDate } from "../../lib/taskReminders";
-import type { Task, TaskInput, TaskPriority, TaskRepeat } from "../../types/tasks";
+import type { Task, TaskInput, TaskRepeat } from "../../types/tasks";
 import { DatePicker } from "../DatePicker";
 import { X } from "../AppIcons";
 import { Button, IconButton } from "../ui/Button";
 import { cn } from "../../lib/utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 
-const PRIORITIES: readonly { value: TaskPriority; key: TKey }[] = [
-  { value: 0, key: "tasksPriorityNormal" }, { value: 1, key: "tasksPriorityMedium" }, { value: 2, key: "tasksPriorityHigh" },
-];
 const REPEATS: readonly { value: TaskRepeat; key: TKey }[] = [
   { value: "none", key: "tasksRepeatNone" }, { value: "daily", key: "tasksRepeatDaily" },
   { value: "weekly", key: "tasksRepeatWeekly" }, { value: "monthly", key: "tasksRepeatMonthly" },
+  { value: "yearly", key: "tasksRepeatYearly" },
 ];
 
 function TaskFormDialog({ title, busy, onClose, children }: { title: string; busy: boolean; onClose: () => void; children: ReactNode }) {
@@ -67,17 +66,15 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
   const [title, setTitle] = useState(task?.title ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [dueDate, setDueDate] = useState<string | null>(task ? task.due_date : initialDate);
-  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 0);
   const [repeat, setRepeat] = useState<TaskRepeat>(task?.repeat ?? "none");
   const [reminder, setReminder] = useState(task?.reminder_time !== null && task?.reminder_time !== undefined);
   const [time, setTime] = useState(task?.reminder_time ?? "09:00");
   const [showDate, setShowDate] = useState(false);
-  const [moreOptions, setMoreOptions] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discard, setDiscard] = useState(false);
   const initialSnapshot = useRef(JSON.stringify([task?.title ?? "", task?.notes ?? "", task ? task.due_date : initialDate,
-    task?.priority ?? 0, task?.repeat ?? "none", task?.reminder_time ?? null]));
+    task?.repeat ?? "none", task?.reminder_time ?? null]));
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
@@ -85,7 +82,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
   const discardChanges = () => { if (!busyRef.current) { mountedRef.current = false; onClose(); } };
   const close = () => {
     if (busyRef.current) return;
-    const snapshot = JSON.stringify([title, notes, dueDate, priority, repeat, reminder ? time : null]);
+    const snapshot = JSON.stringify([title, notes, dueDate, repeat, reminder ? time : null]);
     if (snapshot !== initialSnapshot.current) setDiscard(true);
     else discardChanges();
   };
@@ -111,7 +108,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
   };
   const save = async () => {
     if (busyRef.current) return;
-    const input: TaskInput = { title: title.trim(), notes: notes.trim(), list_id: task?.list_id ?? null, due_date: dueDate, priority, repeat, reminder_time: reminder ? time.trim() : null };
+    const input: TaskInput = { title: title.trim(), notes: notes.trim(), list_id: task?.list_id ?? null, due_date: dueDate, priority: task?.priority ?? 0, repeat, reminder_time: reminder ? time.trim() : null };
     if (!isTaskInput(input)) { setError(t("tasksInvalid")); return; }
     const reminderDate = taskReminderDate(input);
     if (reminderDate && reminderDate.getTime() <= Date.now()) { setError(t("tasksReminderPast")); return; }
@@ -134,7 +131,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
               placeholder={t("tasksTitlePlaceholder")} placeholderTextColor={colors.mutedForeground} accessibilityLabel={t("tasksTitle")} className={inputClass} />
           </View>
           <View><Text className={labelClass}>{t("tasksDue")}</Text>
-            <Button variant="secondary" label={dueDate ? formatTaskDate(dueDate) : t("tasksNoDate")} disabled={busy} onPress={() => setShowDate(true)} />
+            <Button variant="secondary" label={dueDate ? formatTaskDate(dueDate) : t("tasksAddDate")} disabled={busy} onPress={() => setShowDate(true)} />
             <View className="mt-2 flex-row flex-wrap gap-2">
               <Button variant="secondary" label={t("tasksToday")} disabled={busy} onPress={() => changeDate(taskDateKey())} />
               <Button variant="secondary" label={t("tasksTomorrow")} disabled={busy} onPress={() => { const date = new Date(); date.setDate(date.getDate() + 1); changeDate(taskDateKey(date)); }} />
@@ -155,15 +152,10 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose }: {
               <Text className="mt-2 text-xs leading-5 text-muted-foreground">{t("tasksReminderHint", { date: formatTaskDate(dueDate) })}</Text>
             </View> : null}
           </> : null}
-          <Button variant="secondary" label={t(moreOptions ? "tasksFewerOptions" : "tasksMoreOptions")} disabled={busy}
-            accessibilityState={{ expanded: moreOptions }} onPress={() => setMoreOptions((current) => !current)} />
-          {moreOptions ? <>
-            <View><Text className={labelClass}>{t("tasksNotes")}</Text>
-              <TextInput value={notes} onChangeText={setNotes} editable={!busy} multiline maxLength={10000}
-                textAlignVertical="top" accessibilityLabel={t("tasksNotes")} className={cn(inputClass, "min-h-[80px]")} />
-            </View>
-            <View><Text className={labelClass}>{t("tasksPriority")}</Text><Choice options={PRIORITIES} value={priority} onChange={setPriority} disabled={busy} /></View>
-          </> : null}
+          <View><Text className={labelClass}>{t("tasksNotes")}</Text>
+            <TextInput value={notes} onChangeText={setNotes} editable={!busy} multiline maxLength={10000}
+              textAlignVertical="top" accessibilityLabel={t("tasksNotes")} className={cn(inputClass, "min-h-[80px]")} />
+          </View>
           <View className="flex-row justify-end gap-2"><Button variant="secondary" label={t("cancel")} disabled={busy} onPress={close} />
             <Button label={t("save")} busy={busy} onPress={() => void save()} /></View>
         </ScrollView>

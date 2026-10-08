@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import React from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { Pin } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { useThemeColors } from "../lib/theme";
@@ -98,6 +99,7 @@ export const NoteCard = React.memo(function NoteCard({
                 <Text
                   key={`${i}-${segmentIndex}`}
                   style={{
+                    fontFamily: "Urbanist",
                     fontWeight: segment.bold ? "700" : undefined,
                     fontStyle: segment.italic ? "italic" : undefined,
                     textDecorationLine: segment.strikethrough ? "line-through" : undefined,

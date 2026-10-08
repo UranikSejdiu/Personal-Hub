@@ -1,5 +1,6 @@
+import { Text } from "./ui/Typography";
 import { memo, useState } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { Trash2, ChevronDown, MoreHorizontal } from "./AppIcons";
 import { useI18n, monthLabelShort } from "../lib/i18n";
 import { useHaptics } from "../hooks/useHaptics";

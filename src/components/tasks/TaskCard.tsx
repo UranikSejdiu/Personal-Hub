@@ -1,5 +1,6 @@
+import { Text } from "../ui/Typography";
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { MoreHorizontal, Pencil, Trash2 } from "../AppIcons";
 import { Card } from "../ui/Card";
 import { Checkbox } from "../ui/Checkbox";
@@ -10,7 +11,7 @@ import { formatTaskDate } from "../../lib/taskDates";
 import { cn } from "../../lib/utils";
 import type { Task, TaskRepeat } from "../../types/tasks";
 
-const REPEAT_KEYS: Record<TaskRepeat, TKey> = { none: "tasksRepeatNone", daily: "tasksRepeatDaily", weekly: "tasksRepeatWeekly", monthly: "tasksRepeatMonthly" };
+const REPEAT_KEYS: Record<TaskRepeat, TKey> = { none: "tasksRepeatNone", daily: "tasksRepeatDaily", weekly: "tasksRepeatWeekly", monthly: "tasksRepeatMonthly", yearly: "tasksRepeatYearly" };
 
 export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, onEdit, onDelete, expanded = false }: {
   task: Task; today: string; busy: boolean;
@@ -21,9 +22,8 @@ export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, on
   const { triggerRef, anchor, open, close } = useAnchoredMenu();
   const completed = task.completed_at !== null;
   const overdue = !completed && task.due_date !== null && task.due_date < today;
-  const date = task.due_date ? formatTaskDate(task.due_date) : t("tasksNoDate");
-  const metadata = [task.repeat !== "none" ? t(REPEAT_KEYS[task.repeat]) : null,
-    task.reminder_time, task.priority > 0 ? t(task.priority === 2 ? "tasksPriorityHigh" : "tasksPriorityMedium") : null].filter(Boolean).join(" · ");
+  const metadata = [task.due_date ? formatTaskDate(task.due_date) : null,
+    task.repeat !== "none" ? t(REPEAT_KEYS[task.repeat]) : null, task.reminder_time].filter(Boolean).join(" · ");
   return <Card className="mb-2.5 p-3">
     <View className="flex-row items-start gap-1">
       <Checkbox checked={completed} disabled={busy} onPress={() => onToggle(task)}
@@ -33,8 +33,7 @@ export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, on
         accessibilityState={{ disabled: busy || completed }} className="min-h-[44px] min-w-0 flex-1 justify-center rounded-lg px-1 py-1 active:opacity-70">
         <Text className={cn("text-base font-semibold", completed ? "text-muted-foreground line-through" : "text-foreground")}>{task.title}</Text>
         {task.notes ? <Text numberOfLines={expanded ? undefined : 2} className="mt-1 text-sm text-muted-foreground">{task.notes}</Text> : null}
-        <Text className={cn("mt-1 text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>{overdue ? t("tasksOverdue", { date }) : date}</Text>
-        {metadata ? <Text className="mt-1 text-xs text-muted-foreground">{metadata}</Text> : null}
+        {metadata ? <Text className={cn("mt-1 text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>{metadata}</Text> : null}
       </Pressable>
       <View ref={triggerRef} collapsable={false}><IconButton icon={MoreHorizontal} disabled={busy} onPress={open}
         selected={anchor !== null} accessibilityLabel={t("tasksActionsNamed", { name: task.title })} accessibilityState={{ expanded: anchor !== null }} /></View>

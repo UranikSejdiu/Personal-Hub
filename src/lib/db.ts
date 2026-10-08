@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS task_lists (
@@ -24,7 +24,7 @@ const SCHEMA_STATEMENTS: string[] = [
     list_id INTEGER REFERENCES task_lists(id) ON DELETE SET NULL,
     due_date TEXT,
     priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2)),
-    repeat TEXT NOT NULL DEFAULT 'none' CHECK (repeat IN ('none', 'daily', 'weekly', 'monthly')),
+    repeat TEXT NOT NULL DEFAULT 'none' CHECK (repeat IN ('none', 'daily', 'weekly', 'monthly', 'yearly')),
     reminder_time TEXT,
     repeat_day INTEGER CHECK (repeat_day BETWEEN 1 AND 31),
     parent_id INTEGER UNIQUE REFERENCES tasks(id) ON DELETE SET NULL,
@@ -230,6 +230,24 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 
       for (const statement of NOTES_ARCHIVE_INDEXES) {
         await database.execAsync(statement);
+      }
+
+      // v14 extends repeat schedules. Rebuild inside the migration transaction,
+      // preserving self-links and the autoincrement sequence for deleted tasks.
+      const tasksSchema = await database.getFirstAsync<{ sql: string }>(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks';"
+      );
+      if (tasksSchema && !tasksSchema.sql.includes("'yearly'")) {
+        const sequence = await database.getFirstAsync<{ seq: number }>("SELECT seq FROM sqlite_sequence WHERE name = 'tasks'");
+        const createTasks = SCHEMA_STATEMENTS.find((statement) => statement.startsWith("CREATE TABLE IF NOT EXISTS tasks ("))!;
+        await database.execAsync(createTasks.replace("CREATE TABLE IF NOT EXISTS tasks (", "CREATE TABLE tasks_v14 (").replace("REFERENCES tasks(id)", "REFERENCES tasks_v14(id)"));
+        await database.execAsync("INSERT INTO tasks_v14 SELECT * FROM tasks;");
+        await database.execAsync("DROP TABLE tasks;");
+        await database.execAsync("ALTER TABLE tasks_v14 RENAME TO tasks;");
+        if (sequence) await database.runAsync("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'tasks'", [sequence.seq]);
+        for (const statement of SCHEMA_STATEMENTS.filter((statement) => statement.startsWith("CREATE INDEX IF NOT EXISTS idx_tasks_"))) {
+          await database.execAsync(statement);
+        }
       }
 
       // v12 adds archives without rerunning older data repairs or rebuilding

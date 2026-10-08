@@ -64,6 +64,7 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
   const module = { exports: {} };
   const requireMock = name => {
     if (name in mocked) return mocked[name];
+    if (/\/ui\/Typography$/.test(name)) return { Text: 'Text', TextInput: 'TextInput' };
     if (/\/i18n$/.test(name)) return { useI18n: () => ({ t, lang: 'en' }), monthLabelShort: (_, value) => value };
     if (/\/theme$/.test(name)) return { useThemeColors: () => colors, useThemeVariables: () => ({}) };
     if (/\/useHaptics$/.test(name)) return { useHaptics: () => haptics };
@@ -205,12 +206,13 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     const target = { ...tasks[0], id: 999, title: 'Reminder outside the page' };
     const calls = [];
     let heldRead;
+    let holdNext = false;
     const params = {};
-    const screen = fixture(root, 'src/components/tasks/TasksScreen.tsx', 'TasksScreen', { view: 'all' }, {
+    const screen = fixture(root, 'src/components/tasks/TasksScreen.tsx', 'TasksScreen', {}, {
       '../../lib/tasks': {
         async loadTasksPage(options) {
           calls.push(options);
-          if (options.search === 'hold') return new Promise(resolve => { heldRead = resolve; });
+          if (holdNext) { holdNext = false; return new Promise(resolve => { heldRead = resolve; }); }
           if (options.offset && pageFails) throw new Error('page failed');
           const rows = tasks.slice(options.offset ?? 0, (options.offset ?? 0) + 40);
           return { tasks: rows, hasMore: !options.offset, nextOffset: (options.offset ?? 0) + rows.length };
@@ -222,6 +224,9 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     await screen.settle();
     const list = () => screen.all('FlatList').find(node => node.props.renderItem && !node.props.horizontal);
     assert.equal(list().props.data.length, 40);
+    assert.equal(screen.all('FlatList').length, 1, 'Tasks has a single list and no status or priority strips');
+    assert.equal(screen.all('TextInput').length, 0);
+    assert.equal(calls[0].filter, 'all');
     list().props.onEndReached(); await screen.settle();
     assert.equal(list().props.data.length, 40);
     assert.ok(screen.all('Button').some(node => node.props.label === 'retry'));
@@ -233,12 +238,12 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     const completion = () => screen.all('ConfirmDialog').find(node => node.props.title === 'tasksCompleteTitle');
     completion().props.onClose(); screen.render(); assert.equal(completed, 0);
     list().props.renderItem({ item: tasks[0] }).props.onToggle(tasks[0]); screen.render();
-    await completion().props.onConfirm(); await screen.settle(); assert.equal(completed, 1);
-    screen.all('TextInput')[0].props.onChangeText('hold'); screen.render(); screen.timers(); await screen.settle();
+    holdNext = true;
+    const completing = completion().props.onConfirm(); await screen.settle(); assert.equal(completed, 1);
     assert.ok(heldRead);
     params.taskId = '999'; await screen.settle();
     assert.ok(screen.all('TaskCard').some(node => node.props.task.id === target.id));
-    heldRead({ tasks: [], hasMore: false, nextOffset: 0 }); await screen.settle();
+    heldRead({ tasks: [], hasMore: false, nextOffset: 0 }); await completing; await screen.settle();
     assert.ok(screen.all('TaskCard').some(node => node.props.task.id === target.id), 'A concurrent page read cannot hide the reminder target');
     screen.all('IconButton').find(node => node.props.accessibilityLabel === 'tasksDismissReminder').props.onPress(); screen.render();
     assert.equal(screen.all('TaskCard').length, 0);

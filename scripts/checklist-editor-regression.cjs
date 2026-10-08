@@ -67,6 +67,7 @@ function fixture(root, { screen = 'checklist', archived = false, kind = screen =
   const haptics = { light: async () => {}, success: async () => {} };
   const t = key => key;
   const mocks = {
+    '../../src/components/ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
     react: hooks,
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': Object.fromEntries(['Pressable', 'Text', 'TextInput', 'View'].map(name => [name, name])),

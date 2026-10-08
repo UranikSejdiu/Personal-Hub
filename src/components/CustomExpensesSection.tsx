@@ -1,5 +1,6 @@
+import { Text, TextInput } from "./ui/Typography";
 import { memo, useState } from "react";
-import { View, Text, Pressable, TextInput } from "react-native";
+import { View, Pressable } from "react-native";
 import { Plus, Trash2, Copy, Check, Repeat, MoreHorizontal } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";

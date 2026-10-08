@@ -24,7 +24,7 @@ export function useTaskReminders(): void {
     refresh();
     const unsubscribe = subscribeTaskChanges(refresh);
     const appState = AppState.addEventListener("change", (state) => { if (state === "active") refresh(); });
-    void observeTaskReminderTaps((taskId) => { if (active && tasksEnabled) router.push({ pathname: "/(tasks)/all", params: { taskId: String(taskId) } }); })
+    void observeTaskReminderTaps((taskId) => { if (active && tasksEnabled) router.push({ pathname: "/(tasks)", params: { taskId: String(taskId) } }); })
       .then((remove) => { if (active) removeTapListener = remove; else remove(); })
       .catch(() => { if (active) toast.error(t("tasksReminderFailed")); });
     return () => { active = false; unsubscribe(); appState.remove(); removeTapListener?.(); };

@@ -1,5 +1,6 @@
+import { Text } from "./Typography";
 import { useCallback, useRef, useState, type ComponentRef, type ComponentType } from "react";
-import { Modal, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Modal, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";

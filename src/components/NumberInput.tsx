@@ -1,5 +1,6 @@
+import { TextInput, Text } from "./ui/Typography";
 import { useState, useCallback } from "react";
-import { TextInput, View, Text } from "react-native";
+import { View } from "react-native";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
 import { useI18n } from "../lib/i18n";

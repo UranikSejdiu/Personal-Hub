@@ -12,6 +12,8 @@ function createIcon(name: UiconName) {
     const style: TextStyle = {
       color,
       fontFamily: "Uicons",
+      fontWeight: "normal",
+      fontStyle: "normal",
       fontSize: size,
       lineHeight: size * 1.15,
       textAlign: "center",

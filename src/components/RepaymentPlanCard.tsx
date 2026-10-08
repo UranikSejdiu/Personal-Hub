@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { View } from "react-native";
 import { CreditCard, Landmark, MoreHorizontal, Pencil, Trash2 } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";

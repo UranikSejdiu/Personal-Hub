@@ -1,6 +1,6 @@
 {
   "name": "uraniks-hub",
-  "version": "1.25.1",
+  "version": "1.25.2",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -57,6 +57,7 @@
     "typecheck": "tsc --noEmit",
     "audit:regression": "node scripts/audit-regression.cjs",
     "check:theme": "node scripts/theme-contrast.cjs",
+    "check:fonts": "node scripts/check-fonts.cjs",
     "check:notes-performance": "node scripts/notes-performance.cjs",
     "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme",
     "bundle:check": "expo export --platform android --platform ios --output-dir dist",

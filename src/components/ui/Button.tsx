@@ -1,5 +1,6 @@
+import { Text } from "./Typography";
 import type { ComponentType } from "react";
-import { ActivityIndicator, Pressable, Text, type PressableProps } from "react-native";
+import { ActivityIndicator, Pressable, type PressableProps } from "react-native";
 import type { AppIconProps } from "../AppIcons";
 import { useThemeColors } from "../../lib/theme";
 import { cn } from "../../lib/utils";

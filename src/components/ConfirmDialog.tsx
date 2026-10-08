@@ -1,4 +1,5 @@
-import { Pressable, Text, Modal, View, ScrollView } from "react-native";
+import { Text } from "./ui/Typography";
+import { Pressable, Modal, View, ScrollView } from "react-native";
 import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";

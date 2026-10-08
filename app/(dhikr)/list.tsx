@@ -1,5 +1,6 @@
+import { Text } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef } from "react";
-import { ActivityIndicator, BackHandler, Pressable, Text, View, type ListRenderItemInfo } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, View, type ListRenderItemInfo } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { MoreHorizontal, ChevronDown, Pencil, Trash2, type AppIconProps } from "../../src/components/AppIcons";
 import { Button, IconButton } from "../../src/components/ui/Button";

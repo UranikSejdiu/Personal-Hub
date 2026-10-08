@@ -1,5 +1,6 @@
+import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useRef } from "react";
-import { Pressable, Text, TextInput, View, type TextInput as TextInputType } from "react-native";
+import { Pressable, View, type TextInput as TextInputType } from "react-native";
 import { GripVertical, X } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";

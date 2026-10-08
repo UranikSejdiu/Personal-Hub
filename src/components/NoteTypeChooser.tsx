@@ -1,4 +1,5 @@
-import { Modal, Pressable, Text, View } from "react-native";
+import { Text } from "./ui/Typography";
+import { Modal, Pressable, View } from "react-native";
 import { FileText } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { useHaptics } from "../hooks/useHaptics";

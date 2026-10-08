@@ -2,10 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme colors are supplied by useThemeVariables from src/constants/theme.ts. */
-* {
-  font-family: "Urbanist-Regular";
-}
+/* Regular text uses Typography; universal selectors do not reach Android. */
 
 .font-medium {
   font-family: "Urbanist-Medium";

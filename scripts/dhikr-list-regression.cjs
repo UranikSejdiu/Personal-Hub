@@ -44,6 +44,7 @@ function fixture(root) {
   const element = (type, props) => ({ type, props });
   const t = key => key;
   const mocks = {
+    '../../src/components/ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
     react: hooks,
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': {
