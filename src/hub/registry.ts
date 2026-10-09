@@ -9,7 +9,6 @@ export interface HubApp {
 
 export const HUB_APPS: HubApp[] = [
   { id: "budget", titleKey: "appBudget", icon: "wallet", route: "/(budget)" },
-  { id: "dhikr", titleKey: "appDhikr", icon: "star-four-points", route: "/(dhikr)" },
   { id: "notes", titleKey: "appNotes", icon: "note-text", route: "/(notes)" },
   { id: "tasks", titleKey: "appTasks", icon: "list-check", route: "/(tasks)" },
 ];

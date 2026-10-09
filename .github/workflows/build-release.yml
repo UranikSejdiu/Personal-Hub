@@ -41,13 +41,23 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
 
+      - name: Verify release tag matches the app version
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag.cjs
+
       - name: Create keystore and properties from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/release-keystore.jks
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/release-keystore.jks
           printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' \
-            "${{ secrets.KEYSTORE_PASSWORD }}" \
-            "${{ secrets.KEY_ALIAS }}" \
-            "${{ secrets.KEY_PASSWORD }}" > android/keystore.properties
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/keystore.properties
           test -s android/release-keystore.jks
           test -s android/keystore.properties
           chmod 600 android/release-keystore.jks android/keystore.properties
@@ -76,10 +86,24 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload Hub APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Personal-Hub-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
       - name: Create GitHub Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
+          name: Personal Hub ${{ github.ref_name }}
+          body: |
+            Install app-release.apk to update Personal Hub.
+            Dhikr is now a separate app with separate releases and backups.
+            Before updating an older Hub with Dhikr counts, export its backup and import it into standalone Dhikr.
+            Release and signing instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
+          fail_on_unmatched_files: true
           files: android/app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

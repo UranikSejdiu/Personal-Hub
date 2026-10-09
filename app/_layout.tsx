@@ -61,7 +61,6 @@ function RootLayoutInner() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tutorial)" />
         <Stack.Screen name="(budget)" />
-        <Stack.Screen name="(dhikr)" />
         <Stack.Screen name="(notes)" />
         <Stack.Screen name="(tasks)" />
         <Stack.Screen name="settings/[section]" />

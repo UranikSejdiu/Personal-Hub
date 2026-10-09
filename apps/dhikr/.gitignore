@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+build/
+credentials/
+android/
+ios/
+expo-env.d.ts
+*.tsbuildinfo
+*.jks
+*.keystore
+.env*

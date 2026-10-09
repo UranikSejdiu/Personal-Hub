@@ -32,13 +32,6 @@ export interface SampleMonth {
 
 export const SAMPLE_SAVINGS: SavingsGoal = { goal_amount: 1200, salary: 2500 };
 
-/**
- * Dhikr is deliberately not written to the database on first run: the counts are
- * personal, and a stale `dhikr_selected_id` in storage would dangle if the demo
- * entry were later removed. The tour still shows the real shape of the counter.
- */
-export const SAMPLE_DHIKR = { name: "Istighfar", dailyLimit: 100 as number | null };
-
 /** A preview-only task with the same shape as a saved task. */
 export function sampleTask(today: string, title: string, notes: string): Task {
   return {

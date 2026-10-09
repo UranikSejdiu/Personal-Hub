@@ -4,6 +4,20 @@ import { type Dhikr } from "../types/dhikr";
 
 export type { Dhikr };
 
+// Counter taps render immediately and persist in order. Backups drain this
+// queue before taking a snapshot or replacing records, including after blur.
+let pendingWrites: Promise<void> = Promise.resolve();
+
+export function queueDhikrWrite(task: () => Promise<void>): Promise<void> {
+  const result = pendingWrites.then(task);
+  pendingWrites = result.then(() => {}, () => {});
+  return result;
+}
+
+export async function flushDhikrWrites(): Promise<void> {
+  await pendingWrites;
+}
+
 function toDhikr(row: Record<string, unknown>): Dhikr {
   return {
     id: Number(row.id),

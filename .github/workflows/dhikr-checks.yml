@@ -1,0 +1,29 @@
+name: Dhikr Quality Checks
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml"]
+  pull_request:
+    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dhikr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/dhikr/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/dhikr/package-lock.json
+      - run: npm ci --prefer-offline
+      - run: npm run validate
+      - run: npx expo config --type public
+      - run: npm run bundle:check

@@ -12,8 +12,6 @@ export const UICON_GLYPHS = {
   "ArrowUpRight": "",
   "Archive": "",
   "ChevronLeft": "",
-  "Sparkles": "ﲄ",
-  "Star": "ﳩ",
   "RotateCcw": "ﭨ",
   "Pencil": "﨩",
   "GripVertical": "",

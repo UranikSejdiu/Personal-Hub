@@ -15,7 +15,9 @@ interface ModulePreferencesValue {
 const ModulePreferencesContext = createContext<ModulePreferencesValue | null>(null);
 
 function validModuleIds(value: unknown): string[] | null {
-  if (!Array.isArray(value) || !value.every((id) => typeof id === "string" && ALL_MODULE_IDS.includes(id))) return null;
+  // Older installations may still contain the extracted Dhikr module. Filter
+  // it without resetting the user's other visibility choices.
+  if (!Array.isArray(value) || !value.every((id) => typeof id === "string" && (ALL_MODULE_IDS.includes(id) || id === "dhikr"))) return null;
   const unique = ALL_MODULE_IDS.filter((id) => value.includes(id));
   return unique.length > 0 ? unique : null;
 }
@@ -40,7 +42,9 @@ export function ModulePreferencesProvider({ children }: { children: ReactNode })
         // disabling remains respected across restarts.
         const next = introduced === null && !valid.includes("tasks") ? [...valid, "tasks"] : valid;
         if (active) setEnabledIds(next);
-        if (introduced === null) await AsyncStorage.multiSet([[MODULES_KEY, JSON.stringify(next)], [TASKS_INTRODUCED_KEY, "true"]]);
+        if (introduced === null || JSON.stringify(parsed) !== JSON.stringify(next)) {
+          await AsyncStorage.multiSet([[MODULES_KEY, JSON.stringify(next)], [TASKS_INTRODUCED_KEY, "true"]]);
+        }
       })
       .catch((error: unknown) => {
         console.warn("[hub] failed to load enabled modules", error);

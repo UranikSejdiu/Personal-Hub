@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "Dhikr",
+    "slug": "dhikr",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "dhikercounter",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dhiker.counter"
+    },
+    "android": {
+      "package": "com.dhiker.counter",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#080F2E",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Urbanist",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Urbanist-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Urbanist-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          },
+          "ios": {
+            "fonts": [
+              "./assets/fonts/Urbanist-Regular.ttf",
+              "./assets/fonts/Urbanist-Medium.ttf",
+              "./assets/fonts/Urbanist-SemiBold.ttf",
+              "./assets/fonts/Urbanist-Bold.ttf"
+            ]
+          }
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enablePngCrunchInReleaseBuilds": true,
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "kotlinVersion": "2.1.20",
+            "useLegacyPackaging": false,
+            "extraProguardRules": "-keep class com.dhiker.counter.** { *; }"
+          }
+        }
+      ],
+      "./plugins/withUnusedPermissions",
+      "./plugins/withGradleProperties",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/monochrome-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "image": "./assets/adaptive-icon.png",
+            "backgroundColor": "#080F2E"
+          }
+        }
+      ],
+      "./plugins/withAndroidBackupRules",
+      "./plugins/withReleaseSigning",
+      "./plugins/withInstallPermission"
+    ]
+  }
+}

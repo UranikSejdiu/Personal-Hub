@@ -14,7 +14,6 @@ import { ModuleChooser } from "./ModuleChooser";
 import { WelcomePreview } from "./tutorial/WelcomePreview";
 import { NavigationPreview } from "./tutorial/NavigationPreview";
 import { BudgetTourPreview } from "./tutorial/BudgetTourPreview";
-import { DhikrPreview } from "./tutorial/DhikrPreview";
 import { NotesPreview } from "./tutorial/NotesPreview";
 import { TasksPreview } from "./tutorial/TasksPreview";
 import { SettingsPreview } from "./tutorial/SettingsPreview";
@@ -30,7 +29,6 @@ const PAGES: TutorialPage[] = [
   { titleKey: "tutorialWelcome", descKey: "tutorialWelcomeDesc", preview: WelcomePreview },
   { titleKey: "tutorialNavigation", descKey: "tutorialNavigationDesc", preview: NavigationPreview },
   { titleKey: "tutorialBudget", descKey: "tutorialBudgetDesc", preview: BudgetTourPreview },
-  { titleKey: "tutorialDhikr", descKey: "tutorialDhikrDesc", preview: DhikrPreview },
   { titleKey: "tutorialNotes", descKey: "tutorialNotesDesc", preview: NotesPreview },
   { titleKey: "tutorialTasks", descKey: "tutorialTasksDesc", preview: TasksPreview },
   { titleKey: "tutorialSettings", descKey: "tutorialSettingsDesc", preview: SettingsPreview },

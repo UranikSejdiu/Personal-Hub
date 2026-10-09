@@ -10,7 +10,7 @@ import Animated, {
   cancelAnimation,
   useReducedMotion,
 } from "react-native-reanimated";
-import { Wallet, Sparkles, FileText, CheckSquare } from "../AppIcons";
+import { Wallet, FileText, CheckSquare } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";
 import { useThemeColors } from "../../lib/theme";
 
@@ -21,32 +21,27 @@ export function WelcomePreview() {
   const scale1 = useSharedValue(0.8);
   const scale2 = useSharedValue(0.8);
   const scale3 = useSharedValue(0.8);
-  const scale4 = useSharedValue(0.8);
 
   useEffect(() => {
     if (reduceMotion) {
       scale1.value = 1;
       scale2.value = 1;
       scale3.value = 1;
-      scale4.value = 1;
       return;
     }
     scale1.value = withDelay(0, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
     scale2.value = withDelay(200, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
     scale3.value = withDelay(400, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
-    scale4.value = withDelay(600, withRepeat(withTiming(1.15, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true));
     return () => {
       cancelAnimation(scale1);
       cancelAnimation(scale2);
       cancelAnimation(scale3);
-      cancelAnimation(scale4);
     };
-  }, [reduceMotion, scale1, scale2, scale3, scale4]);
+  }, [reduceMotion, scale1, scale2, scale3]);
 
   const style1 = useAnimatedStyle(() => ({ transform: [{ scale: scale1.value }] }));
   const style2 = useAnimatedStyle(() => ({ transform: [{ scale: scale2.value }] }));
   const style3 = useAnimatedStyle(() => ({ transform: [{ scale: scale3.value }] }));
-  const style4 = useAnimatedStyle(() => ({ transform: [{ scale: scale4.value }] }));
 
   return (
     <View className="items-center gap-6 py-6">
@@ -56,12 +51,9 @@ export function WelcomePreview() {
           <Wallet size={28} color={colors.primary} />
         </Animated.View>
         <Animated.View style={style2} className="h-16 w-16 items-center justify-center rounded-2xl bg-primary/15">
-          <Sparkles size={28} color={colors.primary} />
-        </Animated.View>
-        <Animated.View style={style3} className="h-16 w-16 items-center justify-center rounded-2xl bg-primary/15">
           <FileText size={28} color={colors.primary} />
         </Animated.View>
-        <Animated.View style={style4} className="h-16 w-16 items-center justify-center rounded-2xl bg-primary/15">
+        <Animated.View style={style3} className="h-16 w-16 items-center justify-center rounded-2xl bg-primary/15">
           <CheckSquare size={28} color={colors.primary} />
         </Animated.View>
       </View>

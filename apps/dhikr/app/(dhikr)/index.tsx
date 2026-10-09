@@ -14,6 +14,7 @@ import {
   loadDhikrs,
   incrementDhikr,
   resetDhikr,
+  queueDhikrWrite,
   type Dhikr,
 } from "../../src/lib/dhikr";
 import {
@@ -83,7 +84,6 @@ export default function CounterScreen() {
 
   // Queued write: we fire optimistic UI immediately and let the DB flush
   // sequentially via a ref-based mutex — rapid taps are never dropped.
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingIncrementsRef = useRef(new Map<number, number>());
 
   const handleTap = useCallback(() => {
@@ -140,7 +140,7 @@ export default function CounterScreen() {
     }
 
     // Queue the DB write so concurrent calls execute sequentially.
-    writeQueueRef.current = writeQueueRef.current.then(async () => {
+    void queueDhikrWrite(async () => {
       try {
         const accepted = await incrementDhikr(dhikr.id);
         if (!accepted) {
@@ -192,7 +192,7 @@ export default function CounterScreen() {
     if (!activeDhikr) return;
     haptics.warning();
     const id = activeDhikr.id;
-    writeQueueRef.current = writeQueueRef.current.then(async () => {
+    await queueDhikrWrite(async () => {
       try {
         await resetDhikr(id);
         // Patch local state instead of a full refresh so the reset does not
@@ -213,7 +213,6 @@ export default function CounterScreen() {
         toast.error(t("errorResettingDhikr"));
       }
     });
-    await writeQueueRef.current;
   }, [activeDhikr, haptics, t]);
 
   const cycle = useCallback(

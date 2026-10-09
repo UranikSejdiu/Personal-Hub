@@ -4,7 +4,6 @@ import { Pressable, View } from "react-native";
 import {
   ChevronDown,
   Wallet,
-  Sparkles,
   FileText,
   LayoutGrid,
   CircleHelp,
@@ -17,7 +16,6 @@ import { useThemeColors } from "../lib/theme";
 
 const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>> = {
   wallet: Wallet,
-  "star-four-points": Sparkles,
   "note-text": FileText,
   apps: LayoutGrid,
   "list-check": ListOrdered,

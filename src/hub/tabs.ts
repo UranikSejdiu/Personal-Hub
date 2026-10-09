@@ -17,12 +17,6 @@ export const BUDGET_TABS: HubTabDef[] = [
   { id: "settings", labelKey: "navSettings", icon: "cog" },
 ];
 
-export const DHIKR_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "navCounter", icon: "star-four-points" },
-  { id: "list", labelKey: "navDhikrList", icon: "format-list-numbered" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
-];
-
 export const NOTES_TABS: HubTabDef[] = [
   { id: "index", labelKey: "navNotes", icon: "note-text" },
   { id: "archive", labelKey: "notesArchiveTitle", icon: "archive" },
@@ -36,7 +30,6 @@ export const TASKS_TABS: HubTabDef[] = [
 
 export function hubTabs(appId: string): HubTabDef[] {
   if (appId === "tasks") return TASKS_TABS;
-  if (appId === "dhikr") return DHIKR_TABS;
   if (appId === "notes") return NOTES_TABS;
   return BUDGET_TABS;
 }

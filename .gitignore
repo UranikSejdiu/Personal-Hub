@@ -49,3 +49,11 @@ yarn-error.*
 *.md
 !/app-audit.md
 !/TODO.md
+
+# Standalone app documentation
+!/.github/RELEASING.md
+!/apps/dhikr/README.md
+/apps/dhikr/android/
+/apps/dhikr/ios/
+/apps/dhikr/build/
+/apps/dhikr/credentials/

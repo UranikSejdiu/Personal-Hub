@@ -1,0 +1,75 @@
+name: Build Dhikr APK
+
+on:
+  push:
+    tags: ["dhikr-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dhikr
+    env:
+      CI: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/dhikr/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/dhikr/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --prefer-offline
+      - name: Verify release tag matches the app version
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag.cjs
+      - run: npm run validate
+      - run: npx expo config --type public
+      - run: npm run bundle:check
+      - name: Generate Dhikr native project
+        run: npm run prebuild
+      - name: Configure Dhikr release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DHIKR_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.DHIKR_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DHIKR_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DHIKR_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          mkdir -p credentials
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
+          printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
+          chmod 600 credentials/release-keystore.jks credentials/keystore.properties
+      - name: Build standalone APK
+        run: npm run build:apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dhikr-APK
+          path: apps/dhikr/build/*.apk
+          if-no-files-found: error
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
+        with:
+          name: Dhikr ${{ github.ref_name }}
+          body: |
+            Install the attached Dhikr APK. Android package: com.dhiker.counter.
+            This app has its own counts, settings, backups, and update channel.
+            To move counts from an older Hub, export its backup before updating the Hub, then import it in Dhikr settings.
+            Release and signing instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
+          # Older hub builds still use /releases/latest.
+          make_latest: "false"
+          fail_on_unmatched_files: true
+          files: apps/dhikr/build/*.apk

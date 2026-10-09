@@ -90,6 +90,8 @@ const SCHEMA_STATEMENTS: string[] = [
     is_recurring INTEGER NOT NULL DEFAULT 0
   );`,
   `CREATE INDEX IF NOT EXISTS idx_expenses_budget_id ON expenses(budget_id);`,
+  // Retired module: leave archived counts intact instead of deleting user
+  // data. Hub backups and restores do not read or modify this table.
   `CREATE TABLE IF NOT EXISTS dhikrs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

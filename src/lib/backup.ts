@@ -12,9 +12,10 @@ import { isValidRepaymentInput, repaymentForMonth, type RepaymentInput, type Rep
 import { migrateLegacyRepayments } from "./repaymentMigration";
 import { isTaskDate, isTaskInput, isTaskTime } from "./taskDates";
 import { notifyTaskChanges } from "./taskEvents";
+import { saveBackupToFolder } from "./saveBackupToFolder";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
-export const BACKUP_VERSION = 5;
+export const BACKUP_VERSION = 6;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
 const EXPORTED_BACKUP_NAME = /^personal-hub-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/;
@@ -88,7 +89,6 @@ export interface BackupEnvelope {
     recurringExpenses: Record<string, unknown>[];
     autoDeposits: Record<string, unknown>[];
     transactions: Record<string, unknown>[];
-    dhikrs: Record<string, unknown>[];
     notes: Record<string, unknown>[];
     /**
      * Checklist items. Optional: backups written before checklist notes
@@ -251,15 +251,6 @@ function validateTransaction(row: Record<string, unknown>): string | null {
   return null;
 }
 
-function validateDhikr(row: Record<string, unknown>): string | null {
-  if (!optionalId(row) || !requiredString(row, "name") || !isInteger(row.total_count) || !isInteger(row.daily_count) || !isInteger(row.sort_order)) return "dhikr fields invalid";
-  if (row.daily_limit !== null && !isInteger(row.daily_limit)) return "dhikr.daily_limit invalid";
-  if (Number(row.total_count) < 0 || Number(row.daily_count) < 0 || Number(row.sort_order) < 0) return "dhikr counts and sort order must be non-negative";
-  if (row.daily_limit !== null && Number(row.daily_limit) < 0) return "dhikr.daily_limit must be non-negative";
-  if (!isValidDate(row.last_reset_date) || !requiredString(row, "created_at")) return "dhikr dates invalid";
-  return null;
-}
-
 function validateNote(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !requiredString(row, "title") || !requiredString(row, "content") || !optionalString(row, "plain_text")) return "note text fields invalid";
   if (
@@ -337,13 +328,13 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const meta = raw.meta as Record<string, unknown> | undefined;
   if (!isObject(meta)) return { ok: false, error: "Missing meta" };
   if (meta.format !== BACKUP_FORMAT) return { ok: false, error: `Invalid format ${String(meta.format)}` };
-  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== 4 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
+  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== 4 && meta.version !== 5 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
   const taskError = validateTaskTables(tables, meta.version);
   if (taskError) return { ok: false, error: taskError };
 
-  const requiredArrays = ["budgets", "expenses", "recurringExpenses", "autoDeposits", "transactions", "dhikrs", "notes"] as const;
+  const requiredArrays = ["budgets", "expenses", "recurringExpenses", "autoDeposits", "transactions", "notes"] as const;
   for (const k of requiredArrays) {
     if (!Array.isArray(tables[k])) return { ok: false, error: `tables.${k} must be array` };
   }
@@ -352,7 +343,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   if (tables.loans !== null && tables.loans !== undefined && (!isObject(tables.loans) || validateLoans(tables.loans))) return { ok: false, error: "tables.loans invalid" };
   if (tables.savingsGoal !== null && tables.savingsGoal !== undefined && (!isObject(tables.savingsGoal) || validateSavingsGoal(tables.savingsGoal))) return { ok: false, error: "tables.savingsGoal invalid" };
 
-  const validators = { budgets: validateBudget, expenses: validateExpense, recurringExpenses: validateRecurringExpense, autoDeposits: validateAutoDeposit, transactions: validateTransaction, dhikrs: validateDhikr, notes: validateNote } as const;
+  const validators = { budgets: validateBudget, expenses: validateExpense, recurringExpenses: validateRecurringExpense, autoDeposits: validateAutoDeposit, transactions: validateTransaction, notes: validateNote } as const;
   for (const key of requiredArrays) {
     const rows = tables[key];
     if (!Array.isArray(rows)) return { ok: false, error: `tables.${key} must be array` };
@@ -456,12 +447,19 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   // Detect accidental .db file pick: JSON parse would have thrown already, but guard SQLite header if base64
   // Real SQLite header check is done on file read before JSON parse (see import flow).
 
-  return { ok: true, data: raw as unknown as BackupEnvelope };
+  // Older mixed backups can still restore the hub. Discard retired or unknown
+  // tables so they never reach the hub's import or recovery flows.
+  const hubTables = Object.fromEntries(
+    [...requiredArrays, "loans", "savingsGoal", "noteItems", "repaymentPlans", "repaymentPayments", "taskLists", "tasks"]
+      .filter(key => Object.prototype.hasOwnProperty.call(tables, key))
+      .map(key => [key, tables[key]])
+  );
+  return { ok: true, data: { ...raw, tables: hubTables } as unknown as BackupEnvelope };
 }
 
 export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
   return db.withTransaction(async (tx) => {
-    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, dhikrs, notes, noteItems, repaymentPlans, repaymentPayments, taskLists, tasks] =
+    const [loansRow, savingsGoalRow, budgets, expenses, recurringExpenses, autoDeposits, transactions, notes, noteItems, repaymentPlans, repaymentPayments, taskLists, tasks] =
       await Promise.all([
         tx.get<Record<string, unknown>>("SELECT * FROM loans WHERE id = 1"),
         tx.get<Record<string, unknown>>("SELECT * FROM savings_goals WHERE id = 1"),
@@ -470,7 +468,6 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         tx.query<Record<string, unknown>>("SELECT * FROM recurring_expenses ORDER BY id"),
         tx.query<Record<string, unknown>>("SELECT * FROM savings_auto_deposits ORDER BY month"),
         tx.query<Record<string, unknown>>("SELECT * FROM savings_transactions ORDER BY id"),
-        tx.query<Record<string, unknown>>("SELECT * FROM dhikrs ORDER BY sort_order, id"),
         tx.query<Record<string, unknown>>("SELECT * FROM notes ORDER BY id"),
         tx.query<Record<string, unknown>>("SELECT * FROM note_items ORDER BY note_id, position, id"),
         tx.query<Record<string, unknown>>("SELECT * FROM repayment_plans ORDER BY id"),
@@ -495,7 +492,6 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
         recurringExpenses,
         autoDeposits,
         transactions,
-        dhikrs,
         notes,
         noteItems,
         repaymentPlans,
@@ -505,6 +501,10 @@ export async function buildBackupEnvelope(): Promise<BackupEnvelope> {
       },
     };
   });
+}
+
+export async function exportBackupToDirectory(): Promise<string | null> {
+  return saveBackupToFolder("personal-hub-backup", async () => JSON.stringify(await buildBackupEnvelope(), null, 2));
 }
 
 export async function exportBackupToFile(): Promise<string> {
@@ -654,7 +654,6 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     await tx.execute("DELETE FROM recurring_expenses");
     await tx.execute("DELETE FROM savings_auto_deposits");
     await tx.execute("DELETE FROM savings_transactions");
-    await tx.execute("DELETE FROM dhikrs");
     await tx.execute("DELETE FROM note_items");
     await tx.execute("DELETE FROM notes");
     await tx.execute("DELETE FROM loans");
@@ -803,22 +802,6 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       await tx.execute(
         `INSERT INTO savings_transactions (type, description, amount, date, is_closing) VALUES (?, ?, ?, ?, ?)`,
         [t, description, row.amount as number, date, isClosing]
-      );
-    }
-
-    for (const r of env.tables.dhikrs) {
-      const row = r as Record<string, unknown>;
-      await tx.execute(
-        `INSERT INTO dhikrs (name, total_count, daily_count, daily_limit, last_reset_date, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          row.name as string,
-          row.total_count as number,
-          row.daily_count as number,
-          row.daily_limit as number | null,
-          row.last_reset_date as string,
-          row.sort_order as number,
-          row.created_at as string,
-        ]
       );
     }
 

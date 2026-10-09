@@ -46,6 +46,10 @@ const dbMock = {
 };
 const stored = new Map();
 const files = new Map();
+let folderPickerError = null;
+let folderWriteError = null;
+let folderCreateError = null;
+let folderMimeType = null;
 const scheduledReminders = new Map();
 let reminderPermission = { granted: true, canAskAgain: true };
 let reminderNativeAvailable = true;
@@ -60,7 +64,13 @@ class FakeFile {
   get name() { return this.uri.split('/').at(-1); }
   get exists() { return files.has(this.uri); }
   get size() { return Buffer.byteLength(files.get(this.uri) || ''); }
-  write(value) { files.set(this.uri, value); }
+  write(value) {
+    if (this.uri.startsWith('content://') && folderWriteError) {
+      files.set(this.uri, 'partial');
+      throw folderWriteError;
+    }
+    files.set(this.uri, value);
+  }
   async text() { return files.get(this.uri); }
   delete() { files.delete(this.uri); }
   move(target) { files.set(target.uri, files.get(this.uri)); files.delete(this.uri); }
@@ -68,6 +78,17 @@ class FakeFile {
 class FakeDirectory {
   constructor(uri) { this.uri = uri; }
   list() { return [...files.keys()].filter(uri => uri.startsWith(`${this.uri}/`)).map(uri => new FakeFile(uri)); }
+  static async pickDirectoryAsync() {
+    if (folderPickerError) throw folderPickerError;
+    return new FakeDirectory('content://backups');
+  }
+  createFile(name, mimeType) {
+    if (folderCreateError) throw folderCreateError;
+    folderMimeType = mimeType;
+    const file = new FakeFile(this, name);
+    files.set(file.uri, '');
+    return file;
+  }
 }
 const mocks = {
   'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: () => reminderNativeAvailable ? {} : null },
@@ -97,7 +118,7 @@ const mocks = {
   },
   'expo-application': { nativeApplicationVersion: '1.19.6' },
   'react-native': { Platform: { OS: 'android' } },
-  'expo-file-system': { File: FakeFile, Paths: { document: new FakeDirectory('document'), cache: new FakeDirectory('cache') } },
+  'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { document: new FakeDirectory('document'), cache: new FakeDirectory('cache') } },
   'expo-sharing': {},
 };
 const modules = new Map();
@@ -121,7 +142,6 @@ const budget = load(path.join(root, 'src/lib/budget.ts'));
 const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
 const notes = load(path.join(root, 'src/lib/notes.ts'));
 const savings = load(path.join(root, 'src/lib/savings.ts'));
-const dhikr = load(path.join(root, 'src/lib/dhikr.ts'));
 const tasks = load(path.join(root, 'src/lib/tasks.ts'));
 const taskDates = load(path.join(root, 'src/lib/taskDates.ts'));
 const numberInput = load(path.join(root, 'src/lib/numberInput.ts'));
@@ -134,6 +154,7 @@ const reset = () => {
   notesFtsEnabled = false;
   for (const name of ['tasks', 'task_lists', 'repayment_payments', 'repayment_plans', 'expenses', 'budgets', 'recurring_expenses', 'savings_auto_deposits', 'savings_transactions', 'dhikrs', 'note_items', 'notes', 'loans', 'savings_goals']) database.exec(`DELETE FROM ${name}`);
   stored.clear(); files.clear();
+  folderPickerError = null; folderWriteError = null; folderCreateError = null; folderMimeType = null;
   scheduledReminders.clear(); reminderPermission = { granted: true, canAskAgain: true };
   reminderNativeAvailable = true; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
   reminderTapListener = undefined; lastReminderResponse = null; removedReminderListeners = 0;
@@ -168,6 +189,77 @@ function migrationModule(fixture) {
   return module.exports;
 }
 (async () => {
+  await verify('Extracting Dhikr preserves other module visibility choices', async () => {
+    require('./module-extraction-regression.cjs')(root);
+  });
+  await verify('Update provider and controls handle resume, retries, cached errors and installer ownership', async () => {
+    await require('./update-ui-regression.cjs')(root);
+  });
+  await verify('Hub exports and recovery backups exclude Dhikr; legacy imports leave archived counts untouched', async () => {
+    await dbMock.execute(`INSERT INTO dhikrs (name, total_count, daily_count, daily_limit, last_reset_date, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?)`, ['Preserved counts', 123, 7, 100, '2026-10-10', 0]);
+    const envelope = await backup.buildBackupEnvelope();
+    assert.equal(envelope.meta.version, 6);
+    assert.equal(Object.hasOwn(envelope.tables, 'dhikrs'), false);
+    const exportedUri = await backup.exportBackupToFile();
+    assert.deepEqual(JSON.parse(files.get(exportedUri)).tables, envelope.tables);
+    const archived = await dbMock.query('SELECT * FROM dhikrs');
+    await backup.importBackupFromJson(JSON.stringify(envelope));
+    assert.deepEqual(await dbMock.query('SELECT * FROM dhikrs'), archived);
+    const safety = JSON.parse(files.get('document/personal-hub-safety-backup.json'));
+    assert.equal(Object.hasOwn(safety.tables, 'dhikrs'), false);
+    for (const version of [1, 2, 3, 4, 5]) {
+      const legacy = structuredClone(envelope);
+      legacy.meta.version = version;
+      // The hub ignores retired counts, including malformed retired data.
+      legacy.tables.dhikrs = [{ name: 'Ignored counts', total_count: -1 }];
+      const validated = backup.validateEnvelope(legacy);
+      assert.equal(validated.ok, true);
+      assert.equal(Object.hasOwn(validated.data.tables, 'dhikrs'), false);
+      await backup.importBackupFromJson(JSON.stringify(legacy));
+      assert.deepEqual(await dbMock.query('SELECT * FROM dhikrs'), archived);
+    }
+    await backup.restoreSafetyBackup();
+    assert.deepEqual(await dbMock.query('SELECT * FROM dhikrs'), archived);
+  });
+  await verify('A Dhikr-only backup cannot replace hub data or overwrite its recovery copy', async () => {
+    await notes.createNote({ title: 'Keep hub data', content: 'body', is_pinned: false });
+    const before = await backup.buildBackupEnvelope();
+    const fileSnapshot = [...files.entries()];
+    await assert.rejects(backup.importBackupFromJson(JSON.stringify({
+      meta: { format: 'dhikr.backup', version: 1 }, tables: { dhikrs: [] },
+    })));
+    assert.deepEqual((await backup.buildBackupEnvelope()).tables, before.tables);
+    assert.deepEqual([...files.entries()], fileSnapshot);
+  });
+  await verify('Hub folder exports write JSON to document-provider storage; cancel and failures preserve data', async () => {
+    await notes.createNote({ title: 'Folder backup', content: 'Saved outside the app', is_pinned: false });
+    const original = (await backup.buildBackupEnvelope()).tables;
+    const uri = await backup.exportBackupToDirectory();
+    assert.match(uri, /^content:\/\/backups\/personal-hub-backup-.*\.json$/);
+    assert.equal(folderMimeType, 'application/json');
+    const exported = JSON.parse(files.get(uri));
+    assert.equal(backup.validateEnvelope(exported).ok, true);
+    assert.equal(exported.tables.notes[0].title, 'Folder backup');
+    assert.equal(Object.hasOwn(exported.tables, 'dhikrs'), false);
+    files.clear();
+    for (const code of ['ERR_PICKER_CANCELLED', 'ERR_PERMISSION_DENIED']) {
+      folderPickerError = Object.assign(new Error(code), { code });
+      if (code === 'ERR_PICKER_CANCELLED') assert.equal(await backup.exportBackupToDirectory(), null);
+      else await assert.rejects(backup.exportBackupToDirectory(), /ERR_PERMISSION_DENIED/);
+      assert.equal(files.size, 0);
+      assert.deepEqual((await backup.buildBackupEnvelope()).tables, original);
+    }
+    folderPickerError = null;
+    folderCreateError = new Error('Provider refused file creation');
+    await assert.rejects(backup.exportBackupToDirectory(), /Provider refused/);
+    assert.equal(files.size, 0);
+    folderCreateError = null;
+    folderWriteError = new Error('Provider write failed');
+    await assert.rejects(backup.exportBackupToDirectory(), /Provider write failed/);
+    assert.equal(files.size, 0);
+    assert.deepEqual((await backup.buildBackupEnvelope()).tables, original);
+  });
   await verify('Independent plans allow arbitrary loan/card counts, isolated paid state, and backup restore', async () => {
     const created = [];
     for (let i = 0; i < 3; i++) created.push(await repayments.saveRepaymentPlan({ kind: 'loan', name: `Loan ${i}`, amount: 1200, apr: 0, payment: 100, term: 12, monthsPaid: 0, startMonth: '2026-10' }));
@@ -207,23 +299,6 @@ function migrationModule(fixture) {
   });
   await verify('Text/checklist editors save drafts when archiving, block overlapping operations, and recover from failures', async () => {
     await require('./notes-editor-regression.cjs')(root);
-  });
-  await verify('Dhikr Arrange previews, cancellation, saves, and failure retry', async () => {
-    await require('./dhikr-list-regression.cjs')(root);
-  });
-  await verify('Editing a dhikr total persists and rejects invalid counts without changing the record', async () => {
-    const created = await dhikr.addDhikr('Test', 100);
-    await dhikr.updateDhikr(created.id, { total_count: 0 });
-    assert.equal((await dhikr.loadDhikrs())[0].total_count, 0);
-    await dhikr.updateDhikr(created.id, { name: 'Updated', total_count: 42 });
-    assert.equal(await dhikr.incrementDhikr(created.id), true);
-    const updated = (await dhikr.loadDhikrs())[0];
-    assert.equal(updated.name, 'Updated');
-    assert.equal(updated.total_count, 43);
-    assert.equal(updated.daily_count, 1);
-    await assert.rejects(dhikr.updateDhikr(created.id, { total_count: -1 }), RangeError);
-    await assert.rejects(dhikr.updateDhikr(created.id, { total_count: Number.MAX_SAFE_INTEGER + 1 }), RangeError);
-    assert.equal((await dhikr.loadDhikrs())[0].total_count, 43);
   });
   await verify('Loan editor prevents duplicate saves and changes during pending operations', async () => {
     await require('./loan-editor-regression.cjs')(root);
@@ -485,7 +560,7 @@ function migrationModule(fixture) {
     await notes.updateNote(text.id, { is_archived: true });
     await notes.updateNote(list.id, { is_archived: true });
     const env = await backup.buildBackupEnvelope();
-    assert.equal(env.meta.version, 5);
+    assert.equal(env.meta.version, 6);
     await backup.importBackupFromJson(JSON.stringify(env));
     assert.deepEqual(await notes.loadNotes(), []);
     const restored = await notes.loadNotes('updated', undefined, true);

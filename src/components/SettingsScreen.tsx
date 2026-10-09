@@ -1,6 +1,6 @@
 import { Text } from "./ui/Typography";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { View, ScrollView, Pressable, BackHandler, Image } from "react-native";
+import { View, ScrollView, Pressable, BackHandler, Image, Platform } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ArrowLeft, Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, useFocusEffect, type Href } from "expo-router";
@@ -14,6 +14,7 @@ import { UpdateCard } from "./UpdateCard";
 import { loadSavingsGoal, saveBudgetPreferences } from "../lib/budget";
 import {
   exportAndShareBackup,
+  exportBackupToDirectory,
   importBackupFromJson,
   hasSafetyBackup,
   restoreSafetyBackup,
@@ -349,15 +350,17 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     return () => sub.remove();
   }, [activeSection, leaveDetail]);
 
-  const handleExport = useCallback(async () => {
-    if (backupBusy) return;
+  const handleExport = useCallback(async (destination: "folder" | "share") => {
+    if (backupBusy || pickingBackup.current) return;
+    pickingBackup.current = true;
     setBackupBusy(true);
     try {
-      await exportAndShareBackup();
-      toast.success(t("exportSuccess"));
+      const uri = destination === "folder" ? await exportBackupToDirectory() : await exportAndShareBackup();
+      if (uri !== null) toast.success(t(destination === "folder" ? "backupSaved" : "exportSuccess"));
     } catch {
       toast.error(t("exportFailed"));
     } finally {
+      pickingBackup.current = false;
       setBackupBusy(false);
     }
   }, [backupBusy, t]);
@@ -495,16 +498,29 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsBackupHelp")}</Text>
             <View className="rounded-xl border border-border bg-card p-3 gap-3">
               <Pressable
-                onPress={() => { void haptics.light(); void handleExport(); }}
+                onPress={() => { void haptics.light(); void handleExport(Platform.OS === "android" ? "folder" : "share"); }}
                 disabled={backupBusy}
                 className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
                 android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
                 accessibilityRole="button"
-                accessibilityLabel={t("exportData")}
+                accessibilityLabel={t(Platform.OS === "android" ? "saveBackupToFolder" : "exportData")}
               >
                 <Download size={16} color={colors.primaryForeground} />
-                <Text className="text-sm font-medium text-primary-foreground">{t("exportData")}</Text>
+                <Text className="text-sm font-medium text-primary-foreground">{t(Platform.OS === "android" ? "saveBackupToFolder" : "exportData")}</Text>
               </Pressable>
+              {Platform.OS === "android" ? (
+                <Pressable
+                  onPress={() => { void haptics.light(); void handleExport("share"); }}
+                  disabled={backupBusy}
+                  className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
+                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("shareBackup")}
+                >
+                  <Cloud size={16} color={colors.foreground} />
+                  <Text className="text-sm font-medium text-foreground">{t("shareBackup")}</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => { void haptics.light(); void handleImportPick(); }}
                 disabled={backupBusy}
