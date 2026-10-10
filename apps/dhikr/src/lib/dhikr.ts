@@ -41,6 +41,14 @@ export function todayDate(): string {
 
 export async function loadDhikrs(): Promise<Dhikr[]> {
   const today = todayDate();
+  let rows = await db.query<Record<string, unknown>>(
+    "SELECT * FROM dhikrs ORDER BY sort_order ASC, created_at DESC"
+  );
+  // Most reads need no write at all. Only perform rollover when a stored
+  // nonzero daily count belongs to an earlier day.
+  if (!rows.some(row => String(row.last_reset_date) < today && Number(row.daily_count) > 0)) {
+    return rows.map(toDhikr);
+  }
   // Best-effort day rollover: a failed reset must never fail the read. Rows are
   // also reset lazily inside incrementDhikr on the next tap, so a missed reset
   // here only affects the stale daily_count display, not data.
@@ -49,12 +57,12 @@ export async function loadDhikrs(): Promise<Dhikr[]> {
       "UPDATE dhikrs SET daily_count = 0, last_reset_date = ? WHERE last_reset_date < ? AND daily_count > 0",
       [today, today]
     );
+    rows = await db.query<Record<string, unknown>>(
+      "SELECT * FROM dhikrs ORDER BY sort_order ASC, created_at DESC"
+    );
   } catch (error) {
     console.warn("[dhikr] failed to roll over daily counts", error);
   }
-  const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM dhikrs ORDER BY sort_order ASC, created_at DESC"
-  );
   return rows.map(toDhikr);
 }
 
@@ -109,16 +117,17 @@ export async function deleteDhikr(id: number): Promise<void> {
   await db.execute("DELETE FROM dhikrs WHERE id = ?", [id]);
 }
 
-export async function incrementDhikr(id: number): Promise<boolean> {
-  const today = todayDate();
+export async function incrementDhikr(id: number, today = todayDate()): Promise<boolean> {
   const result = await db.execute(
     `UPDATE dhikrs SET
        total_count = total_count + 1,
        daily_count = CASE WHEN last_reset_date < ? THEN 1 ELSE daily_count + 1 END,
        last_reset_date = ?
      WHERE id = ?
+       AND total_count < ?
+       AND (last_reset_date < ? OR daily_count < ?)
        AND (daily_limit IS NULL OR daily_limit <= 0 OR CASE WHEN last_reset_date < ? THEN 0 ELSE daily_count END < daily_limit)`,
-    [today, today, id, today]
+    [today, today, id, Number.MAX_SAFE_INTEGER, today, Number.MAX_SAFE_INTEGER, today]
   );
   return result.changes > 0;
 }

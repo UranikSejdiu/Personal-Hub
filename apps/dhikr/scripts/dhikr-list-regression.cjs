@@ -22,6 +22,7 @@ function fixture(root) {
   let read = async () => persisted;
   const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const hooks = {
+    memo: component => component,
     useState(value) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof value === 'function' ? value() : value;
@@ -73,6 +74,7 @@ function fixture(root) {
     '../../src/hooks/useHaptics': { useHaptics: () => ({ light: async () => {}, warning: async () => {} }) },
     '../../src/lib/dhikrSelection': { setSelectedDhikrId: async () => {}, clearSelectedDhikrIdIfMissing: async () => {} },
     '../../src/lib/dhikr': {
+      flushDhikrWrites: async () => {},
       loadDhikrs: () => read(),
       deleteDhikr: async id => { persisted = persisted.filter(item => item.id !== id); },
       reorderDhikrs: order => new Promise((resolve, reject) => {
@@ -119,6 +121,11 @@ function fixture(root) {
       }
     },
     list, button,
+    rowText(id) {
+      const item = list().data.find(value => value.id === id);
+      const row = list().renderItem({ item, index: list().data.indexOf(item) });
+      return find(row.type(row.props), node => node.type === 'Text' && node.props.children === 'dhikrToday');
+    },
     dialog: () => find(tree, node => node.type === 'ConfirmDialog').props,
     deleteFromMenu(id) {
       const item = list().data.find(value => value.id === id);
@@ -144,6 +151,7 @@ module.exports = async function verifyDhikrList(root) {
   const screen = fixture(root);
   screen.render(); await flush(); screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3]);
+  assert(screen.rowText(1), 'Today’s count stays visible for dhikrs without a daily limit');
 
   screen.button('dhikrArrange').onPress(); screen.render();
   screen.move(2, -1); screen.render();

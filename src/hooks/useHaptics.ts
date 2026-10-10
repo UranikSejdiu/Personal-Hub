@@ -6,6 +6,17 @@ const HAPTICS_KEY = "haptics_enabled";
 
 let cachedEnabled: boolean | null = null;
 let settingsLoaded = false;
+let loading: Promise<boolean> | null = null;
+const lastFeedback = new Map<string, number>();
+
+function shouldVibrate(kind: string, interval: number): boolean {
+  if (!isHapticsEnabled()) return false;
+  const now = Date.now();
+  const last = lastFeedback.get(kind);
+  if (last !== undefined && now >= last && now - last < interval) return false;
+  lastFeedback.set(kind, now);
+  return true;
+}
 
 export function isHapticsEnabled(): boolean {
   // Default to enabled until the stored preference is read, so haptics that
@@ -15,11 +26,18 @@ export function isHapticsEnabled(): boolean {
 }
 
 export async function getHapticsEnabled(): Promise<boolean> {
-  const stored = await getPreference(HAPTICS_KEY);
-  const enabled = stored !== "false";
-  cachedEnabled = enabled;
-  settingsLoaded = true;
-  return enabled;
+  if (settingsLoaded) return isHapticsEnabled();
+  if (loading) return loading;
+  loading = (async () => {
+    const stored = await getPreference(HAPTICS_KEY);
+    // A settings change may have finished while this read was pending.
+    if (!settingsLoaded) {
+      cachedEnabled = stored !== "false";
+      settingsLoaded = true;
+    }
+    return isHapticsEnabled();
+  })();
+  try { return await loading; } finally { loading = null; }
 }
 
 export async function setHapticsEnabled(enabled: boolean): Promise<void> {
@@ -38,7 +56,7 @@ export function useHaptics() {
   }, []);
   const light = useCallback(async () => {
     try {
-      if (isHapticsEnabled()) {
+      if (shouldVibrate("light", 70)) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch {
@@ -48,7 +66,7 @@ export function useHaptics() {
 
   const medium = useCallback(async () => {
     try {
-      if (isHapticsEnabled()) {
+      if (shouldVibrate("medium", 70)) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } catch {
@@ -58,7 +76,7 @@ export function useHaptics() {
 
   const success = useCallback(async () => {
     try {
-      if (isHapticsEnabled()) {
+      if (shouldVibrate("success", 250)) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
@@ -68,7 +86,7 @@ export function useHaptics() {
 
   const warning = useCallback(async () => {
     try {
-      if (isHapticsEnabled()) {
+      if (shouldVibrate("warning", 500)) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
     } catch {

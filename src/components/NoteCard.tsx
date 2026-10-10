@@ -8,7 +8,7 @@ import { useI18n } from "../lib/i18n";
 import { getPreviewSegments } from "../lib/noteContent";
 import type { Note } from "../types/notes";
 
-const MAX_VISIBLE_CHECKLIST_ITEMS = 6;
+const MAX_VISIBLE_CHECKLIST_ITEMS = 3;
 
 export const NoteCard = React.memo(function NoteCard({
   note,

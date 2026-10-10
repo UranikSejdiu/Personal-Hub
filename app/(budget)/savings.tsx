@@ -6,7 +6,7 @@ import { Plus, Trash2, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/co
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
-import { loadSavingsGoal } from "../../src/lib/budget";
+import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import {
   listAutoDeposits,
   deleteAutoDeposit,
@@ -91,14 +91,15 @@ export default function SavingsScreen() {
     if (!focused.current) return;
     setLoadState("loading");
     try {
-      const [sg, ads, txs, sum] = await Promise.all([
+      const [sg, ads, txs, sum, monthlyBudget] = await Promise.all([
         loadSavingsGoal(),
         listAutoDeposits(),
         listTransactions(),
         getSavingsSummary(),
+        loadBudget(currentMonth()),
       ]);
       if (!focused.current || request !== loadSequence.current) return;
-      setGoalAmount(sg.goal_amount);
+      setGoalAmount(monthlyBudget?.savings_goal ?? sg.goal_amount);
       setSummary(sum);
 
       const autoEntries: SavingsEntry[] = ads.map((ad) => ({

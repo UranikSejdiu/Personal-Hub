@@ -31,6 +31,7 @@ export interface Loans {
 }
 
 export interface Budget {
+  savings_goal: number;
   id: number;
   month: string;
   income: number;

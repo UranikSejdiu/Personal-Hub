@@ -1,5 +1,5 @@
 import { Text } from "./ui/Typography";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useWindowDimensions } from "react-native";
 
 function MeasuredTitle({ name }: { name: string }) {
@@ -7,7 +7,7 @@ function MeasuredTitle({ name }: { name: string }) {
 
   return (
     <Text
-      className={`min-w-0 flex-1 text-center font-semibold text-foreground ${multiline ? "text-lg leading-6" : "text-xl leading-7"}`}
+      className={`w-full min-w-0 text-center font-semibold text-foreground ${multiline ? "text-base leading-6" : "text-lg leading-7"}`}
       onTextLayout={({ nativeEvent }) => {
         // Keep the smaller size once wrapping is detected, even if it fits on
         // one line at that size. Otherwise the two sizes can oscillate.
@@ -19,7 +19,7 @@ function MeasuredTitle({ name }: { name: string }) {
   );
 }
 
-export function DhikrCounterTitle({ name }: { name: string }) {
+export const DhikrCounterTitle = memo(function DhikrCounterTitle({ name }: { name: string }) {
   const { width, fontScale } = useWindowDimensions();
   return <MeasuredTitle key={`${name}:${width}:${fontScale}`} name={name} />;
-}
+});

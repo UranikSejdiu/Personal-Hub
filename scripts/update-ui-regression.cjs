@@ -89,6 +89,7 @@ module.exports = async function verifyUpdateUi(root) {
   const errors = [];
   const toast = Object.assign(() => {}, { success: message => successes.push(message), error: message => errors.push(message) });
   const gates = [];
+  const requests = [];
   let listener;
   let removed = false;
   const native = { Platform: { OS: 'android' }, AppState: {
@@ -96,7 +97,7 @@ module.exports = async function verifyUpdateUi(root) {
   } };
   const provider = fixture(root, 'src/lib/UpdateContext.tsx', 'UpdateProvider', {
     'react-native': native, 'sonner-native': { toast }, './updater': {
-      checkForUpdate: () => { const gate = deferred(); gates.push(gate); return gate.promise; },
+      checkForUpdate: (...args) => { requests.push(args); const gate = deferred(); gates.push(gate); return gate.promise; },
       getCurrentVersion: async () => '1.0.0',
     },
   }, clock);
@@ -105,6 +106,7 @@ module.exports = async function verifyUpdateUi(root) {
   assert.equal(value.checking, true);
   const repeated = value.refresh();
   assert.equal(gates.length, 1);
+  assert.equal(requests[0].length, 0, 'Startup requests a fresh update check');
   const latest = { versionName: '1.1.0', versionCode: 1001000, downloadUrl: 'https://example.test/app.apk', body: '' };
   const fresh = { status: 'update', currentVersion: '1.0.0', latest, checkedAt: clock.now };
   gates[0].resolve(fresh);
@@ -114,24 +116,53 @@ module.exports = async function verifyUpdateUi(root) {
   assert.equal(value.checking, false);
   assert.equal(successes.length, 1);
   const manual = value.refresh();
+  assert.equal(requests[1].length, 0, 'Manual refresh requests a fresh check');
   gates[1].resolve(fresh);
   await manual;
   provider.render();
   assert.equal(successes.length, 1, 'Do not repeat the same update notification');
-  listener('background'); listener('active');
+  listener?.('background'); listener?.('active');
   assert.equal(gates.length, 2, 'Do not poll on every brief app switch');
   clock.now += 16 * 60 * 1000;
-  listener('background'); listener('active');
-  assert.equal(gates.length, 3, 'Check on resume after the interval');
+  listener?.('background'); listener?.('active');
+  assert.equal(gates.length, 2, 'Successful checks do not repeat on resume');
+  clock.now += 6 * 60 * 60 * 1000;
+  listener?.('background'); listener?.('active');
+  assert.equal(gates.length, 2, 'Several hours in the background do not start another check');
+  const failedManual = value.refresh();
   const cached = { status: 'error', currentVersion: '1.0.0', cachedLatest: latest, checkedAt: fresh.checkedAt };
   gates[2].resolve(cached);
-  await flush();
+  await failedManual;
   value = provider.render().props.value;
   assert.equal(value.result.status, 'error');
   assert.equal(value.hasUpdate, true);
   assert.equal(successes.length, 1);
+  clock.now += 16 * 60 * 1000;
+  listener?.('background'); listener?.('active');
+  assert.equal(gates.length, 3, 'A failed check does not retry automatically on resume');
   provider.dispose();
-  assert.equal(removed, true);
+  assert.equal(listener, undefined, 'An active startup does not register a resume listener');
+
+  const backgroundGates = [];
+  native.AppState.currentState = 'background';
+  const backgroundProvider = fixture(root, 'src/lib/UpdateContext.tsx', 'UpdateProvider', {
+    'react-native': native, 'sonner-native': { toast }, './updater': {
+      checkForUpdate: () => { const pending = deferred(); backgroundGates.push(pending); return pending.promise; },
+      getCurrentVersion: async () => '1.0.0',
+    },
+  }, clock);
+  backgroundProvider.render();
+  assert.equal(backgroundGates.length, 0, 'A background launch does not start network work');
+  listener('active');
+  assert.equal(backgroundGates.length, 1);
+  assert.equal(removed, true, 'The startup listener removes itself after first activation');
+  backgroundGates[0].resolve(cached);
+  await flush();
+  clock.now += 24 * 60 * 60 * 1000;
+  listener('background'); listener('active');
+  backgroundProvider.render();
+  assert.equal(backgroundGates.length, 1, 'Failed startup checks do not repeat on later resumes');
+  backgroundProvider.dispose();
 
   let context = { ...value, checking: false, refresh: async () => cached };
   let downloadGate = deferred();

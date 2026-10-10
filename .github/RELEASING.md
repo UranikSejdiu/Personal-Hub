@@ -56,16 +56,32 @@ reuse that work.
 3. Create and push the matching tag. For example, for the next versions:
 
    ```sh
-   git tag v1.25.4
-   git push origin v1.25.4
-   git tag dhikr-v1.0.1
-   git push origin dhikr-v1.0.1
+   git tag v1.25.5
+   git push origin v1.25.5
+   git tag dhikr-v1.0.2
+   git push origin dhikr-v1.0.2
    ```
 
 Each workflow validates the tag against its app version before building. It
 publishes a GitHub release only after validation and a signed APK build succeed.
 The release appears in the app's updater once its APK is attached. Never reuse
 an existing published tag or change an app's signing key.
+
+## App performance and update checks
+
+Both apps check for updates once at startup, and when the user chooses
+**Check for updates**. Resuming does not poll or retry. A background launch waits
+for its first foreground activation. Startup checks use fresh release metadata;
+cached known updates are retained only for reporting a failed check.
+
+Hub Notes waits for saved preferences before its initial page query. Tasks
+pause their midnight refresh timer and page loading in the background, retain
+native reminder scheduling, and use a smaller virtualized render window.
+Reminder-sync bursts share a pass; changes during a pass receive one follow-up
+using current records. Tutorial animations pause in the background while their
+preview state is retained. Haptic preference reads are shared and rapid pulses
+are bounded. The validation suite exercises these behaviors; battery savings
+and frame timing require release-build measurements on a device.
 
 ## Signing
 

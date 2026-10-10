@@ -2,9 +2,12 @@ import { memo, useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
+  useReducedMotion,
   useAnimatedStyle,
+  cancelAnimation,
   withTiming,
   Easing,
+  type SharedValue,
 } from "react-native-reanimated";
 
 const PALETTE = [
@@ -19,8 +22,8 @@ const PALETTE = [
 
 interface Particle {
   id: number;
-  angle: number;
-  distance: number;
+  dx: number;
+  dy: number;
   size: number;
   color: string;
 }
@@ -35,10 +38,11 @@ function buildParticles(): Particle[] {
     const radius = 90 + b * 26;
     for (let i = 0; i < count; i++) {
       const angle = base + (i / count) * Math.PI * 2 + b * 0.3;
+      const distance = radius + Math.random() * 26;
       particles.push({
         id: id++,
-        angle,
-        distance: radius + Math.random() * 26,
+        dx: Math.cos(angle) * distance,
+        dy: Math.sin(angle) * distance,
         size: 6 + Math.random() * 5,
         color: PALETTE[(id + b) % PALETTE.length],
       });
@@ -47,27 +51,17 @@ function buildParticles(): Particle[] {
   return particles;
 }
 
-const Rocket = memo(function Rocket({ particle }: { particle: Particle }) {
-  const progress = useSharedValue(0);
+const Rocket = memo(function Rocket({ particle, progress }: { particle: Particle; progress: SharedValue<number> }) {
   const style = useAnimatedStyle(() => {
-    const dx = Math.cos(particle.angle) * particle.distance * progress.value;
-    const dy = Math.sin(particle.angle) * particle.distance * progress.value;
     return {
       transform: [
-        { translateX: dx },
-        { translateY: dy },
+        { translateX: particle.dx * progress.value },
+        { translateY: particle.dy * progress.value },
         { scale: 1 - progress.value * 0.4 },
       ],
       opacity: 1 - progress.value,
     };
   });
-
-  useEffect(() => {
-    progress.value = withTiming(1, {
-      duration: 1000,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [progress]);
 
   return (
     <Animated.View
@@ -93,20 +87,32 @@ export default function Fireworks({
   const [particles] = useState(() => buildParticles());
   const doneRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
+  const progress = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
   useEffect(() => {
+    if (reducedMotion) {
+      onCompleteRef.current();
+      return;
+    }
+    progress.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) });
     const timer = setTimeout(() => {
       if (!doneRef.current) {
         doneRef.current = true;
         onCompleteRef.current();
       }
     }, 1150);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimation(progress);
+    };
+  }, [progress, reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <View
@@ -115,7 +121,7 @@ export default function Fireworks({
     >
       <View style={styles.center}>
         {particles.map((p) => (
-          <Rocket key={p.id} particle={p} />
+          <Rocket key={p.id} particle={p} progress={progress} />
         ))}
       </View>
     </View>

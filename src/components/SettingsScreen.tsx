@@ -3,15 +3,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { View, ScrollView, Pressable, BackHandler, Image, Platform } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ArrowLeft, Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
-import { useRouter, useFocusEffect, type Href } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { useHaptics, getHapticsEnabled, setHapticsEnabled, isHapticsEnabled } from "../hooks/useHaptics";
-import * as Haptics from "expo-haptics";
 import { getAppVersion } from "../constants/config";
 import { UpdateCard } from "./UpdateCard";
-import { loadSavingsGoal, saveBudgetPreferences } from "../lib/budget";
 import {
   exportAndShareBackup,
   exportBackupToDirectory,
@@ -21,11 +19,10 @@ import {
   readJsonFromFileUri,
   previewBackupFromJson,
 } from "../lib/backup";
-import { BudgetSettingsFields } from "./BudgetSettingsFields";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { toast } from "sonner-native";
 import * as DocumentPicker from "expo-document-picker";
-import { formatCurrency, withAlpha } from "../lib/utils";
+import { withAlpha } from "../lib/utils";
 import { getHubRoute } from "../hub/registry";
 import { toggleEnabledModule, useModulePreferences } from "../hub/ModulePreferences";
 import { setTutorialSeen } from "../lib/tutorial";
@@ -60,21 +57,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   const [hapticsOn, setHapticsOn] = useState<boolean>(isHapticsEnabled);
   const [modulesBusy, setModulesBusy] = useState(false);
   const modulesBusyRef = useRef(false);
-  const [goalAmount, setGoalAmount] = useState(0);
-  const [salary, setSalary] = useState(0);
-  const [budgetLoadState, setBudgetLoadState] = useState<"loading" | "ready" | "failed">("loading");
-  const [saving, setSaving] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const pickingBackup = useRef(false);
   const [canRestoreSafety, setCanRestoreSafety] = useState(false);
   const [sampleDataPresent, setSampleDataPresent] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
-  const goalRef = useRef(0);
-  const salaryRef = useRef(0);
-  const goalDirtyRef = useRef(false);
-  const leavingRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const goalSaveInFlightRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     if (activeSection) return;
@@ -104,129 +91,15 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
       });
   }, [t]);
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    setBudgetLoadState("loading");
-    void loadSavingsGoal().then((sg) => {
-      if (!active) return;
-      setGoalAmount(sg.goal_amount);
-      setSalary(sg.salary);
-      goalRef.current = sg.goal_amount;
-      salaryRef.current = sg.salary;
-      goalDirtyRef.current = false;
-      setBudgetLoadState("ready");
-    }).catch(() => {
-      if (active) {
-        setBudgetLoadState("failed");
-        toast.error(t("errorLoadingData"));
-      }
-    });
-    return () => { active = false; };
-  }, [t]));
-
-  const flushGoalSave = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!goalDirtyRef.current) return true;
-      const goal = goalRef.current;
-      const currentSalary = salaryRef.current;
-      if (!options?.silent) setSaving(true);
-      try {
-        await saveBudgetPreferences(goal, currentSalary);
-        if (goalRef.current === goal && salaryRef.current === currentSalary) goalDirtyRef.current = false;
-        return true;
-      } catch {
-        toast.error(t("saveFailed"));
-        return false;
-      } finally {
-        if (!options?.silent) setSaving(false);
-      }
-    },
-    [t]
-  );
-
-  const scheduleGoalSave = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null;
-      const previous = goalSaveInFlightRef.current;
-      const saveTask = previous ? previous.then(() => flushGoalSave()) : flushGoalSave();
-      goalSaveInFlightRef.current = saveTask;
-      void saveTask.then(() => {
-        if (goalSaveInFlightRef.current === saveTask) {
-          goalSaveInFlightRef.current = null;
-        }
-      });
-    }, 800);
-  }, [flushGoalSave]);
-
-  const cancelAndDrainGoalSave = useCallback(async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    if (goalSaveInFlightRef.current) {
-      await goalSaveInFlightRef.current;
-    }
-    goalDirtyRef.current = false;
-  }, []);
-
-  // Unmount paths (hardware back, app switch) must flush a pending edit rather
-  // than drop it, otherwise the edited value silently disappears.
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      if (goalDirtyRef.current) {
-        const previous = goalSaveInFlightRef.current;
-        void (previous ? previous.then(() => flushGoalSave({ silent: true })) : flushGoalSave({ silent: true }));
-      }
-    };
-  }, [flushGoalSave]);
-
-  const handleGoalChange = useCallback(
-    (v: number) => {
-      setGoalAmount(v);
-      goalRef.current = v;
-      goalDirtyRef.current = true;
-      scheduleGoalSave();
-    },
-    [scheduleGoalSave]
-  );
-
-  const handleSalaryChange = useCallback(
-    (v: number) => {
-      setSalary(v);
-      salaryRef.current = v;
-      goalDirtyRef.current = true;
-      scheduleGoalSave();
-    },
-    [scheduleGoalSave]
-  );
-
-  const reloadBudgetGoal = useCallback(async () => {
-    if (activeAppId !== "budget") return;
-    const sg = await loadSavingsGoal();
-    setGoalAmount(sg.goal_amount);
-    setSalary(sg.salary);
-    goalRef.current = sg.goal_amount;
-    salaryRef.current = sg.salary;
-    goalDirtyRef.current = false;
-    setBudgetLoadState("ready");
-  }, [activeAppId]);
-
   /** Restore the snapshot taken automatically before the last import. */
   const runSafetyRestore = useCallback(async () => {
     setBackupBusy(true);
     try {
-      await cancelAndDrainGoalSave();
       await restoreSafetyBackup();
       resetPlainTextBackfill();
       setCanRestoreSafety(false);
       toast.success(t("importSuccess"));
       setConfirmAction(null);
-      await reloadBudgetGoal();
     } catch (recoveryError) {
       const reason =
         recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
@@ -235,18 +108,16 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     } finally {
       setBackupBusy(false);
     }
-  }, [t, reloadBudgetGoal, cancelAndDrainGoalSave]);
+  }, [t]);
 
   /** Remove the demo rows written on first run, so the app starts from scratch. */
   const runClearSampleData = useCallback(async () => {
     setBackupBusy(true);
     try {
-      await cancelAndDrainGoalSave();
       const removed = await clearSampleData();
       if (removed) {
         setSampleDataPresent(false);
         toast.success(t("sampleDataCleared"));
-        await reloadBudgetGoal();
       }
     } catch {
       toast.error(t("sampleDataClearFailed"));
@@ -254,7 +125,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
       setBackupBusy(false);
       setConfirmAction(null);
     }
-  }, [t, reloadBudgetGoal, cancelAndDrainGoalSave]);
+  }, [t]);
 
   const handleClearSampleData = useCallback(() => {
     setConfirmAction({
@@ -281,14 +152,13 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     setHapticsOn(val);
     try {
       await setHapticsEnabled(val);
-      if (val) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
     } catch {
       setHapticsOn(!val);
       toast.error(t("saveFailed"));
+      return;
     }
-  }, [t]);
+    if (val) void haptics.light();
+  }, [haptics, t]);
 
   const toggleModule = useCallback(async (id: string) => {
     if (modulesBusyRef.current) return;
@@ -323,23 +193,10 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     })();
   }, [haptics, router, t]);
 
-  const leaveDetail = useCallback(async () => {
-    if (leavingRef.current) return;
-    leavingRef.current = true;
-    if (activeSection === "budget") {
-      if (goalSaveInFlightRef.current) await goalSaveInFlightRef.current;
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      if (goalDirtyRef.current && !(await flushGoalSave())) {
-        leavingRef.current = false;
-        return;
-      }
-    }
+  const leaveDetail = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace(`${getHubRoute(activeAppId)}/settings` as Href);
-  }, [activeAppId, activeSection, flushGoalSave, router]);
+  }, [activeAppId, router]);
 
   useEffect(() => {
     if (!activeSection) return;
@@ -397,14 +254,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
         onConfirm: async () => {
           setBackupBusy(true);
           try {
-            // Drain local writes before replacing database state.
-            await cancelAndDrainGoalSave();
             await importBackupFromJson(json);
             resetPlainTextBackfill();
             setCanRestoreSafety(await hasSafetyBackup());
             toast.success(t("importSuccess"));
             setConfirmAction(null);
-            await reloadBudgetGoal();
           } catch (error) {
             const reason = error instanceof Error ? error.message : String(error);
             toast.error(t("importFailedReason", { reason }));
@@ -431,7 +285,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
       pickingBackup.current = false;
       setBackupBusy(false);
     }
-  }, [backupBusy, t, reloadBudgetGoal, runSafetyRestore, cancelAndDrainGoalSave]);
+  }, [backupBusy, t, runSafetyRestore]);
 
   if (!activeSection) {
     return (
@@ -442,10 +296,6 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
             <SettingsMenu
               theme={theme}
               hapticsOn={hapticsOn}
-              enabledIds={enabledIds}
-              budgetSummary={budgetLoadState === "ready"
-                ? t("settingsBudgetSummary", { salary: formatCurrency(salary), target: formatCurrency(goalAmount) })
-                : t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}
               onThemeChange={(next) => { void haptics.light(); setTheme(next); }}
               onHapticsChange={(next) => { void toggleHaptics(next); }}
               onSelect={openSection}
@@ -471,7 +321,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
             <Text className="text-2xl font-bold text-foreground">
-              {activeSection === "budget" ? t("settingsBudgetDetails") : activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")}
+              {activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")}
             </Text>
           </View>
 
@@ -479,17 +329,6 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
           <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsModulesHelp")}</Text>
             <ModuleChooser enabledIds={enabledIds} onToggle={(id) => { void toggleModule(id); }} disabled={modulesBusy} />
-          </View>
-        )}
-
-        {activeSection === "budget" && budgetLoadState !== "ready" ? (
-          <Text className="text-sm text-muted-foreground">{t(budgetLoadState === "loading" ? "loading" : "errorLoadingData")}</Text>
-        ) : null}
-
-        {activeSection === "budget" && budgetLoadState === "ready" && (
-          <View className="gap-3">
-            <BudgetSettingsFields income={salary} goal={goalAmount} saving={saving}
-              onIncomeChange={handleSalaryChange} onGoalChange={handleGoalChange} />
           </View>
         )}
 

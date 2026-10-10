@@ -90,9 +90,12 @@ The updater reads releases from `UranikSejdiu/Personal-Hub` on GitHub.
 Build and publishing instructions are in
 [RELEASING.md](https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md).
 
-Settings → Updates checks only stable `dhikr-v<version>` releases with an
+Settings → About & updates checks only stable `dhikr-v<version>` releases with an
 attached `Dhikr-<version>.apk`. Hub `v<version>` releases are ignored. Checks
-run when the app starts, when it resumes after 15 minutes, and on demand.
+run once at app startup. Returning from the background does not check again,
+even after several hours or a failed startup check. A background launch waits
+until the app first enters the foreground. **Check for updates** requests a
+fresh check on demand.
 Failed checks are shown as failures; a recent previously detected update is
 labelled as cached. Installation uses Android's normal installer and keeps a
 downloaded APK available for retry.
@@ -104,11 +107,31 @@ The tagged release workflow verifies that its tag matches the version built
 into the APK. Update `package.json`, `app.json` version, and Android
 `versionCode` together before publishing a new tagged release.
 
+## Performance and battery use
+
+Counter taps update one in-memory record and persist immediately through the
+ordered write queue. They do not copy the full catalog or delay saving counts.
+Refreshing same-day records does not issue a rollover UPDATE. The first tap
+after midnight and returning to the app both refresh daily-count behavior.
+
+Counter animations and warning timers stop when leaving the screen or putting
+the app in the background. Fireworks use one shared animation timeline and
+respect the system's reduced-motion preference. Haptic preference reads are
+shared; extreme tap bursts and repeated warnings have bounded vibration rates.
+Goal completion uses one success effect. Vibration can still be disabled in
+Settings. List rows and the counter title are memoized, and the list keeps a
+smaller render window for long catalogs.
+
+The regression suite checks rapid counts, 3,000-record catalogs, rollback,
+resets, midnight, background transitions, haptic calls, animation cleanup, and
+startup-only and manual update checks. These are work-count and correctness checks;
+frame time and battery savings must be measured on a release build on a phone.
+
 ## Move existing counts
 
 1. Use a JSON backup exported from Personal Hub before the backup separation
    (backup versions 1–5), or export one from the older hub app before updating.
-2. Install Dhikr and open Settings → Import counts.
+2. Install Dhikr and open Settings → Backup & restore → Import counts.
 3. Choose the hub backup and confirm the Dhikr record count.
 
 Dhikr reads only the `dhikrs` table from supported hub backups (versions 1–5).

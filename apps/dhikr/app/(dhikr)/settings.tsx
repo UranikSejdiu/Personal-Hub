@@ -26,11 +26,11 @@ function SettingsRow({ icon: Icon, label, onPress }: {
   const colors = useThemeColors();
   return (
     <Pressable onPress={onPress}
-      className="min-h-[48px] flex-row items-center gap-3 px-3 py-2"
+      className="min-h-[56px] flex-row items-center gap-3 rounded-lg px-1 py-3"
       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
       accessible accessibilityRole="button" accessibilityLabel={label}>
-      <Icon size={20} color={colors.mutedForeground} />
-      <Text className="min-w-0 flex-1 text-base font-medium text-foreground">{label}</Text>
+      <Icon size={18} color={colors.mutedForeground} />
+      <Text className="min-w-0 flex-1 text-[15px] font-medium text-foreground">{label}</Text>
       <ChevronRight size={18} color={colors.mutedForeground} />
     </Pressable>
   );
@@ -66,16 +66,18 @@ export default function SettingsScreen() {
     return () => { active = false; };
   }, [t]));
 
-  const run = async (action: () => Promise<unknown>, success: "exportSuccess" | "backupSaved" | "importSuccess") => {
-    if (busyRef.current) return;
+  const run = async (action: () => Promise<unknown>, success: "exportSuccess" | "backupSaved" | "importSuccess"): Promise<boolean> => {
+    if (busyRef.current) return false;
     busyRef.current = true;
     setBusy(true);
     try {
       const result = await action();
       setSafetyAvailable(hasSafetyBackup());
       if (result !== null) toast.success(t(success));
+      return result !== null;
     } catch (error) {
       toast.error(t("operationFailed", { reason: error instanceof Error ? error.message : String(error) }));
+      return false;
     } finally {
       setSafetyAvailable(hasSafetyBackup());
       busyRef.current = false;
@@ -104,7 +106,7 @@ export default function SettingsScreen() {
   return (
     <>
       <ScrollView key={section ?? "settings"} className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
+        <View className="w-full max-w-md self-center gap-5 px-4 pt-3 pb-28">
           <View className="flex-row items-center gap-2">
             {section && <Pressable disabled={busy} onPress={() => setSection(null)}
               className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
@@ -113,14 +115,14 @@ export default function SettingsScreen() {
               accessibilityState={{ disabled: busy }}>
               <ChevronLeft size={24} color={colors.foreground} />
             </Pressable>}
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-bold text-foreground">
+            <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold text-foreground">
               {t(section === "backup" ? "settingsBackupRestore" : section === "about" ? "settingsAboutUpdates" : "settingsTitle")}
             </Text>
           </View>
           {!section && <>
             <View className="gap-2">
               <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsAppearance")}</Text>
-              <View className="rounded-xl border border-border bg-card p-3">
+              <View className="rounded-2xl border border-border/60 bg-card p-3">
                 <Text className="mb-2 text-sm font-medium text-foreground">{t("themeLabel")}</Text>
                 <View className="flex-row rounded-xl bg-muted/60 p-1" accessibilityRole="radiogroup">
                   {(["light", "dark"] as const).map(value => (
@@ -139,8 +141,8 @@ export default function SettingsScreen() {
             </View>
             <View className="gap-2">
               <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsPreferences")}</Text>
-              <View className="min-h-[48px] flex-row items-center justify-between rounded-xl border border-border bg-card px-3 py-2">
-                <Text className="flex-1 text-base font-medium text-foreground">{t("hapticsLabel")}</Text>
+              <View className="min-h-[56px] flex-row items-center justify-between rounded-2xl border border-border/60 bg-card px-3 py-2">
+                <Text className="flex-1 text-[15px] font-medium text-foreground">{t("hapticsLabel")}</Text>
                 <Switch value={haptics} disabled={busy} accessibilityLabel={t("hapticsLabel")}
                   accessibilityState={{ disabled: busy }}
                   trackColor={{ false: colors.muted, true: colors.primary }}
@@ -159,20 +161,20 @@ export default function SettingsScreen() {
             </View>
             <View className="gap-2">
               <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsData")}</Text>
-              <View className="overflow-hidden rounded-xl border border-border bg-card">
+              <View className="rounded-2xl border border-border/60 bg-card px-3">
                 <SettingsRow icon={Download} label={t("settingsBackupRestore")} onPress={() => setSection("backup")} />
               </View>
             </View>
             <View className="gap-2">
               <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsHelp")}</Text>
-              <View className="overflow-hidden rounded-xl border border-border bg-card">
+              <View className="rounded-2xl border border-border/60 bg-card px-3">
                 <SettingsRow icon={CircleHelp} label={t("settingsAboutUpdates")} onPress={() => setSection("about")} />
               </View>
             </View>
           </>}
           {section === "backup" && <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("backupHelp")}</Text>
-            <View className="gap-3 rounded-xl border border-border bg-card p-3">
+            <View className="gap-3 rounded-2xl border border-border/60 bg-card p-3">
               <View ref={triggerRef} collapsable={false}>
                 <Button icon={Download} disabled={busy} accessibilityState={{ expanded: anchor !== null }}
                   onPress={() => {
@@ -209,14 +211,12 @@ export default function SettingsScreen() {
         confirmLabel={t("importData")} onClose={() => setPendingImport(null)}
         onConfirm={async () => {
           if (!pendingImport) return;
-          await run(() => importBackup(pendingImport.json), "importSuccess");
-          setPendingImport(null);
+          if (await run(() => importBackup(pendingImport.json), "importSuccess")) setPendingImport(null);
         }} />
       <ConfirmDialog visible={restoring} title={t("restoreSafetyBackup")}
         message={t("restoreConfirm")} destructive onClose={() => setRestoring(false)}
         onConfirm={async () => {
-          await run(restoreSafetyBackup, "importSuccess");
-          setRestoring(false);
+          if (await run(restoreSafetyBackup, "importSuccess")) setRestoring(false);
         }} />
     </>
   );

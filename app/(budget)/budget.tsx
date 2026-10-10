@@ -1,16 +1,18 @@
 import { Text } from "../../src/components/ui/Typography";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
+  computeMonthSummary,
   loadBudget,
   createBudgetMonth,
   loadSavingsGoal,
+  saveMonthPreferences,
   listExpenses,
   addExpense,
   updateExpense,
@@ -27,14 +29,19 @@ import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentP
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
 import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
+import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
+import { Button, IconButton } from "../../src/components/ui/Button";
+import { ArrowLeft, Pencil } from "../../src/components/AppIcons";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { formatCurrency } from "../../src/lib/utils";
 
 const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView {...props} className="flex-1 bg-background" bottomOffset={16} />;
 
 export default function BudgetScreen() {
+  const router = useRouter();
+  const [editingMonth, setEditingMonth] = useState(false);
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
-  const initialMonth = monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
+  const initialMonth = monthParam && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
   const haptics = useHaptics();
   const month = initialMonth;
@@ -144,7 +151,7 @@ export default function BudgetScreen() {
     setRepayments(plans);
     setPaidRepayments(paidPlans);
     setHasPreviousBudget(!!pb);
-    setSavingsGoal(sg.goal_amount);
+    setSavingsGoal(b?.savings_goal ?? sg.goal_amount);
     budgetIdRef.current = b ? b.id : null;
     if (b) {
       const exps = await listExpenses(b.id);
@@ -159,6 +166,7 @@ export default function BudgetScreen() {
         id: 0,
         month: m,
         income: seedIncome,
+        savings_goal: sg.goal_amount,
         loan_paid: false,
         cc_paid: false,
         cc2_paid: false,
@@ -196,6 +204,7 @@ export default function BudgetScreen() {
     if (budget && budget.id !== 0) return budget;
     const { budget: b } = await createBudgetMonth(month);
     setBudget(b);
+    setSavingsGoal(b.savings_goal);
     budgetIdRef.current = b.id;
     return b;
   }, [month, budget]);
@@ -319,6 +328,7 @@ export default function BudgetScreen() {
       await flushAllExpenseUpdates();
       const result = await copyBudgetFromMonth(previousMonth, month);
       setBudget(result.budget);
+      setSavingsGoal(result.budget.savings_goal);
       budgetIdRef.current = result.budget.id;
       setExpenses(result.expenses);
       void haptics.success();
@@ -335,6 +345,12 @@ export default function BudgetScreen() {
       void flushAllExpenseUpdates();
     };
   }, [flushAllExpenseUpdates]);
+
+  const monthSummary = useMemo(() => budget && loans ? computeMonthSummary({
+    month: budget.month, income: budget.income, loanPaid: budget.loan_paid, ccPaid: budget.cc_paid, cc2Paid: budget.cc2_paid,
+    totalExpenses: expenses.reduce((total, expense) => total + expense.amount, 0),
+    paidExpenses: expenses.reduce((total, expense) => total + (expense.paid ? expense.amount : 0), 0),
+  }, loans, savingsGoal, repayments, paidRepayments) : null, [budget, loans, expenses, savingsGoal, repayments, paidRepayments]);
 
   if (loading || !loans || !budget) {
     if (loadError) {
@@ -413,7 +429,18 @@ export default function BudgetScreen() {
       )}
       ListHeaderComponent={
         <View className="gap-3">
-          <Text className="text-xl font-bold text-foreground">{t("tabBudget")}</Text>
+          <View className="flex-row items-center gap-2">
+            <IconButton icon={ArrowLeft} accessibilityLabel={t("navDashboard")} onPress={() => router.canGoBack() ? router.back() : router.replace("/(budget)")} />
+            <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold text-foreground">{monthLabelShort(lang, month)}</Text>
+            <IconButton icon={Pencil} accessibilityLabel={t("monthEditTitle")} onPress={() => setEditingMonth(true)} />
+          </View>
+          <View className="gap-2 rounded-xl border border-border/60 bg-card p-3">
+            <View className="flex-row flex-wrap gap-3">
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={`text-base font-semibold ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-xs text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={`text-base font-semibold ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
+            </View>
+            <Button variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
+          </View>
           {repayments.map((plan) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
           <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense}
             onCopyPrevious={hasPreviousBudget ? handleCopyPrevious : undefined}
@@ -428,6 +455,16 @@ export default function BudgetScreen() {
         </View>
       }
     />
+    {editingMonth ? <BudgetMonthEditor initialMonth={month} budget={budget} onClose={() => setEditingMonth(false)}
+      onSave={async (_month, income, goal) => {
+        await flushAllExpenseUpdates();
+        if (!budget.id) await createBudgetMonth(month, { income, savingsGoal: goal });
+        else await saveMonthPreferences(month, income, goal);
+        setEditingMonth(false);
+        void haptics.success();
+        try { await loadData(month); }
+        catch { setLoadError(t("errorLoadingData")); }
+      }} /> : null}
     <ConfirmDialog visible={expenseToDelete !== null} destructive title={t("expenseDeleteTitle")}
       message={t("expenseDeleteBody", { name: expenseToDelete?.category || t("category"), amount: formatCurrency(expenseToDelete?.amount ?? 0) })}
       confirmLabel={t("delete")} onClose={() => setExpenseToDelete(null)}

@@ -1,5 +1,5 @@
 import { Text } from "../../src/components/ui/Typography";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, View, FlatList, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus } from "../../src/components/AppIcons";
@@ -22,6 +22,7 @@ import {
 } from "../../src/lib/budget";
 import { withTransaction } from "../../src/lib/db";
 import { BudgetMonthCard } from "../../src/components/BudgetMonthCard";
+import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { Button } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
@@ -33,7 +34,6 @@ export default function DashboardScreen() {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [monthToDelete, setMonthToDelete] = useState<string | null>(null);
   const [creatingMonth, setCreatingMonth] = useState<string | null>(null);
-  const creationInFlight = useRef(false);
   const insets = useSafeAreaInsets();
 
   const haptics = useHaptics();
@@ -124,25 +124,10 @@ export default function DashboardScreen() {
     }
   }, [monthToDelete, refresh, t, haptics]);
 
-  const handleCreateMonth = useCallback(async (month: string) => {
-    if (creationInFlight.current) return;
-    creationInFlight.current = true;
-    setCreatingMonth(month);
-    try {
-      const { created } = await createBudgetMonth(month);
-      if (created) {
-        await refresh();
-        void haptics.medium();
-        toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
-      }
-      openBudgetMonth(month);
-    } catch {
-      toast.error(t("errorCreatingBudget"));
-    } finally {
-      creationInFlight.current = false;
-      setCreatingMonth(null);
-    }
-  }, [openBudgetMonth, refresh, lang, t, haptics]);
+  const handleCreateMonth = useCallback((month: string) => {
+    if (summaries.some((item) => item.month === month)) openBudgetMonth(month);
+    else setCreatingMonth(month);
+  }, [summaries, openBudgetMonth]);
 
   const renderMonth = useCallback(
     ({ item }: { item: MonthSummary }) => (
@@ -168,13 +153,13 @@ export default function DashboardScreen() {
           <View className="gap-3">
             <View>
               <View className="flex-row flex-wrap items-center justify-between gap-3">
-                <Text accessibilityRole="header" className="text-3xl font-display text-foreground">{t("dashboardTitle")}</Text>
+                <Text accessibilityRole="header" className="text-2xl font-display text-foreground">{t("dashboardTitle")}</Text>
                 <Button
                   label={t("dashboardNextMonth")}
                   icon={Plus}
                   variant="secondary"
                   disabled={loadState !== "ready" || creatingMonth !== null}
-                  busy={creatingMonth === addMonths(thisMonth, 1)}
+
                   onPress={() => { void handleCreateMonth(addMonths(thisMonth, 1)); }}
                 />
               </View>
@@ -208,7 +193,7 @@ export default function DashboardScreen() {
                   label={t("dashboardCreateCurrentMonth")}
                   icon={Plus}
                   disabled={creatingMonth !== null}
-                  busy={creatingMonth === thisMonth}
+
                   onPress={() => { void handleCreateMonth(thisMonth); }}
                   className="mt-1"
                 />
@@ -222,6 +207,17 @@ export default function DashboardScreen() {
         }
       />
 
+      {creatingMonth ? <BudgetMonthEditor initialMonth={creatingMonth} onClose={() => setCreatingMonth(null)}
+        onSave={async (month, income, savingsGoal) => {
+          const { created } = await createBudgetMonth(month, { income, savingsGoal });
+          setCreatingMonth(null);
+          if (created) {
+            await refresh();
+            void haptics.success();
+            toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
+          }
+          openBudgetMonth(month);
+        }} /> : null}
       <ConfirmDialog
         visible={monthToDelete !== null}
         title={t("deleteConfirmTitle")}

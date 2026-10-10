@@ -10,7 +10,7 @@ let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let notesFtsEnabled = false;
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS task_lists (
@@ -155,6 +155,7 @@ const SCHEMA_STATEMENTS: string[] = [
 ];
 
 const ADDITIONAL_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+  { table: "budgets", column: "savings_goal", definition: "REAL NOT NULL DEFAULT 0" },
   { table: "repayment_plans", column: "end_month", definition: "TEXT" },
   { table: "repayment_plans", column: "unbounded", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "loans", column: "cc_plan_mode", definition: "TEXT" },
@@ -228,6 +229,11 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         if (!columns.some((item) => item.name === column)) {
           await database.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
         }
+      }
+
+      // Preserve the target previously displayed for existing months, once.
+      if (userVersion < 15) {
+        await database.execAsync("UPDATE budgets SET savings_goal = COALESCE((SELECT goal_amount FROM savings_goals WHERE id = 1), 0);");
       }
 
       for (const statement of NOTES_ARCHIVE_INDEXES) {

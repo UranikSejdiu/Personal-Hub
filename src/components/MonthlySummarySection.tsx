@@ -76,7 +76,7 @@ export function MonthlySummarySection({
       <View className="mb-3 gap-1.5">
         <Text className="text-sm text-muted-foreground">{t("monthlyIncome")}</Text>
         <Text className="text-2xl font-semibold text-foreground">{formatCurrency(budget.income)}</Text>
-        <Text className="text-xs leading-5 text-muted-foreground">{t("incomeSettingsHint")}</Text>
+        <Text className="text-xs leading-5 text-muted-foreground">{t("incomeMonthHint")}</Text>
       </View>
 
       {hasData && (

@@ -121,23 +121,6 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     [archived, t]
   );
 
-  // Restore the persisted view mode and sort once, then load with them. The
-  // focus effect may have already loaded with the defaults — the sequence guard
-  // in `load` makes the later request win.
-  useEffect(() => {
-    let cancelled = false;
-    void getNotesPreferences().then((preferences) => {
-      if (cancelled) return;
-      setViewMode(preferences.viewMode);
-      setSort(preferences.sort);
-      sortRef.current = preferences.sort;
-      void load(searchRef.current, preferences.sort);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [load]);
-
   const debouncedSearch = useCallback(
     (query: string) => {
       ++searchSeqRef.current;
@@ -162,8 +145,20 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   useFocusEffect(
     useCallback(() => {
-      void load(searchRef.current, sortRef.current);
+      let active = true;
+      setLoading(true);
+      // Read preferences before the first page, so opening the list does not
+      // fetch once with defaults and again with the saved sort.
+      void getNotesPreferences().then((preferences) => {
+        if (!active) return;
+        setViewMode(preferences.viewMode);
+        setSort(preferences.sort);
+        sortRef.current = preferences.sort;
+        viewModeRef.current = preferences.viewMode;
+        void load(searchRef.current, preferences.sort);
+      });
       return () => {
+        active = false;
         ++searchSeqRef.current;
         if (debounceRef.current) clearTimeout(debounceRef.current);
         pagingRef.current.loading = false;
@@ -194,6 +189,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     (next: NoteSort) => {
       closeSortMenu();
       if (next === sortRef.current) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = null;
       void haptics.light();
       sortRef.current = next;
       setSort(next);
@@ -310,7 +307,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
       <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-0">
         <View className="flex-row items-center justify-between">
-          <Text className="text-base font-semibold text-foreground">
+          <Text className="text-2xl font-display text-foreground">
             {t(archived ? "notesArchiveTitle" : "notesTitle")}
           </Text>
           {!archived && <Pressable
@@ -327,7 +324,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           </Pressable>}
         </View>
 
-        <View className="flex-row items-center gap-1 rounded-full bg-muted px-3 py-1">
+        <View className="min-h-[44px] flex-row items-center gap-2 rounded-xl border border-border/60 bg-card px-3">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -352,29 +349,18 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
           )}
-          <Pressable
-            onPress={handleToggleView}
-            className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={nextViewLabel}
-          >
-            {viewMode === "grid" ? (
-              <List size={18} color={colors.mutedForeground} />
-            ) : (
-              <LayoutGrid size={18} color={colors.mutedForeground} />
-            )}
+        </View>
+        <View className="flex-row items-center justify-between gap-2">
+          <Pressable ref={sortButtonRef} onPress={() => { void haptics.light(); openSortMenu(); }}
+            className="min-h-[44px] min-w-0 flex-1 flex-row items-center gap-2 rounded-lg px-1 active:opacity-70"
+            accessible accessibilityRole="button" accessibilityLabel={`${t("notesSort")}: ${t(SORT_OPTIONS.find((option) => option.value === sort)!.labelKey)}`}
+            accessibilityState={{ expanded: sortMenuAnchor !== null }}>
+            <Sort size={16} color={colors.mutedForeground} />
+            <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">{t(SORT_OPTIONS.find((option) => option.value === sort)!.labelKey)}</Text>
           </Pressable>
-          <Pressable
-            ref={sortButtonRef}
-            onPress={() => { void haptics.light(); openSortMenu(); }}
-            className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={t("notesSort")}
-            accessibilityState={{ expanded: sortMenuAnchor !== null }}
-          >
-            <Sort size={18} color={colors.mutedForeground} />
+          <Pressable onPress={handleToggleView} className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
+            accessible accessibilityRole="button" accessibilityLabel={nextViewLabel}>
+            {viewMode === "grid" ? <List size={18} color={colors.mutedForeground} /> : <LayoutGrid size={18} color={colors.mutedForeground} />}
           </Pressable>
         </View>
       </View>

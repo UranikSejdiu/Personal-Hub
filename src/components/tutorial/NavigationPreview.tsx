@@ -23,7 +23,7 @@ import { useI18n } from "../../lib/i18n";
  * live, so a newcomer can open the switcher and tap around exactly as they
  * would in the app.
  */
-export function NavigationPreview() {
+export function NavigationPreview({ active = true }: { active?: boolean } = {}) {
   const reduceMotion = useReducedMotion();
   const { t } = useI18n();
   const [activeAppId, setActiveAppId] = useState<string>(HUB_APPS[0].id);
@@ -32,7 +32,7 @@ export function NavigationPreview() {
 
   const hintPulse = useSharedValue(0);
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || !active) {
       hintPulse.value = 1;
       return;
     }
@@ -45,7 +45,7 @@ export function NavigationPreview() {
       true
     );
     return () => cancelAnimation(hintPulse);
-  }, [reduceMotion, hintPulse]);
+  }, [active, reduceMotion, hintPulse]);
   const hintStyle = useAnimatedStyle(() => ({ opacity: 0.45 + hintPulse.value * 0.55 }));
 
   const tabs = hubTabs(activeAppId);

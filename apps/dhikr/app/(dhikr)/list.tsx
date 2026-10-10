@@ -1,5 +1,5 @@
 import { Text } from "../../src/components/ui/Typography";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, BackHandler, Pressable, View, type ListRenderItemInfo } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { MoreHorizontal, ChevronDown, Pencil, Trash2, type AppIconProps } from "../../src/components/AppIcons";
@@ -10,12 +10,11 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
-import { loadDhikrs, deleteDhikr, reorderDhikrs, type Dhikr } from "../../src/lib/dhikr";
+import { loadDhikrs, deleteDhikr, reorderDhikrs, flushDhikrWrites, type Dhikr } from "../../src/lib/dhikr";
 import { setSelectedDhikrId, clearSelectedDhikrIdIfMissing } from "../../src/lib/dhikrSelection";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { DhikrModal } from "../../src/components/DhikrModal";
 import { useThemeColors } from "../../src/lib/theme";
-import { cn } from "../../src/lib/utils";
 
 type ModalState =
   | { visible: false }
@@ -24,6 +23,7 @@ type ModalState =
 
 const ROW_TRANSITION = LinearTransition.duration(180);
 const LIST_CONTENT_STYLE = { paddingBottom: 112 };
+const dhikrKey = (item: Dhikr) => String(item.id);
 
 function MoveUpIcon(props: AppIconProps) {
   return <View className="rotate-180"><ChevronDown {...props} /></View>;
@@ -36,7 +36,7 @@ function applyOrder(items: Dhikr[], order: number[]): Dhikr[] {
   );
 }
 
-function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit, onDelete, onSelect }: {
+const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit, onDelete, onSelect }: {
   item: Dhikr;
   index: number;
   count: number;
@@ -55,24 +55,31 @@ function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit
   const goalComplete = hasGoal && item.daily_count >= dailyLimit;
 
   return (
-    <Card className="mb-2.5 p-3">
-      <View className="flex-row items-center gap-3">
+    <View className={`border-x border-border/60 bg-card px-3 ${index === 0 ? "rounded-t-2xl border-t" : ""} ${index === count - 1 ? "rounded-b-2xl border-b" : ""}`}>
+      <View className={`py-3 ${index < count - 1 ? "border-b border-border/60" : ""}`}>
+      <View className="flex-row items-center gap-2">
         {arranging && (
           <Text className="w-5 text-sm font-medium text-muted-foreground">{index + 1}</Text>
         )}
         <Pressable
           onPress={() => onSelect(item)}
           disabled={arranging || saving}
-          className="min-h-[44px] min-w-0 flex-1 justify-center rounded-lg py-1 active:opacity-70"
+          className="min-h-[56px] min-w-0 flex-1 justify-center gap-1.5 rounded-lg py-1 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel={t("openDhikrNamed", { name: item.name })}
           accessibilityState={{ disabled: arranging || saving }}
         >
-          <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-          <Text className="mt-1 text-xs text-muted-foreground">
-            {t("total")}: {item.total_count.toLocaleString()}
-          </Text>
+          <Text className="text-[15px] font-semibold text-foreground">{item.name}</Text>
+          <View className="flex-row flex-wrap items-center justify-between gap-2">
+            <Text className="text-xs text-muted-foreground">{t("total")}: {item.total_count.toLocaleString()}</Text>
+            <View className="max-w-full flex-row flex-wrap items-center gap-1">
+              <Text className="text-xs text-muted-foreground">{t("dhikrToday")}</Text>
+              <Text className={goalComplete ? "shrink text-xs font-semibold text-success" : "shrink text-xs font-semibold text-primary"}>
+                {item.daily_count.toLocaleString()}{hasGoal ? ` / ${dailyLimit.toLocaleString()}` : ""}
+              </Text>
+            </View>
+          </View>
         </Pressable>
         {arranging ? (
           <View className="flex-row rounded-xl bg-muted/40">
@@ -92,32 +99,16 @@ function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit
           </View>
         )}
       </View>
-      {hasGoal && (
-        <View className="mt-3 gap-2">
-          <View className="flex-row flex-wrap items-center justify-between gap-1">
-            <Text className="text-xs text-muted-foreground">{t("dhikrToday")}</Text>
-            <Text className={cn("text-xs font-semibold", goalComplete ? "text-success" : "text-primary")}>
-              {item.daily_count.toLocaleString()} / {dailyLimit.toLocaleString()}
-            </Text>
-          </View>
-          <View className="h-1.5 overflow-hidden rounded-full bg-secondary"
-            accessible accessibilityRole="progressbar"
-            accessibilityLabel={t("dhikrDailyProgress", { name: item.name })}
-            accessibilityValue={{ min: 0, max: dailyLimit, now: Math.min(item.daily_count, dailyLimit) }}>
-            <View className={cn("h-full rounded-full", goalComplete ? "bg-success" : "bg-primary")}
-              style={{ width: `${Math.max(0, Math.min(100, (item.daily_count / dailyLimit) * 100))}%` }} />
-          </View>
-        </View>
-      )}
+      </View>
       <AnchoredMenu anchor={anchor} onClose={close} items={[
         { key: "edit", label: t("editDhikr"), icon: Pencil,
           onPress: () => { void haptics.light(); onEdit(item); } },
         { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
           onPress: () => { void haptics.warning(); onDelete(item); } },
       ]} />
-    </Card>
+    </View>
   );
-}
+});
 
 export default function DhikrListScreen() {
   const { t } = useI18n();
@@ -154,6 +145,7 @@ export default function DhikrListScreen() {
     setLoadFailed(false);
     try {
       await pendingSaveRef.current;
+      await flushDhikrWrites();
       const data = await loadDhikrs();
       if (!focusedRef.current || sequence !== loadSequenceRef.current || operationRef.current !== "idle") return;
       setDhikrs(data);
@@ -294,7 +286,7 @@ export default function DhikrListScreen() {
         <View className="w-full max-w-md flex-1 self-center px-4 pt-3">
           <View className="mb-3 gap-1">
             <View className="min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
-              <Text className="text-xl font-bold text-foreground">{t(arranging ? "dhikrArrangeTitle" : "myDhikrs")}</Text>
+              <Text className="text-xl font-semibold text-foreground">{t(arranging ? "dhikrArrangeTitle" : "myDhikrs")}</Text>
               {arranging ? (
                 <View className="flex-row items-center gap-1">
                   <Pressable onPress={cancelArrange} disabled={isSaving}
@@ -325,9 +317,12 @@ export default function DhikrListScreen() {
           </View>
           <Animated.FlatList
             data={displayedDhikrs}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={dhikrKey}
             renderItem={renderItem}
-            itemLayoutAnimation={ROW_TRANSITION}
+            itemLayoutAnimation={arranging ? ROW_TRANSITION : undefined}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={7}
             skipEnteringExitingAnimations
             className="flex-1"
             contentContainerStyle={LIST_CONTENT_STYLE}

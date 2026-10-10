@@ -15,7 +15,7 @@ import { notifyTaskChanges } from "./taskEvents";
 import { saveBackupToFolder } from "./saveBackupToFolder";
 
 export const BACKUP_FORMAT = "personal-hub.backup";
-export const BACKUP_VERSION = 6;
+export const BACKUP_VERSION = 7;
 
 const SAFETY_BACKUP_NAME = "personal-hub-safety-backup.json";
 const EXPORTED_BACKUP_NAME = /^personal-hub-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/;
@@ -217,6 +217,7 @@ function validateSavingsGoal(row: Record<string, unknown>): string | null {
 function validateBudget(row: Record<string, unknown>): string | null {
   if (!optionalId(row) || !isValidMonth(row.month) || !isFiniteNumber(row.income)) return "budget fields invalid";
   if (row.income < 0) return "budget.income must be non-negative";
+  if (row.savings_goal !== undefined && (!isFiniteNumber(row.savings_goal) || row.savings_goal < 0 || row.savings_goal > Number.MAX_SAFE_INTEGER / 100)) return "budget.savings_goal invalid";
   if (row.loan_paid !== undefined && !isBinaryFlag(row.loan_paid)) return "budget.loan_paid invalid";
   if (row.cc_paid !== undefined && !isBinaryFlag(row.cc_paid)) return "budget.cc_paid invalid";
   if (row.cc2_paid !== undefined && !isBinaryFlag(row.cc2_paid)) return "budget.cc2_paid invalid";
@@ -328,7 +329,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
   const meta = raw.meta as Record<string, unknown> | undefined;
   if (!isObject(meta)) return { ok: false, error: "Missing meta" };
   if (meta.format !== BACKUP_FORMAT) return { ok: false, error: `Invalid format ${String(meta.format)}` };
-  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== 4 && meta.version !== 5 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
+  if (meta.version !== 1 && meta.version !== 2 && meta.version !== 3 && meta.version !== 4 && meta.version !== 5 && meta.version !== 6 && meta.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported version ${String(meta.version)}` };
   const tables = raw.tables as Record<string, unknown> | undefined;
   if (!isObject(tables)) return { ok: false, error: "Missing tables" };
   const taskError = validateTaskTables(tables, meta.version);
@@ -349,6 +350,7 @@ export function validateEnvelope(raw: unknown): { ok: true; data: BackupEnvelope
     if (!Array.isArray(rows)) return { ok: false, error: `tables.${key} must be array` };
     for (const [index, value] of rows.entries()) {
       if (!isObject(value)) return { ok: false, error: `tables.${key}[${index}] must be object` };
+      if (key === "budgets" && meta.version >= 7 && value.savings_goal === undefined) return { ok: false, error: `tables.budgets[${index}]: missing savings_goal` };
       const error = validators[key](value);
       if (error) return { ok: false, error: `tables.${key}[${index}]: ${error}` };
     }
@@ -722,10 +724,11 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
       const row = b as Record<string, unknown>;
       const month = row.month as string;
       const res = await tx.execute(
-        `INSERT INTO budgets (month, income, loan_paid, cc_paid, cc2_paid, loan_counter_incremented, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO budgets (month, income, savings_goal, loan_paid, cc_paid, cc2_paid, loan_counter_incremented, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           month,
           row.income as number,
+          (row.savings_goal ?? env.tables.savingsGoal?.goal_amount ?? 0) as number,
           row.loan_paid ? 1 : 0,
           row.cc_paid ? 1 : 0,
           row.cc2_paid ? 1 : 0,

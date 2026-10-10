@@ -17,6 +17,7 @@ let folderPickerError = null;
 let folderWriteError = null;
 let folderCreateError = null;
 let folderMimeType = null;
+let rolloverWrites = 0;
 
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(p => typeof p === 'string' ? p : p.uri).join('/'); }
@@ -53,6 +54,7 @@ class FakeDirectory {
 const nativeConnection = {
   async execAsync(sql) { sqlite.exec(sql); },
   async runAsync(sql, ...params) {
+    if (sql.startsWith('UPDATE dhikrs SET daily_count = 0, last_reset_date =')) rolloverWrites++;
     if (failSql && failSql(sql, params)) throw new Error('Injected SQL failure');
     const result = sqlite.prepare(sql).run(...params);
     return { changes: result.changes, lastInsertRowId: Number(result.lastInsertRowid) };
@@ -112,6 +114,9 @@ async function main() {
   await Promise.all(Array.from({ length: 50 }, () => dhikr.incrementDhikr(first.id)));
   assert.equal((await dhikr.loadDhikrs())[0].total_count, 10);
   assert.equal((await dhikr.loadDhikrs())[0].daily_count, 10);
+  const rolloverBefore = rolloverWrites;
+  for (let i = 0; i < 100; i++) await dhikr.loadDhikrs();
+  assert.equal(rolloverWrites, rolloverBefore, 'Same-day list refreshes must not issue no-op updates');
   await db.execute("UPDATE dhikrs SET last_reset_date = '2000-01-01' WHERE id = ?", [first.id]);
   assert.equal(await dhikr.incrementDhikr(first.id), true);
   assert.equal((await dhikr.loadDhikrs())[0].total_count, 11);
@@ -122,6 +127,18 @@ async function main() {
   const second = await dhikr.addDhikr('Second', null);
   await dhikr.reorderDhikrs([second.id, first.id]);
   assert.deepEqual((await dhikr.loadDhikrs()).map(row => row.id), [second.id, first.id]);
+
+  // Imported/edited maximum counts must remain safe and exportable after taps.
+  await dhikr.updateDhikr(second.id, { total_count: Number.MAX_SAFE_INTEGER - 1 });
+  assert.equal(await dhikr.incrementDhikr(second.id), true);
+  assert.equal(await dhikr.incrementDhikr(second.id), false);
+  assert.equal((await dhikr.loadDhikrs()).find(row => row.id === second.id).total_count, Number.MAX_SAFE_INTEGER);
+  await dhikr.updateDhikr(second.id, { total_count: 0 });
+  await db.execute('UPDATE dhikrs SET daily_count = ?, last_reset_date = ? WHERE id = ?', [Number.MAX_SAFE_INTEGER, dhikr.todayDate(), second.id]);
+  assert.equal(await dhikr.incrementDhikr(second.id), false);
+  await db.execute("UPDATE dhikrs SET last_reset_date = '2000-01-01' WHERE id = ?", [second.id]);
+  assert.equal(await dhikr.incrementDhikr(second.id), true, 'A new day resets a maximum daily count');
+  await dhikr.resetDhikr(second.id);
 
   // A failed transaction cannot capture and discard an unrelated queued write.
   const failed = db.withTransaction(async tx => {
@@ -192,7 +209,7 @@ async function main() {
   const safety = JSON.parse(files.get('document/dhikr-safety-backup.json'));
   assert.equal(safety.meta.format, 'dhikr.backup');
   assert.deepEqual(Object.keys(safety.tables), ['dhikrs']);
-  stored.set('dhikr_selected_id', '77');
+  await load('src/lib/dhikrSelection.ts').setSelectedDhikrId(77);
   await backup.restoreSafetyBackup();
   assert.deepEqual(await db.query('SELECT * FROM dhikrs ORDER BY id'), before);
   // Moving away from the counter must not snapshot counts before pending taps
@@ -218,8 +235,12 @@ async function main() {
   await backup.restoreSafetyBackup();
   assert.deepEqual(await db.query('SELECT * FROM dhikrs ORDER BY id'), beforeEmptyImport);
   await require('./dhikr-list-regression.cjs')(root);
+  await require('./dhikr-modal-regression.cjs')(root);
   await require('./updater-cache-regression.cjs')(root, { tagPrefix: 'dhikr-v', apkPrefix: 'Dhikr', packageId: 'com.dhiker.counter', dhikr: true });
   await require('./update-ui-regression.cjs')(root);
+  await require('./counter-performance-regression.cjs')(root);
+  await require('./feedback-performance-regression.cjs')(root);
+  await require('./release-regression.cjs')(root);
   sqlite.close();
   console.log('Passed: counter limits, rollover, editing, ordering, write isolation, hub transfer, malformed backups, rollback, recovery, export, empty imports, list interactions.');
 }

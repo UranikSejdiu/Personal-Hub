@@ -49,14 +49,14 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
         ref={triggerRef}
         onPress={() => { void haptics.light(); open(); }}
         disabled={!canSwitch}
-        className="min-h-[44px] flex-row items-center gap-2 rounded-xl px-2 py-1.5 active:bg-muted"
+        className="min-h-[44px] flex-row items-center gap-2 rounded-xl bg-muted/50 px-2 py-1 active:bg-muted"
         accessible
         accessibilityRole="button"
         accessibilityLabel={t("switchApp")}
         accessibilityState={{ expanded: anchor !== null, disabled: !canSwitch }}
       >
-        <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-          <ActiveIcon size={20} color={colors.primary} />
+        <View className="h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
+          <ActiveIcon size={18} color={colors.primary} />
         </View>
         <Text className="text-base font-semibold text-foreground">
           {activeApp ? t(activeApp.titleKey) : ""}

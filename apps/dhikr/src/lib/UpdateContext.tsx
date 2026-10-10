@@ -33,7 +33,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const hasUpdate = latest !== null;
   const [currentVersion, setCurrentVersion] = useState("0.0.0");
   const [checking, setChecking] = useState(false);
-  const lastAttemptRef = useRef(0);
+  const startupCheckStartedRef = useRef(false);
   const notifiedVersionRef = useRef<string | null>(null);
   const inflightRef = useRef<Promise<CheckResult> | null>(null);
 
@@ -44,7 +44,6 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const runCheck = useCallback(async (): Promise<CheckResult> => {
     if (inflightRef.current) return inflightRef.current;
 
-    lastAttemptRef.current = Date.now();
     setChecking(true);
     const promise = (async (): Promise<CheckResult> => {
       try {
@@ -78,14 +77,22 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== "android") return;
-    if (lastAttemptRef.current === 0) void runCheck();
-    let previous = AppState.currentState;
+    if (Platform.OS !== "android" || startupCheckStartedRef.current) return;
+    const checkAtStartup = () => {
+      if (startupCheckStartedRef.current) return;
+      startupCheckStartedRef.current = true;
+      void runCheck();
+    };
+    if (AppState.currentState === "active") {
+      checkAtStartup();
+      return;
+    }
+    // A background launch waits for its first foreground activation only.
     const subscription = AppState.addEventListener("change", next => {
-      if (next === "active" && previous !== "active" && Date.now() - lastAttemptRef.current >= 15 * 60 * 1000) {
-        void runCheck();
+      if (next === "active") {
+        checkAtStartup();
+        subscription.remove();
       }
-      previous = next;
     });
     return () => subscription.remove();
   }, [runCheck]);

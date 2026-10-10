@@ -88,7 +88,7 @@ const LIST_COLUMNS =
 const ITEM_COLUMNS = "id, note_id, text, checked, position";
 
 /**
- * Attach full checklist items for existing callers, or six active preview items
+ * Attach full checklist items for existing callers, or three active preview items
  * and aggregate counts for paginated cards. Editors still load complete items.
  */
 async function attachChecklistItems(notes: Note[], preview = false): Promise<Note[]> {
@@ -100,7 +100,7 @@ async function attachChecklistItems(notes: Note[], preview = false): Promise<Not
       ? `SELECT id, note_id, substr(text, 1, 300) AS text, checked, position FROM (
            SELECT ${ITEM_COLUMNS}, ROW_NUMBER() OVER (PARTITION BY note_id ORDER BY position, id) AS preview_rank
            FROM note_items WHERE checked = 0 AND note_id IN (${placeholders})
-         ) WHERE preview_rank <= 6 ORDER BY note_id, position, id`
+         ) WHERE preview_rank <= 3 ORDER BY note_id, position, id`
       : `SELECT ${ITEM_COLUMNS} FROM note_items WHERE note_id IN (${placeholders}) ORDER BY note_id, position, id`,
     ids
   );

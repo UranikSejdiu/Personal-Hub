@@ -7,7 +7,9 @@ type NotificationsApi = typeof import("expo-notifications");
 const PREFIX = "personal-hub-task-";
 const CHANNEL = "task-reminders";
 let notificationsApi: NotificationsApi | null = null;
-let syncQueue: Promise<void> = Promise.resolve();
+let syncInProgress: Promise<void> | null = null;
+let requestedSync = 0;
+let latestChannelName = '';
 
 async function getApi(): Promise<NotificationsApi | null> {
   if (Platform.OS === "web" || isRunningInExpoGo() || !requireOptionalNativeModule("ExpoNotificationScheduler")) return null;
@@ -42,38 +44,59 @@ export function taskReminderDate(task: Pick<Task, "due_date" | "reminder_time">)
 
 /** Reconcile from SQLite after taking the queue, so rapid edits cannot schedule stale reminders. */
 export function syncTaskReminders(channelName: string): Promise<void> {
-  const next = syncQueue.then(async () => {
-    const api = await getApi();
-    if (!api) return;
-    const tasks = await loadReminderTasks();
-    const scheduled = await api.getAllScheduledNotificationsAsync();
-    const permission = await api.getPermissionsAsync();
-    const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
-      const date = taskReminderDate(task);
-      return !task.completed_at && date && date.getTime() > Date.now() ? [{ task, date }] : [];
-    }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, 50) : [];
-    const wanted = new Map(reminders.map(({ task, date }) => [
-      `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify([task.title, date.getTime()]) },
-    ]));
-    const retained = new Set<string>();
-    for (const notification of scheduled) {
-      if (!notification.identifier.startsWith(PREFIX)) continue;
-      const target = wanted.get(notification.identifier);
-      if (target && notification.content.data?.signature === target.signature) retained.add(notification.identifier);
-      else await api.cancelScheduledNotificationAsync(notification.identifier);
-    }
-    if (Platform.OS === "android" && wanted.size) await api.setNotificationChannelAsync(CHANNEL, { name: channelName, importance: api.AndroidImportance.DEFAULT });
-    for (const [identifier, { task, date, signature }] of wanted) {
-      if (retained.has(identifier)) continue;
-      await api.scheduleNotificationAsync({ identifier,
-        content: { title: channelName, body: task.title, sound: "default", data: { module: "tasks", taskId: task.id, signature } },
-        trigger: { type: api.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL },
-      });
+  requestedSync++;
+  latestChannelName = channelName;
+  if (syncInProgress) return syncInProgress;
+  // Combine a burst into one pass. Requests received during a pass require
+  // one follow-up with the latest database state, rather than a queued pass
+  // for every edit. Native scheduled reminders remain unchanged if current.
+  syncInProgress = Promise.resolve().then(async () => {
+    try {
+      while (true) {
+        const generation = requestedSync;
+        await reconcileTaskReminders(latestChannelName);
+        if (generation === requestedSync) {
+          syncInProgress = null;
+          return;
+        }
+      }
+    } catch (error) {
+      syncInProgress = null;
+      throw error;
     }
   });
-  // Callers receive failures; the queue remains usable after one failed sync.
-  syncQueue = next.catch(() => undefined);
-  return next;
+  return syncInProgress;
+}
+
+async function reconcileTaskReminders(channelName: string): Promise<void> {
+  const api = await getApi();
+  if (!api) return;
+  const tasks = await loadReminderTasks();
+  const scheduled = await api.getAllScheduledNotificationsAsync();
+  const permission = await api.getPermissionsAsync();
+  const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
+    const date = taskReminderDate(task);
+    return !task.completed_at && date && date.getTime() > Date.now() ? [{ task, date }] : [];
+  }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, 50) : [];
+  const wanted = new Map(reminders.map(({ task, date }) => [
+    `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify([task.title, date.getTime()]) },
+  ]));
+  const retained = new Set<string>();
+  for (const notification of scheduled) {
+    if (!notification.identifier.startsWith(PREFIX)) continue;
+    const target = wanted.get(notification.identifier);
+    if (target && notification.content.data?.signature === target.signature) retained.add(notification.identifier);
+    else await api.cancelScheduledNotificationAsync(notification.identifier);
+  }
+  if (Platform.OS === "android" && wanted.size) await api.setNotificationChannelAsync(CHANNEL, { name: channelName, importance: api.AndroidImportance.DEFAULT });
+  for (const [identifier, { task, date, signature }] of wanted) {
+    if (retained.has(identifier)) continue;
+    await api.scheduleNotificationAsync({ identifier,
+      content: { title: channelName, body: task.title, sound: "default", data: { module: "tasks", taskId: task.id, signature } },
+      trigger: { type: api.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL },
+    });
+  }
+
 }
 
 export async function observeTaskReminderTaps(onTap: (taskId: number) => void): Promise<() => void> {

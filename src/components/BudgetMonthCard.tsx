@@ -61,14 +61,14 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
           {featured && (
             <Text className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">{t("dashboardCurrentMonth")}</Text>
           )}
-          <Text className={cn("text-foreground", featured ? "text-lg font-semibold" : "text-base font-semibold")}>{monthLabel}</Text>
+          <Text className={cn("text-foreground", featured ? "text-lg font-semibold" : "text-sm font-semibold")}>{monthLabel}</Text>
           <Text className="mt-1.5 text-xs text-muted-foreground">
             {t(featured ? "dashboardActualRemaining" : "dashboardPlannedRemaining")}
           </Text>
           <Text
             className={cn(
               "mt-1",
-              featured ? "text-3xl font-display" : "text-lg font-semibold",
+              featured ? "text-[28px] font-display" : "text-base font-semibold",
               (featured ? summary.actualRemaining : summary.remaining) < 0 ? "text-destructive" : "text-foreground"
             )}
           >
@@ -133,7 +133,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({
             </Text>
           </View>
           <View
-            className="h-2 w-full overflow-hidden rounded-full bg-muted"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
             accessible
             accessibilityRole="progressbar"
             accessibilityLabel={t("dashboardSavingsProgress")}

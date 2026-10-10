@@ -211,10 +211,10 @@ async function isUnchangedSampleMonth(
   removablePlanIds: ReadonlySet<number>
 ): Promise<boolean> {
   if (!sample) return false;
-  const budget = await tx.get<{ id: number; income: number; loan_paid: number; cc_paid: number; cc2_paid: number }>(
-    "SELECT id, income, loan_paid, cc_paid, cc2_paid FROM budgets WHERE month = ?", [key]
+  const budget = await tx.get<{ id: number; income: number; savings_goal: number; loan_paid: number; cc_paid: number; cc2_paid: number }>(
+    "SELECT id, income, savings_goal, loan_paid, cc_paid, cc2_paid FROM budgets WHERE month = ?", [key]
   );
-  if (!budget || budget.income !== sample.income || budget.loan_paid !== (sample.loanPaid ? 1 : 0) ||
+  if (!budget || budget.savings_goal !== SAMPLE_SAVINGS.goal_amount || budget.income !== sample.income || budget.loan_paid !== (sample.loanPaid ? 1 : 0) ||
       budget.cc_paid !== (sample.ccPaid ? 1 : 0) || budget.cc2_paid !== 0) return false;
 
   const expenses = await tx.query<{ category: string; amount: number; paid: number; is_recurring: number }>(

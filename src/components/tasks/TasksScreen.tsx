@@ -1,5 +1,5 @@
 import { Text } from "../ui/Typography";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, FlatList, View, type ListRenderItemInfo } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "sonner-native";
@@ -19,6 +19,7 @@ import { TaskCard } from "./TaskCard";
 
 type Editor = { task?: Task } | null;
 const CONTENT_STYLE = { paddingBottom: 120 };
+const taskKey = (task: Task) => String(task.id);
 
 export function TasksScreen() {
   const { t } = useI18n();
@@ -50,6 +51,7 @@ export function TasksScreen() {
   }, [reminderTask]);
 
   const refresh = useCallback(async () => {
+    if (AppState.currentState != null && AppState.currentState !== "active") return;
     const request = ++sequence.current;
     page.current = { offset: 0, hasMore: false, loading: true };
     if (focused.current) {
@@ -87,17 +89,28 @@ export function TasksScreen() {
     void refreshRef.current();
     notifyTaskChanges();
     const unsubscribe = subscribeTaskChanges(() => { void refreshRef.current(); });
-    const subscription = AppState.addEventListener("change", (state) => { if (state === "active") void refreshRef.current(); });
-    let midnight: ReturnType<typeof setTimeout>;
+    let midnight: ReturnType<typeof setTimeout> | undefined;
+    const stopMidnight = () => { clearTimeout(midnight); midnight = undefined; };
     const scheduleMidnight = () => {
+      stopMidnight();
+      if (AppState.currentState != null && AppState.currentState !== "active") return;
       const now = new Date();
       const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       midnight = setTimeout(() => { void refreshRef.current(); scheduleMidnight(); }, next.getTime() - now.getTime());
     };
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void refreshRef.current();
+        scheduleMidnight();
+      } else {
+        ++sequence.current;
+        stopMidnight();
+      }
+    });
     scheduleMidnight();
     return () => {
       focused.current = false; ++sequence.current;
-      unsubscribe(); subscription.remove(); clearTimeout(midnight);
+      unsubscribe(); subscription.remove(); stopMidnight();
       setEditor(null); setCompletion(null); setDeletion(null);
     };
   }, []));
@@ -122,6 +135,7 @@ export function TasksScreen() {
   }, [router, t, taskId]);
 
   const loadMore = useCallback(async () => {
+    if (AppState.currentState != null && AppState.currentState !== "active") return;
     if (!focused.current || writing.current || page.current.loading || !page.current.hasMore) return;
     const request = sequence.current;
     const offset = page.current.offset;
@@ -184,16 +198,20 @@ export function TasksScreen() {
   const renderTask = useCallback(({ item }: ListRenderItemInfo<Task>) => <TaskCard task={item}
     today={today} busy={busy || loading} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />,
   [askDelete, busy, editTask, loading, today, toggleTask]);
+  const visibleTasks = useMemo(() => failed ? [] : reminderTask
+    ? tasks.filter(task => task.id !== reminderTask.id) : tasks,
+  [failed, reminderTask, tasks]);
 
   return <>
     <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-4 pt-3">
       <View className="mb-3 gap-2">
         <View className="flex-row flex-wrap items-center justify-between gap-2">
-          <Text accessibilityRole="header" className="text-xl font-bold text-foreground">{t("tutorialTasks")}</Text>
+          <Text accessibilityRole="header" className="text-2xl font-display text-foreground">{t("tutorialTasks")}</Text>
           <Button icon={Plus} label={t("tasksAdd")} disabled={busy || loading || failed} onPress={() => setEditor({})} />
         </View>
       </View>
-      <FlatList ref={listRef} data={failed ? [] : tasks.filter((task) => task.id !== reminderTask?.id)} keyExtractor={(task) => String(task.id)} renderItem={renderTask} className="flex-1"
+      <FlatList ref={listRef} data={visibleTasks} keyExtractor={taskKey} renderItem={renderTask} className="flex-1"
+        initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7}
         contentContainerStyle={CONTENT_STYLE} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
         onEndReached={() => { if (!pagingFailed) void loadMore(); }} onEndReachedThreshold={0.3}
         ListHeaderComponent={reminderTask ? <View className="mb-3 rounded-xl border border-primary p-2">

@@ -56,6 +56,8 @@ let reminderNativeAvailable = true;
 let reminderScheduleFailure = false;
 let reminderPermissionRequests = 0;
 let reminderSchedules = 0;
+let reminderReads = 0;
+let reminderReadGate = null;
 let reminderTapListener;
 let lastReminderResponse = null;
 let removedReminderListeners = 0;
@@ -102,7 +104,11 @@ const mocks = {
     async setNotificationChannelAsync() {},
     async getPermissionsAsync() { return reminderPermission; },
     async requestPermissionsAsync() { reminderPermissionRequests++; return reminderPermission; },
-    async getAllScheduledNotificationsAsync() { return [...scheduledReminders.values()]; },
+    async getAllScheduledNotificationsAsync() {
+      reminderReads++;
+      if (reminderReadGate) { reminderReadGate.started(); await reminderReadGate.promise; }
+      return [...scheduledReminders.values()];
+    },
     addNotificationResponseReceivedListener(listener) {
       reminderTapListener = listener;
       return { remove() { removedReminderListeners++; } };
@@ -161,6 +167,7 @@ const reset = () => {
   folderPickerError = null; folderWriteError = null; folderCreateError = null; folderMimeType = null;
   scheduledReminders.clear(); reminderPermission = { granted: true, canAskAgain: true };
   reminderNativeAvailable = true; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
+  reminderReads = 0; reminderReadGate = null;
   reminderTapListener = undefined; lastReminderResponse = null; removedReminderListeners = 0;
 };
 const results = [];
@@ -196,14 +203,14 @@ function migrationModule(fixture) {
   await verify('Extracting Dhikr preserves other module visibility choices', async () => {
     require('./module-extraction-regression.cjs')(root);
   });
-  await verify('Update provider and controls handle resume, retries, cached errors and installer ownership', async () => {
+  await verify('Updates check once at startup; manual checks, cached errors and installer ownership remain correct', async () => {
     await require('./update-ui-regression.cjs')(root);
   });
   await verify('Hub exports and recovery backups exclude Dhikr; legacy imports leave archived counts untouched', async () => {
     await dbMock.execute(`INSERT INTO dhikrs (name, total_count, daily_count, daily_limit, last_reset_date, sort_order)
       VALUES (?, ?, ?, ?, ?, ?)`, ['Preserved counts', 123, 7, 100, '2026-10-10', 0]);
     const envelope = await backup.buildBackupEnvelope();
-    assert.equal(envelope.meta.version, 6);
+    assert.equal(envelope.meta.version, 7);
     assert.equal(Object.hasOwn(envelope.tables, 'dhikrs'), false);
     const exportedUri = await backup.exportBackupToFile();
     assert.deepEqual(JSON.parse(files.get(exportedUri)).tables, envelope.tables);
@@ -332,20 +339,22 @@ function migrationModule(fixture) {
     await budget.removeExpense(e.id);
     assert.equal((await budget.listRecurringExpenses()).length, 0);
   });
-  await verify('Settings target sync updates the current auto deposit and preserves past snapshots', async () => {
+  await verify('Month edits sync only its deposit, preserve history, and roll back all writes on failure', async () => {
     const month = budget.currentMonth();
     const past = budget.addMonths(month, -1);
     await executor.execute('INSERT INTO savings_auto_deposits (month, amount, description) VALUES (?, ?, ?)', [past, 80, 'Past']);
-    await budget.saveBudgetPreferences(100, 2500);
-    await budget.saveBudgetPreferences(200, 2500);
+    await budget.createBudgetMonth(month, { income: 2500, savingsGoal: 100 });
+    await budget.saveMonthPreferences(month, 2600, 200);
     const rows = await savings.listAutoDeposits();
     assert.equal(rows.find(r => r.month === month).amount, 200);
     assert.equal(rows.find(r => r.month === past).amount, 80);
     failOn = sql => sql.startsWith('INSERT INTO savings_auto_deposits');
-    await assert.rejects(budget.saveBudgetPreferences(300, 2500));
+    await assert.rejects(budget.saveMonthPreferences(month, 2700, 300));
     failOn = null;
     assert.equal((await budget.loadSavingsGoal()).goal_amount, 200);
-    await budget.saveBudgetPreferences(0, 2500);
+    assert.equal((await budget.loadBudget(month)).income, 2600);
+    assert.equal((await budget.loadBudget(month)).savings_goal, 200);
+    await budget.saveMonthPreferences(month, 2600, 0);
     assert.equal((await savings.listAutoDeposits()).find(r => r.month === month).amount, 0);
   });
   await verify('Notes pages are bounded and checklist previews retain accurate totals', async () => {
@@ -364,7 +373,7 @@ function migrationModule(fixture) {
     await assert.rejects(notes.loadNotesPage('', 'title', -1));
     const checklist = await notes.createChecklistNote({ title: 'Preview checklist', is_pinned: true, color: 'default' }, Array.from({length: 100}, (_, i) => ({ text: `Item ${i}`, checked: i < 20 })));
     const preview = (await notes.loadNotesPage('Preview checklist', 'updated')).notes[0];
-    assert.equal(preview.items.length, 6);
+    assert.equal(preview.items.length, 3);
     assert.deepEqual(preview.checklistPreview, { total: 100, checked: 20, active: 80 });
     assert.equal((await notes.getChecklistItems(checklist.id)).length, 100);
   });
@@ -385,7 +394,7 @@ function migrationModule(fixture) {
     assert.equal(await budget.loadBudget('2026-11'), null);
     assert.deepEqual((await budget.listExpenses(result.budget.id)).map(e => [e.category, e.amount, e.paid]), [['Rent', 950, false]]);
   });
-  await verify('Creating a month uses Settings income and keeps an existing month intact', async () => {
+  await verify('Creating a month uses remembered income and keeps an existing month intact', async () => {
     await budget.saveBudget('2026-09', 1800, false, false);
     await budget.saveSavingsGoal(0, 2500);
     const first = await budget.createBudgetMonth('2026-10');
@@ -399,7 +408,7 @@ function migrationModule(fixture) {
     assert.equal(second.budget.cc_paid, true);
     assert.equal((await budget.listExpenses(second.budget.id)).length, 1);
   });
-  await verify('Settings income updates current and future months while preserving history and payments', async () => {
+  await verify('Remembered values carry forward, including zero, without changing other saved months', async () => {
     const month = budget.currentMonth();
     const past = budget.addMonths(month, -1);
     const future = budget.addMonths(month, 1);
@@ -407,29 +416,76 @@ function migrationModule(fixture) {
     await budget.saveBudget(past, 1700, true, true);
     await budget.saveBudget(month, 1800, true, false);
     await budget.saveBudget(future, 1800, false, true);
-    await budget.saveBudgetPreferences(200, 2500);
+    await budget.saveMonthPreferences(month, 2500, 200);
     assert.equal((await budget.loadBudget(past)).income, 1700);
+    assert.equal((await budget.loadBudget(past)).savings_goal, 100);
     assert.equal((await budget.loadBudget(month)).income, 2500);
+    assert.equal((await budget.loadBudget(month)).savings_goal, 200);
     assert.equal((await budget.loadBudget(month)).loan_paid, true);
-    assert.equal((await budget.loadBudget(future)).income, 2500);
+    assert.equal((await budget.loadBudget(future)).income, 1800);
+    assert.equal((await budget.loadBudget(future)).savings_goal, 100);
     assert.equal((await budget.loadBudget(future)).cc_paid, true);
-    assert.equal((await budget.loadSavingsGoal()).goal_amount, 200);
-    await budget.saveBudgetPreferences(200, 0);
+    const next = await budget.createBudgetMonth(budget.addMonths(month, 2));
+    assert.equal(next.budget.income, 2500);
+    assert.equal(next.budget.savings_goal, 200);
+    assert.ok(!(await savings.listAutoDeposits()).some(row => row.month > month), 'Future targets are not credited early');
+    await budget.saveMonthPreferences(month, 0, 0);
     await budget.copyBudgetFromMonth(past, month);
-    assert.equal((await budget.loadBudget(month)).income, 0, 'Copying expenses must preserve zero income');
-    assert.equal((await budget.createBudgetMonth(budget.addMonths(month, 2))).budget.income, 0);
+    assert.equal((await budget.loadBudget(month)).income, 0);
+    assert.equal((await budget.loadBudget(month)).savings_goal, 0);
+    const zero = await budget.createBudgetMonth(budget.addMonths(month, 3));
+    assert.equal(zero.budget.income, 0);
+    assert.equal(zero.budget.savings_goal, 0);
+    const before = await budget.loadSavingsGoal();
+    await budget.createBudgetMonth(future, { income: 9000, savingsGoal: 700 });
+    assert.deepEqual(await budget.loadSavingsGoal(), before, 'Opening an existing month does not change defaults');
+    const summaries = await budget.listMonthSummaries(budget.EMPTY_LOANS);
+    assert.equal(summaries.find(row => row.month === past).savingsGoal, 100);
+    assert.equal(summaries.find(row => row.month === next.budget.month).savingsGoal, 200);
   });
-  await verify('A failed Settings income update rolls back the profile and budgets', async () => {
+  await verify('Failed month edits and invalid inputs preserve both month values and defaults', async () => {
     const month = budget.currentMonth();
     await budget.saveSavingsGoal(100, 1800);
     await budget.saveBudget(month, 1800, false, false);
     failOn = sql => sql.startsWith('UPDATE budgets SET income');
-    await assert.rejects(budget.saveBudgetPreferences(200, 2500));
+    await assert.rejects(budget.saveMonthPreferences(month, 2500, 200));
     failOn = null;
     assert.equal((await budget.loadSavingsGoal()).salary, 1800);
     assert.equal((await budget.loadSavingsGoal()).goal_amount, 100);
     assert.equal((await budget.loadBudget(month)).income, 1800);
-    for (const value of [-1, NaN, Infinity]) await assert.rejects(budget.saveBudgetPreferences(100, value));
+    for (const value of [-1, NaN, Infinity, Number.MAX_SAFE_INTEGER]) {
+      await assert.rejects(budget.createBudgetMonth(budget.addMonths(month, 1), { income: value, savingsGoal: 100 }));
+      await assert.rejects(budget.saveMonthPreferences(month, 1000, value));
+    }
+  });
+  await verify('Monthly targets survive backup restore, and version 6 imports snapshot the legacy target', async () => {
+    const month = budget.currentMonth();
+    const previous = budget.addMonths(month, -1);
+    await budget.createBudgetMonth(previous, { income: 1000, savingsGoal: 120 });
+    await budget.createBudgetMonth(month, { income: 2000, savingsGoal: 240 });
+    const envelope = await backup.buildBackupEnvelope();
+    await backup.importBackupFromJson(JSON.stringify(envelope));
+    assert.equal((await budget.loadBudget(previous)).savings_goal, 120);
+    assert.equal((await budget.loadBudget(month)).savings_goal, 240);
+    const invalid = structuredClone(envelope);
+    delete invalid.tables.budgets[0].savings_goal;
+    assert.equal(backup.validateEnvelope(invalid).ok, false);
+    const legacy = structuredClone(envelope);
+    legacy.meta.version = 6;
+    for (const row of legacy.tables.budgets) delete row.savings_goal;
+    await backup.importBackupFromJson(JSON.stringify(legacy));
+    assert.equal((await budget.loadBudget(previous)).savings_goal, 240);
+    assert.equal((await budget.loadBudget(month)).savings_goal, 240);
+    legacy.tables.savingsGoal = null;
+    await backup.importBackupFromJson(JSON.stringify(legacy));
+    assert.equal((await budget.loadBudget(previous)).savings_goal, 0);
+  });
+  await verify('Income-only edits keep manually adjusted savings deposits intact', async () => {
+    const month = budget.currentMonth();
+    await budget.createBudgetMonth(month, { income: 1000, savingsGoal: 100 });
+    await executor.execute('UPDATE savings_auto_deposits SET amount = 80 WHERE month = ?', [month]);
+    await budget.saveMonthPreferences(month, 1500, 100);
+    assert.equal((await savings.listAutoDeposits()).find(row => row.month === month).amount, 80);
   });
   await verify('A failed recurring write rolls back the entire new month', async () => {
     await executor.execute('INSERT INTO recurring_expenses(category, amount) VALUES (?, ?)', ['Rent', 950]);
@@ -564,7 +620,7 @@ function migrationModule(fixture) {
     await notes.updateNote(text.id, { is_archived: true });
     await notes.updateNote(list.id, { is_archived: true });
     const env = await backup.buildBackupEnvelope();
-    assert.equal(env.meta.version, 6);
+    assert.equal(env.meta.version, 7);
     await backup.importBackupFromJson(JSON.stringify(env));
     assert.deepEqual(await notes.loadNotes(), []);
     const restored = await notes.loadNotes('updated', undefined, true);
@@ -940,13 +996,13 @@ function migrationModule(fixture) {
   });
   await verify('Backup rejects duplicate budget IDs', async () => {
     const env = await backup.buildBackupEnvelope();
-    env.tables.budgets = [{ id: 1, month: '2026-08', income: 100 }, { id: 1, month: '2026-09', income: 100 }];
+    env.tables.budgets = [{ id: 1, month: '2026-08', income: 100, savings_goal: 0 }, { id: 1, month: '2026-09', income: 100, savings_goal: 0 }];
     env.tables.expenses = [{ budget_id: 1, category: 'August rent', amount: 50 }];
     assert.equal(backup.validateEnvelope(env).ok, false);
   });
   await verify('Backup rejects conflicting expense references and duplicate note IDs', async () => {
     const env = await backup.buildBackupEnvelope();
-    env.tables.budgets = [{ id: 1, month: '2026-08', income: 100 }, { id: 2, month: '2026-09', income: 100 }];
+    env.tables.budgets = [{ id: 1, month: '2026-08', income: 100, savings_goal: 0 }, { id: 2, month: '2026-09', income: 100, savings_goal: 0 }];
     env.tables.expenses = [{ budget_id: 1, budget_month: '2026-09', category: 'Rent', amount: 50 }];
     assert.equal(backup.validateEnvelope(env).ok, false);
     env.tables.expenses = [];
@@ -956,7 +1012,7 @@ function migrationModule(fixture) {
   await verify('Import invalidates demo ownership before cleanup', async () => {
     stored.set('app_sample_data_state', JSON.stringify({ state: 'seeded', months: ['2026-09'], noteIds: [] }));
     const env = await backup.buildBackupEnvelope();
-    env.tables.budgets = [{ id: 1, month: '2026-09', income: 5000 }];
+    env.tables.budgets = [{ id: 1, month: '2026-09', income: 5000, savings_goal: 0 }];
     await backup.importBackupFromJson(JSON.stringify(env));
     assert.equal(await sample.hasSampleData(), false);
     assert.equal(await sample.clearSampleData(), false);
@@ -985,6 +1041,25 @@ function migrationModule(fixture) {
     assert.equal(Number.isFinite(calculations.pmt(1200, 5, 10000000)), true);
     assert.equal(Number.isFinite(calculations.pmt(1200, 5, 1200)), true);
     assert.equal(calculations.remainingBalance(1200, 0, 12, 1, 200), 1000);
+  });
+  await verify('Version 15 snapshots existing targets once and keeps month edits after restart', async () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      for (const statement of declarations.get('SCHEMA_STATEMENTS').elements) legacy.exec(statement.text);
+      for (const obj of declarations.get('ADDITIONAL_COLUMNS').elements) {
+        const fields = Object.fromEntries(obj.properties.map(p => [p.name.getText(ast), p.initializer.text]));
+        if (fields.column !== 'savings_goal' && !legacy.prepare(`PRAGMA table_info(${fields.table})`).all().some(c => c.name === fields.column)) {
+          legacy.exec(`ALTER TABLE ${fields.table} ADD COLUMN ${fields.column} ${fields.definition}`);
+        }
+      }
+      legacy.exec("INSERT INTO savings_goals(id, goal_amount, salary) VALUES(1, 200, 1000); INSERT INTO budgets(month, income) VALUES('2026-09', 900), ('2026-10', 1000); PRAGMA user_version = 14;");
+      await migrationModule(legacy).initDatabase();
+      assert.deepEqual(legacy.prepare('SELECT savings_goal FROM budgets ORDER BY month').all().map(row => row.savings_goal), [200, 200]);
+      legacy.exec("UPDATE budgets SET savings_goal = 300 WHERE month = '2026-10'; UPDATE savings_goals SET goal_amount = 300;");
+      await migrationModule(legacy).initDatabase();
+      assert.deepEqual(legacy.prepare('SELECT savings_goal FROM budgets ORDER BY month').all().map(row => row.savings_goal), [200, 300]);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
+    } finally { legacy.close(); }
   });
   await verify('Version 6 migration repairs existing savings markers', async () => {
     await executor.execute('INSERT INTO savings_transactions(type, description, amount, date, is_closing) VALUES (?, ?, ?, ?, ?)', ['deposit', 'Deposit', 100, '2023-06-01', 0]);
@@ -1022,7 +1097,7 @@ function migrationModule(fixture) {
     await module.exports.initDatabase();
     const marker = database.prepare("SELECT amount FROM savings_transactions WHERE date = '2026-01-01' AND is_closing = 1").get();
     assert.equal(marker.amount, 150);
-    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 14);
+    assert.equal(database.prepare('PRAGMA user_version').get().user_version, 15);
   });
   await verify('Version 9 upgrade preserves existing debts and defaults new plan columns', async () => {
     const legacy = new DatabaseSync(':memory:');
@@ -1056,7 +1131,7 @@ function migrationModule(fixture) {
       assert.equal(loans.cc2_installments, 0);
       assert.equal(row.cc_paid, 1);
       assert.equal(row.cc2_paid, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
     } finally { legacy.close(); }
   });
   await verify('Version 11 adds independent plans to an existing version 9 database without changing its debts', async () => {
@@ -1075,7 +1150,7 @@ function migrationModule(fixture) {
       await migrationModule(legacy).initDatabase();
       assert.equal(legacy.prepare('SELECT loan_name FROM loans WHERE id = 1').get().loan_name, 'Existing loan');
       assert.equal(legacy.prepare("SELECT COUNT(*) AS count FROM repayment_plans").get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
     } finally { legacy.close(); }
   });
   await verify('Version 12 archive migration preserves existing version 11 notes, items, and savings without replaying repairs', async () => {
@@ -1097,7 +1172,7 @@ function migrationModule(fixture) {
       assert.deepEqual({ ...legacy.prepare('SELECT * FROM notes WHERE id = 42').get() }, { ...before, is_archived: 0 });
       assert.deepEqual(legacy.prepare('SELECT * FROM note_items').get(), originalItem);
       assert.equal(legacy.prepare('SELECT amount FROM savings_transactions').get().amount, 123);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
       assert.throws(() => legacy.prepare('UPDATE notes SET is_archived = 2 WHERE id = 42').run());
     } finally { legacy.close(); }
   });
@@ -1282,6 +1357,25 @@ function migrationModule(fixture) {
     assert.equal(scheduledReminders.size, 50);
     assert.equal(scheduledReminders.has(`personal-hub-task-${first.id}`), false);
   });
+  await verify('Reminder bursts share one pass and edits during a pass receive one current follow-up', async () => {
+    const input = { title: 'Before', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
+    const id = await tasks.saveTask(input);
+    await Promise.all(Array.from({ length: 30 }, () => taskReminders.syncTaskReminders('Task reminders')));
+    assert.equal(reminderReads, 1, 'Thirty same-turn requests should need one native reminder read');
+    reminderReads = 0;
+    let releaseRead, readStarted;
+    const started = new Promise(resolve => { readStarted = resolve; });
+    reminderReadGate = { started: readStarted, promise: new Promise(resolve => { releaseRead = resolve; }) };
+    const first = taskReminders.syncTaskReminders('Task reminders');
+    await started;
+    await tasks.saveTask({ ...input, title: 'After' }, id);
+    const waiting = Array.from({ length: 30 }, () => taskReminders.syncTaskReminders('Task reminders'));
+    reminderReadGate = null;
+    releaseRead();
+    await Promise.all([first, ...waiting]);
+    assert.equal(reminderReads, 2, 'A request burst during a pass needs just one follow-up');
+    assert.equal(scheduledReminders.get(`personal-hub-task-${id}`).content.body, 'After');
+  });
   await verify('Version 14 upgrades existing tasks with intact IDs, links, dates, reminders, and deleted-ID sequence', async () => {
     const legacy = new DatabaseSync(':memory:');
     try {
@@ -1298,7 +1392,7 @@ function migrationModule(fixture) {
       await migrationModule(legacy).initDatabase();
       assert.deepEqual(legacy.prepare('SELECT * FROM tasks ORDER BY id').all(), before);
       assert.deepEqual(legacy.prepare('PRAGMA foreign_key_check').all(), []);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
       assert.equal(legacy.prepare("INSERT INTO tasks(title, due_date, repeat, repeat_day) VALUES('Annual', '2028-02-29', 'yearly', 29)").run().lastInsertRowid, 101);
       assert.equal(legacy.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_tasks_%'").get().n, 2);
       await migrationModule(legacy).initDatabase();
@@ -1338,7 +1432,7 @@ function migrationModule(fixture) {
       assert.deepEqual(legacy.prepare('SELECT * FROM notes').get(), original);
       assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM tasks').get().count, 0);
       assert.equal(legacy.prepare('SELECT COUNT(*) AS count FROM task_lists').get().count, 0);
-      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 14);
+      assert.equal(legacy.prepare('PRAGMA user_version').get().user_version, 15);
     } finally { legacy.close(); }
   });
   await verify('Reminder taps carry the exact task ID, handle cold starts, and clear consumed responses', async () => {
@@ -1428,6 +1522,7 @@ function migrationModule(fixture) {
     assert.deepEqual(await tasks.loadTasks(), before); assert.equal(files.size, 0);
   });
   results.push(...await require('./hub-improvements-regression.cjs')(root, numberInput.parseNumberInput));
+  await require('./haptics-performance-regression.cjs')();
   results.push(...await require('./updater-cache-regression.cjs')(root));
   console.log(JSON.stringify({ source: root, fixture: 'Disposable in-memory SQLite; native APIs mocked', results }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => database.close());

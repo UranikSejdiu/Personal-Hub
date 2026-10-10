@@ -6,7 +6,7 @@ import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 import { HUB_APPS } from "../../src/hub/registry";
 
 function isSettingsSection(value: unknown): value is SettingsSection {
-  return value === "budget" || value === "backup" || value === "about" || value === "modules";
+  return value === "backup" || value === "about" || value === "modules";
 }
 
 export default function SettingsDetailRoute() {
@@ -14,13 +14,15 @@ export default function SettingsDetailRoute() {
   const activeAppId = HUB_APPS.find((app) => app.id === from)?.id ?? "budget";
   const { handleAppSelect } = useAppSwitching(activeAppId);
 
+  if (section === "budget") return <Redirect href="/(budget)" />;
+
   if (!isSettingsSection(section)) {
     return <Redirect href="/(budget)/settings" />;
   }
 
   return (
     <>
-      <Stack.Screen options={{ gestureEnabled: section !== "budget" }} />
+      <Stack.Screen options={{ gestureEnabled: true }} />
       <HubHeader activeAppId={activeAppId} onAppSelect={handleAppSelect} />
       <SettingsScreen activeAppId={activeAppId} section={section} />
     </>

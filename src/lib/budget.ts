@@ -301,22 +301,23 @@ export async function saveSavingsGoal(
   );
 }
 
-/** Save the profile and apply income changes without rewriting past budgets. */
-export async function saveBudgetPreferences(goalAmount: number, salary: number): Promise<void> {
-  if (![goalAmount, salary].every((value) => Number.isFinite(value) && value >= 0)) {
-    throw new Error("Budget preferences must be finite non-negative amounts.");
-  }
+/** Edit only the selected month and remember the values for future months. */
+export async function saveMonthPreferences(month: string, income: number, goalAmount: number): Promise<void> {
+  validateMonthPreferences(month, income, goalAmount);
   await db.withTransaction(async (tx) => {
-    const previous = await loadSavingsGoal(tx);
-    await saveSavingsGoal(goalAmount, salary, tx);
-    if (previous.goal_amount !== goalAmount) await syncMonthlyAutoDeposit(goalAmount, tx);
-    if (previous.salary !== salary) {
-      await tx.execute(
-        "UPDATE budgets SET income = ?, updated_at = datetime('now') WHERE month >= ?",
-        [salary, currentMonth()]
-      );
-    }
+    const previous = await loadBudget(month, tx);
+    if (!previous) throw new Error("Budget not found for month.");
+    await tx.execute("UPDATE budgets SET income = ?, savings_goal = ?, updated_at = datetime('now') WHERE month = ?", [income, goalAmount, month]);
+    await saveSavingsGoal(goalAmount, income, tx);
+    if (month <= currentMonth() && previous.savings_goal !== goalAmount) await syncMonthlyAutoDeposit(goalAmount, tx, month);
   });
+}
+
+function validateMonthPreferences(month: string, income: number, goalAmount: number): void {
+  if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month) ||
+      ![income, goalAmount].every((value) => Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER / 100)) {
+    throw new Error("Invalid month or budget amounts.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -332,10 +333,6 @@ export async function listRecurringExpenses(): Promise<RecurringExpense[]> {
     category: String(row.category),
     amount: Number(row.amount) || 0,
   }));
-}
-
-export async function removeRecurringExpense(id: number): Promise<void> {
-  await db.execute("DELETE FROM recurring_expenses WHERE id = ?", [id]);
 }
 
 export async function setExpenseRecurring(
@@ -421,6 +418,7 @@ export async function loadBudget(
     id: Number(row.id),
     month: String(row.month),
     income: Number(row.income) || 0,
+    savings_goal: Number(row.savings_goal) || 0,
     loan_paid: Number(row.loan_paid) === 1,
     cc_paid: Number(row.cc_paid) === 1,
     cc2_paid: Number(row.cc2_paid) === 1,
@@ -435,15 +433,16 @@ export async function saveBudget(
   ccPaid: boolean,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<Budget> {
+  const defaults = await loadSavingsGoal(exec);
   await exec.execute(
-    `INSERT INTO budgets (month, income, loan_paid, cc_paid)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO budgets (month, income, loan_paid, cc_paid, savings_goal)
+     VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(month) DO UPDATE SET
        income = excluded.income,
        loan_paid = excluded.loan_paid,
        cc_paid = excluded.cc_paid,
        updated_at = datetime('now')`,
-    [month, income, loanPaid ? 1 : 0, ccPaid ? 1 : 0]
+    [month, income, loanPaid ? 1 : 0, ccPaid ? 1 : 0, defaults.goal_amount]
   );
   const saved = await loadBudget(month, exec);
   if (!saved) throw new Error("Failed to save budget.");
@@ -451,16 +450,23 @@ export async function saveBudget(
 }
 
 /** Create a month and its recurring expenses atomically; existing data is kept. */
-export async function createBudgetMonth(month: string): Promise<{ budget: Budget; created: boolean }> {
+export async function createBudgetMonth(month: string, values?: { income: number; savingsGoal: number }): Promise<{ budget: Budget; created: boolean }> {
   if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month)) {
     throw new Error("Invalid budget month.");
   }
   return db.withTransaction(async (tx) => {
     const existing = await loadBudget(month, tx);
     if (existing) return { budget: existing, created: false };
-    const { salary } = await loadSavingsGoal(tx);
-    const budget = await saveBudget(month, salary, false, false, tx);
+    const defaults = await loadSavingsGoal(tx);
+    const income = values?.income ?? defaults.salary;
+    const goalAmount = values?.savingsGoal ?? defaults.goal_amount;
+    validateMonthPreferences(month, income, goalAmount);
+    const budget = await saveBudget(month, income, false, false, tx);
+    await tx.execute("UPDATE budgets SET savings_goal = ? WHERE id = ?", [goalAmount, budget.id]);
+    budget.savings_goal = goalAmount;
     await populateRecurringExpenses(budget.id, tx);
+    await saveSavingsGoal(goalAmount, income, tx);
+    if (month === currentMonth()) await syncMonthlyAutoDeposit(goalAmount, tx, month);
     return { budget, created: true };
   });
 }
@@ -732,15 +738,15 @@ export function computeMonthSummary(
 export async function listMonthSummaries(
   loans: Loans
 ): Promise<MonthSummary[]> {
-  const [savingsGoal, repayments, paidByMonth] = await Promise.all([
-    loadSavingsGoal(), listRepaymentPlans(), allPaidRepayments(),
+  const [repayments, paidByMonth] = await Promise.all([
+    listRepaymentPlans(), allPaidRepayments(),
   ]);
-  const goalAmt = savingsGoal.goal_amount;
 
   const rows = await db.query<Record<string, unknown>>(
     `SELECT
        b.month AS month,
        b.income AS income,
+       b.savings_goal AS savings_goal,
        b.loan_paid AS loan_paid,
        b.cc_paid AS cc_paid,
        b.cc2_paid AS cc2_paid,
@@ -764,7 +770,7 @@ export async function listMonthSummaries(
         paidExpenses: Number(row.paid_expenses) || 0,
       },
       loans,
-      goalAmt,
+      Number(row.savings_goal) || 0,
       repayments,
       paidByMonth.get(String(row.month))
     )

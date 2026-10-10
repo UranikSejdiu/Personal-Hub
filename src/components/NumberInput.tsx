@@ -16,6 +16,9 @@ interface NumberInputProps {
   suffix?: string;
   className?: string;
   accessibilityLabel?: string;
+  autoFocus?: boolean;
+  onBlur?: () => void;
+  onSubmitEditing?: () => void;
 }
 
 export function NumberInput({
@@ -28,6 +31,9 @@ export function NumberInput({
   suffix,
   className,
   accessibilityLabel,
+  autoFocus,
+  onBlur,
+  onSubmitEditing,
 }: NumberInputProps) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [isFocused, setIsFocused] = useState(false);
@@ -65,13 +71,16 @@ export function NumberInput({
       const clamped = Math.min(max, Math.max(min, num));
       onChange(Number(clamped.toFixed(decimals)));
       setText(Number(clamped.toFixed(decimals)).toString());
+      onBlur?.();
     }
-  }, [text, min, max, decimals, onChange]);
+  }, [text, min, max, decimals, onChange, onBlur]);
 
   return (
     <View className={className}>
       <View className="flex-row items-center gap-1">
       <TextInput
+        autoFocus={autoFocus}
+        onSubmitEditing={() => { if (!invalid) onSubmitEditing?.(); }}
         accessibilityLabel={accessibilityLabel}
         value={displayText}
         onChangeText={handleChange}

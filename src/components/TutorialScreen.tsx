@@ -1,6 +1,6 @@
 import { Text } from "./ui/Typography";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { View, ScrollView, Pressable, useWindowDimensions, StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { AppState, View, ScrollView, Pressable, useWindowDimensions, StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, type Href } from "expo-router";
 import { useI18n, type TKey } from "../lib/i18n";
@@ -47,6 +47,11 @@ export default function TutorialScreen() {
   const completingRef = useRef(false);
   const [completing, setCompleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [foreground, setForeground] = useState(AppState.currentState === "active");
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => setForeground(state === "active"));
+    return () => subscription.remove();
+  }, []);
   const currentPageRef = useRef(currentPage);
   const reduceMotion = useReducedMotion();
   const isLast = currentPage === PAGES.length - 1;
@@ -157,7 +162,8 @@ export default function TutorialScreen() {
                     {Preview ? (
                       <>
                         {index > 1 && <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(page.titleKey === "tutorialSettings" ? "tutorialLiveThemePreview" : "tutorialSamplePreview")}</Text>}
-                        <Preview />
+                        {Preview === WelcomePreview ? <WelcomePreview active={foreground} />
+                          : Preview === NavigationPreview ? <NavigationPreview active={foreground} /> : <Preview />}
                       </>
                     ) : <ModuleChooser enabledIds={chosenIds} onToggle={toggleModule} disabled={completing} />}
                   </Animated.View>

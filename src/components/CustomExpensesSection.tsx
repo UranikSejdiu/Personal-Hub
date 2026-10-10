@@ -91,7 +91,12 @@ export function CustomExpensesHeader({ expenses, onAdd, onCopyPrevious, previous
             </Pressable>
           </View>
         </View>
-      ) : null}
+      ) : <View className="flex-row items-center gap-1 border-t border-border/50 pt-2">
+        <Text className="w-11 text-center text-[11px] text-muted-foreground">{t("paid")}</Text>
+        <Text className="min-w-0 flex-1 text-[11px] text-muted-foreground">{t("category")}</Text>
+        <Text className="w-[96px] text-right text-[11px] text-muted-foreground">{t("expenseAmount")}</Text>
+        <View className="w-11" />
+      </View>}
     </View>
   );
 }
@@ -143,17 +148,15 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
           </Pressable>
         )}
 
-        <Pressable
-          onPress={() => { close(); setEditing(editing === "amount" ? null : "amount"); }}
-          className="min-h-[44px] shrink-0 justify-center rounded-lg px-2 active:bg-muted"
-          accessible accessibilityRole="button"
-          accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })}
-          accessibilityState={{ expanded: editing === "amount" }}
-        >
-          <Text className={`text-sm font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>
-            {formatCurrency(expense.amount)}
-          </Text>
-        </Pressable>
+        {editing === "amount" ? <NumberInput autoFocus value={expense.amount}
+          onChange={(value) => onUpdate(expense.id, { amount: value })} min={0} decimals={2} placeholder="0.00"
+          onBlur={() => setEditing(null)} onSubmitEditing={() => setEditing(null)}
+          accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })} className="w-[112px]" /> :
+          <Pressable onPress={() => { close(); setEditing("amount"); }}
+            className="min-h-[44px] shrink-0 justify-center rounded-lg px-2 active:bg-muted"
+            accessible accessibilityRole="button" accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })}>
+            <Text className={`text-sm font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount)}</Text>
+          </Pressable>}
         <View ref={triggerRef} collapsable={false}>
           <IconButton
             icon={MoreHorizontal}
@@ -164,21 +167,6 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
           />
         </View>
       </View>
-
-      {editing === "amount" && (
-        <View className="flex-row items-center gap-2 pb-2 pl-11">
-          <NumberInput
-            value={expense.amount}
-            onChange={(value) => onUpdate(expense.id, { amount: value })}
-            min={0}
-            decimals={2}
-            placeholder="0.00"
-            accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })}
-            className="flex-1"
-          />
-          <IconButton icon={Check} onPress={() => setEditing(null)} accessibilityLabel={t("save")} />
-        </View>
-      )}
 
       <AnchoredMenu anchor={anchor} onClose={close} items={[
         { key: "recurring", label: t("recurringToggle"), icon: Repeat, selected: expense.is_recurring,

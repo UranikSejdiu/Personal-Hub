@@ -100,6 +100,7 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
   }
   return {
     render, errors: toastErrors,
+    timerCount: () => timers.size,
     all: type => findAll(node => node.type === type || node.type?.name === type),
     async settle() { for (let i = 0; i < 12; i++) { render(); await Promise.resolve(); } },
     timers() { for (const [id, timer] of timers) if (timer.delay <= 1000) { timers.delete(id); timer.fn(); } },
@@ -126,6 +127,63 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     assert.equal(input.all('TextInput')[0].props.value, '12.3.4');
     assert.ok(input.all('Text').some(node => node.props.accessibilityRole === 'alert'));
     input.dispose();
+  });
+  await verify('Month dialogs remember defaults, validate drafts, confirm discard, and retain failed saves', async () => {
+    let closed = 0, saves = 0;
+    const editor = fixture(root, 'src/components/BudgetMonthEditor.tsx', 'BudgetMonthEditor', {
+      initialMonth: '2030-02', onClose: () => { closed++; },
+      onSave: async (month, income, goal) => { saves++; assert.equal(month, '2030-02'); assert.equal(income, 1200.5); assert.equal(goal, 200); throw new Error('failed'); },
+    }, {
+      '../lib/budget': { loadSavingsGoal: async () => ({ salary: 1000, goal_amount: 200 }), loadBudget: async () => null },
+      '../lib/numberInput': { parseNumberInput },
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
+    });
+    await editor.settle();
+    assert.equal(editor.all('TextInput')[0].props.value, '1000');
+    assert.equal(editor.all('TextInput')[1].props.value, '200');
+    editor.all('TextInput')[0].props.onChangeText('12.3.4'); editor.render();
+    assert.equal(editor.all('Button').find(node => node.props.label === 'save').props.disabled, true);
+    editor.all('TextInput')[0].props.onChangeText('1,200.50'); editor.render();
+    editor.all('IconButton')[0].props.onPress(); editor.render();
+    assert.equal(editor.all('ConfirmDialog')[0].props.visible, true);
+    editor.all('ConfirmDialog')[0].props.onClose(); editor.render();
+    assert.equal(closed, 0);
+    editor.all('Button').find(node => node.props.label === 'save').props.onPress();
+    await editor.settle();
+    assert.equal(saves, 1);
+    assert.equal(editor.all('TextInput')[0].props.value, '1,200.50');
+    assert.ok(editor.all('Text').some(node => node.props.children === 'saveFailed'));
+    editor.all('IconButton')[0].props.onPress(); editor.render();
+    editor.all('ConfirmDialog')[0].props.onConfirm();
+    assert.equal(closed, 1);
+    editor.dispose();
+  });
+  await verify('Month dialogs retry failed reads, prevent overwrites and block duplicate saves while busy', async () => {
+    let fail = true, exists = true, saves = 0, closes = 0, release;
+    const editor = fixture(root, 'src/components/BudgetMonthEditor.tsx', 'BudgetMonthEditor', {
+      initialMonth: '2030-02', onClose: () => { closes++; }, onSave: async () => { saves++; await new Promise(resolve => { release = resolve; }); },
+    }, {
+      '../lib/budget': { loadSavingsGoal: async () => { if (fail) throw new Error('read failure'); return { salary: 1000, goal_amount: 200 }; }, loadBudget: async () => exists ? { id: 1 } : null },
+      '../lib/numberInput': { parseNumberInput },
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
+    });
+    await editor.settle();
+    assert.equal(editor.all('Button').find(node => node.props.label === 'save').props.disabled, true);
+    fail = false;
+    editor.all('Button').find(node => node.props.label === 'retry').props.onPress(); await editor.settle();
+    editor.all('Button').find(node => node.props.label === 'save').props.onPress(); await editor.settle();
+    assert.equal(saves, 0);
+    assert.ok(editor.all('Text').some(node => node.props.children === 'monthAlreadyExists'));
+    exists = false;
+    const save = editor.all('Button').find(node => node.props.label === 'save').props.onPress;
+    save(); save(); await editor.settle();
+    assert.equal(saves, 1);
+    assert.equal(editor.all('Button').find(node => node.props.label === 'save').props.busy, true);
+    editor.all('IconButton')[0].props.onPress();
+    assert.equal(closes, 0);
+    release(); await editor.settle();
+    assert.equal(editor.all('Button').find(node => node.props.label === 'save').props.busy, false);
+    editor.dispose();
   });
   await verify('Task drafts survive canceled discard, unchanged dialogs close, and save failures preserve edits', async () => {
     let closed = 0;
@@ -157,7 +215,7 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
   await verify('Savings hides balances on read failure and Retry restores loaded data', async () => {
     let fail = true;
     const savings = fixture(root, 'app/(budget)/savings.tsx', 'default', {}, {
-      '../../src/lib/budget': { loadSavingsGoal: async () => ({ goal_amount: 100 }) },
+      '../../src/lib/budget': { loadSavingsGoal: async () => ({ goal_amount: 100 }), loadBudget: async () => null, currentMonth: () => '2030-01' },
       '../../src/lib/savings': { listAutoDeposits: async () => [], listTransactions: async () => [],
         getSavingsSummary: async () => { if (fail) throw new Error('read failed'); return { balance: 25, totalSaved: 25, totalSpent: 0 }; } },
     });
@@ -177,7 +235,7 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     let fail = true;
     const expense = { id: 1, category: 'Rent', amount: 300, paid: false, is_recurring: false };
     const budget = fixture(root, 'app/(budget)/budget.tsx', 'default', {}, {
-      '../../src/lib/budget': { currentMonth: () => '2030-01', addMonths: () => '2029-12', loadLoans: async () => ({}),
+      '../../src/lib/budget': { currentMonth: () => '2030-01', addMonths: () => '2029-12', loadLoans: async () => ({}), computeMonthSummary: () => ({ remaining: 600, actualRemaining: 700 }),
         loadBudget: async () => ({ id: 1, month: '2030-01', income: 1000 }), loadSavingsGoal: async () => ({ goal_amount: 100, salary: 1000 }),
         listExpenses: async () => [expense], removeExpense: async () => { deleted++; if (fail) throw new Error('write failed'); } },
       '../../src/lib/repaymentPlans': { listRepaymentPlans: async () => [], paidRepaymentIds: async () => new Set() },
@@ -208,7 +266,12 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     let heldRead;
     let holdNext = false;
     const params = {};
+    let appStateListener;
+    const appState = { currentState: 'active', addEventListener: (_event, listener) => {
+      appStateListener = listener; return { remove() {} };
+    } };
     const screen = fixture(root, 'src/components/tasks/TasksScreen.tsx', 'TasksScreen', {}, {
+      'react-native': { AppState: appState, View: 'View', FlatList: 'FlatList', ActivityIndicator: 'ActivityIndicator' },
       '../../lib/tasks': {
         async loadTasksPage(options) {
           calls.push(options);
@@ -227,6 +290,15 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     assert.equal(screen.all('FlatList').length, 1, 'Tasks has a single list and no status or priority strips');
     assert.equal(screen.all('TextInput').length, 0);
     assert.equal(calls[0].filter, 'all');
+    assert.equal(screen.timerCount(), 1);
+    appState.currentState = 'background'; appStateListener('background'); screen.render();
+    assert.equal(screen.timerCount(), 0, 'The midnight timer stops in the background');
+    const beforeBackground = calls.length;
+    list().props.onEndReached(); await screen.settle();
+    assert.equal(calls.length, beforeBackground, 'Hidden lists do not fetch more pages');
+    appState.currentState = 'active'; appStateListener('active'); await screen.settle();
+    assert.equal(calls.length, beforeBackground + 1, 'Returning to Tasks refreshes once');
+    assert.equal(screen.timerCount(), 1);
     list().props.onEndReached(); await screen.settle();
     assert.equal(list().props.data.length, 40);
     assert.ok(screen.all('Button').some(node => node.props.label === 'retry'));
@@ -249,6 +321,80 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     assert.equal(screen.all('TaskCard').length, 0);
     assert.ok(calls.some(call => call.offset === 40));
     screen.dispose();
+  });
+  await verify('Notes waits for saved preferences and loads its first page only once', async () => {
+    const calls = [];
+    const screen = fixture(root, 'src/components/NotesListScreen.tsx', 'default', {}, {
+      '../lib/notesPreferences': {
+        getNotesPreferences: async () => ({ viewMode: 'list', sort: 'title' }),
+        setNotesPreferences: async () => {},
+      },
+      '../lib/notes': { loadNotesPage: async (...args) => { calls.push(args); return { notes: [], hasMore: false, nextOffset: 0 }; } },
+      './ui/AnchoredMenu': { AnchoredMenu: 'AnchoredMenu', useAnchoredMenu: () => ({ triggerRef: { current: null }, anchor: null, open() {}, close() {} }) },
+    });
+    await screen.settle();
+    assert.equal(calls.length, 1, 'Do not query with default sort before loading saved preferences');
+    assert.equal(calls[0][1], 'title');
+    screen.all('TextInput')[0].props.onChangeText('search'); screen.render();
+    assert.equal(screen.timerCount(), 1);
+    screen.all('AnchoredMenu')[0].props.items.find(item => item.key === 'created').onPress();
+    await screen.settle();
+    const afterSort = calls.length;
+    screen.timers(); await screen.settle();
+    assert.equal(calls.length, afterSort, 'Changing sort cancels the pending search instead of fetching twice');
+    screen.dispose();
+  });
+  await verify('Vibration preview failure does not undo a saved Hub preference', async () => {
+    let enabled = false;
+    const screen = fixture(root, 'src/components/SettingsScreen.tsx', 'default', { activeAppId: 'budget' }, {
+      'react-native': new Proxy({ Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } }, { get: (obj, key) => key in obj ? obj[key] : key }),
+      '../lib/theme': { useTheme: () => ({ theme: 'light', setTheme() {} }), useThemeColors: () => ({}) },
+      '../hooks/useHaptics': { useHaptics: () => ({ light: async () => {} }),
+        isHapticsEnabled: () => enabled, getHapticsEnabled: async () => enabled,
+        setHapticsEnabled: async value => { enabled = value; } },
+      'expo-haptics': { ImpactFeedbackStyle: { Light: 'Light' }, impactAsync: async () => { throw new Error('No motor'); } },
+      '../hub/ModulePreferences': { useModulePreferences: () => ({ enabledIds: ['budget'], saveEnabledIds: async () => {} }) },
+      '../lib/backup': { hasSafetyBackup: async () => false },
+      '../lib/sampleData': { hasSampleData: async () => false },
+      '../constants/config': { getAppVersion: () => '1.0.0' },
+    });
+    await screen.settle();
+    await screen.all('SettingsMenu')[0].props.onHapticsChange(true); await screen.settle();
+    assert.equal(enabled, true);
+    assert.equal(screen.all('SettingsMenu')[0].props.hapticsOn, true);
+    assert.deepEqual(screen.errors, []);
+    screen.dispose();
+  });
+  await verify('Tutorial preview animations pause in the background without restarting on ordinary renders', async () => {
+    for (const [name, expectedTimings, expectedCancels] of [['WelcomePreview', 3, 3], ['NavigationPreview', 2, 1]]) {
+      const values = [];
+      let valueCursor = 0, timings = 0, cancels = 0;
+      const props = { active: true };
+      const preview = fixture(root, `src/components/tutorial/${name}.tsx`, name, props, {
+        'react-native-reanimated': {
+          __esModule: true, default: { View: 'AnimatedView', Text: 'AnimatedText' },
+          useSharedValue(initial) { const index = valueCursor++; return values[index] ??= { value: initial }; },
+          useAnimatedStyle: fn => fn(), useReducedMotion: () => false,
+          withTiming(value) { timings++; return value; }, withDelay: (_delay, value) => value,
+          withRepeat: value => value, withSequence: (...items) => items.at(-1),
+          cancelAnimation() { cancels++; }, Easing: { inOut: fn => fn, ease: value => value },
+        },
+        '../../hub/registry': { HUB_APPS: [{ id: 'budget' }, { id: 'notes' }] },
+        '../../hub/tabs': { hubTabs: () => [{ id: 'home', labelKey: 'home' }] },
+      });
+      preview.render();
+      assert.equal(timings, expectedTimings);
+      valueCursor = 0; preview.render();
+      assert.equal(timings, expectedTimings, 'Ordinary renders do not restart animation loops');
+      props.active = false;
+      valueCursor = 0; preview.render();
+      assert.equal(cancels, expectedCancels);
+      assert.equal(timings, expectedTimings, 'No new animation is scheduled while backgrounded');
+      props.active = true;
+      valueCursor = 0; preview.render();
+      assert.equal(timings, expectedTimings * 2);
+      preview.dispose();
+    }
   });
   return results;
 };

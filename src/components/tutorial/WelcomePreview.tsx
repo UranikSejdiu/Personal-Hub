@@ -14,7 +14,7 @@ import { Wallet, FileText, CheckSquare } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";
 import { useThemeColors } from "../../lib/theme";
 
-export function WelcomePreview() {
+export function WelcomePreview({ active = true }: { active?: boolean } = {}) {
   const reduceMotion = useReducedMotion();
   const { t } = useI18n();
   const colors = useThemeColors();
@@ -23,7 +23,7 @@ export function WelcomePreview() {
   const scale3 = useSharedValue(0.8);
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || !active) {
       scale1.value = 1;
       scale2.value = 1;
       scale3.value = 1;
@@ -37,7 +37,7 @@ export function WelcomePreview() {
       cancelAnimation(scale2);
       cancelAnimation(scale3);
     };
-  }, [reduceMotion, scale1, scale2, scale3]);
+  }, [active, reduceMotion, scale1, scale2, scale3]);
 
   const style1 = useAnimatedStyle(() => ({ transform: [{ scale: scale1.value }] }));
   const style2 = useAnimatedStyle(() => ({ transform: [{ scale: scale2.value }] }));

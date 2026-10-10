@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from "expo-router";
-import { View } from "react-native";
+import { Image, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "../../src/components/ui/Typography";
 import { PillNav } from "../../src/components/PillNav";
@@ -12,7 +12,10 @@ export default function DhikrLayout() {
   return (
     <>
       <View className="bg-background" style={{ paddingTop: insets.top }}>
-        <Text accessibilityRole="header" className="px-4 py-3 text-xl font-bold text-foreground">{t("appName")}</Text>
+        <View className="flex-row items-center gap-2.5 px-4 py-3">
+          <Image source={require("../../assets/icon.png")} className="h-8 w-8 rounded-lg" accessible={false} />
+          <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">{t("appName")}</Text>
+        </View>
       </View>
       <Tabs screenOptions={{ headerShown: false }} tabBar={({ state }) => (
         <PillNav tabs={[

@@ -7,7 +7,7 @@ import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
 import { useAppSwitching } from "../../src/hooks/useAppSwitching";
 import { usePersistActiveTab } from "../../src/hooks/usePersistActiveTab";
-import { loadSavingsGoal } from "../../src/lib/budget";
+import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 
 export default function BudgetLayout() {
@@ -22,10 +22,11 @@ export default function BudgetLayout() {
   }, [t]);
 
   useEffect(() => {
-    void loadSavingsGoal()
-      .then((sg) => {
-        if (sg.goal_amount > 0) {
-          return ensureMonthlyAutoDeposit(sg.goal_amount);
+    void Promise.all([loadSavingsGoal(), loadBudget(currentMonth())])
+      .then(([sg, budget]) => {
+        const target = budget?.savings_goal ?? sg.goal_amount;
+        if (target > 0) {
+          return ensureMonthlyAutoDeposit(target);
         }
       })
       .catch(() => {

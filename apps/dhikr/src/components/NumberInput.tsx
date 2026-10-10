@@ -16,6 +16,7 @@ interface NumberInputProps {
   suffix?: string;
   className?: string;
   accessibilityLabel?: string;
+  disabled?: boolean;
 }
 
 export function NumberInput({
@@ -28,6 +29,7 @@ export function NumberInput({
   suffix,
   className,
   accessibilityLabel,
+  disabled = false,
 }: NumberInputProps) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [isFocused, setIsFocused] = useState(false);
@@ -72,6 +74,8 @@ export function NumberInput({
     <View className={className}>
       <View className="flex-row items-center gap-1">
       <TextInput
+        editable={!disabled}
+        accessibilityState={{ disabled }}
         accessibilityLabel={accessibilityLabel}
         value={displayText}
         onChangeText={handleChange}

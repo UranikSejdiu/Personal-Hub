@@ -1,20 +1,18 @@
 import { Text } from "./ui/Typography";
 import { Pressable, Switch, View } from "react-native";
 import type { ComponentType } from "react";
-import { BookOpen, ChevronRight, Cloud, Info, LayoutGrid, Target } from "./AppIcons";
+import { BookOpen, ChevronRight, Cloud, Info, LayoutGrid } from "./AppIcons";
 import type { AppIconProps } from "./AppIcons";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { type ThemeName } from "../constants/theme";
 import { withAlpha } from "../lib/utils";
 
-export type SettingsSection = "budget" | "backup" | "about" | "modules";
+export type SettingsSection = "backup" | "about" | "modules";
 
 interface SettingsMenuProps {
   theme: ThemeName;
   hapticsOn: boolean;
-  budgetSummary: string;
-  enabledIds: string[];
   onThemeChange: (theme: ThemeName) => void;
   onHapticsChange: (enabled: boolean) => void;
   onSelect: (section: SettingsSection) => void;
@@ -47,7 +45,7 @@ function SettingsRow({ icon: Icon, labelKey, subtitle, onPress }: {
   );
 }
 
-export function SettingsMenu({ theme, hapticsOn, budgetSummary, enabledIds, onThemeChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
+export function SettingsMenu({ theme, hapticsOn, onThemeChange, onHapticsChange, onSelect, onReplayTutorial }: SettingsMenuProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   return (
@@ -88,14 +86,6 @@ export function SettingsMenu({ theme, hapticsOn, budgetSummary, enabledIds, onTh
         </View>
       </View>
 
-      {enabledIds.includes("budget") ? (
-        <View className="gap-2">
-          <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsBudget")}</Text>
-          <View className="overflow-hidden rounded-xl border border-border bg-card">
-            <SettingsRow icon={Target} labelKey="settingsBudgetDetails" subtitle={budgetSummary} onPress={() => onSelect("budget")} />
-          </View>
-        </View>
-      ) : null}
       <View className="gap-2">
         <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsData")}</Text>
         <View className="overflow-hidden rounded-xl border border-border bg-card">
