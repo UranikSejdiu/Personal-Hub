@@ -12,6 +12,7 @@ const outputMap = path.join(root, "src", "constants", "uicons.ts");
 const iconSources = {
   CalendarDays: "calendar",
   Bell: "bell",
+  Lock: "lock",
   Trash2: "trash",
   Plus: "plus",
   ChevronDown: "angle-small-down",

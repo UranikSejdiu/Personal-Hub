@@ -1,13 +1,13 @@
 import { Text } from "./ui/Typography";
 import { memo, useState } from "react";
 import { View, Pressable } from "react-native";
-import { Trash2, ChevronDown, MoreHorizontal, CircleCheck, Pencil } from "./AppIcons";
+import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
 import { useI18n, monthLabelFull } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useHaptics } from "../hooks/useHaptics";
 import { formatCurrency, cn } from "../lib/utils";
 import { IconButton } from "./ui/Button";
-import { AnchoredMenu, useAnchoredMenu } from "./ui/AnchoredMenu";
+import { ActionDialog } from "./ui/ActionDialog";
 import { Card } from "./ui/Card";
 import type { MonthSummary } from "../types/budget";
 
@@ -27,7 +27,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
   const haptics = useHaptics();
   const monthLabel = monthLabelFull(lang, summary.month);
   const featured = variant === "featured";
-  const { triggerRef, anchor, open, close } = useAnchoredMenu();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
   const handleToggle = onToggleExpand ?? (() => setInternalExpanded(value => !value));
@@ -51,9 +51,9 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
         onPress={() => { void haptics.light(); handleToggle(); }}
         accessibilityLabel={isExpanded ? t("collapse") : t("expand")} accessibilityState={{ expanded: isExpanded }} />
-      <View ref={triggerRef} collapsable={false}>
-        <IconButton icon={MoreHorizontal} selected={anchor !== null} onPress={() => { void haptics.light(); open(); }}
-          accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })} accessibilityState={{ expanded: anchor !== null }} />
+      <View>
+        <IconButton icon={MoreHorizontal} selected={menuOpen} onPress={() => { void haptics.light(); setMenuOpen(true); }}
+          accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })} accessibilityState={{ expanded: menuOpen }} />
       </View>
     </View>
     {featured && <>
@@ -83,9 +83,9 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
         <Text className={cn("text-xs font-semibold", detail.value < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(detail.value)}</Text>
       </View>)}
     </View>}
-    <AnchoredMenu anchor={anchor} onClose={close} items={[
-      { key: "open", label: t("dashboardOpenBudget"), icon: Pencil, onPress: onOpen },
-      { key: "delete", label: t("delete"), icon: Trash2, destructive: true, onPress: () => { void haptics.warning(); onDelete(); } },
+    <ActionDialog visible={menuOpen} title={monthLabel} onClose={() => setMenuOpen(false)} actions={[
+      { key: "open", label: t("dashboardOpenBudget"), primary: true, onPress: onOpen },
+      { key: "delete", label: t("delete"),  onPress: () => { void haptics.warning(); onDelete(); } },
     ]} />
   </Card>;
 });

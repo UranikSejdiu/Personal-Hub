@@ -74,7 +74,7 @@ export function ConfirmDialog({
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="max-h-full w-full max-w-sm rounded-[22px] bg-card p-5 shadow-xl"
+          className="max-h-full w-full max-w-md rounded-[22px] border border-border/60 bg-card p-[18px] shadow-xl"
           accessible={false}
           accessibilityViewIsModal
         >
@@ -96,34 +96,34 @@ export function ConfirmDialog({
           </View>
 
           <ScrollView className="mt-2 grow-0" contentContainerClassName="py-1">
-            <Text className="text-sm text-muted-foreground">{message}</Text>
+            <Text className="text-xs leading-[18px] text-muted-foreground">{message}</Text>
           </ScrollView>
 
           <View className="mt-4 flex-row flex-wrap items-center justify-end gap-3">
             <Pressable
               onPress={handleClose}
-              className="min-h-[44px] justify-center rounded-lg px-4 py-2 active:bg-muted"
+              className="min-h-[44px] justify-center rounded-[11px] px-3 py-2.5 active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel={resolvedCancelLabel}
               accessibilityState={{ disabled: isConfirming }}
               disabled={isConfirming}
             >
-              <Text className="text-sm font-medium text-muted-foreground">
+              <Text className="text-xs font-semibold text-muted-foreground">
                 {resolvedCancelLabel}
               </Text>
             </Pressable>
             <Pressable
               onPress={() => void handleConfirm()}
               disabled={isConfirming}
-              className={`min-h-[44px] justify-center rounded-lg px-4 py-2 active:opacity-70 ${destructive ? "bg-destructive" : "bg-primary"} ${isConfirming ? "opacity-60" : ""}`}
+              className={`min-h-[44px] justify-center rounded-[11px] px-3 py-2.5 active:opacity-70 ${destructive ? "bg-destructive" : "bg-primary"} ${isConfirming ? "opacity-60" : ""}`}
               accessible
               accessibilityRole="button"
               accessibilityLabel={resolvedConfirmLabel}
               accessibilityState={{ disabled: isConfirming, busy: isConfirming }}
             >
               <Text
-                className={`text-sm font-semibold ${destructive ? "text-destructive-foreground" : "text-primary-foreground"}`}
+                className={`text-xs font-semibold ${destructive ? "text-destructive-foreground" : "text-primary-foreground"}`}
               >
                 {resolvedConfirmLabel}
               </Text>

@@ -1,5 +1,5 @@
 import { Text } from "./ui/Typography";
-import { type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { Pressable, View } from "react-native";
 import {
   ChevronDown,
@@ -9,7 +9,7 @@ import {
   CircleHelp,
   ListOrdered,
 } from "./AppIcons";
-import { AnchoredMenu, useAnchoredMenu } from "./ui/AnchoredMenu";
+import { ActionDialog } from "./ui/ActionDialog";
 import { useI18n, type TKey } from "../lib/i18n";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
@@ -37,7 +37,7 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
   const { t } = useI18n();
   const haptics = useHaptics();
   const colors = useThemeColors();
-  const { triggerRef, anchor, open, close } = useAnchoredMenu();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const activeApp = apps.find((a) => a.id === activeAppId);
   const ActiveIcon = activeApp ? ICON_MAP[activeApp.icon] ?? CircleHelp : LayoutGrid;
@@ -46,14 +46,13 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
   return (
     <>
       <Pressable
-        ref={triggerRef}
-        onPress={() => { void haptics.light(); open(); }}
+        onPress={() => { void haptics.light(); setMenuOpen(true); }}
         disabled={!canSwitch}
         className="min-h-[44px] flex-row items-center gap-2 rounded-[13px] bg-secondary px-[9px] py-[5px] active:opacity-70"
         accessible
         accessibilityRole="button"
         accessibilityLabel={t("switchApp")}
-        accessibilityState={{ expanded: anchor !== null, disabled: !canSwitch }}
+        accessibilityState={{ expanded: menuOpen, disabled: !canSwitch }}
       >
         <View className="h-[30px] w-[30px] items-center justify-center">
           <ActiveIcon size={20} color={colors.primary} />
@@ -64,19 +63,9 @@ export function AppSwitcher({ apps, activeAppId, onAppSelect }: AppSwitcherProps
         {canSwitch ? <ChevronDown size={16} color={colors.mutedForeground} /> : null}
       </Pressable>
 
-      <AnchoredMenu
-        anchor={anchor}
-        onClose={close}
-        size="regular"
-        align="start"
-        items={apps.map((app) => ({
-          key: app.id,
-          label: t(app.titleKey),
-          icon: ICON_MAP[app.icon] ?? CircleHelp,
-          selected: app.id === activeAppId,
-          onPress: () => { void haptics.medium(); onAppSelect(app.id); },
-        }))}
-      />
+      <ActionDialog visible={menuOpen} title={t("switchApp")} layout="list" onClose={() => setMenuOpen(false)}
+        actions={apps.map(app => ({ key: app.id, label: t(app.titleKey), icon: ICON_MAP[app.icon] ?? CircleHelp,
+          selected: app.id === activeAppId, onPress: () => { void haptics.medium(); onAppSelect(app.id); } }))} />
     </>
   );
 }

@@ -70,3 +70,4 @@ export const MoreHorizontal = createIcon("MoreHorizontal");
 
 export const CalendarDays = createIcon("CalendarDays");
 export const Bell = createIcon("Bell");
+export const Lock = createIcon("Lock");

@@ -11,7 +11,7 @@ module.exports = async function verifyLoanEditor(root) {
   const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const handlers = {};
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && ['save', 'start', 'edit', 'update'].includes(node.name.getText(ast))) {
+    if (ts.isVariableDeclaration(node) && ['save', 'start', 'edit', 'update', 'dismissDraft', 'closeDraft'].includes(node.name.getText(ast))) {
       handlers[node.name.getText(ast)] = node.initializer.getText(ast);
     }
     ts.forEachChild(node, visit);
@@ -34,7 +34,8 @@ module.exports = async function verifyLoanEditor(root) {
     setPlans: fn => { records = fn(records); },
     setDraft: value => { context.draft = typeof value === 'function' ? value(context.draft) : value; },
     setEditingId: value => { context.editingId = value; },
-    setStartMonthTouched() {},
+    setChoosingMonth() {}, setDiscard(value) { context.discard = value; },
+    setStartMonthTouched() {}, initialDraft: { current: "" },
     listRef: { current: null }, haptics: { success: async () => {}, light: async () => {} },
     toast: { error: message => errors.push(message) }, t: key => key,
     emptyPlan: kind => ({ kind, name: '' }),
@@ -64,4 +65,10 @@ module.exports = async function verifyLoanEditor(root) {
   assert.equal(context.draft, failedDraft, 'A failed write retains the draft for retry');
   assert.equal(context.operationRef.current, false);
   assert.deepEqual(errors, ['paymentPlanSaveFailed']);
+  context.start('loan'); context.closeDraft();
+  assert.equal(context.draft, null, 'An unchanged loan draft closes directly');
+  context.start('loan'); context.update({ name: 'Changed' }); context.closeDraft();
+  assert.equal(context.discard, true, 'A changed loan draft requires discard confirmation');
+  assert.equal(context.draft.name, 'Changed');
+  context.dismissDraft(); assert.equal(context.draft, null); assert.equal(context.discard, false);
 };

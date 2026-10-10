@@ -211,10 +211,10 @@ export function TasksScreen() {
   [askDelete, busy, editTask, loading, today, toggleTask, visibleTasks.length]);
 
   return <>
-    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-4 pt-2">
+    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-4 max-[360px]:px-3 pt-2">
       <View className="mb-3 gap-2">
         <View className="flex-row flex-wrap items-center justify-between gap-2">
-          <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("tutorialTasks")}</Text>
+          <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tutorialTasks")}</Text>
           <Button icon={Plus} label={t("tasksAdd")} disabled={busy || loading || failed} onPress={() => setEditor({})} />
         </View>
         {!loading && !failed && <Text className="text-xs text-muted-foreground">{t("tasksOpenCount", { count: counts.open })}</Text>}

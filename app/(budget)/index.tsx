@@ -153,7 +153,7 @@ export default function DashboardScreen() {
           <View className="gap-3">
             <View>
               <View className="flex-row flex-wrap items-center justify-between gap-3">
-                <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("dashboardTitle")}</Text>
+                <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("dashboardTitle")}</Text>
                 <Button
                   label={t("dashboardNextMonth")}
                   icon={Plus}

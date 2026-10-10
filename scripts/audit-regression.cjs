@@ -314,6 +314,34 @@ function migrationModule(fixture) {
   await verify('Loan editor prevents duplicate saves and changes during pending operations', async () => {
     await require('./loan-editor-regression.cjs')(root);
   });
+  await verify('Expense dialogs commit all fields and recurring templates atomically and reject wrong-month edits', async () => {
+    const first = await budget.saveBudget('2026-09', 2500, false, false);
+    const second = await budget.saveBudget('2026-10', 2500, false, false);
+    const fields = { category: ' Rent ', amount: 125, paid: true, is_recurring: true };
+    failOn = sql => sql.startsWith('INSERT INTO recurring_expenses');
+    await assert.rejects(budget.saveExpenseDraft(first.id, fields));
+    failOn = null;
+    assert.equal((await budget.listExpenses(first.id)).length, 0);
+    assert.equal((await budget.listRecurringExpenses()).length, 0);
+    const expense = await budget.saveExpenseDraft(first.id, fields);
+    assert.equal(expense.category, 'Rent');
+    assert.equal((await budget.listExpenses(first.id))[0].paid, true);
+    failOn = sql => sql.startsWith('UPDATE expenses SET is_recurring');
+    await assert.rejects(budget.saveExpenseDraft(first.id, { ...fields, category: 'Housing', amount: 200, paid: false, is_recurring: false }, expense.id));
+    failOn = null;
+    const unchanged = (await budget.listExpenses(first.id))[0];
+    assert.equal(unchanged.category, 'Rent');
+    assert.equal(unchanged.amount, 125);
+    assert.equal(unchanged.paid, true);
+    assert.equal((await budget.listRecurringExpenses())[0].category, 'Rent');
+    await assert.rejects(budget.saveExpenseDraft(second.id, fields, expense.id));
+    await budget.saveExpenseDraft(first.id, { ...fields, amount: 0, paid: false, is_recurring: false }, expense.id);
+    assert.equal((await budget.listRecurringExpenses()).length, 0);
+    assert.equal((await budget.listExpenses(first.id))[0].amount, 0);
+    for (const invalid of [{ ...fields, category: '' }, { ...fields, amount: NaN }, { ...fields, amount: -1 }]) {
+      await assert.rejects(budget.saveExpenseDraft(first.id, invalid));
+    }
+  });
   await verify('Recurring edits update templates without rewriting past month expenses', async () => {
     const b = await budget.saveBudget('2026-09', 2500, false, false);
     const e = await budget.addExpense(b.id, 'Rent', 100, false);

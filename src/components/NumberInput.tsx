@@ -89,7 +89,7 @@ export function NumberInput({
         placeholder={placeholder}
         keyboardType="decimal-pad"
         className={cn(
-          "flex-1 rounded-xl border px-3 py-2.5 text-base text-foreground bg-card",
+          "min-h-[44px] flex-1 rounded-[11px] border px-3 py-2.5 text-base text-foreground bg-card",
           invalid ? "border-destructive" : isFocused ? "border-primary" : "border-border"
         )}
         placeholderTextColor={colors.mutedForeground}

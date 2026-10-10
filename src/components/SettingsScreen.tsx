@@ -1,8 +1,7 @@
 import { Text } from "./ui/Typography";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View, ScrollView, Pressable, BackHandler, Image, Platform } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { ArrowLeft, Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
+import { Cloud, Download, RotateCcw, Trash2 } from "./AppIcons";
 import { useRouter, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import { useI18n } from "../lib/i18n";
@@ -29,6 +28,9 @@ import { setTutorialSeen } from "../lib/tutorial";
 import { clearSampleData, hasSampleData } from "../lib/sampleData";
 import { resetPlainTextBackfill } from "../lib/notes";
 import { SettingsMenu, type SettingsSection } from "./SettingsMenu";
+import { FormDialog } from "./ui/FormDialog";
+import { ActionDialog } from "./ui/ActionDialog";
+import { Button } from "./ui/Button";
 import { ModuleChooser } from "./ModuleChooser";
 
 type Section = SettingsSection | null;
@@ -61,6 +63,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   const pickingBackup = useRef(false);
   const [canRestoreSafety, setCanRestoreSafety] = useState(false);
   const [sampleDataPresent, setSampleDataPresent] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   useEffect(() => {
@@ -291,8 +294,8 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     return (
       <>
         <ScrollView className="flex-1 bg-background">
-          <View className="w-full max-w-md self-center gap-4 px-4 pt-2 pb-28">
-            <View className="gap-1"><Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("settingsTitle")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("settingsSubtitle")}</Text></View>
+          <View className="w-full max-w-md self-center gap-4 px-4 max-[360px]:px-3 pt-2 pb-28">
+            <View className="gap-1"><Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("settingsTitle")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("settingsSubtitle")}</Text></View>
             <SettingsMenu
               theme={theme}
               version={`Personal Hub · ${getAppVersion()}`}
@@ -311,22 +314,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
 
   return (
     <>
-      <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <View className="w-full max-w-md self-center gap-4 px-4 pt-2 pb-28">
-          <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={() => { void leaveDetail(); }}
-              className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
-              accessible accessibilityRole="button" accessibilityLabel={t("settingsBack")}
-              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-            >
-              <ArrowLeft size={24} color={colors.foreground} />
-            </Pressable>
-            <Text className="text-2xl font-semibold tracking-[-0.4px] text-foreground">
-              {activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")}
-            </Text>
-          </View>
-
+      <FormDialog title={activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")} busy={backupBusy || modulesBusy} onClose={leaveDetail}>
         {activeSection === "modules" && (
           <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsModulesHelp")}</Text>
@@ -337,35 +325,12 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
         {activeSection === "backup" && (
           <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsBackupHelp")}</Text>
-            <View className="rounded-xl border border-border bg-card p-3 gap-3">
-              <Pressable
-                onPress={() => { void haptics.light(); void handleExport(Platform.OS === "android" ? "folder" : "share"); }}
-                disabled={backupBusy}
-                className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 disabled:opacity-60"
-                android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-                accessibilityRole="button"
-                accessibilityLabel={t(Platform.OS === "android" ? "saveBackupToFolder" : "exportData")}
-              >
-                <Download size={16} color={colors.primaryForeground} />
-                <Text className="text-sm font-medium text-primary-foreground">{t(Platform.OS === "android" ? "saveBackupToFolder" : "exportData")}</Text>
-              </Pressable>
-              {Platform.OS === "android" ? (
-                <Pressable
-                  onPress={() => { void haptics.light(); void handleExport("share"); }}
-                  disabled={backupBusy}
-                  className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
-                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("shareBackup")}
-                >
-                  <Cloud size={16} color={colors.foreground} />
-                  <Text className="text-sm font-medium text-foreground">{t("shareBackup")}</Text>
-                </Pressable>
-              ) : null}
+            <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-3">
+              <Button icon={Download} label={t("exportData")} disabled={backupBusy} onPress={() => setExportOpen(true)} />
               <Pressable
                 onPress={() => { void haptics.light(); void handleImportPick(); }}
                 disabled={backupBusy}
-                className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 disabled:opacity-60"
+                className="flex-row items-center justify-center gap-2 min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 disabled:opacity-60"
                 android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                 accessibilityRole="button"
                 accessibilityLabel={t("importData")}
@@ -413,7 +378,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
           <View className="gap-3">
             <Text className="text-sm leading-6 text-muted-foreground">{t("settingsAboutHelp")}</Text>
             <UpdateCard />
-            <View className="rounded-xl border border-border bg-card p-3">
+            <View className="rounded-[14px] border border-border/60 bg-card p-3">
               <View className="items-center gap-3 py-4">
                 <Image source={require("../../assets/icon-personal-hub.png")} className="h-16 w-16 rounded-xl" />
                 <Text className="text-lg font-bold text-foreground">{t("appName")}</Text>
@@ -436,8 +401,11 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
             </View>
           </View>
         )}
-       </View>
-     </KeyboardAwareScrollView>
+     </FormDialog>
+     <ActionDialog visible={exportOpen} title={t("exportData")} onClose={() => setExportOpen(false)} actions={[
+       ...(Platform.OS === "android" ? [{ key: "folder", label: t("saveBackupToFolder"), primary: true, onPress: () => { void handleExport("folder"); } }] : []),
+       { key: "share", label: t("shareBackup"), primary: Platform.OS !== "android", onPress: () => { void handleExport("share"); } },
+     ]} />
       <ConfirmDialog
         visible={confirmAction !== null}
         title={confirmAction?.title ?? t("deleteConfirmTitle")}

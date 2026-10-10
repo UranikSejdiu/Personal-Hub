@@ -14,7 +14,8 @@ import {
   loadSavingsGoal,
   saveMonthPreferences,
   listExpenses,
-  addExpense,
+  saveExpenseDraft,
+  type ExpenseDraft,
   updateExpense,
   setExpenseRecurring,
   removeExpense,
@@ -29,6 +30,7 @@ import { listRepaymentPlans, paidRepaymentIds, repaymentForMonth, setRepaymentPa
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
 import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
+import { ExpenseEditor } from "../../src/components/ExpenseEditor";
 import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
 import { Button, IconButton } from "../../src/components/ui/Button";
 import { ArrowLeft, Pencil, ChevronLeft, ChevronRight, Copy } from "../../src/components/AppIcons";
@@ -52,6 +54,7 @@ export default function BudgetScreen() {
   const [paidRepayments, setPaidRepayments] = useState<Set<number>>(new Set());
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseEditor, setExpenseEditor] = useState<{ expense?: Expense } | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const expensesRef = useRef<Expense[]>([]);
   useEffect(() => { expensesRef.current = expenses; }, [expenses]);
@@ -232,17 +235,14 @@ export default function BudgetScreen() {
     }
   }, [paidRepayments, ensureBudget, month, haptics, t]);
 
-  const handleAddExpense = useCallback(async () => {
-    try {
-      const b = await ensureBudget();
-      await addExpense(b.id, "", 0, false);
-      const exps = await listExpenses(b.id);
-      setExpenses(exps);
-      void haptics.light();
-    } catch {
-      toast.error(t("errorUpdatingExpense"));
-    }
-  }, [ensureBudget, haptics, t]);
+  const handleSaveExpense = async (fields: ExpenseDraft, id?: number) => {
+    await flushAllExpenseUpdates();
+    const savedBudget = await ensureBudget();
+    const saved = await saveExpenseDraft(savedBudget.id, fields, id);
+    setExpenses(current => id === undefined ? [...current, saved] : current.map(expense => expense.id === id ? saved : expense));
+    setExpenseEditor(null);
+    void haptics.success();
+  };
 
   const handleUpdateExpense = useCallback(
     async (
@@ -310,6 +310,7 @@ export default function BudgetScreen() {
         cancelExpenseUpdate(id);
         setExpenses((curr) => curr.filter((e) => e.id !== id));
         setExpenseToDelete(null);
+        setExpenseEditor(current => current?.expense?.id === id ? null : current);
         void haptics.warning();
       } catch {
         toast.error(t("errorRemovingExpense"));
@@ -385,7 +386,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-3 px-4 pt-2 pb-28">
+        <View className="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-28">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -415,7 +416,7 @@ export default function BudgetScreen() {
   return (
     <><FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center px-4 pt-2 pb-28"
+      contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-28"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -427,18 +428,18 @@ export default function BudgetScreen() {
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
         <View className="border-x border-border/60 bg-card px-3">
-          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} />
+          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={expense => setExpenseEditor({ expense })} />
         </View>
       )}
       ListHeaderComponent={
         <View className="gap-3">
           <View className="flex-row items-center gap-1">
-            <Button className="mr-auto border-0 bg-transparent px-0" variant="secondary" icon={ArrowLeft} label={t("navDashboard")} onPress={() => router.canGoBack() ? router.back() : router.replace("/(budget)")} />
+            <Button className="mr-auto border-0 bg-transparent px-0" variant="secondary" icon={ArrowLeft} label={t("navDashboard")} onPress={() => router.replace("/(budget)")} />
             <IconButton icon={ChevronLeft} accessibilityLabel={t("previousMonth")} onPress={() => router.setParams({ month: previousMonth })} />
             <IconButton icon={ChevronRight} accessibilityLabel={t("nextMonth")} onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
           <View className="gap-1">
-            <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{monthLabelFull(lang, month)}</Text>
+            <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{monthLabelFull(lang, month)}</Text>
             <Text className="text-xs leading-[18px] text-muted-foreground">{t("monthSubtitle")}</Text>
           </View>
           <View className="gap-2 rounded-[14px] border border-border/60 bg-card p-3">
@@ -448,7 +449,7 @@ export default function BudgetScreen() {
             </View>
             <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
           </View>
-          <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense} />
+          <CustomExpensesHeader expenses={expenses} onAdd={() => { void haptics.light(); setExpenseEditor({}); }} />
         </View>
       }
       ListFooterComponent={
@@ -477,6 +478,7 @@ export default function BudgetScreen() {
         try { await loadData(month); }
         catch { setLoadError(t("errorLoadingData")); }
       }} /> : null}
+    {expenseEditor && <ExpenseEditor expense={expenseEditor.expense} onSave={handleSaveExpense} onClose={() => setExpenseEditor(null)} onDelete={expenseEditor.expense ? () => askRemoveExpense(expenseEditor.expense!.id) : undefined} />}
     <ConfirmDialog visible={confirmCopy} title={t("copyFromPreviousMonth")} message={t("copyPreviousConfirm", { month: previousMonthLabel })} onClose={() => setConfirmCopy(false)} onConfirm={async () => { await handleCopyPrevious(); setConfirmCopy(false); }} />
     <ConfirmDialog visible={expenseToDelete !== null} destructive title={t("expenseDeleteTitle")}
       message={t("expenseDeleteBody", { name: expenseToDelete?.category || t("category"), amount: formatCurrency(expenseToDelete?.amount ?? 0) })}

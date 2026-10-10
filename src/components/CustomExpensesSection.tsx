@@ -17,6 +17,7 @@ interface Props {
   onAdd: () => void;
   onUpdate: (id: number, fields: Partial<Pick<Expense, "category" | "amount" | "paid" | "is_recurring">>) => void;
   onRemove: (id: number) => void;
+  onEdit?: (expense: Expense) => void;
   onToggleRecurring?: (expense: Expense, next: boolean) => void;
 }
 
@@ -30,19 +31,19 @@ export function CustomExpensesHeader({ expenses, onAdd }: Pick<Props, "expenses"
     <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-3">
       {expenses.length === 0 ? <Text className="py-4 text-center text-xs text-muted-foreground">{t("addCategoryPlaceholder")}</Text> :
         <View className="flex-row items-center gap-1 pb-2">
-          <Text className="w-9 text-center text-[10px] text-muted-foreground">{t("paid")}</Text>
+          <Text className="w-9 max-[360px]:w-7 text-center text-[10px] text-muted-foreground">{t("paid")}</Text>
           <Text className="min-w-0 flex-1 text-[10px] text-muted-foreground">{t("expenseName")}</Text>
-          <Text className="w-[76px] text-right text-[10px] text-muted-foreground">{t("expenseAmount")}</Text>
-          <View className="w-8" />
+          <Text className="w-[76px] max-[360px]:w-[65px] text-right text-[10px] text-muted-foreground">{t("expenseAmount")}</Text>
+          <View className="w-8 max-[360px]:w-7" />
         </View>}
     </View>
   </View>;
 }
 
-export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast = false, onUpdate, onRemove, onToggleRecurring }: {
+export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast = false, onUpdate, onRemove, onToggleRecurring, onEdit }: {
   expense: Expense;
   isLast?: boolean;
-} & Pick<Props, "onUpdate" | "onRemove" | "onToggleRecurring">) {
+} & Pick<Props, "onUpdate" | "onRemove" | "onToggleRecurring" | "onEdit">) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const haptics = useHaptics();
@@ -55,7 +56,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         <Checkbox
           checked={expense.paid}
           onPress={() => { void haptics.light(); onUpdate(expense.id, { paid: !expense.paid }); }}
-          className="w-9 shrink-0" hitSlop={4}
+          className="w-9 max-[360px]:w-7 shrink-0" hitSlop={4}
           accessibilityLabel={`${t("paid")}: ${expense.category || t("addCategoryPlaceholder")}`}
           android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
         />
@@ -89,18 +90,18 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         {editing === "amount" ? <NumberInput autoFocus value={expense.amount}
           onChange={(value) => onUpdate(expense.id, { amount: value })} min={0} decimals={2} placeholder="0.00"
           onBlur={() => setEditing(null)} onSubmitEditing={() => setEditing(null)}
-          accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })} className="w-[76px]" /> :
+          accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })} className="w-[76px] max-[360px]:w-[65px]" /> :
           <Pressable onPress={() => { close(); setEditing("amount"); }}
-            className="min-h-[44px] w-[76px] shrink-0 items-end justify-center rounded-lg active:bg-muted"
+            className="min-h-[44px] w-[76px] max-[360px]:w-[65px] shrink-0 items-end justify-center rounded-lg active:bg-muted"
             accessible accessibilityRole="button" accessibilityLabel={t("expenseEditAmount", { category: expense.category || t("category") })}>
-            <Text className={`text-xs font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount)}</Text>
+            <Text className={`text-sm font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount).replace("€", "")}</Text>
           </Pressable>}
         <View ref={triggerRef} collapsable={false}>
           <IconButton
             icon={MoreHorizontal}
-            className="w-8" hitSlop={6}
+            className="w-8 max-[360px]:w-7" hitSlop={6}
             selected={anchor !== null}
-            onPress={() => { void haptics.light(); setEditing(null); open(); }}
+            onPress={() => { void haptics.light(); setEditing(null); if (onEdit) onEdit(expense); else open(); }}
             accessibilityLabel={t("expenseOptions", { category: expense.category || t("category") })}
             accessibilityState={{ expanded: anchor !== null }}
           />

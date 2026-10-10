@@ -339,40 +339,41 @@ export async function setExpenseRecurring(
   expenseId: number,
   category: string,
   amount: number,
-  recurring: boolean
+  recurring: boolean,
+  exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
-  await db.withTransaction(async (tx) => {
-    const row = await tx.get<{ category: string; amount: number }>("SELECT category, amount FROM expenses WHERE id = ?", [expenseId]);
-    if (!row) throw new Error("Expense not found");
-    category = row.category;
-    amount = row.amount;
-    await tx.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
-      recurring ? 1 : 0,
-      expenseId,
-    ]);
-    if (recurring) {
-      const existingTemplate = await tx.get<Record<string, unknown>>(
-        "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? LIMIT 1",
-        [category, amount]
-      );
-      if (!existingTemplate) {
-        await tx.execute(
-          "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
-          [category, amount]
-        );
-      }
-      return;
-    }
-    const template = await tx.get<Record<string, unknown>>(
-      "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? ORDER BY id LIMIT 1",
+  if (exec === db.defaultExecutor) return db.withTransaction(tx => setExpenseRecurring(expenseId, category, amount, recurring, tx));
+  const tx = exec;
+  const row = await tx.get<{ category: string; amount: number }>("SELECT category, amount FROM expenses WHERE id = ?", [expenseId]);
+  if (!row) throw new Error("Expense not found");
+  category = row.category;
+  amount = row.amount;
+  await tx.execute("UPDATE expenses SET is_recurring = ? WHERE id = ?", [
+    recurring ? 1 : 0,
+    expenseId,
+  ]);
+  if (recurring) {
+    const existingTemplate = await tx.get<Record<string, unknown>>(
+      "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? LIMIT 1",
       [category, amount]
     );
-    if (template) {
-      await tx.execute("DELETE FROM recurring_expenses WHERE id = ?", [
-        Number(template.id),
-      ]);
+    if (!existingTemplate) {
+      await tx.execute(
+        "INSERT INTO recurring_expenses (category, amount) VALUES (?, ?)",
+        [category, amount]
+      );
     }
-  });
+    return;
+  }
+  const template = await tx.get<Record<string, unknown>>(
+    "SELECT id FROM recurring_expenses WHERE category = ? AND amount = ? ORDER BY id LIMIT 1",
+    [category, amount]
+  );
+  if (template) {
+    await tx.execute("DELETE FROM recurring_expenses WHERE id = ?", [
+      Number(template.id),
+    ]);
+  }
 }
 
 export async function populateRecurringExpenses(
@@ -527,6 +528,27 @@ export async function addExpense(
     paid: false,
     is_recurring: isRecurring,
   };
+}
+
+export type ExpenseDraft = Pick<Expense, "category" | "amount" | "paid" | "is_recurring">;
+
+/** A dialog save commits the expense and its recurring template together. */
+export async function saveExpenseDraft(budgetId: number, fields: ExpenseDraft, id?: number): Promise<Expense> {
+  const category = fields.category.trim();
+  if (!category || category.length > 100 || !Number.isFinite(fields.amount) || fields.amount < 0 ||
+      fields.amount > Number.MAX_SAFE_INTEGER / 100 || typeof fields.paid !== "boolean" || typeof fields.is_recurring !== "boolean") {
+    throw new Error("Invalid expense");
+  }
+  return db.withTransaction(async tx => {
+    const previous = id === undefined ? undefined : await tx.get<Expense>("SELECT * FROM expenses WHERE id = ? AND budget_id = ?", [id, budgetId]);
+    if (id !== undefined && !previous) throw new Error("Expense not found in this month");
+    const expense = previous ?? await addExpense(budgetId, category, fields.amount, false, tx);
+    await updateExpense(expense.id, { category, amount: fields.amount, paid: fields.paid }, tx);
+    if (fields.is_recurring || previous?.is_recurring) {
+      await setExpenseRecurring(expense.id, category, fields.amount, fields.is_recurring, tx);
+    }
+    return { ...expense, ...fields, category };
+  });
 }
 
 export async function updateExpense(

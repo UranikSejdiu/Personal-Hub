@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, View } from "react-nat
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { loadBudget, loadSavingsGoal, type Budget } from "../lib/budget";
-import { monthLabelShort, useI18n } from "../lib/i18n";
+import { monthLabelFull, useI18n } from "../lib/i18n";
 import { useThemeColors, useThemeVariables } from "../lib/theme";
 import { parseNumberInput } from "../lib/numberInput";
 import { Text, TextInput } from "./ui/Typography";
@@ -85,19 +85,19 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
           style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
           <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
             className="max-h-full w-full max-w-md overflow-hidden rounded-[22px] border border-border bg-card">
-            <View className="flex-row items-center justify-between px-4 pt-2">
+            <View className="flex-row items-center justify-between px-[18px] pt-2.5">
               <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">{t(budget ? "monthEditTitle" : "monthCreateTitle")}</Text>
               <IconButton icon={X} accessibilityLabel={t("cancel")} disabled={busy} onPress={close} />
             </View>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 12 }}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, gap: 12 }}>
               {loading ? <ActivityIndicator color={colors.primary} /> : <>
-                <Button variant="secondary" icon={CalendarDays} label={monthLabelShort(lang, month)} disabled={!!budget || busy} onPress={() => setDatePicker(true)} />
+                <Button variant="secondary" icon={CalendarDays} label={monthLabelFull(lang, month)} disabled={!!budget || busy} onPress={() => setDatePicker(true)} />
                 {([{ label: t("monthlyIncome"), value: income, change: setIncome }, { label: t("savingsGoalLabel"), value: goal, change: setGoal }]).map((field) =>
                   <View key={field.label} className="gap-2">
                     <Text className="text-sm font-semibold text-foreground">{field.label}</Text>
                     <TextInput accessibilityLabel={field.label} value={field.value} onChangeText={field.change} editable={!busy}
                       keyboardType="decimal-pad" selectTextOnFocus placeholder="0.00" placeholderTextColor={colors.mutedForeground}
-                      className="min-h-[44px] rounded-xl border border-border bg-background px-3 text-base text-foreground" />
+                      className="min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 text-base text-foreground" />
                   </View>)}
                 <Text className="text-sm leading-5 text-muted-foreground">{t("monthDefaultsHelp")}</Text>
                 {!valid ? <Text accessibilityLiveRegion="polite" className="text-sm text-destructive">{t("monthAmountsInvalid")}</Text> : null}

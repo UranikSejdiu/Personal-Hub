@@ -15,6 +15,7 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
   let timerId = 0;
   const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const hooks = {
+    memo: component => component,
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -112,6 +113,64 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
 module.exports = async function verifyHubImprovements(root, parseNumberInput) {
   const results = [];
   const verify = async (name, fn) => { await fn(); results.push({ name, passed: true }); };
+  await verify('Expense dialogs retain failed drafts, confirm discard and block overlapping saves', async () => {
+    let closed = 0, saves = 0, rejectSave;
+    const editor = fixture(root, 'src/components/ExpenseEditor.tsx', 'ExpenseEditor', {
+      onClose: () => { closed++; }, onSave: () => { saves++; return new Promise((resolve, reject) => { rejectSave = reject; }); },
+    }, { '../lib/numberInput': { parseNumberInput } });
+    editor.render();
+    assert.equal(editor.all('Button').find(node => node.props.label === 'save').props.disabled, true);
+    editor.all('TextInput')[0].props.onChangeText('Rent');
+    editor.all('TextInput')[1].props.onChangeText('1,200.50'); editor.render();
+    editor.all('Checkbox')[0].props.onPress(); editor.render();
+    editor.all('Button').find(node => node.props.label === 'save').props.onPress();
+    editor.render();
+    editor.all('Button').find(node => node.props.label === 'save').props.onPress();
+    editor.all('FormDialog')[0].props.onClose(); editor.render();
+    assert.equal(saves, 1); assert.equal(closed, 0);
+    rejectSave(new Error('storage failure')); await editor.settle();
+    assert.equal(editor.all('TextInput')[1].props.value, '1,200.50');
+    assert.ok(editor.all('Text').some(node => node.props.accessibilityRole === 'alert'));
+    editor.all('FormDialog')[0].props.onClose(); editor.render();
+    assert.equal(editor.all('ConfirmDialog')[0].props.visible, true);
+    editor.all('ConfirmDialog')[0].props.onClose(); editor.render(); assert.equal(closed, 0);
+    editor.all('FormDialog')[0].props.onClose(); editor.render();
+    editor.all('ConfirmDialog')[0].props.onConfirm(); assert.equal(closed, 1); editor.dispose();
+  });
+  await verify('Centered action dialogs close before acting and ignore disabled actions', async () => {
+    const events = [];
+    const dialog = fixture(root, 'src/components/ui/ActionDialog.tsx', 'ActionDialog', {
+      visible: true, title: 'Options', onClose: () => events.push('close'),
+      actions: [{ key: 'edit', label: 'Edit', onPress: () => events.push('edit') },
+        { key: 'disabled', label: 'Blocked', disabled: true, onPress: () => events.push('blocked') }],
+    });
+    dialog.render(); dialog.all('Button')[1].props.onPress(); assert.equal(events.length, 0);
+    dialog.all('Button')[0].props.onPress(); assert.equal(events.join(','), 'close,edit'); dialog.dispose();
+  });
+  await verify('Long year/select menus stay scrollable within compact-screen safe areas', async () => {
+    const menu = fixture(root, 'src/components/ui/AnchoredMenu.tsx', 'AnchoredMenu', {
+      anchor: { x: 10, y: 240, width: 200, height: 44 }, onClose() {},
+      items: Array.from({ length: 20 }, (_, i) => ({ key: String(i), label: String(i), onPress() {} })),
+    }, {
+      'react-native': { Modal: 'Modal', Pressable: 'Pressable', ScrollView: 'ScrollView', View: 'View', useWindowDimensions: () => ({ width: 360, height: 300 }) },
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 24, bottom: 16 }) },
+    });
+    menu.render();
+    assert.equal(menu.all('ScrollView').length, 1);
+    assert.ok(menu.all('ScrollView')[0].props.style.maxHeight <= 244);
+    const position = menu.all('View').find(node => node.props.accessibilityViewIsModal).props.style;
+    assert.ok(position.top >= 32); assert.ok(position.top + position.maxHeight <= 284);
+    menu.dispose();
+  });
+  await verify('Archived notes keep pinned and unpinned entries together', async () => {
+    const notes = fixture(root, 'src/components/NotesListScreen.tsx', 'default', { archived: true }, {
+      '../lib/notes': { loadNotesPage: async () => ({ notes: [{ id: 1, is_pinned: true }, { id: 2, is_pinned: false }], nextOffset: 2, hasMore: false }) },
+      '../lib/notesPreferences': { getNotesPreferences: async () => ({ viewMode: 'grid', sort: 'updated' }), setNotesPreferences: async () => {} },
+    });
+    await notes.settle();
+    const sections = notes.all('FlatList')[0].props.data.filter(row => row.type === 'section');
+    assert.equal(sections.length, 1); assert.equal(sections[0].labelKey, 'notesArchivedList'); notes.dispose();
+  });
   await verify('Number fields accept grouped amounts and retain the last valid value after invalid input', async () => {
     const changes = [];
     const props = { value: 10, decimals: 2, onChange: value => { changes.push(value); props.value = value; } };
@@ -415,6 +474,28 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     screen.timers(); await screen.settle();
     assert.equal(calls.length, afterSort, 'Changing sort cancels the pending search instead of fetching twice');
     screen.dispose();
+  });
+  await verify('Grouped backup export routes folder/share actions correctly and blocks overlapping exports', async () => {
+    let folders = 0, shares = 0, finish;
+    const screen = fixture(root, 'src/components/SettingsScreen.tsx', 'default', { activeAppId: 'budget', section: 'backup' }, {
+      'react-native': new Proxy({ Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } }, { get: (obj, key) => key in obj ? obj[key] : key }),
+      '../lib/theme': { useTheme: () => ({ theme: 'light', setTheme() {} }), useThemeColors: () => ({}) },
+      '../hooks/useHaptics': { useHaptics: () => ({ light: async () => {} }), isHapticsEnabled: () => true, getHapticsEnabled: async () => true },
+      '../hub/ModulePreferences': { useModulePreferences: () => ({ enabledIds: ['budget'], saveEnabledIds: async () => {} }) },
+      '../lib/backup': { hasSafetyBackup: async () => false, exportBackupToDirectory: () => { folders++; return new Promise(resolve => { finish = resolve; }); }, exportAndShareBackup: async () => { shares++; return 'shared'; } },
+      '../lib/sampleData': { hasSampleData: async () => false },
+    });
+    await screen.settle();
+    screen.all('Button').find(node => node.props.label === 'exportData').props.onPress(); screen.render();
+    const menu = screen.all('ActionDialog')[0]; assert.equal(menu.props.visible, true);
+    menu.props.actions.find(action => action.key === 'folder').onPress(); screen.render();
+    menu.props.actions.find(action => action.key === 'share').onPress();
+    assert.equal(folders, 1); assert.equal(shares, 0);
+    assert.equal(screen.all('FormDialog')[0].props.busy, true);
+    finish(null); await screen.settle();
+    screen.all('ActionDialog')[0].props.actions.find(action => action.key === 'share').onPress(); await screen.settle();
+    assert.equal(shares, 1); assert.equal(screen.all('FormDialog')[0].props.busy, false);
+    assert.equal(screen.errors.length, 0); screen.dispose();
   });
   await verify('Vibration preview failure does not undo a saved Hub preference', async () => {
     let enabled = false;

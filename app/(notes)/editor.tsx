@@ -615,7 +615,7 @@ export default function NotesEditorScreen() {
         <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
         <Pressable
           onPress={() => router.back()}
-          className="rounded-lg bg-primary px-4 py-2"
+          className="rounded-lg bg-primary px-4 max-[360px]:px-3 py-2"
           accessibilityRole="button"
           accessibilityLabel={t("cancel")}
         >
@@ -630,7 +630,7 @@ export default function NotesEditorScreen() {
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-2 pb-1">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 max-[360px]:px-3 pt-2 pb-1">
             <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="min-h-[44px] flex-row items-center gap-2 rounded-[11px] active:bg-muted"
               accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: isSaving || isAddingItem }}>
               <ArrowLeft size={18} color={colors.primary} /><Text className="text-xs font-semibold text-primary">{t("navNotes")}</Text>
@@ -638,7 +638,7 @@ export default function NotesEditorScreen() {
             <Text className="text-xs text-muted-foreground">{t(isArchived ? "notesArchivedStatus" : "notesTextStatus")}</Text>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
 
           {/* Fill the available writing area and keep growing for longer notes. */}
           <KeyboardAwareScrollView
@@ -661,11 +661,11 @@ export default function NotesEditorScreen() {
                 }}
                 placeholder={t("notesTitlePlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
-                className="w-full px-4 pt-2 pb-1 text-[22px] font-semibold text-foreground"
+                className="w-full px-4 max-[360px]:px-3 pt-2 pb-1 text-[22px] font-semibold text-foreground"
                 multiline
               />
 
-              <View className="mx-4 mt-2 flex-row flex-wrap gap-2">
+              <View className="mx-4 max-[360px]:mx-3 mt-2 flex-row flex-wrap gap-2">
                 {!isArchived && <Pressable onPress={handleSave} disabled={isSaving || isAddingItem}
                   className="min-h-[44px] items-center justify-center rounded-[11px] bg-primary px-3 py-2 disabled:opacity-50"
                   accessibilityRole="button" accessibilityLabel={t("save")} accessibilityState={{ disabled: isSaving || isAddingItem, busy: isSaving }}>
@@ -675,7 +675,7 @@ export default function NotesEditorScreen() {
                   onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
               </View>
 
-              <View className="mx-4 mt-3 overflow-hidden rounded-[14px] border border-border/60 bg-card">
+              <View className="mx-4 max-[360px]:mx-3 mt-3 overflow-hidden rounded-[14px] border border-border/60 bg-card">
                 {!isArchived && !keyboardVisible && formatToolbar}
                 {isArchived ? (
                   <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={colors.primary}>
@@ -711,7 +711,7 @@ export default function NotesEditorScreen() {
                     void handleAddListItem();
                   }}
                   disabled={isAddingItem}
-                  className="min-h-[44px] flex-row items-center gap-2 px-4"
+                  className="min-h-[44px] flex-row items-center gap-2 px-4 max-[360px]:px-3"
                   android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
                   accessibilityRole="button"
                   accessibilityLabel={t("notesAddItem")}

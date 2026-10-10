@@ -63,11 +63,11 @@ function RootLayoutInner() {
         <Stack.Screen name="(budget)" />
         <Stack.Screen name="(notes)" />
         <Stack.Screen name="(tasks)" />
-        <Stack.Screen name="settings/[section]" />
+        <Stack.Screen name="settings/[section]" options={{ presentation: "transparentModal", animation: "fade", contentStyle: { backgroundColor: "transparent" } }} />
       </Stack>
       <Toaster
-        position="top-center"
-        offset={insets.top + 64}
+        position="bottom-center"
+        offset={insets.bottom + 89}
         positionerStyle={{ maxWidth: 400, alignSelf: "center" }}
         theme={resolvedTheme}
         visibleToasts={2}
@@ -76,7 +76,7 @@ function RootLayoutInner() {
             marginHorizontal: 16,
             paddingHorizontal: 14,
             paddingVertical: 11,
-            borderRadius: 18,
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,

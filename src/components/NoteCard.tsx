@@ -39,7 +39,7 @@ export const NoteCard = React.memo(function NoteCard({
   return (
     <Pressable
       onPress={() => onPress(note)}
-      className={`relative mb-2 rounded-xl border border-border/50 bg-card p-3 active:opacity-70 ${layout === "grid" ? "min-h-[116px]" : "min-h-[96px]"}`}
+      className={`relative mb-2 rounded-[14px] border border-border/60 bg-card p-3 active:opacity-70 ${layout === "grid" ? "min-h-[116px]" : "min-h-[96px]"}`}
       accessible
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}

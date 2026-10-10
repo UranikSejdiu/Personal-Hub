@@ -390,7 +390,7 @@ export default function ChecklistEditorScreen() {
         <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
         <Pressable
           onPress={() => router.back()}
-          className="min-h-[44px] justify-center rounded-lg bg-primary px-4 py-2 active:opacity-70"
+          className="min-h-[44px] justify-center rounded-lg bg-primary px-4 max-[360px]:px-3 py-2 active:opacity-70"
           accessibilityRole="button"
           accessibilityLabel={t("cancel")}
         >
@@ -401,7 +401,7 @@ export default function ChecklistEditorScreen() {
   }
 
   const listFooter = (
-    <View className="mx-4 rounded-b-[14px] border-x border-b border-border/60 bg-card px-2 pb-3">
+    <View className="mx-4 max-[360px]:mx-3 rounded-b-[14px] border-x border-b border-border/60 bg-card px-2 pb-3">
       {!isArchived && <Pressable
         onPress={handleAddItem}
         disabled={isBusy}
@@ -479,7 +479,7 @@ export default function ChecklistEditorScreen() {
     <>
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-2 pb-1">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 max-[360px]:px-3 pt-2 pb-1">
             <Pressable onPress={handleBack} disabled={isBusy} className="min-h-[44px] flex-row items-center gap-2 rounded-[11px] active:bg-muted"
               accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: isBusy }}>
               <ArrowLeft size={18} color={colors.primary} /><Text className="text-xs font-semibold text-primary">{t("navNotes")}</Text>
@@ -487,7 +487,7 @@ export default function ChecklistEditorScreen() {
             <Text className="text-xs text-muted-foreground">{t(isArchived ? "notesArchivedStatus" : "notesChecklistStatus")}</Text>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
 
           <DraggableFlatList
             className="w-full max-w-md self-center"
@@ -512,10 +512,10 @@ export default function ChecklistEditorScreen() {
                 }}
                 placeholder={t("notesUntitled")}
                 placeholderTextColor={colors.mutedForeground}
-                className="mb-3 w-full px-4 pt-2 pb-1 text-[22px] font-semibold text-foreground"
+                className="mb-3 w-full px-4 max-[360px]:px-3 pt-2 pb-1 text-[22px] font-semibold text-foreground"
                 multiline
               />
-              <View className="mx-4 mt-2 flex-row flex-wrap gap-2">
+              <View className="mx-4 max-[360px]:mx-3 mt-2 flex-row flex-wrap gap-2">
                 {!isArchived && <Pressable onPress={handleSave} disabled={isBusy}
                   className="min-h-[44px] items-center justify-center rounded-[11px] bg-primary px-3 py-2 disabled:opacity-50"
                   accessibilityRole="button" accessibilityLabel={t("save")} accessibilityState={{ disabled: isBusy, busy: isSaving }}>
@@ -524,7 +524,7 @@ export default function ChecklistEditorScreen() {
                 <NoteActions variant="labels" isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isBusy}
                   onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
               </View>
-              <View className="mx-4 mt-3 h-2 rounded-t-[14px] border-x border-t border-border/60 bg-card" />
+              <View className="mx-4 max-[360px]:mx-3 mt-3 h-2 rounded-t-[14px] border-x border-t border-border/60 bg-card" />
             </View>}
             ListFooterComponent={listFooter}
           />

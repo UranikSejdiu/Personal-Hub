@@ -1,10 +1,10 @@
 import { Text } from "../ui/Typography";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Pressable, View } from "react-native";
-import { MoreHorizontal, Pencil, Trash2, CalendarDays, Repeat, Bell } from "../AppIcons";
+import { MoreHorizontal, CalendarDays, Repeat, Bell } from "../AppIcons";
 import { Checkbox } from "../ui/Checkbox";
 import { IconButton } from "../ui/Button";
-import { AnchoredMenu, useAnchoredMenu } from "../ui/AnchoredMenu";
+import { ActionDialog } from "../ui/ActionDialog";
 import { useI18n, type TKey } from "../../lib/i18n";
 import { formatTaskDate } from "../../lib/taskDates";
 import { useThemeColors } from "../../lib/theme";
@@ -21,7 +21,7 @@ export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, on
 }) {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const { triggerRef, anchor, open, close } = useAnchoredMenu();
+  const [menuOpen, setMenuOpen] = useState(false);
   const completed = task.completed_at !== null;
   const overdue = !completed && task.due_date !== null && task.due_date < today;
   return <View className={cn("border-border/60 bg-card px-3", !grouped ? "mb-2.5 rounded-[14px] border" : "border-x",
@@ -41,12 +41,12 @@ export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, on
           {task.reminder_time ? <View className="flex-row items-center gap-1"><Bell size={11} color={colors.mutedForeground} /><Text className="text-[10px] text-muted-foreground">{task.reminder_time}</Text></View> : null}
         </View>
       </Pressable>
-      <View ref={triggerRef} collapsable={false}><IconButton icon={MoreHorizontal} disabled={busy} onPress={open}
-        selected={anchor !== null} accessibilityLabel={t("tasksActionsNamed", { name: task.title })} accessibilityState={{ expanded: anchor !== null }} /></View>
+      <View><IconButton icon={MoreHorizontal} disabled={busy} onPress={() => setMenuOpen(true)}
+        selected={menuOpen} accessibilityLabel={t("tasksActionsNamed", { name: task.title })} accessibilityState={{ expanded: menuOpen }} /></View>
     </View>
-    <AnchoredMenu anchor={anchor} onClose={close} items={[
-      ...(!completed ? [{ key: "edit", label: t("tasksEdit"), icon: Pencil, onPress: () => onEdit(task) }] : []),
-      { key: "delete", label: t("delete"), icon: Trash2, destructive: true, onPress: () => onDelete(task) },
+    <ActionDialog visible={menuOpen} title={t("tasksOptions")} onClose={() => setMenuOpen(false)} actions={[
+      ...(!completed ? [{ key: "edit", label: t("tasksEdit"), primary: true, onPress: () => onEdit(task) }] : []),
+      { key: "delete", label: t("delete"),  onPress: () => onDelete(task) },
     ]} />
   </View>;
 });

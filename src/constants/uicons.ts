@@ -2,6 +2,7 @@
 export const UICON_GLYPHS = {
   "CalendarDays": "",
   "Bell": "",
+  "Lock": "",
   "Trash2": "︗",
   "Plus": "窱",
   "ChevronDown": "",

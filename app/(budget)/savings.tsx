@@ -1,8 +1,7 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, ScrollView, Pressable, Modal, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Plus, Pencil, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
+import { View, Pressable, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
+import { Plus, Pencil, ArrowDownLeft, ArrowUpRight, Archive, ChevronDown, Lock } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -24,12 +23,14 @@ import {
   type SavingsEntryType,
   type TransactionUpdate,
 } from "../../src/lib/savings";
-import { formatCurrency, withAlpha } from "../../src/lib/utils";
+import { formatCurrency } from "../../src/lib/utils";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { useThemeColors, useThemeVariables } from "../../src/lib/theme";
+import { useThemeColors } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { SavingsGoalCard } from "../../src/components/SavingsGoalCard";
+import { FormDialog } from "../../src/components/ui/FormDialog";
+import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
 import { Button, IconButton } from "../../src/components/ui/Button";
 import { parseNumberInput } from "../../src/lib/numberInput";
 
@@ -60,7 +61,6 @@ interface ConfirmAction {
 export default function SavingsScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const themeVariables = useThemeVariables();
   const haptics = useHaptics();
   const [goalAmount, setGoalAmount] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
@@ -68,8 +68,12 @@ export default function SavingsScreen() {
   const focused = useRef(false);
   const [entries, setEntries] = useState<SavingsEntry[]>([]);
   const [summary, setSummary] = useState<SavingsSummary>({ balance: 0, totalSaved: 0, totalSpent: 0 });
-  const [selectedYear, setSelectedYear] = useState<number | "all">(() => new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number | "all">("all");
 
+  const [closeYearOpen, setCloseYearOpen] = useState(false);
+  const [closingYear, setClosingYear] = useState<number | null>(null);
+  const { triggerRef: yearMenuRef, anchor: yearMenuAnchor, open: openYearMenu, close: closeYearMenu } = useAnchoredMenu();
+  const { triggerRef: closingMenuRef, anchor: closingMenuAnchor, open: openClosingMenu, close: closeClosingMenu } = useAnchoredMenu();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
@@ -356,9 +360,9 @@ export default function SavingsScreen() {
           <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel={t("savingsEditEntry")}>
             <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
             <Text className="text-xs text-muted-foreground">{entry.date} · {badgeLabel}</Text>
+            <Text className={`text-sm font-semibold ${amountColor}`}>{sign}{formatCurrency(entry.amount)}</Text>
           </Pressable>
-          <Text className={`text-sm font-semibold ${amountColor}`}>{sign}{formatCurrency(entry.amount)}</Text>
-          {!locked && <IconButton icon={Pencil} accessibilityLabel={t("savingsEditEntry")} onPress={() => handleTapEntry(entry)} />}
+          {locked ? <View className="h-11 w-11 items-center justify-center" accessible accessibilityRole="image" accessibilityLabel={t("savingsProtected")}><Lock size={18} color={colors.mutedForeground} /></View> : <IconButton icon={Pencil} accessibilityLabel={t("savingsEditEntry")} onPress={() => handleTapEntry(entry)} />}
         </View>
       </View>;
     },
@@ -369,51 +373,20 @@ export default function SavingsScreen() {
     () => (
     <View className="gap-3">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <View className="gap-1"><Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
+        <View className="gap-1"><Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
         <Button icon={Plus} label={t("savingsNewEntry")} onPress={() => { void haptics.light(); openCreateModal(); }} />
       </View>
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
-      <View className="flex-row items-center justify-between"><Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("activityLabel")}</Text></View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
-          {availableYears.map((y) => {
-            const isSelected = selectedYear === y;
-            const isPastYear = y < currentYear;
-            return (
-              <View key={y} className="flex-row items-center gap-1">
-                <Pressable
-                  onPress={() => { void haptics.light(); setSelectedYear(y); }}
-                  className={`min-h-[44px] justify-center rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-                  android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                  accessibilityRole="button"
-                  accessibilityLabel={String(y)}
-                  accessibilityState={{ selected: isSelected }}
-                >
-                  <Text className={`text-xs font-medium ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{y}</Text>
-                </Pressable>
-                {isPastYear && (
-                  <Pressable
-                    onPress={() => handleCloseYear(y)}
-                    className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
-                    accessibilityLabel={t("closeYearLabel")}
-                  >
-                    <Archive size={14} color={colors.mutedForeground} />
-                  </Pressable>
-                )}
-              </View>
-            );
-          })}
-          <Pressable
-            onPress={() => { void haptics.light(); setSelectedYear("all"); }}
-            className={`min-h-[44px] justify-center rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
-            android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-            accessibilityRole="button"
-            accessibilityLabel={t("filterAll")}
-            accessibilityState={{ selected: selectedYear === "all" }}
-          >
-            <Text className={`text-xs font-medium ${selectedYear === "all" ? "text-primary" : "text-muted-foreground"}`}>{t("filterAll")}</Text>
+      {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="secondary" icon={Archive} label={t("savingsClosePrior")} onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
+      <View className="gap-[7px]">
+        <Text className="text-[13px] font-semibold text-foreground">{t("savingsYear")}</Text>
+        <View ref={yearMenuRef} collapsable={false}>
+          <Pressable onPress={openYearMenu} accessibilityRole="button" accessibilityLabel={t("savingsYear")} accessibilityState={{ expanded: yearMenuAnchor !== null }} className="min-h-[44px] flex-row items-center justify-between rounded-[11px] border border-border/60 bg-card px-3 py-2.5">
+            <Text className="text-sm text-foreground">{selectedYear === "all" ? t("savingsAllYears") : selectedYear}</Text><ChevronDown size={16} color={colors.mutedForeground} />
           </Pressable>
-        </ScrollView>
-
+        </View>
+      </View>
+      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("activityLabel")}</Text>
       <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-2">
         {filteredEntries.length === 0 && (
           <View className="items-center gap-1 py-6">
@@ -434,8 +407,8 @@ export default function SavingsScreen() {
       selectedYear,
       currentYear,
       openCreateModal,
-      handleCloseYear,
       haptics,
+      yearMenuRef, openYearMenu, yearMenuAnchor,
     ]
   );
 
@@ -466,7 +439,7 @@ export default function SavingsScreen() {
   return (
     <View className="flex-1 bg-background">
       {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 p-4">
-        <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text>
+        <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text>
         <View className="items-center gap-3 rounded-xl border border-border bg-card px-4 py-8">
           {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
             <Text className="text-sm text-muted-foreground">{t("loading")}</Text></>
@@ -485,23 +458,25 @@ export default function SavingsScreen() {
         contentContainerStyle={styles.listContent}
       />}
 
-      <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView className="flex-1" style={themeVariables} behavior="padding" automaticOffset>
-        <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
-          <View className="max-h-full w-full max-w-sm overflow-hidden rounded-[22px] bg-card">
-          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-[18px]">
-            <Text className="text-[22px] font-semibold text-foreground">
-              {editingKind === "auto"
-                ? t("savingsAutoEditTitle")
-                : editingId === null
-                  ? t("savingsNewEntry")
-                  : t("savingsEditEntry")}
-            </Text>
+      <AnchoredMenu anchor={yearMenuAnchor} onClose={closeYearMenu} align="start" size="regular" items={[
+        { key: "all", label: t("savingsAllYears"), selected: selectedYear === "all", onPress: () => setSelectedYear("all") },
+        ...availableYears.map(year => ({ key: String(year), label: String(year), selected: selectedYear === year, onPress: () => setSelectedYear(year) })),
+      ]} />
+      {closeYearOpen && <FormDialog title={t("savingsClosePrior")} onClose={() => setCloseYearOpen(false)}>
+        <Text className="text-[13px] font-semibold text-foreground">{t("savingsYear")}</Text>
+        <View ref={closingMenuRef} collapsable={false}><Button variant="secondary" icon={ChevronDown} label={String(closingYear ?? "")} onPress={openClosingMenu} /></View>
+        <Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsCloseHelp")}</Text>
+        <View className="flex-row justify-end gap-2"><Button variant="secondary" label={t("cancel")} onPress={() => setCloseYearOpen(false)} /><Button label={t("closeYearLabel")} disabled={closingYear === null} onPress={() => { setCloseYearOpen(false); if (closingYear !== null) handleCloseYear(closingYear); }} /></View>
+        <AnchoredMenu anchor={closingMenuAnchor} onClose={closeClosingMenu} align="start" size="regular" items={availableYears.filter(year => year < currentYear).map(year => ({ key: String(year), label: String(year), selected: closingYear === year, onPress: () => setClosingYear(year) }))} />
+      </FormDialog>}
+      <FormDialog visible={showModal} busy={saving} onClose={() => setShowModal(false)} title={editingKind === "auto"
+        ? t("savingsAutoEditTitle") : editingId === null ? t("savingsNewEntry") : t("savingsEditEntry")}>
+          <View pointerEvents={saving ? "none" : "auto"} className="gap-3">
             {modalError ? <Text className="mt-2 text-sm text-destructive">{modalError}</Text> : null}
             <View className="mt-3 gap-3">
               {editingKind !== "auto" && (
                 <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsEntryType")}</Text>
+                  <Text className="text-[13px] font-semibold text-foreground">{t("savingsEntryType")}</Text>
                   <View className="mt-1 flex-row gap-2">
                     {(["deposit", "purchase"] as const).map((typeOption) => {
                       const Icon = typeOption === "deposit" ? ArrowDownLeft : ArrowUpRight;
@@ -523,32 +498,32 @@ export default function SavingsScreen() {
                 </View>
               )}
               <View>
-                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsAmountLabel")}</Text>
+                <Text className="text-[13px] font-semibold text-foreground">{t("savingsAmountLabel")}</Text>
                 <TextInput
                   value={formAmount}
                   onChangeText={setFormAmount}
                   placeholder="0.00"
                   keyboardType="decimal-pad"
-                  className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
+                  className="mt-[7px] min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 text-base text-foreground"
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
               <View>
-                <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">
+                <Text className="text-[13px] font-semibold text-foreground">
                   {editingKind === "auto" ? t("savingsAutoDescriptionLabel") : t("savingsDescriptionLabel")}
                 </Text>
                 <TextInput
                   value={formDesc}
                   onChangeText={setFormDesc}
                   placeholder={t("savingsDescriptionLabel")}
-                  className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
+                  className="mt-[7px] min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 text-base text-foreground"
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
               {editingKind !== "auto" && (
                 <View>
-                  <Text className="ml-1 text-xs font-semibold tracking-wider text-muted-foreground">{t("savingsDateLabel")}</Text>
-                  <Pressable onPress={() => setDatePickerVisible(true)} className="mt-1 rounded-lg border border-border bg-background px-3 py-2.5">
+                  <Text className="text-[13px] font-semibold text-foreground">{t("savingsDateLabel")}</Text>
+                  <Pressable onPress={() => setDatePickerVisible(true)} className="mt-[7px] min-h-[44px] justify-center rounded-[11px] border border-border/60 bg-card px-3 py-2.5">
                     <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
                   </Pressable>
                 </View>
@@ -556,22 +531,15 @@ export default function SavingsScreen() {
             </View>
             <View className="mt-4 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (
-                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("delete")}>
+                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="mr-auto min-h-[44px] justify-center" accessibilityRole="button" accessibilityLabel={t("delete")}>
                   <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
                 </Pressable>
               )}
-              <Pressable onPress={() => setShowModal(false)} className="px-2 py-1" accessibilityRole="button" accessibilityLabel={t("cancel")}>
-                <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
-              </Pressable>
-              <Pressable onPress={() => void handleSave()} disabled={saving} className="rounded-lg bg-primary px-4 py-2" android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }} accessibilityRole="button" accessibilityLabel={t("save")}>
-                <Text className="text-sm font-medium text-primary-foreground">{t("save")}</Text>
-              </Pressable>
+              <Button variant="secondary" label={t("cancel")} disabled={saving} onPress={() => setShowModal(false)} />
+              <Button label={t("save")} busy={saving} onPress={() => { void handleSave(); }} />
             </View>
-          </ScrollView>
           </View>
-        </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormDialog>
 
       {datePickerVisible && (
         <DatePicker
@@ -601,5 +569,4 @@ export default function SavingsScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 112 },
-  yearScrollContent: { gap: 8, paddingBottom: 4 },
 });

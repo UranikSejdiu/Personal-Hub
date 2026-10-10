@@ -25,7 +25,7 @@ import type { NoteKind } from "../types/notes";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 112 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 112 },
 });
 
 const SORT_OPTIONS: { value: NoteSort; labelKey: TKey }[] = [
@@ -216,15 +216,15 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     [notes]
   );
   const otherNotes = useMemo(
-    () => notes.filter((n) => !n.is_pinned),
-    [notes]
+    () => archived ? notes : notes.filter((n) => !n.is_pinned),
+    [notes, archived]
   );
 
   const columns = viewMode === "grid" ? 2 : 1;
   const pinnedCols = useMemo(() => splitIntoColumns(pinnedNotes, columns), [pinnedNotes, columns]);
   const otherCols = useMemo(() => splitIntoColumns(otherNotes, columns), [otherNotes, columns]);
 
-  const hasPinned = pinnedNotes.length > 0;
+  const hasPinned = !archived && pinnedNotes.length > 0;
 
   const listData = useMemo<NotesListRow[]>(() => {
     if (notes.length === 0) return [];
@@ -239,12 +239,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       }
     };
     if (hasPinned) {
-      data.push({ type: "section", key: "section-pinned", labelKey: "notesPinned" });
+      data.push({ type: "section", key: "section-pinned", labelKey: "notesPinnedSection" });
       pushRows(pinnedCols, "pinned");
-      data.push({ type: "section", key: "section-others", labelKey: "notesOthers", spacedTop: true });
+      data.push({ type: "section", key: "section-others", labelKey: "notesAll", spacedTop: true });
       pushRows(otherCols, "other");
     } else {
-      data.push({ type: "section", key: "section-all", labelKey: archived ? "notesArchiveTitle" : "notesTitle" });
+      data.push({ type: "section", key: "section-all", labelKey: archived ? "notesArchivedList" : "notesAll" });
       pushRows(otherCols, "other");
     }
     return data;
@@ -306,20 +306,20 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-2 px-4 pt-2 pb-0">
+      <View className="w-full max-w-md self-center gap-2 px-4 max-[360px]:px-3 pt-2 pb-0">
         <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-semibold tracking-[-0.4px] text-foreground">
+          <Text className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">
             {t(archived ? "notesArchiveTitle" : "notesTitle")}
           </Text>
           {!archived && <Pressable
             onPress={handleNew}
-            className="min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-3 py-2 active:opacity-70"
+            className="min-h-[44px] flex-row items-center gap-2 rounded-[11px] bg-primary px-3 py-2 active:opacity-70"
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("notesNew")}
           >
             <Plus size={14} color={colors.primaryForeground} />
-            <Text className="text-sm font-medium text-primary-foreground">
+            <Text className="text-xs font-semibold text-primary-foreground">
               {t("notesNew")}
             </Text>
           </Pressable>}

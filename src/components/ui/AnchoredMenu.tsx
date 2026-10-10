@@ -1,6 +1,6 @@
 import { Text } from "./Typography";
 import { useCallback, useRef, useState, type ComponentRef, type ComponentType } from "react";
-import { Modal, Pressable, View, useWindowDimensions } from "react-native";
+import { Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";
@@ -55,7 +55,8 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const width = Math.min(size === "regular" ? 240 : 200, screenWidth - EDGE * 2);
-  const height = items.length * ROW_HEIGHT + MENU_PADDING;
+  const maxHeight = Math.max(ROW_HEIGHT, screenHeight - insets.top - insets.bottom - EDGE * 2);
+  const height = Math.min(items.length * ROW_HEIGHT + MENU_PADDING, maxHeight);
   const preferredLeft = anchor ? (align === "end" ? anchor.x + anchor.width - width : anchor.x) : EDGE;
   const left = Math.max(EDGE, Math.min(preferredLeft, screenWidth - width - EDGE));
   const bottomLimit = screenHeight - insets.bottom - EDGE;
@@ -79,9 +80,10 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
         {anchor ? (
           <View
             className="absolute rounded-2xl border border-border/60 bg-card p-2 shadow-md"
-            style={{ top, left, width }}
+            style={{ top, left, width, maxHeight }}
             accessibilityViewIsModal
           >
+            <ScrollView style={{ maxHeight: Math.max(ROW_HEIGHT, maxHeight - MENU_PADDING) }} keyboardShouldPersistTaps="handled">
             {items.map((item) => {
               const Icon = item.icon;
               const color = item.destructive ? colors.destructive : item.selected ? colors.primary : colors.mutedForeground;
@@ -113,6 +115,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
                 </Pressable>
               );
             })}
+            </ScrollView>
           </View>
         ) : null}
       </Pressable>

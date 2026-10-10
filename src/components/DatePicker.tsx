@@ -92,13 +92,13 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
       <Pressable
         onPress={onClose}
-        className="flex-1 items-center justify-center bg-black/60 p-4"
+        className="flex-1 items-center justify-center bg-black/50 p-4"
         style={[variables, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
         accessible={false}
       >
         <Pressable
-          onPress={() => {}}
-          className="w-full max-w-xs rounded-xl border border-border bg-card p-3.5 shadow-xl"
+          onPress={event => event.stopPropagation()}
+          className="w-full max-w-sm rounded-[22px] border border-border/60 bg-card p-[18px] shadow-xl"
           accessible={false}
           accessibilityViewIsModal
         >
