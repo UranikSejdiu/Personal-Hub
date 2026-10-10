@@ -14,10 +14,12 @@ export const NoteCard = React.memo(function NoteCard({
   note,
   onPress,
   untitledLabel,
+  layout = "grid",
 }: {
   note: Note;
   onPress: (note: Note) => void;
   untitledLabel: string;
+  layout?: "grid" | "list";
 }) {
   const colors = useThemeColors();
   const { t } = useI18n();
@@ -37,7 +39,7 @@ export const NoteCard = React.memo(function NoteCard({
   return (
     <Pressable
       onPress={() => onPress(note)}
-      className="relative mb-2 min-h-[44px] rounded-xl border border-border/50 bg-card p-3 active:opacity-70"
+      className={`relative mb-2 rounded-xl border border-border/50 bg-card p-3 active:opacity-70 ${layout === "grid" ? "min-h-[116px]" : "min-h-[96px]"}`}
       accessible
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}
@@ -45,7 +47,7 @@ export const NoteCard = React.memo(function NoteCard({
       <View className="flex-row items-start justify-between gap-2">
         <Text
           numberOfLines={2}
-          className="flex-1 text-base font-medium text-foreground"
+          className="flex-1 text-sm font-semibold text-foreground"
         >
           {note.title || untitledLabel}
         </Text>
@@ -56,7 +58,7 @@ export const NoteCard = React.memo(function NoteCard({
             accessibilityRole="image"
             accessibilityLabel={t("notesPinned")}
           >
-            <Pin size={14} color={colors.primary} />
+            <Pin size={12} color={colors.primary} />
           </View>
         ) : null}
       </View>
@@ -71,18 +73,18 @@ export const NoteCard = React.memo(function NoteCard({
               <Text
                 numberOfLines={1}
                 ellipsizeMode="tail"
-                className="flex-1 text-sm leading-5 text-muted-foreground"
+                className="flex-1 text-xs leading-[18px] text-muted-foreground"
               >
                 {item.text}
               </Text>
             </View>
           ))}
           {hiddenCount > 0 ? (
-            <Text className="text-sm leading-5 text-muted-foreground">
+            <Text className="text-xs leading-[18px] text-muted-foreground">
               {t("notesMoreItems", { count: hiddenCount })}
             </Text>
           ) : null}
-          <Text className="mt-1 text-sm font-medium leading-5 text-muted-foreground">
+          <Text className="mt-[7px] text-[11px] leading-4 text-muted-foreground">
             {t("notesChecklistProgress", { completed: checkedCount, total: note.checklistPreview?.total ?? checklistItems.length })}
           </Text>
         </View>
@@ -93,7 +95,7 @@ export const NoteCard = React.memo(function NoteCard({
               key={i}
               numberOfLines={1}
               ellipsizeMode="tail"
-              className="text-sm leading-5 text-muted-foreground"
+              className="text-xs leading-[18px] text-muted-foreground"
             >
               {line.map((segment, segmentIndex) => (
                 <Text

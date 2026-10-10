@@ -30,9 +30,9 @@ function TaskFormDialog({ title, busy, onClose, children }: { title: string; bus
         <Pressable onPress={onClose} accessible={false} className="flex-1 items-center justify-center bg-black/50 px-4"
           style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
           <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
-            className="max-h-full w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card">
+            className="max-h-full w-full max-w-md overflow-hidden rounded-[22px] border border-border bg-card">
             <View className="flex-row items-center justify-between px-4 pt-2">
-              <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">{title}</Text>
+              <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">{title}</Text>
               <IconButton icon={X} accessibilityLabel={t("cancel")} disabled={busy} onPress={onClose} />
             </View>
             {children}

@@ -16,7 +16,7 @@ interface ButtonProps extends Omit<PressableProps, "children"> {
 
 const BACKGROUNDS: Record<ButtonVariant, string> = {
   primary: "bg-primary",
-  secondary: "bg-secondary",
+  secondary: "border border-border bg-card",
   destructive: "bg-destructive",
 };
 
@@ -53,14 +53,14 @@ export function Button({
       accessibilityState={{ ...accessibilityState, disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       className={cn(
-        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 active:opacity-70",
+        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-[11px] px-3 py-2 active:opacity-70",
         BACKGROUNDS[variant],
         (disabled || busy) && "opacity-60",
         className
       )}
     >
       {busy ? <ActivityIndicator size="small" color={foreground} /> : Icon ? <Icon size={18} color={foreground} /> : null}
-      <Text className={cn("shrink text-center text-sm font-semibold", LABELS[variant])}>{label}</Text>
+      <Text className={cn("shrink text-center text-xs font-semibold", LABELS[variant])}>{label}</Text>
     </Pressable>
   );
 }
@@ -90,13 +90,13 @@ export function IconButton({
       accessibilityState={{ ...accessibilityState, disabled: disabled ?? false }}
       disabled={disabled ?? false}
       className={cn(
-        "h-11 w-11 items-center justify-center rounded-xl active:bg-muted",
+        "h-11 w-11 items-center justify-center rounded-[10px] active:bg-muted",
         selected && "bg-primary/10",
         disabled && "opacity-60",
         className
       )}
     >
-      <Icon size={20} color={selected ? colors.primary : colors.mutedForeground} />
+      <Icon size={18} color={selected ? colors.primary : colors.mutedForeground} />
     </Pressable>
   );
 }

@@ -4,7 +4,7 @@ import { View, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps }
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n, monthLabelShort } from "../../src/lib/i18n";
+import { useI18n, monthLabelShort, monthLabelFull } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
@@ -25,13 +25,13 @@ import {
   type Budget,
   type Expense,
 } from "../../src/lib/budget";
-import { listRepaymentPlans, paidRepaymentIds, setRepaymentPaid, type RepaymentPlan } from "../../src/lib/repaymentPlans";
+import { listRepaymentPlans, paidRepaymentIds, repaymentForMonth, setRepaymentPaid, type RepaymentPlan } from "../../src/lib/repaymentPlans";
 import { RepaymentPaymentSection } from "../../src/components/RepaymentPaymentSection";
 import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/CustomExpensesSection";
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
 import { Button, IconButton } from "../../src/components/ui/Button";
-import { ArrowLeft, Pencil } from "../../src/components/AppIcons";
+import { ArrowLeft, Pencil, ChevronLeft, ChevronRight, Copy } from "../../src/components/AppIcons";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { formatCurrency } from "../../src/lib/utils";
 
@@ -40,6 +40,7 @@ const renderBudgetScroll = (props: ScrollViewProps) => <KeyboardAwareScrollView 
 export default function BudgetScreen() {
   const router = useRouter();
   const [editingMonth, setEditingMonth] = useState(false);
+  const [confirmCopy, setConfirmCopy] = useState(false);
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
   const initialMonth = monthParam && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
@@ -352,6 +353,8 @@ export default function BudgetScreen() {
     paidExpenses: expenses.reduce((total, expense) => total + (expense.paid ? expense.amount : 0), 0),
   }, loans, savingsGoal, repayments, paidRepayments) : null, [budget, loans, expenses, savingsGoal, repayments, paidRepayments]);
 
+  const activePayments = repayments.filter(plan => repaymentForMonth(plan, month) > 0);
+
   if (loading || !loans || !budget) {
     if (loadError) {
       return (
@@ -382,7 +385,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
+        <View className="w-full max-w-md self-center gap-3 px-4 pt-2 pb-28">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -412,7 +415,7 @@ export default function BudgetScreen() {
   return (
     <><FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center px-4 pt-3 pb-28"
+      contentContainerClassName="w-full max-w-md self-center px-4 pt-2 pb-28"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -423,33 +426,42 @@ export default function BudgetScreen() {
       windowSize={7}
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
-        <View className="border-x border-border bg-card px-3">
+        <View className="border-x border-border/60 bg-card px-3">
           <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} />
         </View>
       )}
       ListHeaderComponent={
         <View className="gap-3">
-          <View className="flex-row items-center gap-2">
-            <IconButton icon={ArrowLeft} accessibilityLabel={t("navDashboard")} onPress={() => router.canGoBack() ? router.back() : router.replace("/(budget)")} />
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold text-foreground">{monthLabelShort(lang, month)}</Text>
-            <IconButton icon={Pencil} accessibilityLabel={t("monthEditTitle")} onPress={() => setEditingMonth(true)} />
+          <View className="flex-row items-center gap-1">
+            <Button className="mr-auto border-0 bg-transparent px-0" variant="secondary" icon={ArrowLeft} label={t("navDashboard")} onPress={() => router.canGoBack() ? router.back() : router.replace("/(budget)")} />
+            <IconButton icon={ChevronLeft} accessibilityLabel={t("previousMonth")} onPress={() => router.setParams({ month: previousMonth })} />
+            <IconButton icon={ChevronRight} accessibilityLabel={t("nextMonth")} onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
-          <View className="gap-2 rounded-xl border border-border/60 bg-card p-3">
-            <View className="flex-row flex-wrap gap-3">
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={`text-base font-semibold ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-xs text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={`text-base font-semibold ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
+          <View className="gap-1">
+            <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{monthLabelFull(lang, month)}</Text>
+            <Text className="text-xs leading-[18px] text-muted-foreground">{t("monthSubtitle")}</Text>
+          </View>
+          <View className="gap-2 rounded-[14px] border border-border/60 bg-card p-3">
+            <View className="flex-row flex-wrap gap-4 rounded-[10px] bg-background p-2.5">
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={`text-[15px] font-semibold ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={`text-[15px] font-semibold ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
             </View>
-            <Button variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
+            <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
           </View>
-          {repayments.map((plan) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
-          <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense}
-            onCopyPrevious={hasPreviousBudget ? handleCopyPrevious : undefined}
-            previousMonthLabel={expenses.length === 0 ? previousMonthLabel : undefined} />
+          <CustomExpensesHeader expenses={expenses} onAdd={handleAddExpense} />
         </View>
       }
       ListFooterComponent={
         <View className="gap-3">
-          <View className="h-3 rounded-b-2xl border border-t-0 border-border bg-card" />
+          <View className="rounded-b-[14px] border-x border-b border-border/60 bg-card px-3 pb-2">
+            {hasPreviousBudget && <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Copy} label={t("copyFromPreviousMonth")} onPress={() => setConfirmCopy(true)} />}
+          </View>
+          {activePayments.length > 0 && <View className="gap-2.5">
+            <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("monthPayments")}</Text>
+            <View className="rounded-[14px] border border-border/60 bg-card px-3">
+              {activePayments.map((plan, index) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} last={index === activePayments.length - 1} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
+            </View>
+          </View>}
           <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}
             repayments={repayments} paidRepayments={paidRepayments} savingsGoal={savingsGoal} />
         </View>
@@ -465,6 +477,7 @@ export default function BudgetScreen() {
         try { await loadData(month); }
         catch { setLoadError(t("errorLoadingData")); }
       }} /> : null}
+    <ConfirmDialog visible={confirmCopy} title={t("copyFromPreviousMonth")} message={t("copyPreviousConfirm", { month: previousMonthLabel })} onClose={() => setConfirmCopy(false)} onConfirm={async () => { await handleCopyPrevious(); setConfirmCopy(false); }} />
     <ConfirmDialog visible={expenseToDelete !== null} destructive title={t("expenseDeleteTitle")}
       message={t("expenseDeleteBody", { name: expenseToDelete?.category || t("category"), amount: formatCurrency(expenseToDelete?.amount ?? 0) })}
       confirmLabel={t("delete")} onClose={() => setExpenseToDelete(null)}

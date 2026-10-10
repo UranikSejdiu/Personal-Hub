@@ -65,7 +65,7 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
   const requireMock = name => {
     if (name in mocked) return mocked[name];
     if (/\/ui\/Typography$/.test(name)) return { Text: 'Text', TextInput: 'TextInput' };
-    if (/\/i18n$/.test(name)) return { useI18n: () => ({ t, lang: 'en' }), monthLabelShort: (_, value) => value };
+    if (/\/i18n$/.test(name)) return { useI18n: () => ({ t, lang: 'en' }), monthLabelShort: (_, value) => value, monthLabelFull: (_, value) => value };
     if (/\/theme$/.test(name)) return { useThemeColors: () => colors, useThemeVariables: () => ({}) };
     if (/\/useHaptics$/.test(name)) return { useHaptics: () => haptics };
     if (/\/utils$/.test(name)) return { cn: (...values) => values.filter(Boolean).join(' '), formatCurrency: value => `€${value}`, withAlpha: color => color };
@@ -232,29 +232,40 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
   });
   await verify('Expense deletion requires confirmation and failed deletion retains the expense for retry', async () => {
     let deleted = 0;
+    let copied = 0;
     let fail = true;
     const expense = { id: 1, category: 'Rent', amount: 300, paid: false, is_recurring: false };
     const budget = fixture(root, 'app/(budget)/budget.tsx', 'default', {}, {
       '../../src/lib/budget': { currentMonth: () => '2030-01', addMonths: () => '2029-12', loadLoans: async () => ({}), computeMonthSummary: () => ({ remaining: 600, actualRemaining: 700 }),
         loadBudget: async () => ({ id: 1, month: '2030-01', income: 1000 }), loadSavingsGoal: async () => ({ goal_amount: 100, salary: 1000 }),
+        copyBudgetFromMonth: async () => { copied++; return { budget: { id: 1, month: '2030-01', income: 1000, savings_goal: 100 }, expenses: [expense] }; },
         listExpenses: async () => [expense], removeExpense: async () => { deleted++; if (fail) throw new Error('write failed'); } },
       '../../src/lib/repaymentPlans': { listRepaymentPlans: async () => [], paidRepaymentIds: async () => new Set() },
     });
     await budget.settle();
+    const copyButton = () => budget.all('Button').find(button => button.props.label === 'copyFromPreviousMonth');
+    const copyDialog = () => budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'copyFromPreviousMonth');
+    copyButton().props.onPress(); budget.render();
+    assert.equal(copied, 0); assert.equal(copyDialog().props.visible, true);
+    copyDialog().props.onClose(); budget.render();
+    assert.equal(copied, 0); assert.equal(copyDialog().props.visible, false);
+    copyButton().props.onPress(); budget.render();
+    await copyDialog().props.onConfirm(); budget.render();
+    assert.equal(copied, 1); assert.equal(copyDialog().props.visible, false);
     const row = budget.all('FlatList')[0].props.renderItem({ item: expense, index: 0 }).props.children;
     row.props.onRemove(1); budget.render();
     assert.equal(deleted, 0);
-    assert.equal(budget.all('ConfirmDialog')[0].props.visible, true);
-    budget.all('ConfirmDialog')[0].props.onClose(); budget.render();
+    assert.equal(budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.visible, true);
+    budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.onClose(); budget.render();
     assert.equal(deleted, 0);
     row.props.onRemove(1); budget.render();
-    await budget.all('ConfirmDialog')[0].props.onConfirm(); budget.render();
+    await budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.onConfirm(); budget.render();
     assert.equal(budget.all('FlatList')[0].props.data.length, 1);
-    assert.equal(budget.all('ConfirmDialog')[0].props.visible, true);
+    assert.equal(budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.visible, true);
     fail = false;
-    await budget.all('ConfirmDialog')[0].props.onConfirm(); budget.render();
+    await budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.onConfirm(); budget.render();
     assert.equal(budget.all('FlatList')[0].props.data.length, 0);
-    assert.equal(budget.all('ConfirmDialog')[0].props.visible, false);
+    assert.equal(budget.all('ConfirmDialog').find(dialog => dialog.props.title === 'expenseDeleteTitle').props.visible, false);
     budget.dispose();
   });
   await verify('Task lists page results, retry failed paging, confirm completion, and reveal reminder targets outside the page', async () => {
@@ -271,8 +282,9 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
       appStateListener = listener; return { remove() {} };
     } };
     const screen = fixture(root, 'src/components/tasks/TasksScreen.tsx', 'TasksScreen', {}, {
-      'react-native': { AppState: appState, View: 'View', FlatList: 'FlatList', ActivityIndicator: 'ActivityIndicator' },
+      'react-native': { AppState: appState, View: 'View', FlatList: 'FlatList', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator' },
       '../../lib/tasks': {
+        loadTaskCounts: async () => ({ open: 45, total: 46 }),
         async loadTasksPage(options) {
           calls.push(options);
           if (holdNext) { holdNext = false; return new Promise(resolve => { heldRead = resolve; }); }
@@ -289,7 +301,7 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     assert.equal(list().props.data.length, 40);
     assert.equal(screen.all('FlatList').length, 1, 'Tasks has a single list and no status or priority strips');
     assert.equal(screen.all('TextInput').length, 0);
-    assert.equal(calls[0].filter, 'all');
+    assert.equal(calls[0].filter, 'active');
     assert.equal(screen.timerCount(), 1);
     appState.currentState = 'background'; appStateListener('background'); screen.render();
     assert.equal(screen.timerCount(), 0, 'The midnight timer stops in the background');
@@ -320,6 +332,12 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     screen.all('IconButton').find(node => node.props.accessibilityLabel === 'tasksDismissReminder').props.onPress(); screen.render();
     assert.equal(screen.all('TaskCard').length, 0);
     assert.ok(calls.some(call => call.offset === 40));
+    screen.all('Pressable').find(node => node.props.accessibilityLabel === 'tasksShowAll').props.onPress();
+    await screen.settle();
+    assert.equal(calls.at(-1).filter, 'all', 'Completed tasks remain available through All tasks');
+    screen.all('Pressable').find(node => node.props.accessibilityLabel === 'tasksShowOpen').props.onPress();
+    await screen.settle();
+    assert.equal(calls.at(-1).filter, 'active');
     screen.dispose();
   });
   await verify('Notes waits for saved preferences and loads its first page only once', async () => {

@@ -1,7 +1,7 @@
 import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Pressable, FlatList, ActivityIndicator, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { Archive, FileText, LayoutGrid, List, Plus, Search, Sort, XCircle } from "./AppIcons";
+import { Archive, FileText, LayoutGrid, List, Plus, Search, XCircle } from "./AppIcons";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -255,7 +255,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       if (item.type === "section") {
         return (
           <Text
-            className={`mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground ${
+            className={`mb-2.5 text-[15px] font-semibold text-foreground ${
               item.spacedTop ? "mt-3" : ""
             }`}
           >
@@ -271,6 +271,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
                 <NoteCard
                   note={note}
                   untitledLabel={t("notesUntitled")}
+                  layout={viewMode}
                   onPress={handleNotePress}
                 />
               </View>
@@ -281,7 +282,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         </View>
       );
     },
-    [t, handleNotePress]
+    [t, handleNotePress, viewMode]
   );
 
   const listEmpty = useMemo(
@@ -305,9 +306,9 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-0">
+      <View className="w-full max-w-md self-center gap-2 px-4 pt-2 pb-0">
         <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-display text-foreground">
+          <Text className="text-2xl font-semibold tracking-[-0.4px] text-foreground">
             {t(archived ? "notesArchiveTitle" : "notesTitle")}
           </Text>
           {!archived && <Pressable
@@ -324,7 +325,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           </Pressable>}
         </View>
 
-        <View className="min-h-[44px] flex-row items-center gap-2 rounded-xl border border-border/60 bg-card px-3">
+        <View className="min-h-[44px] flex-row items-center gap-2 rounded-[13px] bg-secondary px-3">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -355,8 +356,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
             className="min-h-[44px] min-w-0 flex-1 flex-row items-center gap-2 rounded-lg px-1 active:opacity-70"
             accessible accessibilityRole="button" accessibilityLabel={`${t("notesSort")}: ${t(SORT_OPTIONS.find((option) => option.value === sort)!.labelKey)}`}
             accessibilityState={{ expanded: sortMenuAnchor !== null }}>
-            <Sort size={16} color={colors.mutedForeground} />
-            <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">{t(SORT_OPTIONS.find((option) => option.value === sort)!.labelKey)}</Text>
+            <Text className="text-[11px] text-muted-foreground">{t("notesSort")}</Text>
+            <Text numberOfLines={1} className="shrink text-xs text-foreground">{t(SORT_OPTIONS.find((option) => option.value === sort)!.labelKey)}</Text>
           </Pressable>
           <Pressable onPress={handleToggleView} className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
             accessible accessibilityRole="button" accessibilityLabel={nextViewLabel}>

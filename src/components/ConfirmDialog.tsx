@@ -74,12 +74,12 @@ export function ConfirmDialog({
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="max-h-full w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl"
+          className="max-h-full w-full max-w-sm rounded-[22px] bg-card p-5 shadow-xl"
           accessible={false}
           accessibilityViewIsModal
         >
           <View className="flex-row items-center justify-between">
-            <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">
+            <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">
               {title}
             </Text>
             <Pressable

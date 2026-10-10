@@ -13,6 +13,13 @@ export interface TaskPageOptions {
   limit?: number;
 }
 
+export async function loadTaskCounts(): Promise<{ open: number; total: number }> {
+  const counts = await db.get<{ open: number; total: number }>(
+    "SELECT COUNT(*) AS total, COUNT(CASE WHEN completed_at IS NULL THEN 1 END) AS open FROM tasks"
+  );
+  return counts ?? { open: 0, total: 0 };
+}
+
 export async function loadTask(id: number): Promise<Task | undefined> {
   return db.get<Task>("SELECT * FROM tasks WHERE id = ?", [id]);
 }

@@ -2,7 +2,7 @@ import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { View, ScrollView, Pressable, Modal, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Plus, Trash2, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
+import { Plus, Pencil, ArrowDownLeft, ArrowUpRight, Archive } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -27,10 +27,10 @@ import {
 import { formatCurrency, withAlpha } from "../../src/lib/utils";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
-import { useThemeColors } from "../../src/lib/theme";
+import { useThemeColors, useThemeVariables } from "../../src/lib/theme";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { SavingsGoalCard } from "../../src/components/SavingsGoalCard";
-import { Button } from "../../src/components/ui/Button";
+import { Button, IconButton } from "../../src/components/ui/Button";
 import { parseNumberInput } from "../../src/lib/numberInput";
 
 function todayDate(): string {
@@ -60,6 +60,7 @@ interface ConfirmAction {
 export default function SavingsScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const themeVariables = useThemeVariables();
   const haptics = useHaptics();
   const [goalAmount, setGoalAmount] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
@@ -154,38 +155,6 @@ export default function SavingsScreen() {
     if (selectedYear === "all") return entries;
     return entries.filter((e) => Number(e.date.slice(0, 4)) === selectedYear);
   }, [entries, selectedYear]);
-
-  const handleDeleteEntry = useCallback(
-    (entry: SavingsEntry) => {
-      // Carry-forward markers are system rows: never editable or deletable.
-      if (entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description)) {
-        return;
-      }
-      setConfirmAction({
-        title: t("deleteConfirmTitle"),
-        message: t("deleteSavingsEntryConfirm"),
-        confirmLabel: t("delete"),
-        destructive: true,
-        onConfirm: () => {
-          return (async () => {
-            try {
-              if (entry.kind === "auto" && entry.rawMonth) {
-                await deleteAutoDeposit(entry.rawMonth);
-              } else if (entry.kind === "tx" && entry.rawTx) {
-                await deleteTransaction(entry.rawTx.id);
-              }
-              await loadData();
-              setConfirmAction(null);
-            } catch {
-              toast.error(t("errorDeletingSavings"));
-              setConfirmAction(null);
-            }
-          })();
-        },
-      });
-    },
-    [t, loadData]
-  );
 
   const openCreateModal = useCallback(() => {
     setEditingId(null);
@@ -374,84 +343,37 @@ export default function SavingsScreen() {
     ({ item: entry, index }: ListRenderItemInfo<SavingsEntry>) => {
       const isAuto = entry.kind === "auto";
       const isDeposit = entry.type === "deposit";
-      const badgeBg = isAuto ? "bg-primary/15" : isDeposit ? "bg-success/15" : "bg-destructive/15";
-      const badgeText = isAuto ? "text-primary" : isDeposit ? "text-success" : "text-destructive";
       const badgeLabel = isAuto ? t("savingsAutoBadge") : isDeposit ? t("savingsTypeDeposit") : t("savingsTypePurchase");
       const amountColor = isDeposit ? "text-success" : "text-destructive";
       const sign = isDeposit ? "+" : "-";
       const isLast = index === filteredEntries.length - 1;
 
-      return (
-        <View className={`border-x border-border bg-card px-3 ${isLast ? "" : "pb-2"}`}>
-          <View className="flex-row items-center justify-between rounded-lg bg-muted/40 p-3">
-            <Pressable
-              onPress={() => handleTapEntry(entry)}
-              className="flex-1 flex-row items-center"
-              accessibilityRole="button"
-              accessibilityLabel={t("savingsEditEntry")}
-            >
-              <View className="flex-1">
-                <View className="flex-row items-center gap-2">
-                  <View className={`rounded-full px-2 py-0.5 ${badgeBg}`}>
-                    <Text className={`text-[10px] font-semibold ${badgeText}`}>{badgeLabel}</Text>
-                  </View>
-                  <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
-                    {entry.description}
-                  </Text>
-                </View>
-                <Text className="mt-1 text-xs text-muted-foreground">{entry.date}</Text>
-              </View>
-            </Pressable>
-            <Text className={`text-sm font-medium ${amountColor}`}>
-              {sign}
-              {formatCurrency(entry.amount)}
-            </Text>
-            <Pressable
-              onPress={() => {
-                void haptics.warning();
-                handleDeleteEntry(entry);
-              }}
-              className="ml-2 p-1"
-              accessibilityRole="button"
-              accessibilityLabel={t("delete")}
-            >
-              <Trash2 size={18} color={colors.mutedForeground} />
-            </Pressable>
-          </View>
+      const locked = entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description);
+      const Icon = isDeposit ? ArrowDownLeft : ArrowUpRight;
+      return <View className="border-x border-border/60 bg-card px-3">
+        <View className={`min-h-[68px] flex-row items-center gap-2.5 py-2.5 ${isLast ? "" : "border-b border-border/60"}`}>
+          <View className={`h-[39px] w-[39px] items-center justify-center rounded-[11px] ${isDeposit ? "bg-success/10" : "bg-secondary"}`}><Icon size={18} color={isDeposit ? colors.success : colors.mutedForeground} /></View>
+          <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel={t("savingsEditEntry")}>
+            <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
+            <Text className="text-xs text-muted-foreground">{entry.date} · {badgeLabel}</Text>
+          </Pressable>
+          <Text className={`text-sm font-semibold ${amountColor}`}>{sign}{formatCurrency(entry.amount)}</Text>
+          {!locked && <IconButton icon={Pencil} accessibilityLabel={t("savingsEditEntry")} onPress={() => handleTapEntry(entry)} />}
         </View>
-      );
+      </View>;
     },
-    [filteredEntries.length, t, handleTapEntry, handleDeleteEntry, haptics, colors.mutedForeground]
+    [filteredEntries.length, t, handleTapEntry, colors.mutedForeground, colors.success]
   );
 
   const listHeader = useMemo(
     () => (
     <View className="gap-3">
-      <Text className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
-
+      <View className="flex-row flex-wrap items-center justify-between gap-2">
+        <View className="gap-1"><Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
+        <Button icon={Plus} label={t("savingsNewEntry")} onPress={() => { void haptics.light(); openCreateModal(); }} />
+      </View>
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
-
-      {/* Activity card shell — closed by the footer strip so entry rows stay
-          virtualized inside FlatList while preserving the card chrome. */}
-      <View
-        className={`rounded-t-xl border-x border-t border-border bg-card px-3 pt-3 ${
-          filteredEntries.length > 0 ? "pb-3" : ""
-        }`}
-      >
-        <View className="mb-3 flex-row items-center justify-between">
-          <Text className="text-base font-semibold text-foreground">{t("activityLabel")}</Text>
-          <Pressable
-            onPress={() => { void haptics.light(); openCreateModal(); }}
-            className="flex-row items-center gap-1 rounded-lg bg-primary px-3 py-1.5"
-            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
-            accessibilityRole="button"
-            accessibilityLabel={t("savingsNewEntry")}
-          >
-            <Plus size={14} color={colors.primaryForeground} />
-            <Text className="text-xs font-medium text-primary-foreground">{t("savingsNewEntry")}</Text>
-          </Pressable>
-        </View>
-
+      <View className="flex-row items-center justify-between"><Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("activityLabel")}</Text></View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
           {availableYears.map((y) => {
             const isSelected = selectedYear === y;
@@ -460,7 +382,7 @@ export default function SavingsScreen() {
               <View key={y} className="flex-row items-center gap-1">
                 <Pressable
                   onPress={() => { void haptics.light(); setSelectedYear(y); }}
-                  className={`rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+                  className={`min-h-[44px] justify-center rounded-full border px-3 py-1.5 ${isSelected ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
                   android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                   accessibilityRole="button"
                   accessibilityLabel={String(y)}
@@ -471,7 +393,7 @@ export default function SavingsScreen() {
                 {isPastYear && (
                   <Pressable
                     onPress={() => handleCloseYear(y)}
-                    className="rounded-full border border-border bg-card p-1.5"
+                    className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
                     accessibilityLabel={t("closeYearLabel")}
                   >
                     <Archive size={14} color={colors.mutedForeground} />
@@ -482,7 +404,7 @@ export default function SavingsScreen() {
           })}
           <Pressable
             onPress={() => { void haptics.light(); setSelectedYear("all"); }}
-            className={`rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
+            className={`min-h-[44px] justify-center rounded-full border px-3 py-1.5 ${selectedYear === "all" ? "border-primary bg-primary/10" : "border-border bg-muted/40"}`}
             android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
             accessibilityRole="button"
             accessibilityLabel={t("filterAll")}
@@ -492,6 +414,7 @@ export default function SavingsScreen() {
           </Pressable>
         </ScrollView>
 
+      <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-2">
         {filteredEntries.length === 0 && (
           <View className="items-center gap-1 py-6">
             <Text className="text-sm text-muted-foreground">{t("savingsNoEntries")}</Text>
@@ -519,8 +442,8 @@ export default function SavingsScreen() {
   const listFooter = useMemo(
     () => (
     <View className="gap-3">
-      <View className="h-3 rounded-b-xl border-x border-b border-border bg-card" />
-      <View className="rounded-xl border border-border bg-muted/40 p-3 gap-1.5">
+      <View className="h-2 rounded-b-[14px] border-x border-b border-border/60 bg-card" />
+      <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-1.5">
         <View className="flex-row justify-between">
           <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
           <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
@@ -543,7 +466,7 @@ export default function SavingsScreen() {
   return (
     <View className="flex-1 bg-background">
       {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 p-4">
-        <Text accessibilityRole="header" className="text-xl font-bold text-foreground">{t("tabSavings")}</Text>
+        <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text>
         <View className="items-center gap-3 rounded-xl border border-border bg-card px-4 py-8">
           {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
             <Text className="text-sm text-muted-foreground">{t("loading")}</Text></>
@@ -563,11 +486,11 @@ export default function SavingsScreen() {
       />}
 
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView className="flex-1" behavior="padding" automaticOffset>
+        <KeyboardAvoidingView className="flex-1" style={themeVariables} behavior="padding" automaticOffset>
         <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={() => setShowModal(false)}>
-          <View className="max-h-full w-full max-w-sm overflow-hidden rounded-2xl bg-card">
-          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-4">
-            <Text className="text-lg font-semibold text-foreground">
+          <View className="max-h-full w-full max-w-sm overflow-hidden rounded-[22px] bg-card">
+          <ScrollView keyboardShouldPersistTaps="handled" className="grow-0" contentContainerClassName="p-[18px]">
+            <Text className="text-[22px] font-semibold text-foreground">
               {editingKind === "auto"
                 ? t("savingsAutoEditTitle")
                 : editingId === null
@@ -677,6 +600,6 @@ export default function SavingsScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 112 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 112 },
   yearScrollContent: { gap: 8, paddingBottom: 4 },
 });

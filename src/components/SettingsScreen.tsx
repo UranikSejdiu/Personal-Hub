@@ -291,16 +291,18 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
     return (
       <>
         <ScrollView className="flex-1 bg-background">
-          <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
-            <Text className="text-2xl font-bold text-foreground">{t("settingsTitle")}</Text>
+          <View className="w-full max-w-md self-center gap-4 px-4 pt-2 pb-28">
+            <View className="gap-1"><Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("settingsTitle")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("settingsSubtitle")}</Text></View>
             <SettingsMenu
               theme={theme}
+              version={`Personal Hub · ${getAppVersion()}`}
               hapticsOn={hapticsOn}
               onThemeChange={(next) => { void haptics.light(); setTheme(next); }}
               onHapticsChange={(next) => { void toggleHaptics(next); }}
               onSelect={openSection}
               onReplayTutorial={replayTutorial}
             />
+            <Text className="mt-1 text-center text-xs text-muted-foreground">{t("settingsOffline")}</Text>
           </View>
         </ScrollView>
       </>
@@ -310,7 +312,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
   return (
     <>
       <KeyboardAwareScrollView className="flex-1 bg-background" bottomOffset={16} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <View className="w-full max-w-md self-center gap-3 px-4 pt-3 pb-28">
+        <View className="w-full max-w-md self-center gap-4 px-4 pt-2 pb-28">
           <View className="flex-row items-center gap-2">
             <Pressable
               onPress={() => { void leaveDetail(); }}
@@ -320,7 +322,7 @@ export default function SettingsScreen({ activeAppId, section }: SettingsScreenP
             >
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
-            <Text className="text-2xl font-bold text-foreground">
+            <Text className="text-2xl font-semibold tracking-[-0.4px] text-foreground">
               {activeSection === "backup" ? t("settingsBackupRestore") : activeSection === "modules" ? t("settingsModules") : t("settingsAboutUpdates")}
             </Text>
           </View>

@@ -1,7 +1,7 @@
 import { Text } from "./ui/Typography";
-import { useMemo } from "react";
-import { View } from "react-native";
-import { CircleCheck } from "./AppIcons";
+import { useMemo, useState } from "react";
+import { View, Pressable } from "react-native";
+import { CircleCheck, ChevronDown } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import {
@@ -34,6 +34,7 @@ export function MonthlySummarySection({
 }: Props) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const [expanded, setExpanded] = useState(false);
 
   const c = useMemo(() => {
     const loanPayment = loanPaymentForMonth(loans, budget.month);
@@ -70,16 +71,17 @@ export function MonthlySummarySection({
   const hasData = c.loanPayment > 0 || c.ccPayment > 0 || c.extraPlanned > 0 || c.totalExpenses > 0 || savingsGoal > 0;
 
   return (
-    <View className="rounded-xl border border-border bg-card p-3">
-      <Text className="mb-3 text-base font-semibold text-foreground">{t("sectionSummary")}</Text>
-
-      <View className="mb-3 gap-1.5">
-        <Text className="text-sm text-muted-foreground">{t("monthlyIncome")}</Text>
-        <Text className="text-2xl font-semibold text-foreground">{formatCurrency(budget.income)}</Text>
-        <Text className="text-xs leading-5 text-muted-foreground">{t("incomeMonthHint")}</Text>
-      </View>
-
-      {hasData && (
+    <View className="gap-2.5">
+      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("sectionSummary")}</Text>
+      <View className="rounded-[14px] border border-border/60 bg-card p-3">
+        <View className="gap-[7px]">
+          {[{ label: t("monthlyIncome"), value: budget.income }, { label: t("dashboardPlannedOutflow"), value: c.totalOutflow }, { label: t("dashboardPaidOutflow"), value: c.actualOutflow }, { label: t("dashboardActualRemaining"), value: c.actualRemaining }].map(row =>
+            <View key={row.label} className="flex-row flex-wrap justify-between gap-2"><Text className="text-xs text-muted-foreground">{row.label}</Text><Text className={`text-xs font-semibold ${row.value < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(row.value)}</Text></View>)}
+        </View>
+        {hasData && <Pressable onPress={() => setExpanded(value => !value)} accessibilityRole="button" accessibilityLabel={t("monthlyDetails")} accessibilityState={{ expanded }} className="mt-2 min-h-[44px] flex-row items-center justify-between gap-2">
+          <Text className="text-xs font-semibold text-primary">{t("monthlyDetails")}</Text><View style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}><ChevronDown size={16} color={colors.primary} /></View>
+        </Pressable>}
+      {hasData && expanded && (
         <Table className="border-0 rounded-none bg-transparent">
           <TableHeader className="bg-transparent px-0">
             <TableHead className="flex-1" />
@@ -165,7 +167,7 @@ export function MonthlySummarySection({
         </Table>
       )}
 
-      {savingsGoal > 0 && (
+      {savingsGoal > 0 && expanded && (
         <View className="mt-3 rounded-lg bg-muted/60 p-3">
           <View className="flex-row items-center justify-between">
             <Text className="text-sm text-muted-foreground">{t("savingsGoalLabel")}</Text>
@@ -182,6 +184,7 @@ export function MonthlySummarySection({
           </View>
         </View>
       )}
+      </View>
     </View>
   );
 }

@@ -56,9 +56,9 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
     <View
       className={cn(
         "flex-row items-center justify-center rounded-full bg-card p-1 shadow-sm border border-border/60",
-        placement === "inline" ? "w-full" : "absolute left-4 right-4"
+        placement === "inline" ? "w-full" : "absolute left-[14px] right-[14px]"
       )}
-      style={placement === "floating" ? { bottom: Math.max(16, insets.bottom + 8) } : undefined}
+      style={placement === "floating" ? { bottom: Math.max(18, insets.bottom + 8) } : undefined}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
@@ -71,7 +71,7 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
               onTabPress(tab.id);
             }}
             className={cn(
-              "min-h-[44px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-1 active:opacity-70",
+              "min-h-[50px] min-w-[44px] flex-1 flex-col items-center justify-center gap-[3px] rounded-full px-0.5 py-[5px] active:opacity-70",
               isActive && "bg-primary/10"
             )}
             accessible
@@ -79,10 +79,10 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: isActive }}
           >
-            <Icon size={20} color={isActive ? colors.primary : colors.mutedForeground} />
+            <Icon size={19} color={isActive ? colors.primary : colors.mutedForeground} />
             <Text
               className={cn(
-                "text-xs leading-4 text-center",
+                "text-[11px] leading-4 text-center",
                 isActive ? "font-semibold text-primary" : "font-medium text-muted-foreground",
               )}
             >

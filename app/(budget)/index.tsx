@@ -153,7 +153,7 @@ export default function DashboardScreen() {
           <View className="gap-3">
             <View>
               <View className="flex-row flex-wrap items-center justify-between gap-3">
-                <Text accessibilityRole="header" className="text-2xl font-display text-foreground">{t("dashboardTitle")}</Text>
+                <Text accessibilityRole="header" className="text-2xl font-semibold tracking-[-0.4px] text-foreground">{t("dashboardTitle")}</Text>
                 <Button
                   label={t("dashboardNextMonth")}
                   icon={Plus}
@@ -163,7 +163,7 @@ export default function DashboardScreen() {
                   onPress={() => { void handleCreateMonth(addMonths(thisMonth, 1)); }}
                 />
               </View>
-              <Text className="mt-1 text-sm leading-5 text-muted-foreground">{t("dashboardSubtitle")}</Text>
+              <Text className="mt-1 text-xs leading-[18px] text-muted-foreground">{t("dashboardSubtitle")}</Text>
             </View>
 
             {loadState === "loading" ? (
@@ -186,7 +186,7 @@ export default function DashboardScreen() {
             ) : (
               <Card className="gap-3">
                 <Text className="text-lg font-semibold text-foreground">{t("dashboardNoCurrentMonth")}</Text>
-                <Text className="text-sm leading-5 text-muted-foreground">
+                <Text className="text-xs leading-[18px] text-muted-foreground">
                   {t("dashboardNoCurrentMonthHint", { month: monthLabelShort(lang, thisMonth) })}
                 </Text>
                 <Button
@@ -201,7 +201,7 @@ export default function DashboardScreen() {
             )}
 
             {loadState === "ready" && otherMonths.length > 0 && (
-              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">{t("dashboardOtherMonths")}</Text>
+              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("dashboardOtherMonths")}</Text>
             )}
           </View>
         }

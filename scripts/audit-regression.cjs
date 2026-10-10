@@ -1463,6 +1463,7 @@ function migrationModule(fixture) {
     assert.equal(numberInput.parseNumberInput('1.234', 3), 1.234);
   });
   await verify('Task pages filter before paging, search literal wildcards, and keep stable page boundaries', async () => {
+    assert.deepEqual({ ...await tasks.loadTaskCounts() }, { open: 0, total: 0 });
     const input = { title: 'Task', notes: '', list_id: null, due_date: null, priority: 0, repeat: 'none', reminder_time: null };
     for (let i = 0; i < 85; i++) await tasks.saveTask({ ...input, title: `Task ${i}`, priority: i % 3 });
     const past = await tasks.saveTask({ ...input, title: 'Past', due_date: '2029-12-31' });
@@ -1470,6 +1471,7 @@ function migrationModule(fixture) {
     const future = await tasks.saveTask({ ...input, title: 'Future 100%_\\literal', notes: 'Search details', due_date: '2030-01-02', priority: 2 });
     const done = await tasks.saveTask({ ...input, title: 'Completed' });
     await tasks.completeTask(done);
+    assert.deepEqual({ ...await tasks.loadTaskCounts() }, { open: 88, total: 89 });
     const options = { filter: 'active', today: '2030-01-01' };
     const all = await tasks.loadTasksPage({ ...options, filter: 'all', limit: 100 });
     assert.equal(all.tasks.length, 89);
@@ -1495,6 +1497,10 @@ function migrationModule(fixture) {
     await assert.rejects(tasks.loadTasksPage({ ...options, offset: -1 }));
     await assert.rejects(tasks.loadTasksPage({ ...options, priority: 4 }));
     await assert.rejects(tasks.loadTasksPage({ ...options, today: 'bad' }));
+    await tasks.reopenTask(done);
+    assert.deepEqual({ ...await tasks.loadTaskCounts() }, { open: 89, total: 89 });
+    await tasks.deleteTask(done);
+    assert.deepEqual({ ...await tasks.loadTaskCounts() }, { open: 88, total: 88 });
   });
   await verify('Reminder queries exclude history and elapsed times before limiting to the nearest 50', async () => {
     const input = { title: 'Reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };

@@ -32,9 +32,9 @@ export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserP
       <Pressable className="flex-1 items-center justify-center bg-black/50 px-4" onPress={onClose}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
-          className="w-full max-w-sm gap-1 rounded-2xl bg-card p-3.5 shadow-xl"
+          className="w-full max-w-sm gap-1 rounded-[22px] bg-card p-3.5 shadow-xl"
         >
-          <Text className="mb-1 px-2 text-lg font-semibold text-foreground">
+          <Text className="mb-1 px-2 text-[22px] font-semibold text-foreground">
             {t("notesNew")}
           </Text>
           {OPTIONS.map((option) => (

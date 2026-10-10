@@ -34,7 +34,7 @@ export function HubHeader({ activeAppId, onAppSelect }: HubHeaderProps) {
       className="bg-background"
       style={{ paddingTop: insets.top }}
     >
-      <View className="w-full max-w-md self-center flex-row items-center justify-between px-4 py-1.5">
+      <View className="w-full max-w-md self-center flex-row items-center justify-between px-3 pb-2.5 pt-2">
         <AppSwitcher
           apps={HUB_APPS.filter((app) => enabledIds.includes(app.id))}
           activeAppId={activeAppId}

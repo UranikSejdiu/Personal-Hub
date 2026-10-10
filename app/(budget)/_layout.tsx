@@ -41,12 +41,13 @@ export default function BudgetLayout() {
         screenOptions={{ headerShown: false }}
         tabBar={({ state }) => {
           const routeName = state.routes[state.index].name;
-          const isSubScreen = !BUDGET_TABS.some((tab) => tab.id === routeName);
+          const activeTabId = routeName === "budget" ? "index" : routeName;
+          const isSubScreen = !BUDGET_TABS.some((tab) => tab.id === activeTabId);
           if (isSubScreen) return null;
           return (
             <PillNav
               tabs={BUDGET_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
-              activeTabId={routeName}
+              activeTabId={activeTabId}
               onTabPress={(tabId) => {
                 const index = state.routes.findIndex((r) => r.name === tabId);
                 if (index !== -1) {

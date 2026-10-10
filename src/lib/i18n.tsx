@@ -46,7 +46,7 @@ const dict = {
     tasksAddDate: "Add date",
     tasksMoreOptions: "More options",
     tasksFewerOptions: "Fewer options",
-    tasksNoDate: "No due date",
+    tasksNoDate: "No date",
     tasksTomorrow: "Tomorrow",
     tasksOverdue: "Overdue · {date}",
     tasksPriority: "Priority",
@@ -92,23 +92,45 @@ const dict = {
     switchApp: "Switch app",
     navDashboard: "Dashboard",
     navSavings: "Savings",
-    navLoans: "Loans",
+    navLoans: "Loans & cards",
     navSettings: "Settings",
     navNotes: "Notes",
 
-    dashboardTitle: "Overview",
-    dashboardSubtitle: "Your monthly finances, at a glance.",
-    dashboardCurrentMonth: "This month",
+    dashboardTitle: "Dashboard",
+    dashboardSubtitle: "Your monthly budget at a glance.",
+    dashboardCurrentMonth: "Current month",
     dashboardOtherMonths: "Other months",
     dashboardActualRemaining: "Actual remaining",
     dashboardPlannedRemaining: "Planned remaining",
     dashboardPaidOutflow: "Paid so far",
     dashboardPlannedOutflow: "Planned outflow",
+    dashboardSavingsTarget: "Savings target · {amount}",
+    dashboardTargetMet: "Target met",
+    dashboardTargetProgress: "In progress",
+    dashboardOpenBudget: "Open budget",
+    monthSubtitle: "Edit amounts directly. Check expenses when paid.",
+    monthPayments: "Loan & card payments",
+    expenseTapToEdit: "Tap to edit",
+    expenseRecurring: "Recurring",
+    expenseName: "Expense",
+    copyPreviousConfirm: "Copy missing expenses from {month}? Your existing expenses are kept, and copied expenses start unpaid.",
+    monthlyDetails: "Detailed breakdown",
+    savingsTotal: "Total savings",
+    savingsSubtitle: "Balance and activity.",
+    loansSubtitle: "Your repayment plans.",
+    settingsSubtitle: "All your preferences, in one place.",
+    settingsModulesSummary: "Choose Budget, Notes and Tasks.",
+    settingsBackupSummary: "Save, share, import or recover a backup.",
+    settingsTutorialSummary: "Learn each module.",
+    settingsOffline: "Works offline. No account needed.",
+    tasksOpenCount: "{count} open",
+    tasksShowOpen: "Show open tasks",
+    tasksShowAll: "All tasks ({count})",
     dashboardSavingsProgress: "Monthly savings target",
     dashboardNoCurrentMonth: "Plan this month",
     dashboardNoCurrentMonthHint: "Create your budget for {month} to track income and expenses.",
     dashboardCreateCurrentMonth: "Create this month",
-    dashboardNextMonth: "New month",
+    dashboardNextMonth: "Next month",
     monthAlreadyExists: "This month already exists. Open it from Dashboard to edit its values.",
     monthCreateTitle: "New month",
     monthEditTitle: "Edit month",
@@ -125,7 +147,7 @@ const dict = {
     deleteMonthConfirm: "Delete budget for {month}?",
     newBudgetCreated: "Budget created for {month}",
     tabBudget: "Budget",
-    tabLoans: "Loans",
+    tabLoans: "Loans & cards",
     tabSavings: "Savings",
 
     savingAuto: "Saving automatically...",
@@ -143,8 +165,8 @@ const dict = {
     paid: "Paid off",
     monthlyPayment: "Monthly Payment",
 
-    sectionExpenses: "3. Custom Monthly Expenses",
-    addRow: "Add Row",
+    sectionExpenses: "Expenses",
+    addRow: "Add expense",
     addCategoryPlaceholder: "Add category…",
     category: "Category",
     totalExpensesPlanned: "Total Expenses (Planned)",
@@ -158,7 +180,7 @@ const dict = {
     expenseAmount: "Amount",
     expenseEditAmount: "Edit amount for {category}",
 
-    sectionSummary: "4. Monthly Summary",
+    sectionSummary: "Month summary",
     monthlyIncome: "Monthly Income (after tax)",
     planned: "Planned",
     actualLabel: "Actual",
@@ -174,7 +196,7 @@ const dict = {
     addLoanPlan: "Add loan",
     back: "Back",
     addPaymentPlan: "Add payment plan",
-    addCardInstallment: "Add card installment",
+    addCardInstallment: "Add card",
     paymentPlanName: "Name",
     paymentPlanNamePlaceholder: "e.g. Car loan or phone payment",
     paymentPlanTotal: "Total amount (€)",
@@ -212,10 +234,10 @@ const dict = {
     settingsTitle: "Settings",
     settingsAppearance: "Appearance",
     settingsPreferences: "Preferences",
-    settingsModules: "Visible apps",
+    settingsModules: "Your modules",
     settingsModulesHelp: "Choose which apps appear in the app switcher. You can turn them back on here at any time.",
     modulesKeepOne: "Keep at least one app enabled. Hidden apps keep their data.",
-    settingsData: "Data",
+    settingsData: "Your data",
     settingsHelp: "Help",
     incomeMonthHint: "Use Edit month to change income or the savings target for this month.",
     settingsBackupHelp: "Export a backup to keep a separate copy of your budget, notes and tasks. Import replaces the app's current data after confirmation. A safety copy lets you restore the data from before the import. Keep backup files somewhere private.",
@@ -252,10 +274,10 @@ const dict = {
 
     salaryLabel: "Salary",
     savingsGoalLabel: "Monthly Savings Target",
-    goalMetBadge: "Goal Met!",
+    goalMetBadge: "Target met",
     goalColon: "Goal:",
     savingsBalanceLabel: "Balance",
-    savingsNewEntry: "New Entry",
+    savingsNewEntry: "Add activity",
     savingsEditEntry: "Edit Entry",
     savingsEntryType: "Type",
     savingsTypeDeposit: "Deposit",
@@ -432,7 +454,7 @@ const dict = {
     tutorialGetStarted: "Open my apps",
     tutorialNext: "Next →",
     tutorialSkip: "Skip tour",
-    tutorialShowAgain: "Show Tutorial",
+    tutorialShowAgain: "Replay tutorial",
 
     sampleDataDescription: "This app was filled with demo data so you can explore it.",
     sampleDataClear: "Clear sample data",
@@ -464,6 +486,13 @@ export function monthLabelShort(_lang: Lang, key: string): string {
   if (!Number.isInteger(month) || month < 1 || month > 12) return key;
   const year = key.slice(0, 4);
   return `${dict.en[MONTHS_SHORT[month - 1]]} ${year}`;
+}
+
+export function monthLabelFull(_lang: Lang, key: string): string {
+  const month = Number(key.slice(5, 7));
+  if (!Number.isInteger(month) || month < 1 || month > 12) return key;
+  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${names[month - 1]} ${key.slice(0, 4)}`;
 }
 
 interface I18nContextValue {
