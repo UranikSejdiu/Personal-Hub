@@ -22,9 +22,9 @@ if (!fs.existsSync(path.join(root, 'credentials/release-keystore.jks'))) {
   console.log('Local APK uses the Android debug signing key. Configure a release key before distributing production updates.');
 }
 if (process.platform === 'win32') {
-  run('cmd.exe', ['/d', '/s', '/c', 'gradlew.bat assembleRelease --build-cache --profile --console=plain'], { cwd: native });
+  run('cmd.exe', ['/d', '/s', '/c', 'gradlew.bat lintVitalRelease assembleRelease --build-cache --profile --console=plain'], { cwd: native });
 } else {
-  run('./gradlew', ['assembleRelease', '--build-cache', '--profile', '--console=plain'], { cwd: native });
+  run('./gradlew', ['lintVitalRelease', 'assembleRelease', '--build-cache', '--profile', '--console=plain'], { cwd: native });
 }
 const version = require('../package.json').version;
 const output = path.join(root, 'build', `Dhikr-${version}.apk`);

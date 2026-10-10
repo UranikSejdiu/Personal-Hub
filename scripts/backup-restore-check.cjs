@@ -124,6 +124,10 @@ async function checkBackupRules() {
       return covered(block.include, domain, name) && !covered(block.exclude, domain, name);
     }
     for (const block of blocks) {
+      for (const { $: rule } of block.exclude || []) {
+        assert(covered(block.include, rule.domain, rule.path),
+          'Excluded paths must be inside the allowlist, or Android release lint rejects the rules');
+      }
       for (const filename of ['SQLite/app_data', 'SQLite/dhikr_data', 'SQLite/ExpoSQLiteStorage',
         'SQLite/app_data-wal', 'SQLite/dhikr_data-shm']) {
         assert(eligible(block, 'file', filename), filename + ' must participate in backup');
@@ -134,7 +138,7 @@ async function checkBackupRules() {
       assert(!eligible(block, 'file', 'downloaded-update.apk'));
       assert(!eligible(block, 'sharedpref', 'SecureStore'));
       assert(!eligible(block, 'sharedpref', 'SecureStore.xml'));
-      assert(block.exclude.some(e => e.$.domain === 'sharedpref' && e.$.path === 'SecureStore'));
+      assert(!block.include.some(e => e.$.domain === 'sharedpref'), 'Device-bound preferences must stay outside the allowlist');
     }
   } finally {
     // Delete only the directory created above, inside the OS temporary directory.

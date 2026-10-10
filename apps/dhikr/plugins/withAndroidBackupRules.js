@@ -9,14 +9,13 @@ const DATA_EXTRACTION_RULES_ATTRIBUTE = "@xml/data_extraction_rules";
 const BACKUP_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
 <!--
   Back up app records, portable preferences, and the last recovery copy.
-  Keystore-encrypted SecureStore values cannot be restored on another phone.
+  Only these paths are included. Shared preferences (including SecureStore),
+  temporary files, and caches remain outside this allowlist.
 -->
 <full-backup-content>
   <include domain="database" path="."/>
   <include domain="file" path="SQLite/"/>
   <include domain="file" path="dhikr-safety-backup.json"/>
-  <exclude domain="file" path="dhikr-safety-backup.json.tmp"/>
-  <exclude domain="sharedpref" path="SecureStore"/>
 </full-backup-content>
 `;
 
@@ -31,15 +30,11 @@ const DATA_EXTRACTION_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
     <include domain="database" path="."/>
     <include domain="file" path="SQLite/"/>
     <include domain="file" path="dhikr-safety-backup.json"/>
-    <exclude domain="file" path="dhikr-safety-backup.json.tmp"/>
-    <exclude domain="sharedpref" path="SecureStore"/>
   </cloud-backup>
   <device-transfer>
     <include domain="database" path="."/>
     <include domain="file" path="SQLite/"/>
     <include domain="file" path="dhikr-safety-backup.json"/>
-    <exclude domain="file" path="dhikr-safety-backup.json.tmp"/>
-    <exclude domain="sharedpref" path="SecureStore"/>
   </device-transfer>
 </data-extraction-rules>
 `;

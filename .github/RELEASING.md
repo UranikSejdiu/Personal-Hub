@@ -42,6 +42,9 @@ uploads skip ZIP recompression and are retained for 14 days. New branch builds
 cancel older builds on the same branch; release tag builds are not canceled.
 Publishing is a separate job that requires both checks and the APK build to
 succeed. Dhikr generates its native project once per build.
+Release lint runs before APK assembly. Successfully compiled C++ objects are
+cached on `main` even if a later lint or packaging task fails, so retries can
+reuse that work.
 
 ## Publish an update
 

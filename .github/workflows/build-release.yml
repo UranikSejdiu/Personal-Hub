@@ -95,7 +95,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --build-cache --profile --console=plain
+        run: ./gradlew lintVitalRelease assembleRelease --build-cache --profile --console=plain
 
       - name: Report compiler cache usage
         if: always()
@@ -105,7 +105,8 @@ jobs:
           fi
 
       - name: Save shared compiler cache on main
-        if: success() && github.ref == 'refs/heads/main' && steps.native-cache.outputs.hit != 'true'
+        # ccache stores only successful compilations, even if a later task fails.
+        if: always() && github.ref == 'refs/heads/main' && steps.native-cache.outcome == 'success' && steps.native-cache.outputs.hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.native-cache.outputs.path }}
