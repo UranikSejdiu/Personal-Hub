@@ -205,10 +205,10 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       void haptics.light();
       router.push({
         pathname: note.kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor",
-        params: { id: note.id },
+        params: { id: note.id, returnTab: archived ? "archive" : "index" },
       });
     },
-    [router, haptics]
+    [router, haptics, archived]
   );
 
   const pinnedNotes = useMemo(

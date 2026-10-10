@@ -56,8 +56,8 @@ reuse that work.
 3. Create and push the matching tag. For example, for the next versions:
 
    ```sh
-   git tag v1.25.6
-   git push origin v1.25.6
+   git tag v1.25.7
+   git push origin v1.25.7
    git tag dhikr-v1.0.2
    git push origin dhikr-v1.0.2
    ```

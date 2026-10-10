@@ -73,6 +73,7 @@ function fixture(root, file, exportName, props, dependencies = {}, params = {}) 
     if (/\/taskEvents$/.test(name)) return { notifyTaskChanges() {}, subscribeTaskChanges: () => () => {} };
     if (/\/taskReminders$/.test(name)) return { taskReminderDate: () => null, requestTaskReminderPermission: async () => 'granted' };
     if (/\/AppIcons$/.test(name)) return new Proxy({}, { get: (_, key) => key });
+    if (/\/ui\/AnchoredMenu$/.test(name)) return { AnchoredMenu: 'AnchoredMenu', useAnchoredMenu: () => { const [anchor, setAnchor] = hooks.useState(null); return { triggerRef: hooks.useRef(null), anchor, open: () => setAnchor({ x: 0, y: 0, width: 100, height: 44 }), close: () => setAnchor(null) }; } };
     if (/\/ui\/Button$/.test(name)) return { Button: 'Button', IconButton: 'IconButton' };
     const component = name.split('/').at(-1);
     return { [component]: component, ...(component === 'CustomExpensesSection' ? { CustomExpenseRow: 'CustomExpenseRow', CustomExpensesHeader: 'CustomExpensesHeader' } : {}) };
@@ -212,6 +213,49 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     assert.equal(closed, 2);
     editor.dispose(); dirty.dispose();
   });
+  await verify('Task editor repeat selection and date clearing preserve drafts and save a consistent schedule', async () => {
+    const saved = [];
+    const editor = fixture(root, 'src/components/tasks/TaskEditor.tsx', 'TaskEditor', {
+      onClose() {}, onSave: async input => saved.push(input),
+    });
+    editor.render();
+    editor.all('TextInput').find(node => node.props.accessibilityLabel === 'tasksTitle').props.onChangeText('Keep my schedule');
+    editor.all('TextInput').find(node => node.props.accessibilityLabel === 'tasksNotes').props.onChangeText('Keep my notes');
+    editor.all('Button').find(node => node.props.label === 'tasksToday').props.onPress(); editor.render();
+    editor.all('Pressable').find(node => node.props.accessibilityLabel === 'tasksRepeat').props.onPress(); editor.render();
+    const menu = editor.all('AnchoredMenu')[0].props;
+    assert.ok(menu.anchor);
+    menu.items.find(item => item.key === 'weekly').onPress(); menu.onClose(); editor.render();
+    assert.ok(editor.all('Text').some(node => node.props.children === 'tasksRepeatWeekly'));
+    await editor.all('Switch')[0].props.onValueChange(true); await editor.settle();
+    assert.equal(editor.all('Switch')[0].props.value, true);
+    editor.all('Button').find(node => node.props.label === 'clear').props.onPress(); editor.render();
+    assert.equal(editor.all('Switch')[0].props.value, false);
+    assert.equal(editor.all('Switch')[0].props.disabled, true);
+    editor.all('Button').find(node => node.props.label === 'save').props.onPress(); await editor.settle();
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].title, 'Keep my schedule'); assert.equal(saved[0].notes, 'Keep my notes');
+    assert.equal(saved[0].due_date, null); assert.equal(saved[0].repeat, 'none'); assert.equal(saved[0].reminder_time, null);
+    editor.dispose();
+  });
+  await verify('Notes editor navigation preserves Archive context and avoids a second navigation bar on list screens', async () => {
+    const destinations = [];
+    let segments = ['(notes)', 'checklist'];
+    const Stack = Object.assign(() => {}, { Screen: 'StackScreen' });
+    const layout = fixture(root, 'app/(notes)/_layout.tsx', 'default', {}, {
+      'expo-router': { Stack, useSegments: () => segments, useGlobalSearchParams: () => ({ returnTab: 'archive' }), useRouter: () => ({ replace: path => destinations.push(path) }) },
+      '../../src/hooks/useAppSwitching': { useAppSwitching: () => ({ handleAppSelect() {} }) },
+      '../../src/hub/tabs': { NOTES_TABS: [{ id: 'index', labelKey: 'navNotes' }, { id: 'archive', labelKey: 'notesArchiveTitle' }, { id: 'settings', labelKey: 'navSettings' }] },
+    });
+    layout.render();
+    const nav = layout.all('PillNav')[0].props;
+    assert.equal(nav.activeTabId, 'archive');
+    nav.onTabPress('settings');
+    assert.equal(destinations[0], '/(notes)/settings');
+    segments = ['(notes)', '(tabs)', 'index']; layout.render();
+    assert.equal(layout.all('PillNav').length, 0);
+    layout.dispose();
+  });
   await verify('Savings hides balances on read failure and Retry restores loaded data', async () => {
     let fail = true;
     const savings = fixture(root, 'app/(budget)/savings.tsx', 'default', {}, {
@@ -271,6 +315,7 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
   await verify('Task lists page results, retry failed paging, confirm completion, and reveal reminder targets outside the page', async () => {
     let pageFails = true;
     let completed = 0;
+    let deleted = 0;
     const tasks = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, title: `Task ${i}`, notes: '', completed_at: null, repeat: 'none' }));
     const target = { ...tasks[0], id: 999, title: 'Reminder outside the page' };
     const calls = [];
@@ -293,7 +338,7 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
           return { tasks: rows, hasMore: !options.offset, nextOffset: (options.offset ?? 0) + rows.length };
         },
         loadTask: async id => id === target.id ? target : undefined,
-        completeTask: async () => { completed++; }, reopenTask: async () => {}, TaskUndoError: class extends Error {},
+        completeTask: async () => { completed++; }, reopenTask: async () => {}, deleteTask: async () => { deleted++; }, TaskUndoError: class extends Error {},
       },
     }, params);
     await screen.settle();
@@ -338,6 +383,15 @@ module.exports = async function verifyHubImprovements(root, parseNumberInput) {
     screen.all('Pressable').find(node => node.props.accessibilityLabel === 'tasksShowOpen').props.onPress();
     await screen.settle();
     assert.equal(calls.at(-1).filter, 'active');
+    list().props.renderItem({ item: tasks[0], index: 0 }).props.onEdit(tasks[0]); screen.render();
+    screen.all('TaskEditor')[0].props.onDelete(); screen.render();
+    const deletionDialog = () => screen.all('ConfirmDialog').find(dialog => dialog.props.title === 'tasksDeleteTitle');
+    assert.equal(deleted, 0); assert.equal(deletionDialog().props.visible, true);
+    deletionDialog().props.onClose(); screen.render();
+    assert.equal(screen.all('TaskEditor')[0].props.task.id, tasks[0].id);
+    screen.all('TaskEditor')[0].props.onDelete(); screen.render();
+    await deletionDialog().props.onConfirm(); await screen.settle();
+    assert.equal(deleted, 1); assert.equal(screen.all('TaskEditor').length, 0);
     screen.dispose();
   });
   await verify('Notes waits for saved preferences and loads its first page only once', async () => {

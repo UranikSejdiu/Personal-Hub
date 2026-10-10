@@ -196,7 +196,10 @@ export function TasksScreen() {
   };
   const confirmDelete = async () => {
     if (!deletion) return;
-    await perform(() => deleteTask(deletion.id), () => setDeletion(null));
+    await perform(() => deleteTask(deletion.id), () => {
+      setDeletion(null);
+      if (editor?.task?.id === deletion.id) setEditor(null);
+    });
   };
 
   const visibleTasks = useMemo(() => failed ? [] : reminderTask
@@ -239,7 +242,7 @@ export function TasksScreen() {
             <Text className="text-center text-sm text-muted-foreground">{t("tasksEmptyHint")}</Text></Card>} />
     </View></View>
     {editor ? <TaskEditor task={editor.task} initialDate={null}
-      onSave={handleTaskSave} onClose={() => setEditor(null)} /> : null}
+      onSave={handleTaskSave} onClose={() => setEditor(null)} onDelete={editor.task ? () => askDelete(editor.task!) : undefined} /> : null}
     <ConfirmDialog visible={completion !== null} title={t("tasksCompleteTitle")}
       message={t(completion && completion.repeat !== "none" ? "tasksCompleteRepeatBody" : "tasksCompleteBody", { name: completion?.title ?? "" })}
       confirmLabel={t("tasksComplete")} onConfirm={confirmComplete} onClose={() => setCompletion(null)} />

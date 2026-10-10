@@ -217,10 +217,10 @@ export default function NotesEditorScreen() {
   // of this screen (which fires on each editor state event).
   const editorStyle = useMemo(
     () => ({
-      minHeight: 240,
-      paddingHorizontal: 16,
-      paddingTop: 4,
-      paddingBottom: 24,
+      minHeight: 300,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 12,
       backgroundColor: "transparent",
       color: colors.foreground,
       fontSize: 16,
@@ -564,6 +564,43 @@ export default function NotesEditorScreen() {
     setIsPinned(pinnedRef.current);
   }, [haptics, isArchived, isAddingItem]);
 
+  const formatToolbar = (
+    <View className="w-full max-w-md flex-row flex-wrap items-center justify-center self-center px-2 py-2">
+      <View className="max-w-full flex-row flex-wrap items-center rounded-[11px] bg-secondary px-1">
+        {FORMAT_BUTTONS.map((button) => {
+          const state = styleState?.[button.stateKey];
+          const active = state?.isActive ?? false;
+          const blocked = state?.isBlocking ?? false;
+          return (
+            <Fragment key={button.type}>
+              {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" /> : null}
+              <Pressable
+                onPress={() => {
+                  const editor = editorRef.current;
+                  if (!editor || blocked || mutationInFlightRef.current) return;
+                  button.toggle(editor);
+                  void haptics.light();
+                }}
+                disabled={blocked || isSaving || isAddingItem}
+                className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${
+                  active ? "bg-primary/15" : blocked ? "opacity-40" : ""
+                }`}
+                accessibilityRole="button"
+                accessibilityLabel={t(button.labelKey)}
+                accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
+              >
+                <button.icon
+                  size={18}
+                  color={active ? colors.primary : colors.foreground}
+                />
+              </Pressable>
+            </Fragment>
+          );
+        })}
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -593,33 +630,12 @@ export default function NotesEditorScreen() {
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-3 pb-1">
-            <Pressable
-              onPress={handleBack}
-              disabled={isSaving || isAddingItem}
-              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
-              accessibilityRole="button"
-              accessibilityLabel={t("cancel")}
-              accessibilityState={{ disabled: isSaving || isAddingItem }}
-            >
-              <ArrowLeft size={24} color={colors.foreground} />
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pt-2 pb-1">
+            <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="min-h-[44px] flex-row items-center gap-2 rounded-[11px] active:bg-muted"
+              accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: isSaving || isAddingItem }}>
+              <ArrowLeft size={18} color={colors.primary} /><Text className="text-xs font-semibold text-primary">{t("navNotes")}</Text>
             </Pressable>
-            <View className="flex-row items-center gap-2">
-              <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
-                onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
-              {!isArchived && <Pressable
-                onPress={handleSave}
-                disabled={isSaving || isAddingItem}
-                className={`min-h-[44px] items-center justify-center rounded-lg px-4 py-2 active:opacity-70 ${!isSaving ? "bg-primary" : "bg-primary/50"}`}
-                accessibilityRole="button"
-                accessibilityLabel={t("save")}
-                accessibilityState={{ disabled: isSaving || isAddingItem, busy: isSaving }}
-              >
-                <Text accessibilityLiveRegion="polite" className="text-sm font-medium text-primary-foreground">
-                  {t(isSaving ? "saving" : "save")}
-                </Text>
-              </Pressable>}
-            </View>
+            <Text className="text-xs text-muted-foreground">{t(isArchived ? "notesArchivedStatus" : "notesTextStatus")}</Text>
           </View>
 
           {isArchived && <Text className="w-full max-w-md self-center px-4 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
@@ -631,7 +647,7 @@ export default function NotesEditorScreen() {
             keyboardShouldPersistTaps="handled"
             bottomOffset={toolbarHeight + 12}
             extraKeyboardSpace={toolbarHeight}
-            contentContainerStyle={{ flexGrow: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 112 }}
             showsVerticalScrollIndicator={false}
           >
             <View className="w-full max-w-md flex-grow self-center">
@@ -645,11 +661,22 @@ export default function NotesEditorScreen() {
                 }}
                 placeholder={t("notesTitlePlaceholder")}
                 placeholderTextColor={colors.mutedForeground}
-                className="w-full px-4 pt-2 pb-1 text-2xl font-bold text-foreground"
+                className="w-full px-4 pt-2 pb-1 text-[22px] font-semibold text-foreground"
                 multiline
               />
 
-              <View className="mt-3 min-h-[240px]">
+              <View className="mx-4 mt-2 flex-row flex-wrap gap-2">
+                {!isArchived && <Pressable onPress={handleSave} disabled={isSaving || isAddingItem}
+                  className="min-h-[44px] items-center justify-center rounded-[11px] bg-primary px-3 py-2 disabled:opacity-50"
+                  accessibilityRole="button" accessibilityLabel={t("save")} accessibilityState={{ disabled: isSaving || isAddingItem, busy: isSaving }}>
+                  <Text accessibilityLiveRegion="polite" className="text-xs font-semibold text-primary-foreground">{t(isSaving ? "saving" : "save")}</Text>
+                </Pressable>}
+                <NoteActions variant="labels" isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
+                  onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
+              </View>
+
+              <View className="mx-4 mt-3 overflow-hidden rounded-[14px] border border-border/60 bg-card">
+                {!isArchived && !keyboardVisible && formatToolbar}
                 {isArchived ? (
                   <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={colors.primary}>
                     {initialHtml}
@@ -707,45 +734,12 @@ export default function NotesEditorScreen() {
           </KeyboardAwareScrollView>
 
           {/* Pinned toolbar — rides above the software keyboard. */}
-          {!isArchived && <KeyboardStickyView
-            className="w-full border-t border-border bg-background"
+          {!isArchived && keyboardVisible && <KeyboardStickyView
+            className="w-full border-t border-border/60 bg-card"
             style={toolbarStyle}
             onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
           >
-            <View className="w-full max-w-md flex-row items-center justify-center self-center px-2 py-1.5">
-              <View className="flex-row items-center rounded-xl bg-muted/50 px-1">
-                {FORMAT_BUTTONS.map((button) => {
-                  const state = styleState?.[button.stateKey];
-                  const active = state?.isActive ?? false;
-                  const blocked = state?.isBlocking ?? false;
-                  return (
-                    <Fragment key={button.type}>
-                      {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" /> : null}
-                      <Pressable
-                        onPress={() => {
-                          const editor = editorRef.current;
-                          if (!editor || blocked || mutationInFlightRef.current) return;
-                          button.toggle(editor);
-                          void haptics.light();
-                        }}
-                        disabled={blocked || isSaving || isAddingItem}
-                        className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${
-                          active ? "bg-primary/15" : blocked ? "opacity-40" : ""
-                        }`}
-                        accessibilityRole="button"
-                        accessibilityLabel={t(button.labelKey)}
-                        accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
-                      >
-                        <button.icon
-                          size={18}
-                          color={active ? colors.primary : colors.foreground}
-                        />
-                      </Pressable>
-                    </Fragment>
-                  );
-                })}
-              </View>
-            </View>
+            {formatToolbar}
           </KeyboardStickyView>}
         </View>
       </View>
