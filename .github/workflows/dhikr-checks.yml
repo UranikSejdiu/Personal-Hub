@@ -2,10 +2,11 @@ name: Dhikr Quality Checks
 
 on:
   push:
-    branches: ["**"]
-    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml"]
+    branches: ["**", "!main"]
+    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml", ".github/actions/android-cache/**"]
   pull_request:
-    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml"]
+    paths: ["apps/dhikr/**", ".github/workflows/dhikr-checks.yml", ".github/workflows/build-dhikr.yml", ".github/actions/android-cache/**"]
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,6 +14,10 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-checks-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
     defaults:
       run:
         working-directory: apps/dhikr

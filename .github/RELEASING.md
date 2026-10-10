@@ -17,9 +17,31 @@ or moving downloadable releases to a public repository first.
 
 ## Build without publishing
 
+Pushing app changes to `main` builds that app's signed APK and checks it in
+parallel. Hub-only changes do not rebuild Dhikr, and Dhikr-only changes do not
+rebuild Hub. Changes to the shared compiler cache action rebuild both apps.
+Documentation-only changes do not start native builds. These runs upload APK
+artifacts but never create releases.
+
 Open [Actions](https://github.com/UranikSejdiu/Personal-Hub/actions), select the
 app's workflow, and choose **Run workflow** on `main`. A successful run uploads
 the signed APK as an artifact. Manual runs do not publish an app update.
+
+## Build caches and timing
+
+Native builds on `main` save Gradle dependencies, transforms, and task outputs,
+plus a separate C++ compiler cache for each app. Tag builds restore these caches
+from the default branch. A tag's cache cannot be reused by unrelated tags, which
+is why the shared caches are warmed on `main` instead. Gradle task caching is
+enabled in both apps' Expo plugins so it survives native project regeneration.
+
+The first build after a cache miss still performs a full native compilation.
+For later builds, inspect the job summary for compiler cache hits and the
+`hub-gradle-profile` or `dhikr-gradle-profile` artifact for task timings. APK
+uploads skip ZIP recompression and are retained for 14 days. New branch builds
+cancel older builds on the same branch; release tag builds are not canceled.
+Publishing is a separate job that requires both checks and the APK build to
+succeed. Dhikr generates its native project once per build.
 
 ## Publish an update
 
@@ -27,6 +49,7 @@ the signed APK as an artifact. Manual runs do not publish an app update.
    `app.json` version, and increment `app.json` Android `versionCode`.
    For Hub, also keep the tracked `android/app/build.gradle` version in sync.
 2. Run `npm run validate` in the app's directory, commit, and push the source.
+   Wait for its `main` build to succeed so the release can reuse the warmed caches.
 3. Create and push the matching tag. For example, for the next versions:
 
    ```sh
@@ -47,6 +70,30 @@ Hub uses `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`
 Dhikr uses `DHIKR_KEYSTORE_BASE64`, `DHIKR_KEYSTORE_PASSWORD`, `DHIKR_KEY_ALIAS`,
 and `DHIKR_KEY_PASSWORD`. Both sets are configured as repository Actions secrets.
 Dhikr uses the same key as the locally built Dhikr APK.
+
+## Android system backup and device transfer
+
+Both apps allow Android backup. Each app's rules include its own SQLite records,
+portable preferences, AsyncStorage database, and final recovery copy for Android
+11 and lower, Android 12+ cloud backup, and Android 12+ device transfer. Cached
+APKs, temporary exports, and device-bound SecureStore data are excluded. The
+first launch migrates existing theme/vibration preferences; Hub also migrates
+its tutorial and sample-data ownership state so those follow its restored data.
+
+Users enable system backup in their phone settings. Backup scheduling, the
+25 MB Google Auto Backup quota, installation availability, and manufacturer
+support determine whether and when restoration occurs. Samsung Cloud and
+Smart Switch support varies by device and transfer method; Android eligibility
+does not guarantee every Samsung service restores third-party app data. Manual
+JSON export/import remains available. Do not change package IDs or signing keys
+between releases, because restored data must match the installed app.
+
+Run `npm run audit:backup` in either app to test backup rules and preference
+migration. A physical-device backup/restore test is still needed to confirm
+behavior for a specific Samsung model/provider.
+
+References: [Android Auto Backup](https://developer.android.com/identity/data/autobackup),
+[Samsung backup options](https://www.samsung.com/us/support/answer/ANS10002780/).
 
 ## Moving existing Dhikr counts
 

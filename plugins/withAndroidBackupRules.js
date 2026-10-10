@@ -5,17 +5,16 @@ const { withAndroidManifest, withDangerousMod } = require("expo/config-plugins")
 const BACKUP_RULES_ATTRIBUTE = "@xml/backup_rules";
 const DATA_EXTRACTION_RULES_ATTRIBUTE = "@xml/data_extraction_rules";
 
-// Android 11 and lower: only <exclude> entries, everything else stays backed up.
+// Android 11 and lower: include portable data, not caches or native credentials.
 const BACKUP_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
 <!--
-  Personal Hub is offline-first. The SQLite database and recovery snapshots
-  must stay off cloud backup and device transfer. Auth tokens in SecureStore
-  stay out too.
+  Back up app records, portable preferences, and the last recovery copy.
+  Keystore-encrypted SecureStore values cannot be restored on another phone.
 -->
 <full-backup-content>
-  <exclude domain="database" path="."/>
-  <exclude domain="file" path="SQLite/"/>
-  <exclude domain="file" path="personal-hub-safety-backup.json"/>
+  <include domain="database" path="."/>
+  <include domain="file" path="SQLite/"/>
+  <include domain="file" path="personal-hub-safety-backup.json"/>
   <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
   <exclude domain="sharedpref" path="SecureStore"/>
 </full-backup-content>
@@ -29,16 +28,16 @@ const DATA_EXTRACTION_RULES_XML = `<?xml version="1.0" encoding="utf-8"?>
 -->
 <data-extraction-rules>
   <cloud-backup>
-    <exclude domain="database" path="."/>
-    <exclude domain="file" path="SQLite/"/>
-    <exclude domain="file" path="personal-hub-safety-backup.json"/>
+    <include domain="database" path="."/>
+    <include domain="file" path="SQLite/"/>
+    <include domain="file" path="personal-hub-safety-backup.json"/>
     <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
     <exclude domain="sharedpref" path="SecureStore"/>
   </cloud-backup>
   <device-transfer>
-    <exclude domain="database" path="."/>
-    <exclude domain="file" path="SQLite/"/>
-    <exclude domain="file" path="personal-hub-safety-backup.json"/>
+    <include domain="database" path="."/>
+    <include domain="file" path="SQLite/"/>
+    <include domain="file" path="personal-hub-safety-backup.json"/>
     <exclude domain="file" path="personal-hub-safety-backup.json.tmp"/>
     <exclude domain="sharedpref" path="SecureStore"/>
   </device-transfer>
@@ -61,7 +60,7 @@ function writeXmlFile(projectRoot, name, contents) {
 
 // Generates the rule files (they are wiped by `expo prebuild --clean`) and
 // points the manifest at them instead of expo-secure-store's shared-pref-only
-// rules, which would leave the SQLite database eligible for backup.
+// rules. Include Expo SQLite (files/SQLite) and Android databases (AsyncStorage).
 function withAndroidBackupRules(config) {
   const withRulesFiles = withDangerousMod(config, [
     "android",
@@ -80,6 +79,7 @@ function withAndroidBackupRules(config) {
         "withAndroidBackupRules: generated manifest has no <application> element"
       );
     }
+    application.$["android:allowBackup"] = "true";
     application.$["android:fullBackupContent"] = BACKUP_RULES_ATTRIBUTE;
     application.$["android:dataExtractionRules"] = DATA_EXTRACTION_RULES_ATTRIBUTE;
     return cfg;

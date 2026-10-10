@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import * as Haptics from "expo-haptics";
-import * as SecureStore from "expo-secure-store";
+import { getPreference, setPreference } from "../lib/preferences";
 
 const HAPTICS_KEY = "haptics_enabled";
 
@@ -15,7 +15,7 @@ export function isHapticsEnabled(): boolean {
 }
 
 export async function getHapticsEnabled(): Promise<boolean> {
-  const stored = await SecureStore.getItemAsync(HAPTICS_KEY);
+  const stored = await getPreference(HAPTICS_KEY);
   const enabled = stored !== "false";
   cachedEnabled = enabled;
   settingsLoaded = true;
@@ -23,9 +23,9 @@ export async function getHapticsEnabled(): Promise<boolean> {
 }
 
 export async function setHapticsEnabled(enabled: boolean): Promise<void> {
+  await setPreference(HAPTICS_KEY, String(enabled));
   cachedEnabled = enabled;
   settingsLoaded = true;
-  await SecureStore.setItemAsync(HAPTICS_KEY, String(enabled));
 }
 
 export function useHaptics() {

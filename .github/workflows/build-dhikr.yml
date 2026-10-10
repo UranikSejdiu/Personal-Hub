@@ -2,22 +2,36 @@ name: Build Dhikr APK
 
 on:
   push:
+    branches: [main]
     tags: ["dhikr-v*"]
+    paths:
+      - "apps/dhikr/**"
+      - "!apps/dhikr/**/*.md"
+      - ".github/workflows/dhikr-checks.yml"
+      - ".github/workflows/build-dhikr.yml"
+      - ".github/actions/android-cache/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: dhikr-apk-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
+  checks:
+    uses: ./.github/workflows/dhikr-checks.yml
+
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/dhikr
     env:
       CI: true
-    permissions:
-      contents: write
+      NODE_ENV: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,22 +39,25 @@ jobs:
           node-version-file: apps/dhikr/.nvmrc
           cache: npm
           cache-dependency-path: apps/dhikr/package-lock.json
+      - name: Verify release tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/dhikr-v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - run: npm ci --prefer-offline
-      - name: Verify release tag matches the app version
-        if: github.event_name == 'push'
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/check-release-tag.cjs
-      - run: npm run validate
-      - run: npx expo config --type public
-      - run: npm run bundle:check
-      - name: Generate Dhikr native project
-        run: npm run prebuild
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Setup native compiler cache
+        id: native-cache
+        uses: ./.github/actions/android-cache
+        with:
+          app: dhikr
+          fingerprint: ${{ hashFiles('apps/dhikr/package-lock.json', 'apps/dhikr/plugins/withGradleProperties.js', 'apps/dhikr/plugins/withReleaseSigning.js') }}
+      - run: npm ci --prefer-offline --include=dev
       - name: Configure Dhikr release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.DHIKR_KEYSTORE_BASE64 }}
@@ -52,16 +69,53 @@ jobs:
           mkdir -p credentials
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
           printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
+          test -s credentials/release-keystore.jks
+          test -s credentials/keystore.properties
           chmod 600 credentials/release-keystore.jks credentials/keystore.properties
-      - name: Build standalone APK
+      - name: Generate native project and build standalone APK
         run: npm run build:apk
+      - name: Report compiler cache usage
+        if: always()
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save shared compiler cache on main
+        if: success() && github.ref == 'refs/heads/main' && steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.native-cache.outputs.path }}
+          key: ${{ steps.native-cache.outputs.key }}
+      - name: Upload Gradle profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dhikr-gradle-profile
+          path: apps/dhikr/android/build/reports/profile/*.html
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: Dhikr-APK
           path: apps/dhikr/build/*.apk
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: [checks, build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/dhikr-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Dhikr APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Dhikr-APK
+          path: release
       - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'push'
         with:
           name: Dhikr ${{ github.ref_name }}
           body: |
@@ -72,4 +126,4 @@ jobs:
           # Older hub builds still use /releases/latest.
           make_latest: "false"
           fail_on_unmatched_files: true
-          files: apps/dhikr/build/*.apk
+          files: release/*.apk

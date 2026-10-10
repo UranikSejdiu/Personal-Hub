@@ -1,6 +1,7 @@
 const { withGradleProperties } = require("expo/config-plugins");
 
 const PROPERTIES = {
+  "org.gradle.caching": "true",
   "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m",
   "expo.gif.enabled": "true",
   "expo.webp.enabled": "true",

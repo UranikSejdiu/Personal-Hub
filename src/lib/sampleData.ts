@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import { getPreference, setPreference } from "./preferences";
 import * as db from "./db";
 import {
   addExpense,
@@ -82,12 +82,12 @@ function parseRecord(raw: string): SampleDataRecord | null {
 }
 
 async function readRecord(): Promise<SampleDataRecord | null> {
-  const raw = await SecureStore.getItemAsync(SAMPLE_STATE_KEY);
+  const raw = await getPreference(SAMPLE_STATE_KEY);
   return raw ? parseRecord(raw) : null;
 }
 
 async function writeRecord(record: SampleDataRecord): Promise<void> {
-  await SecureStore.setItemAsync(SAMPLE_STATE_KEY, JSON.stringify(record));
+  await setPreference(SAMPLE_STATE_KEY, JSON.stringify(record));
 }
 
 function hasActivity(row: Record<string, unknown>, fields: string[]): boolean {

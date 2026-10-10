@@ -623,7 +623,7 @@ async function performImport(jsonStr: string, options: ImportOptions): Promise<v
     }
   }
 
-  // SecureStore ownership IDs/months belong to the previous database. Clear
+  // Sample ownership IDs/months belong to the previous database. Clear
   // them before replacement, even for a safety restore. If this fails, abort
   // without touching user data rather than risking later demo cleanup.
   await invalidateSampleData();

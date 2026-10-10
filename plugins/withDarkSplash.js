@@ -12,7 +12,7 @@ function withDarkSplash(config) {
       backgroundColor: "#FFFFFF",
       dark: {
         image,
-        backgroundColor: config.android?.adaptiveIcon?.backgroundColor ?? "#080F2E",
+        backgroundColor: "#080F2E",
       },
     }],
   ]);

@@ -1,6 +1,6 @@
 {
   "name": "dhikr",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -10,8 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "audit:regression": "node scripts/audit-regression.cjs",
+    "audit:backup": "node scripts/backup-restore-check.cjs",
     "check:theme": "node scripts/theme-contrast.cjs",
-    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme",
+    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run audit:backup && npm run check:theme",
     "bundle:check": "expo export --platform android --platform ios --output-dir dist",
     "build:apk": "node scripts/build-apk.cjs",
     "signing:create": "node scripts/create-signing-key.cjs",

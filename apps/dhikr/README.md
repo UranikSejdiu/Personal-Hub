@@ -56,9 +56,33 @@ EAS requires linking this app to your own Expo project first.
 
 ## Save backups on Android
 
-Settings → Save backup to folder opens Android's folder picker and saves the
-JSON backup directly in the folder you select. Share backup remains available
-for sending a copy to another app. Cancelling the picker does not save a file.
+Settings → Backup & restore → Export backup offers **Save to folder** and
+**Share backup** together. Save to folder opens Android's folder picker and
+saves the JSON backup directly in the folder you select. Share backup sends a
+copy to another app. Cancelling the picker does not save a file.
+
+## Android system backup and phone transfer
+
+The Android app participates in system backup and phone-to-phone transfer.
+Its rules include the Dhikr database, saved preferences, and the last recovery
+copy on Android 11 and older, and both cloud backup and device transfer on
+Android 12 and newer. Temporary exports and device-bound SecureStore data are
+excluded. Existing theme and vibration preferences migrate to portable storage
+when the updated app is opened.
+
+Enable backup in the phone's Android/Google or supported manufacturer backup
+settings. Scheduling and restore availability are controlled by the phone's
+backup provider. Samsung Cloud, Smart Switch, and Temporary Cloud Backup have
+different support depending on model, software, and transfer method; declaring
+Android backup support cannot guarantee that every Samsung service restores
+third-party app data. Export backup remains available for a manual transfer.
+
+Restoring requires the same Android package and signing key, with a compatible
+app version installed on the destination. Google Auto Backup has a 25 MB limit
+per app; device transfer and manufacturer services can have different limits.
+
+References: [Android Auto Backup](https://developer.android.com/identity/data/autobackup),
+[Samsung backup options](https://www.samsung.com/us/support/answer/ANS10002780/).
 
 ## App updates
 

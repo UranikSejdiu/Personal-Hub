@@ -2,23 +2,32 @@ name: Build Release APK
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore:
+      - "apps/dhikr/**"
+      - "**/*.md"
+      - ".github/workflows/build-dhikr.yml"
+      - ".github/workflows/dhikr-checks.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-apk-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
-    permissions:
-      contents: read
 
   build:
-    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       CI: true
-    permissions:
-      contents: write
+      NODE_ENV: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +38,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Verify release tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag.cjs
+
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
@@ -37,15 +52,19 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # Tags restore the shared main cache; only main writes it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Setup native compiler cache
+        id: native-cache
+        uses: ./.github/actions/android-cache
+        with:
+          app: hub
+          fingerprint: ${{ hashFiles('package-lock.json', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties') }}
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
-
-      - name: Verify release tag matches the app version
-        if: github.event_name == 'push'
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/check-release-tag.cjs
+        run: npm ci --prefer-offline --include=dev
 
       - name: Create keystore and properties from secrets
         env:
@@ -75,13 +94,28 @@ jobs:
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Build release APK
-        run: cd android && ./gradlew assembleRelease --profile
+        working-directory: android
+        run: ./gradlew assembleRelease --build-cache --profile --console=plain
+
+      - name: Report compiler cache usage
+        if: always()
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Save shared compiler cache on main
+        if: success() && github.ref == 'refs/heads/main' && steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.native-cache.outputs.path }}
+          key: ${{ steps.native-cache.outputs.key }}
 
       - name: Upload Gradle profile
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-profile
+          name: hub-gradle-profile
           path: android/build/reports/profile/*.html
           if-no-files-found: ignore
           retention-days: 14
@@ -92,9 +126,24 @@ jobs:
           name: Personal-Hub-APK
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: [checks, build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Hub APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Personal-Hub-APK
+          path: release
 
       - name: Create GitHub Release
-        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           name: Personal Hub ${{ github.ref_name }}
@@ -104,6 +153,6 @@ jobs:
             Before updating an older Hub with Dhikr counts, export its backup and import it into standalone Dhikr.
             Release and signing instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
           fail_on_unmatched_files: true
-          files: android/app/build/outputs/apk/release/app-release.apk
+          files: release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

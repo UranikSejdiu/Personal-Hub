@@ -91,6 +91,10 @@ class FakeDirectory {
   }
 }
 const mocks = {
+  'expo-sqlite/kv-store': { __esModule: true, default: {
+    getItemSync(key) { return stored.get(key) ?? null; },
+    setItemSync(key, value) { stored.set(key, value); },
+  } },
   'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: () => reminderNativeAvailable ? {} : null },
   'expo-notifications': {
     setNotificationHandler() {},
