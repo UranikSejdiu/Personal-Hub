@@ -94,14 +94,19 @@ on the device and its backup provider; manual JSON export remains available.
 
 ## License and usage
 
-The author's original work in both apps is **free for noncommercial use,
-learning, modification, and free noncommercial sharing**. Selling it, using it in
-paid products, or offering paid client services involving it requires prior
-written permission. Keep author credit and the applicable notices.
+The author's original work is available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE.md). It permits use, modification,
+and sharing for permitted noncommercial purposes and expressly permits use by
+specified charitable, educational, research, public-service, and government
+organizations. Uses outside the license's permitted purposes require separate
+permission; commercial resale and monetized products or services are not
+generally covered by the noncommercial grant.
 
-Read the [full license](LICENSE.md), [usage guide](USAGE.md), and
-[third-party notices](THIRD_PARTY_NOTICES.md). Frameworks, dependencies, fonts,
-icons, and other third-party materials retain their own licenses.
+See the [usage guide](USAGE.md), [copyright notice](NOTICE.md), and
+[third-party notices](THIRD_PARTY_NOTICES.md). The official license governs;
+these summaries add no restrictions. Third-party materials and previously valid
+license grants retain their existing permissions.
+
 
 ## Author and support
 

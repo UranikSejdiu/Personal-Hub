@@ -152,11 +152,13 @@ Icons use Flaticon Uicons: https://www.flaticon.com/uicons.
 
 ## License and usage
 
-The author's original work in this app is covered by the repository's
-[Uranik Noncommercial License 1.0](../../LICENSE.md). Personal use, learning,
-modification, and free noncommercial sharing are allowed. Resale, paid products,
-and paid client services require prior written permission.
+The author's original work in this app is offered under the repository's
+[PolyForm Noncommercial License 1.0.0](../../LICENSE.md). It permits use,
+modification, and sharing for permitted purposes, including its express grants
+to specified charitable, educational, research, public-service, and government
+organizations. Uses outside those permissions require a separate agreement.
 
-See the [usage guide](../../USAGE.md) and
-[third-party notices](../../THIRD_PARTY_NOTICES.md). Dependencies and assets retain
-their own licenses.
+Read the [usage guide](../../USAGE.md), [copyright notice](../../NOTICE.md), and
+[third-party notices](../../THIRD_PARTY_NOTICES.md). The official license governs
+without additional restrictions from these summaries. Dependencies, assets, and
+previously valid license grants retain their existing permissions.

@@ -1,85 +1,131 @@
-# Uranik Noncommercial License 1.0
+# PolyForm Noncommercial License 1.0.0
 
-Copyright (c) 2026 Uranik Sejdiu.
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-Effective for work offered under these terms from October 28, 2026.
+## Acceptance
 
-## 1. Scope and acceptance
+In order to get any license under these terms, you must agree
+to them as both strict obligations and conditions to all
+your licenses.
 
-This license applies only to the original software, documentation, and other
-copyrightable material in this repository that Uranik Sejdiu owns and offers
-under this license (the "Work"). By exercising the permissions below, you agree
-to these conditions. Rights not expressly granted are reserved.
+## Copyright License
 
-Third-party code, dependencies, templates, fonts, icons, images, and other
-materials are excluded and retain their own licenses. See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the notices supplied with
-those materials. This license neither changes third-party rights nor withdraws
-permissions validly granted under an earlier license. It applies only to the
-extent the copyright holder has the right to impose these terms.
+The licensor grants you a copyright license for the
+software to do everything you might do with the software
+that would otherwise infringe the licensor's copyright
+in it for any permitted purpose.  However, you may
+only distribute the software according to [Distribution
+License](#distribution-license) and make changes or new works
+based on the software according to [Changes and New Works
+License](#changes-and-new-works-license).
 
-## 2. Free noncommercial permission
+## Distribution License
 
-You may use, run, study, copy, and modify the Work without a license fee for
-noncommercial purposes, including personal use, learning, research, and hobby
-projects. You may share the Work and your modifications without charge for
-noncommercial purposes, provided you comply with this license.
+The licensor grants you an additional copyright license
+to distribute copies of the software.  Your license
+to distribute covers distributing the software with
+changes and new works permitted by [Changes and New Works
+License](#changes-and-new-works-license).
 
-"Noncommercial" means not primarily intended for or directed toward commercial
-advantage or monetary compensation. Being a nonprofit organization does not by
-itself make a sale or other commercial activity permitted.
+## Notices
 
-## 3. No resale, paid services, or commercial exploitation
+You must ensure that anyone who gets a copy of any part of
+the software from you also gets a copy of these terms or the
+URL for them above, as well as copies of any plain-text lines
+beginning with `Required Notice:` that the licensor provided
+with the software.  For example:
 
-Without separate prior written permission from Uranik Sejdiu, you may not:
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
 
-- Sell, resell, rent, lease, sublicense for payment, or charge for access to the
-  Work, a copy of it, or a modified version.
-- Include or use the Work, in whole or in part, in a product, application,
-  website, template, subscription, or service sold or licensed to others for
-  payment or other compensation.
-- Use the Work to perform paid development, customization, installation,
-  hosting, support, or other client services involving the Work.
-- Monetize the Work or a derivative through advertising, paid features, paid
-  access, or another revenue-generating offering.
-- Use or distribute the Work for any other commercial purpose.
+## Changes and New Works License
 
-Giving away the Work while charging for an associated service does not avoid
-these restrictions. Renaming, modifying, or repackaging it does not remove them.
+The licensor grants you an additional copyright license to
+make changes and new works based on the software for any
+permitted purpose.
 
-## 4. Attribution and redistribution
+## Patent License
 
-When sharing the Work or a modification, you must keep this license and all
-applicable copyright, attribution, and third-party notices with the copy.
-Identify your changes and do not claim that the original Work is your own.
-Recipients must receive this license; you may not offer the covered Work under
-terms that remove its noncommercial and no-resale conditions.
+The licensor grants you a patent license for the software that
+covers patent claims the licensor can license, or becomes able
+to license, that you would infringe by using the software.
 
-You retain ownership of your own original modifications. These terms continue
-to apply to the underlying Work and its use within a modified version. No
-trademark rights, endorsement, or rights to third-party material are granted.
+## Noncommercial Purposes
 
-## 5. Separate permission
+Any noncommercial purpose is a permitted purpose.
 
-Commercial use requires a separate written agreement with Uranik Sejdiu. You
-can request permission through the relevant repository's GitHub issue tracker
-or the contact options at <https://github.com/UranikSejdiu>. A request or silence
-does not grant permission. The copyright holder may offer separate licenses.
+## Personal Uses
 
-## 6. Termination and statutory rights
+Personal use for research, experiment, and testing for
+the benefit of public knowledge, personal study, private
+entertainment, hobby projects, amateur pursuits, or religious
+observance, without any anticipated commercial application,
+is use for a permitted purpose.
 
-Your permissions under this license terminate automatically if you violate its
-conditions. Continued use then requires the copyright holder's written
-permission. This does not restrict fair use, fair dealing, or other rights that
-applicable law grants independently of a license, or revoke rights already
-validly granted under a different license.
+## Noncommercial Organizations
 
-## 7. No warranty or liability
+Use by any charitable organization, educational institution,
+public research organization, public safety or health
+organization, environmental protection organization,
+or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting
+from the funding.
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE WORK IS PROVIDED "AS IS",
-WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. THE
-COPYRIGHT HOLDER IS NOT LIABLE FOR CLAIMS, DAMAGES, OR OTHER LIABILITY ARISING
-FROM THE WORK OR ITS USE, WHETHER IN CONTRACT, TORT, OR OTHERWISE. THESE TERMS
-DO NOT EXCLUDE LIABILITY OR RIGHTS THAT APPLICABLE LAW DOES NOT ALLOW TO BE
-EXCLUDED.
+## Fair Use
+
+You may have "fair use" rights for the software under the
+law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of
+your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else.  These terms do not imply
+any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or
+contributes to infringement of any patent, your patent license
+for the software granted under these terms ends immediately. If
+your company makes such a claim, your patent license ends
+immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have
+violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless
+continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within
+32 days of receiving notice.  Otherwise, all your licenses
+end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without
+any warranty or condition, and the licensor will not be liable
+to you for any damages arising out of these terms or the use
+or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these
+terms, and the **software** is the software the licensor makes
+available under these terms.
+
+**You** refers to the individual or entity agreeing to these
+terms.
+
+**Your company** is any legal entity, sole proprietorship,
+or other kind of organization that you work for, plus all
+organizations that have control over, are under the control of,
+or are under common control with that organization.  **Control**
+means ownership of substantially all the assets of an entity,
+or the power to direct its management and policies by vote,
+contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the
+software under these terms.
+
+**Use** means anything you do with the software requiring one
+of your licenses.
