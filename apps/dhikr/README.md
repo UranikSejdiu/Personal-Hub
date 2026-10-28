@@ -149,3 +149,14 @@ longer exposes Dhikr screens or includes the Dhikr counter code.
 This new package cannot directly access another Android app's private storage.
 
 Icons use Flaticon Uicons: https://www.flaticon.com/uicons.
+
+## License and usage
+
+The author's original work in this app is covered by the repository's
+[Uranik Noncommercial License 1.0](../../LICENSE.md). Personal use, learning,
+modification, and free noncommercial sharing are allowed. Resale, paid products,
+and paid client services require prior written permission.
+
+See the [usage guide](../../USAGE.md) and
+[third-party notices](../../THIRD_PARTY_NOTICES.md). Dependencies and assets retain
+their own licenses.
