@@ -39,6 +39,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
+/android/
+/modules/
 /ios
 /android/**/build/
 /android/.gradle/
@@ -53,6 +55,9 @@ yarn-error.*
 # Standalone app documentation
 !/.github/RELEASING.md
 !/apps/dhikr/README.md
+!/apps/budget/*.md
+!/apps/notes/*.md
+!/apps/tasks/*.md
 /apps/dhikr/android/
 /apps/dhikr/ios/
 /apps/dhikr/build/

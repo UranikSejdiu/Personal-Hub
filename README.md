@@ -1,150 +1,88 @@
-# Personal Hub
+# Uranik apps
 
-An offline-first mobile toolkit for everyday budgeting, notes, and tasks.
-This repository also contains **Dhikr**, an independent counter app with its own
-Android identity, data, settings, build, and release stream.
+Four independent Android apps using React Native, Expo, TypeScript, and local
+SQLite. Personal Hub is retired: its runtime and build workflow have been removed.
+Budget, Notes, and Tasks replace it completely. Dhikr remains independent.
 
-Built with React Native, Expo, TypeScript, and local SQLite storage.
+| App | Source | Android package | Tag | APK |
+| --- | --- | --- | --- | --- |
+| Budget | [apps/budget](apps/budget/) | `com.uranik.budget` | `budget-v<version>` | `Budget-<version>.apk` |
+| Notes | [apps/notes](apps/notes/) | `com.uranik.notes` | `notes-v<version>` | `Notes-<version>.apk` |
+| Tasks | [apps/tasks](apps/tasks/) | `com.uranik.tasks` | `tasks-v<version>` | `Tasks-<version>.apk` |
+| Dhikr | [apps/dhikr](apps/dhikr/) | `com.dhiker.counter` | `dhikr-v<version>` | `Dhikr-<version>.apk` |
 
-## Apps
+Budget includes savings, loans, cards, and financial history. Notes includes
+rich text, checklists, archives, search, and sorting. Tasks includes repeating
+tasks and native Android reminders. Each app has separate settings, storage,
+backups, build checks, signing configuration, and an APK update channel.
 
-| App | Source | Android package | Release tags |
-| --- | --- | --- | --- |
-| Personal Hub | Repository root | `com.uranik.offlinehub` | `v<version>` |
-| Dhikr | [`apps/dhikr/`](apps/dhikr/) | `com.dhiker.counter` | `dhikr-v<version>` |
+## Move from Personal Hub
 
-Both apps can be installed together. They keep separate databases and backups.
-The Laravel/Vue web counter is a separate project in
-[UranikSejdiu/Dhiker](https://github.com/UranikSejdiu/Dhiker).
+1. Before uninstalling Hub, use its Settings → Backup & restore → Export →
+   Save to folder. Save the JSON outside app-private storage.
+2. Install Budget, Notes, and Tasks from their matching [GitHub releases](https://github.com/UranikSejdiu/Personal-Hub/releases).
+   In each app's Settings, choose **Import Hub or app backup**, select the
+   same Hub JSON file, review the record counts, and confirm.
+3. Check financial history, rich notes, checklist ordering and archives, and
+   task dates, repeats, and reminder times. Each importer reads only its own
+   tables and preserves IDs, timestamps, ordering, and relationships.
+4. Use **Save to folder** in each app to export a fresh backup. These exports
+   use separate formats and restore into the matching app. Imports save recovery
+   copies before replacement; database failures roll back all record changes.
+5. Once all three imports and new backups are verified, uninstall Hub. It is
+   not needed afterward. Uninstalling removes its old scheduled reminders.
+   Enable notifications and **Alarms & reminders** in the new Tasks app and
+   test a reminder while the phone is locked.
 
-## Personal Hub features
+Android does not automatically move private databases between packages.
+Transfer is a snapshot, not ongoing sync. Imports replace destination records
+rather than merging later edits. Never uninstall the only copy of your data
+before saving a backup and verifying all three imports.
 
-- **Budget:** monthly income and savings targets, expenses, paid status, recurring
-  expenses, month history, and summaries. Month targets carry forward until changed.
-- **Savings:** deposits, purchases, activity by year, and year-end carry-forward.
-- **Loans & cards:** independent repayment plans and monthly payment tracking.
-- **Notes:** rich text, checklists, search, sorting, pinned notes, and archives.
-- **Tasks:** due dates, repeating tasks, completion, and optional reminders.
-- **Settings:** light/dark themes, vibration controls, and module visibility.
-- **Backups:** JSON export to an Android folder or share sheet, import, recovery
-  copies, and Android system backup/device-transfer support.
-- **Updates:** each app checks its own GitHub releases once at startup, with a
-  manual check available in Settings.
+Applicable Hub backup versions 1–7 are supported. Tasks requires both task
+tables (normally version 5+); files without Tasks are rejected rather than
+emptying the destination. Older exports may omit appearance preferences;
+missing preferences leave current settings unchanged. New standalone exports
+include portable theme, vibration, and relevant Notes display preferences.
 
-## Get the Android apps
+Tests use disposable SQLite fixtures to verify mixed Hub imports, exact field
+round trips, folder/share exports, legacy formats, rollback, recovery, and
+update isolation. Actual personal records and device-provider behavior still
+need checking on the phone before uninstalling Hub.
 
-Open [Releases](https://github.com/UranikSejdiu/Personal-Hub/releases) and choose
-the release for the app you want:
+## Development
 
-- **Hub:** a `v...` release with `app-release.apk`.
-- **Dhikr:** a `dhikr-v...` release with `Dhikr-<version>.apk`.
-
-Android may ask you to allow installation from the app used to open the APK.
-Each app's updater uses its own tags and APK names so the release streams stay
-separate.
-
-## Develop locally
-
-Use Node.js 24 as specified in [`.nvmrc`](.nvmrc).
+Use Node 24 and an Android SDK/JDK for native builds. Each app can be copied
+to another repository and built without root runtime dependencies.
 
 ```sh
-git clone https://github.com/UranikSejdiu/Personal-Hub.git
-cd Personal-Hub
+cd apps/budget
 npm ci
-npm start
-```
-
-For native development, install the Android SDK and a compatible JDK, then run
-`npm run android`. Dhikr installs and runs independently from `apps/dhikr`:
-
-```sh
-cd apps/dhikr
-npm ci
-npm start
-```
-
-See the [Dhikr README](apps/dhikr/README.md) for its full setup and local APK build
-instructions.
-
-## Checks and release builds
-
-Run these from the app directory you are working on:
-
-```sh
 npm run validate
 npm run bundle:check
-npm run check:fonts
+npm start
 ```
 
-Validation checks types, lint, data regressions, backup behavior, and theme
-contrast. Native appearance, device backup/restore, notifications, and installation
-still require testing on a compatible phone.
+At the root, `npm ci` installs only repository tooling. `npm run install:apps`
+installs each app's dependencies; `npm run validate` checks release configuration
+and all four apps. Use `npm run budget`, `npm run notes`, `npm run tasks`, or
+`npm run dhikr` to start an app.
 
-Both apps compile and target Android 17 (API 37), with Android 7.0 (API 24)
-as the minimum supported version. Targeting the latest SDK does not certify
-every manufacturer's phone; verify release builds on actual devices too.
+The new apps target Android 17 (API 37), with Android 7.0 (API 24) as the minimum.
+Native compilation and mocked tests do not certify every Android phone. Tasks
+provides notification, exact-alarm, and manufacturer battery setup guidance.
 
-### Task reminder delivery on Android
+## Releases
 
-Open **Tasks → Reminder delivery** in a new native build of Personal Hub.
-Enable notifications and **Alarms & reminders**. The app detects disabled
-notification channels as well as denied app notification permission. Exact
-alarm access lets Android schedule reminders during device sleep; denied access
-keeps an inexact fallback that can arrive late. Granting alarm access restores
-persisted schedules through a native receiver without needing to reopen Tasks.
-Expo also restores schedules after reboot and an APK update. Android schedules
-all future task reminders, rather than requiring a later launch to refill 50 slots.
+Each app builds on its main-branch changes, manual dispatch, or its own version
+tag. Main/manual runs upload artifacts; tags publish after validation and the
+signed APK build pass. Updaters accept only their own tags and exact APK names.
+See [Android releases](.github/RELEASING.md). Budget, Notes, and Tasks use the
+existing Hub signing secrets. Dhikr keeps its existing signing key and secrets.
+Never change a distributed app's package ID or signing key.
 
-If Samsung still delays reminders, follow the panel's battery instructions:
-allow background usage / Unrestricted battery and remove Personal Hub from
-Sleeping apps and Deep sleeping apps. Android force-stop pauses reminders until
-the app is opened again. Repeating tasks create their next occurrence when the
-current task is completed, as described in the task editor.
+## License
 
-Before release, test on an S26 Ultra and an Android 17 device: schedule a reminder,
-leave the app, lock the phone, and wait without reopening it. Repeat after a
-reboot, APK update, and granting/revoking alarm access. Check notification denial,
-blocked channels, edited/deleted/completed tasks, and more than 50 future reminders.
-Verify both apps' navigation, keyboard, system bars, font scaling, backup import/
-export, and APK installation on Android 7, 12, 13, 16, and 17. These device checks
-are manual; passing source regressions and native compilation alone does not
-verify delivery on a physical phone.
-
-See Android's [alarm scheduling guidance](https://developer.android.com/develop/background-work/services/alarms)
-and [Android 17 SDK setup](https://developer.android.com/about/versions/17/setup-sdk),
-and Samsung's [background app management](https://developer.samsung.com/mobile/app-management.html).
-
-The apps have separate GitHub Actions builds and release tags. Read
-[Android builds and updates](.github/RELEASING.md) for signing-secret names,
-versioning, cached builds, and publishing. Signing keys and credentials belong
-in local ignored files or GitHub Actions Secrets, never in public source.
-
-## Data and backups
-
-Core app data is stored locally. Export a backup before changing phones or making
-large changes. Folder export, sharing, import, and recovery are available through
-**Settings → Backup & restore**. Android cloud backup and phone transfer depend
-on the device and its backup provider; manual JSON export remains available.
-
-## License and usage
-
-The author's original work is available under the
-[PolyForm Noncommercial License 1.0.0](LICENSE.md). It permits use, modification,
-and sharing for permitted noncommercial purposes and expressly permits use by
-specified charitable, educational, research, public-service, and government
-organizations. Uses outside the license's permitted purposes require separate
-permission; commercial resale and monetized products or services are not
-generally covered by the noncommercial grant.
-
-See the [usage guide](USAGE.md), [copyright notice](NOTICE.md), and
-[third-party notices](THIRD_PARTY_NOTICES.md). The official license governs;
-these summaries add no restrictions. Third-party materials and previously valid
-license grants retain their existing permissions.
-
-
-## Author and support
-
-[Uranik Sejdiu](https://github.com/UranikSejdiu). Use
-[GitHub Issues](https://github.com/UranikSejdiu/Personal-Hub/issues) for bug reports,
-questions, and permission requests. Include the app name, version, Android
-version, and steps to reproduce when reporting an issue.
+Original work follows [PolyForm Noncommercial 1.0.0](LICENSE.md). See
+[usage](USAGE.md), [copyright](NOTICE.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
+Existing third-party licenses and previously valid grants retain their terms.

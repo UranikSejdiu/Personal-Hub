@@ -1,0 +1,19 @@
+{
+  "id": "budget",
+  "title": "Budget",
+  "packageId": "com.uranik.budget",
+  "scheme": "uranikbudget",
+  "tagPrefix": "budget-v",
+  "backupFormat": "uranik-budget.backup",
+  "tables": {
+    "loans": "loans",
+    "savingsGoal": "savings_goals",
+    "budgets": "budgets",
+    "expenses": "expenses",
+    "recurringExpenses": "recurring_expenses",
+    "autoDeposits": "savings_auto_deposits",
+    "transactions": "savings_transactions",
+    "repaymentPlans": "repayment_plans",
+    "repaymentPayments": "repayment_payments"
+  }
+}

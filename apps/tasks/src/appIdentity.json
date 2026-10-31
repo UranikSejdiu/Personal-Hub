@@ -1,0 +1,12 @@
+{
+  "id": "tasks",
+  "title": "Tasks",
+  "packageId": "com.uranik.tasks",
+  "scheme": "uraniktasks",
+  "tagPrefix": "tasks-v",
+  "backupFormat": "uranik-tasks.backup",
+  "tables": {
+    "taskLists": "task_lists",
+    "tasks": "tasks"
+  }
+}

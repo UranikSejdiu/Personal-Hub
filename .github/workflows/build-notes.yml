@@ -1,0 +1,130 @@
+name: Build Notes APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["notes-v*"]
+    paths:
+      - "apps/notes/**"
+      - "!apps/notes/**/*.md"
+      - ".github/workflows/notes-checks.yml"
+      - ".github/workflows/build-notes.yml"
+      - ".github/actions/android-cache/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notes-apk-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  checks:
+    uses: ./.github/workflows/notes-checks.yml
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/notes
+    env:
+      CI: true
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/notes/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/notes/package-lock.json
+      - name: Verify release tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/notes-v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag.cjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Setup native compiler cache
+        id: native-cache
+        uses: ./.github/actions/android-cache
+        with:
+          app: notes
+          fingerprint: ${{ hashFiles('apps/notes/package-lock.json', 'apps/notes/plugins/withGradleProperties.js', 'apps/notes/plugins/withReleaseSigning.js') }}
+      - run: npm ci --prefer-offline --include=dev
+      - name: Configure Notes release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          mkdir -p credentials
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
+          printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
+          test -s credentials/release-keystore.jks
+          test -s credentials/keystore.properties
+          chmod 600 credentials/release-keystore.jks credentials/keystore.properties
+      - name: Generate native project and build standalone APK
+        run: npm run build:apk
+      - name: Report compiler cache usage
+        if: always()
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save shared compiler cache on main
+        # Preserve successful compilations if a later task fails.
+        if: always() && github.ref == 'refs/heads/main' && steps.native-cache.outcome == 'success' && steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.native-cache.outputs.path }}
+          key: ${{ steps.native-cache.outputs.key }}
+      - name: Upload Gradle profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes-gradle-profile
+          path: apps/notes/android/build/reports/profile/*.html
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Notes-APK
+          path: apps/notes/build/*.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: [checks, build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/notes-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Notes APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Notes-APK
+          path: release
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Notes ${{ github.ref_name }}
+          body: |
+            Install the attached Notes APK. Android package: com.uranik.notes.
+            This app has its own records, settings, backups, and update channel.
+            To transfer from Personal Hub, save its JSON backup to a folder and import it in Notes settings. Keep Hub installed until you verify your records and export a new backup.
+            Release and signing instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
+          # Older hub builds still use /releases/latest.
+          make_latest: "false"
+          fail_on_unmatched_files: true
+          files: release/*.apk

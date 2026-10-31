@@ -47,7 +47,8 @@ The repository's **Build Dhikr APK** workflow runs independently on manual
 dispatch or a `dhikr-v<version>` tag. Set these repository secrets for Dhikr:
 `DHIKR_KEYSTORE_BASE64`, `DHIKR_KEYSTORE_PASSWORD`, `DHIKR_KEY_ALIAS`,
 `DHIKR_KEY_PASSWORD`. It uploads its own APK and attaches it to its own tagged
-release. Hub tags (`v*`) continue to build the hub.
+release. Hub is now retired; Budget, Notes, and Tasks have their own builds
+and release tags. Historical Hub tags are not rebuilt.
 
 Version name comes from this app's `package.json`; increment
 `app.json` → `expo.android.versionCode` for each new Android release. Prebuild
@@ -140,7 +141,7 @@ recovery copy. Settings → Restore previous data restores that copy. Malformed
 or unsupported backups are rejected before writes. Exported Dhikr backups can
 be imported into Dhikr on another device.
 
-New hub backups (version 6) contain only Budget, Notes, and Tasks data. The hub
+Later Hub backups (versions 6–7) contain only Budget, Notes, and Tasks data. The retired hub
 also ignores Dhikr data when importing older mixed backups. Dhikr exports and
 recovery copies contain only its own names, counts, goals, and ordering.
 

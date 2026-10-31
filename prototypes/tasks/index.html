@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Tasks — interface study</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="studio">
+    <header class="studio-header">
+      <a class="wordmark" href="#" aria-label="Tasks prototype home"><span class="brand-symbol" aria-hidden="true">✓</span>tasks<span class="wordmark-dot">.</span><span class="study-label">INTERFACE STUDY / 01</span></a>
+      <div class="studio-actions"><span class="sample-label"><span></span> Sample data</span><button id="theme-toggle" class="studio-button" aria-label="Switch to dark theme"></button><button id="reset" class="studio-button">Reset preview</button></div>
+    </header>
+    <div class="intro"><div><p class="eyebrow">A CALMER WAY TO GET THINGS DONE</p><h1>Your day. A little clearer.</h1></div><p>Complete a task, pick a date, or add something new.<br> Both views share the same preview data.</p></div>
+    <main class="preview-grid" aria-label="Tasks app interactive prototype">
+      <section class="device-study"><div class="screen-label"><span>01 / OVERVIEW</span><span>The next thing, in focus.</span></div><div class="phone" id="overview-phone" data-default="today"><div class="status-bar"><span>9:41</span><span class="status-icons" aria-hidden="true">▮▮▮ &nbsp;◔ &nbsp;▰</span></div><div class="app-body"></div><nav class="app-nav" aria-label="Overview phone navigation"></nav></div></section>
+      <section class="device-study"><div class="screen-label"><span>02 / CALENDAR</span><span>A little room to plan ahead.</span></div><div class="phone" id="calendar-phone" data-default="calendar"><div class="status-bar"><span>9:41</span><span class="status-icons" aria-hidden="true">▮▮▮ &nbsp;◔ &nbsp;▰</span></div><div class="app-body"></div><nav class="app-nav" aria-label="Calendar phone navigation"></nav></div></section>
+    </main>
+    <footer class="studio-footer"><span>Made for the standalone Tasks app. No account. No clutter.</span><details><summary>Design & performance plan <span aria-hidden="true">↗</span></summary><div class="design-notes"><p><strong>Fewer decisions.</strong> Today, Calendar, Lists, and Settings. One reachable add button; no chat, collaboration, or decorative charts.</p><p><strong>Nothing slips through.</strong> Overdue tasks stay above today’s plan. Tap a row to edit; complete directly; undo an accidental completion.</p><p><strong>Keep the app light.</strong> Native implementation should keep virtualized rows, indexed date queries, and Android-scheduled reminders. This browser prototype demonstrates interactions, not measured native performance.</p></div></details></footer>
+  </div>
+  <dialog id="task-dialog" aria-labelledby="editor-title"><form id="task-form"><div class="sheet-grip" aria-hidden="true"></div><div class="sheet-heading"><div><p class="eyebrow">MAKE A LITTLE SPACE FOR IT</p><h2 id="editor-title">New task</h2></div><button type="button" class="icon-button close-dialog" aria-label="Close task editor"></button></div><input type="hidden" name="id"><label class="form-label title-label">What needs to be done?<input name="title" class="title-input" placeholder="Give your task a name…" required maxlength="200" autocomplete="off"></label><div class="form-row"><label class="form-label">Date<input name="date" type="date"></label><label class="form-label">Reminder<input name="time" type="time" aria-describedby="reminder-help"></label></div><p class="field-help" id="reminder-help">Optional. Add a date to use a reminder.</p><div class="form-row"><label class="form-label">List<select name="list"></select></label><label class="form-label">Repeat<select name="repeat"><option value="none">Never</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div><details class="more-options"><summary>More options <span aria-hidden="true">＋</span></summary><label class="form-label">Priority<select name="priority"><option value="0">Normal</option><option value="1">Medium</option><option value="2">High</option></select></label><label class="form-label">Notes<textarea name="notes" rows="3" placeholder="Anything else to remember?" maxlength="10000"></textarea></label></details><p id="form-error" role="alert" hidden></p><div class="sheet-actions"><button type="button" id="delete-task" class="delete-button" hidden>Delete task</button><button type="button" class="secondary-button close-dialog">Cancel</button><button type="submit" class="primary-button" id="save-task">Add task</button></div></form></dialog>
+  <dialog id="list-dialog" aria-labelledby="list-title"><form id="list-form"><div class="sheet-grip" aria-hidden="true"></div><div class="sheet-heading"><h2 id="list-title">A new list</h2><button type="button" class="icon-button close-list" aria-label="Close list editor"></button></div><label class="form-label">List name<input name="name" placeholder="e.g. Learning" required maxlength="40" autocomplete="off" autofocus></label><div class="sheet-actions"><button type="button" class="secondary-button close-list">Cancel</button><button type="submit" class="primary-button">Create list</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden><span></span><button type="button" hidden>Undo</button></div>
+  <script src="app.js"></script>
+</body>
+</html>
