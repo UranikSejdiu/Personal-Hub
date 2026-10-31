@@ -23,7 +23,6 @@ import {
   type NewChecklistItem,
 } from "../../src/lib/notes";
 import { useThemeColors } from "../../src/lib/theme";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { NoteActions } from "../../src/components/NoteActions";
 import { Checkbox } from "../../src/components/ui/Checkbox";
@@ -58,7 +57,6 @@ export default function ChecklistEditorScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
@@ -187,21 +185,21 @@ export default function ChecklistEditorScreen() {
 
   const handleRemove = useCallback((key: string) => {
     if (isArchived || operationRef.current !== "idle") return;
-    void haptics.light();
+
     setItems((previous) => previous.filter((item) => item.key !== key));
-  }, [haptics, isArchived]);
+  }, [isArchived]);
 
   const handleAddItem = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
     const key = `new-${keyCounterRef.current++}`;
     pendingFocusRef.current = key;
-    void haptics.light();
+
     setItems((previous) => [
       ...previous.filter((item) => !item.checked),
       { key, text: "", checked: false },
       ...previous.filter((item) => item.checked),
     ]);
-  }, [haptics, isArchived]);
+  }, [isArchived]);
 
   const handleDragBegin = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
@@ -295,7 +293,7 @@ export default function ChecklistEditorScreen() {
       }
       snapshotRef.current = serialize(savedTitle, savedPinned, savedItems);
       allowRemoveRef.current = true;
-      void haptics.success();
+
       toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
     } catch {
@@ -304,7 +302,7 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [haptics, isArchived, loading, loadFailed, noteId, router, t]);
+  }, [isArchived, loading, loadFailed, noteId, router, t]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -315,7 +313,7 @@ export default function ChecklistEditorScreen() {
     try {
       await restoreNote(noteId);
       allowRemoveRef.current = true;
-      void haptics.success();
+
       toast.success(t("notesUnarchived"));
       router.back();
     } catch {
@@ -324,7 +322,7 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [haptics, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -338,7 +336,7 @@ export default function ChecklistEditorScreen() {
     setConfirmState(null);
     try {
       await deleteNote(noteId);
-      void haptics.light();
+
       allowRemoveRef.current = true;
       router.back();
     } catch {
@@ -347,14 +345,14 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [haptics, noteId, router, t]);
+  }, [noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
-    void haptics.light();
+
     pinnedRef.current = !pinnedRef.current;
     setIsPinned(pinnedRef.current);
-  }, [haptics, isArchived]);
+  }, [isArchived]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<ChecklistEntry>) => (

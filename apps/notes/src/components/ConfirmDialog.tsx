@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";
 import { X } from "./AppIcons";
-import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors, useThemeVariables } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
 
@@ -29,7 +28,6 @@ export function ConfirmDialog({
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
-  const haptics = useHaptics();
   const colors = useThemeColors();
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
@@ -49,7 +47,7 @@ export function ConfirmDialog({
     confirmingRef.current = true;
     setIsConfirming(true);
     try {
-      void (destructive ? haptics.warning() : haptics.light());
+
       await onConfirm();
     } catch {
       toast.error(t("saveFailed"));

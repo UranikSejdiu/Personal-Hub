@@ -9,7 +9,7 @@ No Hub runtime imports or workspace dependencies. Use Node 24.
 The phone library uses rounded cards, a search field, All notes / Notes /
 Checklists filters, and a floating create button. Notes and Archive remain in
 the bottom navigation. The header gear opens Settings, including theme,
-vibration, grid/list layout, sorting, backup import/export, recovery, and updates.
+grid/list layout, sorting, backup import/export, recovery, and updates.
 Settings returns to the originating library view with the back arrow.
 
 Text notes and checklists open in full-screen editors. Save remains explicit;
@@ -41,7 +41,9 @@ packages. Restore previous data returns to the pre-import snapshot.
 Exports use `uranik-notes.backup` version 1 and contain only this app's
 records. Other standalone apps' backups are rejected. Applicable Hub backup
 versions 1–7 are accepted. Tasks requires task tables, normally version 5+.
-Standalone exports include theme, vibration, and applicable Notes display preferences.
+Standalone exports include theme and applicable Notes display preferences.
+Legacy vibration preferences are accepted during import but ignored. Tap
+vibration is available only in Dhikr.
 Older backups leave missing preferences unchanged. Preference write failures
 are reported separately from a committed record import. Permission grants
 must be configured separately for the new package. The standalone Tasks app

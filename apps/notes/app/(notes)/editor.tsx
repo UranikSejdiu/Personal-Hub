@@ -34,7 +34,6 @@ import {
   restoreNote,
 } from "../../src/lib/notes";
 import { useThemeColors } from "../../src/lib/theme";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { NoteActions } from "../../src/components/NoteActions";
 import {
@@ -146,7 +145,6 @@ export default function NotesEditorScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const editorRef = useRef<EnrichedTextInputInstance>(null);
   const [styleState, setStyleState] = useState<OnChangeStateEvent | null>(null);
@@ -393,7 +391,7 @@ export default function NotesEditorScreen() {
         editor.setSelection(nextCaret, nextCaret);
       }
       editor.focus();
-      void haptics.light();
+
       // Keep the newly inserted line (and the Add item row) visible.
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     } catch {
@@ -402,7 +400,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsAddingItem(false);
     }
-  }, [haptics, isArchived, isAddingItem, t]);
+  }, [isArchived, isAddingItem, t]);
 
   const showAddItem = !isArchived && styleState?.checkboxList.isActive === true && !isSaving;
 
@@ -503,7 +501,7 @@ export default function NotesEditorScreen() {
       contentChangedBeforeSnapshotRef.current = false;
       checkedStatesRef.current = parseCheckedStates(content);
       allowRemoveRef.current = true;
-      void haptics.success();
+
       toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
     } catch {
@@ -512,7 +510,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [haptics, isArchived, isAddingItem, loading, loadFailed, noteId, router, t]);
+  }, [isArchived, isAddingItem, loading, loadFailed, noteId, router, t]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -523,7 +521,7 @@ export default function NotesEditorScreen() {
     try {
       await restoreNote(noteId);
       allowRemoveRef.current = true;
-      void haptics.success();
+
       toast.success(t("notesUnarchived"));
       router.back();
     } catch {
@@ -532,7 +530,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [haptics, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
     if (mutationInFlightRef.current || isAddingItem) return;
@@ -546,7 +544,7 @@ export default function NotesEditorScreen() {
     setConfirmState(null);
     try {
       await deleteNote(noteId);
-      void haptics.light();
+
       allowRemoveRef.current = true;
       router.back();
     } catch {
@@ -555,14 +553,14 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [haptics, isAddingItem, noteId, router, t]);
+  }, [isAddingItem, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || mutationInFlightRef.current || isAddingItem) return;
-    void haptics.light();
+
     pinnedRef.current = !pinnedRef.current;
     setIsPinned(pinnedRef.current);
-  }, [haptics, isArchived, isAddingItem]);
+  }, [isArchived, isAddingItem]);
 
   const formatToolbar = (
     <View className="w-full max-w-md flex-row flex-wrap items-center justify-center self-center px-2 py-2">
@@ -579,7 +577,7 @@ export default function NotesEditorScreen() {
                   const editor = editorRef.current;
                   if (!editor || blocked || mutationInFlightRef.current) return;
                   button.toggle(editor);
-                  void haptics.light();
+
                 }}
                 disabled={blocked || isSaving || isAddingItem}
                 className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${

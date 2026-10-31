@@ -15,7 +15,6 @@ import {
   CheckSquare,
 } from "./AppIcons";
 import { cn } from "../lib/utils";
-import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors } from "../lib/theme";
 import type { ComponentType } from "react";
 
@@ -45,7 +44,6 @@ interface PillNavProps {
 }
 
 export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" }: PillNavProps) {
-  const haptics = useHaptics();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
@@ -67,7 +65,7 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
           <Pressable
             key={tab.id}
             onPress={() => {
-              void haptics.light();
+
               onTabPress(tab.id);
             }}
             className={cn(

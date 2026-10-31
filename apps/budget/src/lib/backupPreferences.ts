@@ -25,8 +25,6 @@ export async function readBackupPreferences(): Promise<BackupPreferences> {
   try {
     const theme = getPreferenceSync("app_theme");
     if (theme === "light" || theme === "dark") preferences.theme = theme;
-    const haptics = getPreferenceSync("haptics_enabled");
-    if (haptics === "true" || haptics === "false") preferences.haptics = haptics === "true";
   } catch { /* Optional preferences must not prevent a record backup. */ }
   try {
     const rawNotes = await AsyncStorage.getItem("notes_preferences");
@@ -40,7 +38,7 @@ export async function applyBackupPreferences(preferences: BackupPreferences | un
   if (!preferences) return true;
   try {
     if (preferences.theme) await setPreference("app_theme", preferences.theme);
-    if (preferences.haptics !== undefined) await setPreference("haptics_enabled", String(preferences.haptics));
+    // Accept legacy haptics fields when importing, but this app no longer uses them.
     if (includeNotes && preferences.notes) await AsyncStorage.setItem("notes_preferences", JSON.stringify(preferences.notes));
     return true;
   } catch { return false; }

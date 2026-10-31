@@ -18,7 +18,7 @@ module.exports = async function verifyScreen(root, load) {
     useEffect(fn, deps) { const i = cursor++; if (!slots[i] || !same(slots[i].deps, deps)) { const old = slots[i]; slots[i] = { deps }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn(); }); } },
   };
   const router = { setParams: values => { params = { ...params, ...values }; }, navigate() {} };
-  const t = key => key, haptics = { light() {} };
+  const t = key => key;
   const app = { currentState: 'active', addEventListener: (_name, callback) => { appListener = callback; return { remove: () => { appListener = null; } }; } };
   const task = id => ({ id, title: `Task ${id}`, notes: '', list_id: null, due_date: '2026-10-31', repeat: 'none', reminder_time: null, completed_at: null, priority: 0 });
   const counts = { today: 2, upcoming: 0, overdue: 0, completed: 0, open: 2 };
@@ -29,7 +29,7 @@ module.exports = async function verifyScreen(root, load) {
     'sonner-native': { toast: { success() {}, error() {} } },
     '../ui/Typography': { Text: 'Text', TextInput: 'TextInput' }, '../ui/Button': { Button: 'Button', IconButton: 'IconButton' },
     '../ui/FormDialog': { FormDialog: 'FormDialog' }, '../ui/ActionDialog': { ActionDialog: 'ActionDialog' }, '../ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
-    '../AppIcons': { List: 'List', Search: 'Search', X: 'X' }, '../../lib/i18n': { useI18n: () => ({ t }) }, '../../hooks/useHaptics': { useHaptics: () => haptics },
+    '../AppIcons': { List: 'List', Search: 'Search', X: 'X' }, '../../lib/i18n': { useI18n: () => ({ t }) },
     '../../lib/taskCalendar': load(path.join(root, 'src/lib/taskCalendar.ts')), '../../lib/taskDates': load(path.join(root, 'src/lib/taskDates.ts')),
     '../../lib/taskEvents': { subscribeTaskChanges: callback => { changeListener = callback; return () => { changeListener = null; }; } },
     '../../lib/tasks': {

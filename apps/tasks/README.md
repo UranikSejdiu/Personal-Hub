@@ -44,7 +44,9 @@ packages. Restore previous data returns to the pre-import snapshot.
 Exports use `uranik-tasks.backup` version 1 and contain only this app's
 records. Other standalone apps' backups are rejected. Applicable Hub backup
 versions 1–7 are accepted. Tasks requires task tables, normally version 5+.
-Standalone exports include theme, vibration, and applicable Notes display preferences.
+Standalone exports include theme and applicable Notes display preferences.
+Legacy vibration preferences are accepted during import but ignored. Tap
+vibration is available only in Dhikr.
 Older backups leave missing preferences unchanged. Preference write failures
 are reported separately from a committed record import. Permission grants
 must be configured separately for the new package. The standalone Tasks app

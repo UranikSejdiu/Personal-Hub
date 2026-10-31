@@ -3,7 +3,6 @@ import { ChevronRight, FileText, ListOrdered } from "./AppIcons";
 import { FormDialog } from "./ui/FormDialog";
 import { Text } from "./ui/Typography";
 import { useThemeColors } from "../lib/theme";
-import { useHaptics } from "../hooks/useHaptics";
 import { useI18n, type TKey } from "../lib/i18n";
 import type { NoteKind } from "../types/notes";
 
@@ -23,14 +22,13 @@ const OPTIONS: {
 ];
 
 export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserProps) {
-  const haptics = useHaptics();
   const { t } = useI18n();
   const colors = useThemeColors();
 
   return <FormDialog visible={visible} title={t("notesNew")} onClose={onClose} placement="bottom">
     {OPTIONS.map(option => {
       const Icon = option.kind === "text" ? FileText : ListOrdered;
-      return <Pressable key={option.kind} onPress={() => { void haptics.light(); onSelect(option.kind); }}
+      return <Pressable key={option.kind} onPress={() => { onSelect(option.kind); }}
         accessibilityRole="button" accessibilityLabel={t(option.labelKey)} accessibilityHint={t(option.hintKey)}
         className="min-h-[80px] flex-row items-center gap-4 rounded-[20px] bg-secondary px-4 py-4 active:opacity-70">
         <Icon size={24} color={colors.primary} />

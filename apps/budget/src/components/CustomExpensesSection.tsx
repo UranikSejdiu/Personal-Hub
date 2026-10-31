@@ -4,7 +4,6 @@ import { View, Pressable } from "react-native";
 import { Plus, Trash2, Repeat, MoreHorizontal, Pencil } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { useHaptics } from "../hooks/useHaptics";
 import { type Expense } from "../lib/budget";
 import { formatCurrency, withAlpha } from "../lib/utils";
 import { NumberInput } from "./NumberInput";
@@ -46,7 +45,6 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
 } & Pick<Props, "onUpdate" | "onRemove" | "onToggleRecurring" | "onEdit">) {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const [editing, setEditing] = useState<"category" | "amount" | null>(null);
   const { triggerRef, anchor, open, close } = useAnchoredMenu();
 
@@ -55,7 +53,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
       <View className="min-h-[48px] flex-row items-center gap-1">
         <Checkbox
           checked={expense.paid}
-          onPress={() => { void haptics.light(); onUpdate(expense.id, { paid: !expense.paid }); }}
+          onPress={() => { onUpdate(expense.id, { paid: !expense.paid }); }}
           className="w-9 max-[360px]:w-7 shrink-0" hitSlop={4}
           accessibilityLabel={`${t("paid")}: ${expense.category || t("addCategoryPlaceholder")}`}
           android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
@@ -101,7 +99,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
             icon={MoreHorizontal}
             className="w-8 max-[360px]:w-7" hitSlop={6}
             selected={anchor !== null}
-            onPress={() => { void haptics.light(); setEditing(null); if (onEdit) onEdit(expense); else open(); }}
+            onPress={() => { setEditing(null); if (onEdit) onEdit(expense); else open(); }}
             accessibilityLabel={t("expenseOptions", { category: expense.category || t("category") })}
             accessibilityState={{ expanded: anchor !== null }}
           />
@@ -111,12 +109,12 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
       <AnchoredMenu anchor={anchor} onClose={close} items={[
         { key: "recurring", label: t("recurringToggle"), icon: Repeat, selected: expense.is_recurring,
           onPress: () => {
-            void haptics.light();
+
             if (onToggleRecurring) onToggleRecurring(expense, !expense.is_recurring);
             else onUpdate(expense.id, { is_recurring: !expense.is_recurring });
           } },
         { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
-          onPress: () => { void haptics.warning(); onRemove(expense.id); } },
+          onPress: () => { onRemove(expense.id); } },
       ]} />
     </View>
   );

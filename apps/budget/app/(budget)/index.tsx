@@ -7,7 +7,6 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 
 import { useI18n, monthLabelShort } from "../../src/lib/i18n";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import { useThemeColors } from "../../src/lib/theme";
 import {
   addMonths,
@@ -36,7 +35,6 @@ export default function DashboardScreen() {
   const [creatingMonth, setCreatingMonth] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
-  const haptics = useHaptics();
   const colors = useThemeColors();
   const thisMonth = currentMonth();
   const currentSummary = summaries.find((summary) => summary.month === thisMonth);
@@ -82,10 +80,10 @@ export default function DashboardScreen() {
 
   const openBudgetMonth = useCallback(
     (month: string) => {
-      void haptics.light();
+
       router.push(`/(budget)/budget?month=${encodeURIComponent(month)}`);
     },
-    [router, haptics]
+    [router]
   );
 
   const confirmDelete = useCallback(async () => {
@@ -118,11 +116,11 @@ export default function DashboardScreen() {
         await deleteBudget(month, tx);
       });
       await refresh();
-      void haptics.success();
+
     } catch {
       toast.error(t("errorDeletingBudget"));
     }
-  }, [monthToDelete, refresh, t, haptics]);
+  }, [monthToDelete, refresh, t]);
 
   const handleCreateMonth = useCallback((month: string) => {
     if (summaries.some((item) => item.month === month)) openBudgetMonth(month);
@@ -213,7 +211,7 @@ export default function DashboardScreen() {
           setCreatingMonth(null);
           if (created) {
             await refresh();
-            void haptics.success();
+
             toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
           }
           openBudgetMonth(month);

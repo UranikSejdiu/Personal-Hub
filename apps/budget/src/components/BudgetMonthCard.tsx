@@ -4,7 +4,6 @@ import { View, Pressable } from "react-native";
 import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
 import { useI18n, monthLabelFull } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
-import { useHaptics } from "../hooks/useHaptics";
 import { formatCurrency, cn } from "../lib/utils";
 import { IconButton } from "./ui/Button";
 import { ActionDialog } from "./ui/ActionDialog";
@@ -24,7 +23,6 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
   expanded, onToggleExpand, variant = "compact" }: BudgetMonthCardProps) {
   const { t, lang } = useI18n();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const monthLabel = monthLabelFull(lang, summary.month);
   const featured = variant === "featured";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,10 +47,10 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
         </>}
       </Pressable>
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
-        onPress={() => { void haptics.light(); handleToggle(); }}
+        onPress={() => { handleToggle(); }}
         accessibilityLabel={isExpanded ? t("collapse") : t("expand")} accessibilityState={{ expanded: isExpanded }} />
       <View>
-        <IconButton icon={MoreHorizontal} selected={menuOpen} onPress={() => { void haptics.light(); setMenuOpen(true); }}
+        <IconButton icon={MoreHorizontal} selected={menuOpen} onPress={() => { setMenuOpen(true); }}
           accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })} accessibilityState={{ expanded: menuOpen }} />
       </View>
     </View>
@@ -85,7 +83,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
     </View>}
     <ActionDialog visible={menuOpen} title={monthLabel} onClose={() => setMenuOpen(false)} actions={[
       { key: "open", label: t("dashboardOpenBudget"), primary: true, onPress: onOpen },
-      { key: "delete", label: t("delete"),  onPress: () => { void haptics.warning(); onDelete(); } },
+      { key: "delete", label: t("delete"),  onPress: () => { onDelete(); } },
     ]} />
   </Card>;
 });

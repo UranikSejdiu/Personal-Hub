@@ -280,7 +280,6 @@ const dict = {
     themeLight: "Light",
     themeDark: "Dark",
     themeLabel: "Theme",
-    hapticsLabel: "Vibration feedback",
     exportData: "Export data",
     saveBackupToFolder: "Save backup to folder",
     shareBackup: "Share backup",

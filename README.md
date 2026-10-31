@@ -43,7 +43,9 @@ Applicable Hub backup versions 1–7 are supported. Tasks requires both task
 tables (normally version 5+); files without Tasks are rejected rather than
 emptying the destination. Older exports may omit appearance preferences;
 missing preferences leave current settings unchanged. New standalone exports
-include portable theme, vibration, and relevant Notes display preferences.
+include portable theme and relevant Notes display preferences. Tap vibration
+is available only in Dhikr; legacy vibration preferences in Hub backups are
+accepted without enabling tap feedback in Budget, Notes, or Tasks.
 
 Tests use disposable SQLite fixtures to verify mixed Hub imports, exact field
 round trips, folder/share exports, legacy formats, rollback, recovery, and

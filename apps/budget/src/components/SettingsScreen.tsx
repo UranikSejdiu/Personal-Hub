@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BackHandler, ScrollView, Switch, View } from "react-native";
+import { BackHandler, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { toast } from "sonner-native";
@@ -9,14 +9,12 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
 import { useTheme } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
-import { getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
 import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 
 export default function SettingsScreen(_props: { activeAppId?: string }) {
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
-  const [vibration, setVibration] = useState(true);
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [safety, setSafety] = useState(false);
@@ -24,11 +22,8 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   const [recover, setRecover] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   useFocusEffect(useCallback(() => {
-    let active = true;
-    void getHapticsEnabled().then(value => { if (active) setVibration(value); }).catch(() => toast.error(t("errorLoadingData")));
     setSafety(hasSafetyBackup());
-    return () => { active = false; };
-  }, [t]));
+  }, []));
   useFocusEffect(useCallback(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => locked.current);
     return () => listener.remove();
@@ -54,10 +49,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     if (!pending) return;
     const result = await importBackup(pending.json);
     if (result.preferences?.theme && result.preferencesRestored) setTheme(result.preferences.theme);
-    if (result.preferencesRestored && result.preferences?.haptics !== undefined) {
-      await setHapticsEnabled(result.preferences.haptics);
-      setVibration(result.preferences.haptics);
-    } else setVibration(await getHapticsEnabled());
     setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
     setPending(null);
     toast.success(result.preferencesRestored ? "Import complete. Your original Hub data is unchanged." : "Records imported. Some appearance settings could not be restored.");
@@ -68,9 +59,8 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
       <View className="w-full max-w-md self-center gap-5 px-4 pt-3">
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">{t("navSettings")}</Text>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text className="text-base font-semibold text-foreground">Appearance & feedback</Text>
+          <Text className="text-base font-semibold text-foreground">Appearance</Text>
           <View className="flex-row flex-wrap gap-2">{(["light", "dark"] as const).map(value => <Button key={value} label={value === "light" ? "Light" : "Dark"} variant={theme === value ? "primary" : "secondary"} disabled={busy} onPress={() => setTheme(value)} />)}</View>
-          <View className="min-h-11 flex-row items-center justify-between"><Text className="text-foreground">Vibration</Text><Switch value={vibration} disabled={busy} accessibilityLabel="Vibration" onValueChange={value => { void run(async () => { await setHapticsEnabled(value); setVibration(value); }); }} /></View>
         </View>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Move from Personal Hub</Text>
@@ -92,7 +82,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     <ConfirmDialog visible={recover} title="Restore previous data?" message="Replace current records with the copy saved before the last import. Export your current data first if you want to keep both." confirmLabel="Restore" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setRecover(false); }} onConfirm={() => run(async () => {
       const result = await restoreSafetyBackup();
       if (result.preferencesRestored && result.preferences?.theme) setTheme(result.preferences.theme);
-      if (result.preferencesRestored && result.preferences?.haptics !== undefined) { await setHapticsEnabled(result.preferences.haptics); setVibration(result.preferences.haptics); }
       setRecover(false); setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
       toast.success(result.preferencesRestored ? "Previous data restored." : "Records restored. Some appearance settings could not be restored.");
     })} />

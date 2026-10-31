@@ -19,7 +19,6 @@ import { NoteCard } from "./NoteCard";
 import { NoteTypeChooser } from "./NoteTypeChooser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../lib/theme";
-import { useHaptics } from "../hooks/useHaptics";
 import type { NoteKind } from "../types/notes";
 
 const styles = StyleSheet.create({
@@ -62,7 +61,6 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
   const { t } = useI18n();
   const router = useRouter();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
@@ -179,19 +177,19 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     kindRef.current = kind;
     setKindFilter(kind);
     setNotes([]);
-    void haptics.light();
+
     void load(searchRef.current, sortRef.current);
   };
 
   const handleNotePress = useCallback(
     (note: Note) => {
-      void haptics.light();
+
       router.push({
         pathname: note.kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor",
         params: { id: note.id, returnTab: archived ? "archive" : "index" },
       });
     },
-    [router, haptics, archived]
+    [router, archived]
   );
 
   const pinnedNotes = useMemo(
@@ -292,7 +290,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold tracking-[-0.6px] text-foreground">
             {t(archived ? "notesArchiveTitle" : "notesTitle")}
           </Text>
-          <Pressable onPress={() => { void haptics.light(); router.push("/(notes)/settings"); }}
+          <Pressable onPress={() => { router.push("/(notes)/settings"); }}
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
             accessibilityRole="button" accessibilityLabel={t("navSettings")}>
             <Settings size={25} color={colors.mutedForeground} />

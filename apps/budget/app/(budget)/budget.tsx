@@ -5,7 +5,6 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n, monthLabelShort, monthLabelFull } from "../../src/lib/i18n";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import {
   loadLoans,
   computeMonthSummary,
@@ -46,7 +45,6 @@ export default function BudgetScreen() {
   const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
   const initialMonth = monthParam && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
-  const haptics = useHaptics();
   const month = initialMonth;
 
   const [loans, setLoans] = useState<Loans | null>(null);
@@ -227,13 +225,13 @@ export default function BudgetScreen() {
         else next.delete(planId);
         return next;
       });
-      void haptics.light();
+
     } catch {
       toast.error(t("errorUpdatingLoan"));
     } finally {
       toggleInFlightRef.current = false;
     }
-  }, [paidRepayments, ensureBudget, month, haptics, t]);
+  }, [paidRepayments, ensureBudget, month, t]);
 
   const handleSaveExpense = async (fields: ExpenseDraft, id?: number) => {
     await flushAllExpenseUpdates();
@@ -241,7 +239,7 @@ export default function BudgetScreen() {
     const saved = await saveExpenseDraft(savedBudget.id, fields, id);
     setExpenses(current => id === undefined ? [...current, saved] : current.map(expense => expense.id === id ? saved : expense));
     setExpenseEditor(null);
-    void haptics.success();
+
   };
 
   const handleUpdateExpense = useCallback(
@@ -311,12 +309,12 @@ export default function BudgetScreen() {
         setExpenses((curr) => curr.filter((e) => e.id !== id));
         setExpenseToDelete(null);
         setExpenseEditor(current => current?.expense?.id === id ? null : current);
-        void haptics.warning();
+
       } catch {
         toast.error(t("errorRemovingExpense"));
       }
     },
-    [t, haptics, cancelExpenseUpdate, flushAllExpenseUpdates]
+    [t, cancelExpenseUpdate, flushAllExpenseUpdates]
   );
 
   const askRemoveExpense = useCallback((id: number) => {
@@ -333,14 +331,14 @@ export default function BudgetScreen() {
       setSavingsGoal(result.budget.savings_goal);
       budgetIdRef.current = result.budget.id;
       setExpenses(result.expenses);
-      void haptics.success();
+
       toast.success(
         t("copiedFromPreviousMonth", { month: previousMonthLabel })
       );
     } catch {
       toast.error(t("noPreviousMonthFound"));
     }
-  }, [month, previousMonth, previousMonthLabel, loading, t, haptics, flushAllExpenseUpdates]);
+  }, [month, previousMonth, previousMonthLabel, loading, t, flushAllExpenseUpdates]);
 
   useEffect(() => {
     return () => {
@@ -449,7 +447,7 @@ export default function BudgetScreen() {
             </View>
             <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
           </View>
-          <CustomExpensesHeader expenses={expenses} onAdd={() => { void haptics.light(); setExpenseEditor({}); }} />
+          <CustomExpensesHeader expenses={expenses} onAdd={() => { setExpenseEditor({}); }} />
         </View>
       }
       ListFooterComponent={
@@ -474,7 +472,7 @@ export default function BudgetScreen() {
         if (!budget.id) await createBudgetMonth(month, { income, savingsGoal: goal });
         else await saveMonthPreferences(month, income, goal);
         setEditingMonth(false);
-        void haptics.success();
+
         try { await loadData(month); }
         catch { setLoadError(t("errorLoadingData")); }
       }} /> : null}

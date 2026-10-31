@@ -9,7 +9,6 @@ import { ActionDialog } from "../ui/ActionDialog";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { List, Search, X } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";
-import { useHaptics } from "../../hooks/useHaptics";
 import { calendarDays, localTaskDate, moveCalendarDate } from "../../lib/taskCalendar";
 import { isTaskDate, taskDateKey } from "../../lib/taskDates";
 import { subscribeTaskChanges } from "../../lib/taskEvents";
@@ -28,7 +27,6 @@ type Mode = "overview" | "calendar" | "lists";
 export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
   const { t } = useI18n();
   const colors = useTaskDesign();
-  const haptics = useHaptics();
   const router = useRouter();
   const { taskId, compose, listId: routeList, filter: routeFilter } = useLocalSearchParams<{ taskId?: string; compose?: string; listId?: string; filter?: string }>();
   const [today, setToday] = useState(taskDateKey);
@@ -145,9 +143,9 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     writing.current = true; setBusy(true); ++sequence.current;
     const promise = Promise.resolve().then(operation);
     pendingWrite.current = promise.catch(() => undefined);
-    try { await promise; void haptics.light(); if (focused.current) committed?.(); }
+    try { await promise; if (focused.current) committed?.(); }
     finally { writing.current = false; pendingWrite.current = null; if (focused.current) { setBusy(false); await refreshRef.current(); } }
-  }, [haptics]);
+  }, []);
   const toggleTask = useCallback((task: Task) => {
     if (writing.current) return;
     const operation = task.completed_at ? () => reopenTask(task.id) : () => completeTask(task.id);

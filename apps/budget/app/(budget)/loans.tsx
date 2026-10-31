@@ -12,7 +12,6 @@ import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { FormDialog } from "../../src/components/ui/FormDialog";
 import { useI18n } from "../../src/lib/i18n";
 import { useThemeColors } from "../../src/lib/theme";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import { addMonths, currentMonth } from "../../src/lib/budget";
 import { installmentEndMonth } from "../../src/lib/creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS } from "../../src/lib/calculations";
@@ -26,7 +25,6 @@ function emptyPlan(kind: RepaymentKind): RepaymentInput {
 export default function LoansScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const [plans, setPlans] = useState<RepaymentPlan[]>([]);
   const [draft, setDraft] = useState<RepaymentInput | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -47,7 +45,7 @@ export default function LoansScreen() {
     return () => { active = false; };
   }, [t]));
 
-  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); void haptics.light(); };
+  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); };
   const edit = (plan: RepaymentPlan) => {
     if (operationRef.current) return;
     const { id, ...input } = plan;
@@ -56,7 +54,7 @@ export default function LoansScreen() {
     initialDraft.current = JSON.stringify(input);
     setDraft(input);
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
-    void haptics.light();
+
   };
   const update = (change: Partial<RepaymentInput>) => {
     if (!operationRef.current) setDraft((old) => old ? { ...old, ...change } : null);
@@ -73,7 +71,7 @@ export default function LoansScreen() {
       setDraft(null);
       setEditingId(null);
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
-      void haptics.success();
+
     } catch {
       toast.error(t("paymentPlanSaveFailed"));
     } finally { operationRef.current = false; setSaving(false); }
@@ -88,7 +86,7 @@ export default function LoansScreen() {
       setPlans((current) => current.filter((plan) => plan.id !== deletingId));
       if (editingId === deletingId) { setDraft(null); setEditingId(null); }
       setDeletingId(null);
-      void haptics.success();
+
     } catch { toast.error(t("paymentPlanDeleteFailed")); }
     finally { operationRef.current = false; setSaving(false); }
   };

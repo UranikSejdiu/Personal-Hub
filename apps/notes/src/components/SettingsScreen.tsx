@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BackHandler, Pressable, ScrollView, Switch, View } from "react-native";
+import { BackHandler, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft } from "./AppIcons";
@@ -12,7 +12,6 @@ import { UpdateCard } from "./UpdateCard";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { getNotesPreferences, setNotesPreferences, type NotesPreferences } from "../lib/notesPreferences";
 import { useI18n } from "../lib/i18n";
-import { getHapticsEnabled, setHapticsEnabled } from "../hooks/useHaptics";
 import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 
@@ -24,7 +23,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   const insets = useSafeAreaInsets();
   const [notesPreferences, setNotesDisplay] = useState<NotesPreferences>({ viewMode: "grid", sort: "updated" });
   const [displayReady, setDisplayReady] = useState(false);
-  const [vibration, setVibration] = useState(true);
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [safety, setSafety] = useState(false);
@@ -35,10 +33,9 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     let active = true;
     setDisplayReady(false);
     void getNotesPreferences().then(value => { if (active) { setNotesDisplay(value); setDisplayReady(true); } });
-    void getHapticsEnabled().then(value => { if (active) setVibration(value); }).catch(() => toast.error(t("errorLoadingData")));
     setSafety(hasSafetyBackup());
     return () => { active = false; };
-  }, [t]));
+  }, []));
   useFocusEffect(useCallback(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => locked.current);
     return () => listener.remove();
@@ -70,10 +67,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     const result = await importBackup(pending.json);
     setNotesDisplay(await getNotesPreferences());
     if (result.preferences?.theme && result.preferencesRestored) setTheme(result.preferences.theme);
-    if (result.preferencesRestored && result.preferences?.haptics !== undefined) {
-      await setHapticsEnabled(result.preferences.haptics);
-      setVibration(result.preferences.haptics);
-    } else setVibration(await getHapticsEnabled());
     setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
     setPending(null);
     toast.success(result.preferencesRestored ? "Import complete. Your original Hub data is unchanged." : "Records imported. Some appearance settings could not be restored.");
@@ -93,7 +86,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
         <View className="gap-4 rounded-[22px] bg-card p-5">
           <Text className="text-base font-semibold text-foreground">{t("notesAppearance")}</Text>
           <View className="flex-row flex-wrap gap-2">{(["light", "dark"] as const).map(value => <Button key={value} label={value === "light" ? "Light" : "Dark"} variant={theme === value ? "primary" : "secondary"} accessibilityState={{ selected: theme === value }} disabled={busy} onPress={() => setTheme(value)} />)}</View>
-          <View className="min-h-11 flex-row items-center justify-between"><Text className="text-foreground">Vibration</Text><Switch value={vibration} disabled={busy} accessibilityLabel="Vibration" onValueChange={value => { void run(async () => { await setHapticsEnabled(value); setVibration(value); }); }} /></View>
         </View>
         <View className="gap-4 rounded-[22px] bg-card p-5">
           <Text className="text-base font-semibold text-foreground">{t("notesLayout")}</Text>
@@ -129,7 +121,6 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
       const result = await restoreSafetyBackup();
       setNotesDisplay(await getNotesPreferences());
       if (result.preferencesRestored && result.preferences?.theme) setTheme(result.preferences.theme);
-      if (result.preferencesRestored && result.preferences?.haptics !== undefined) { await setHapticsEnabled(result.preferences.haptics); setVibration(result.preferences.haptics); }
       setRecover(false); setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
       toast.success(result.preferencesRestored ? "Previous data restored." : "Records restored. Some appearance settings could not be restored.");
     })} />

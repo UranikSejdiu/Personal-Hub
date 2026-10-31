@@ -27,7 +27,6 @@ import { formatCurrency } from "../../src/lib/utils";
 import { DatePicker } from "../../src/components/DatePicker";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { useThemeColors } from "../../src/lib/theme";
-import { useHaptics } from "../../src/hooks/useHaptics";
 import { SavingsGoalCard } from "../../src/components/SavingsGoalCard";
 import { FormDialog } from "../../src/components/ui/FormDialog";
 import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
@@ -61,7 +60,6 @@ interface ConfirmAction {
 export default function SavingsScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const haptics = useHaptics();
   const [goalAmount, setGoalAmount] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
   const loadSequence = useRef(0);
@@ -255,7 +253,7 @@ export default function SavingsScreen() {
                   await loadData();
                   setSelectedYear(nextYear);
                   setConfirmAction(null);
-                  void haptics.success();
+
                   toast.success(t("savedSuccess"));
                 } catch {
                   toast.error(t("errorAddingSavings"));
@@ -269,7 +267,7 @@ export default function SavingsScreen() {
         }
       })();
     },
-    [entries, t, loadData, haptics]
+    [entries, t, loadData]
   );
 
   const handleSave = useCallback(async () => {
@@ -306,14 +304,14 @@ export default function SavingsScreen() {
       }
       setShowModal(false);
       await loadData();
-      void haptics.success();
+
     } catch {
       toast.error(editingId === null ? t("errorAddingSavings") : t("errorUpdatingSavings"));
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData, haptics]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null && editingKind !== "auto") return;
@@ -374,7 +372,7 @@ export default function SavingsScreen() {
     <View className="gap-3">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
         <View className="gap-1"><Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
-        <Button icon={Plus} label={t("savingsNewEntry")} onPress={() => { void haptics.light(); openCreateModal(); }} />
+        <Button icon={Plus} label={t("savingsNewEntry")} onPress={() => { openCreateModal(); }} />
       </View>
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
       {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="secondary" icon={Archive} label={t("savingsClosePrior")} onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
@@ -407,7 +405,6 @@ export default function SavingsScreen() {
       selectedYear,
       currentYear,
       openCreateModal,
-      haptics,
       yearMenuRef, openYearMenu, yearMenuAnchor,
     ]
   );
@@ -531,7 +528,7 @@ export default function SavingsScreen() {
             </View>
             <View className="mt-4 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (
-                <Pressable onPress={() => { void haptics.warning(); requestDelete(); }} className="mr-auto min-h-[44px] justify-center" accessibilityRole="button" accessibilityLabel={t("delete")}>
+                <Pressable onPress={() => { requestDelete(); }} className="mr-auto min-h-[44px] justify-center" accessibilityRole="button" accessibilityLabel={t("delete")}>
                   <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
                 </Pressable>
               )}

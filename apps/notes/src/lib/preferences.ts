@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 
 // These values are app preferences, not secrets. SQLite participates in Android
 // backup; SecureStore's encryption keys do not transfer to another phone.
-type PreferenceKey = "app_theme" | "haptics_enabled" | "app_has_seen_tutorial" | "app_sample_data_state";
+type PreferenceKey = "app_theme" | "app_has_seen_tutorial" | "app_sample_data_state";
 
 function normalize(key: PreferenceKey, value: string | null): string | null {
   return key === "app_theme" && value === "tawheed" ? "dark" : value;
