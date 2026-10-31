@@ -1,0 +1,172 @@
+{
+  "meta": {
+    "format": "personal-hub.backup",
+    "version": 7,
+    "appVersion": "1.25.8",
+    "exportedAt": "2030-01-01T00:00:00.000Z",
+    "platform": "android"
+  },
+  "tables": {
+    "loans": null,
+    "savingsGoal": {
+      "id": 1,
+      "goal_amount": 100,
+      "salary": 1000,
+      "updated_at": "2029-12-31 10:20:30"
+    },
+    "budgets": [
+      {
+        "id": 11,
+        "month": "2030-01",
+        "income": 1000,
+        "savings_goal": 50,
+        "loan_paid": 0,
+        "cc_paid": 0,
+        "cc2_paid": 0,
+        "loan_counter_incremented": null,
+        "updated_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "expenses": [
+      {
+        "id": 21,
+        "budget_id": 11,
+        "category": "Food",
+        "amount": 12.34,
+        "paid": 1,
+        "is_recurring": 1
+      }
+    ],
+    "recurringExpenses": [
+      {
+        "id": 31,
+        "category": "Food",
+        "amount": 12.34,
+        "created_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "autoDeposits": [
+      {
+        "month": "2030-01",
+        "amount": 50,
+        "description": "Monthly saving",
+        "created_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "transactions": [
+      {
+        "id": 41,
+        "type": "deposit",
+        "description": "Cash",
+        "amount": 99,
+        "date": "2030-01-01",
+        "is_closing": 0,
+        "created_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "repaymentPlans": [
+      {
+        "id": 51,
+        "kind": "loan",
+        "name": "Existing loan",
+        "amount": 100,
+        "apr": 0,
+        "payment": 100,
+        "term": 1,
+        "months_paid": 1,
+        "start_month": "2030-01",
+        "end_month": "2030-01",
+        "unbounded": 0,
+        "created_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "repaymentPayments": [
+      {
+        "plan_id": 51,
+        "month": "2030-01",
+        "counted": 1
+      }
+    ],
+    "notes": [
+      {
+        "id": 61,
+        "title": "Rich note",
+        "content": "<p>Hello <strong>world</strong></p>",
+        "plain_text": "Hello world",
+        "kind": "text",
+        "is_pinned": 1,
+        "is_archived": 0,
+        "color": "default",
+        "created_at": "2029-12-31 10:20:30",
+        "updated_at": "2029-12-31 10:20:30"
+      },
+      {
+        "id": 62,
+        "title": "Archived checklist",
+        "content": "",
+        "plain_text": "",
+        "kind": "checklist",
+        "is_pinned": 0,
+        "is_archived": 1,
+        "color": "default",
+        "created_at": "2029-12-31 10:20:30",
+        "updated_at": "2029-12-31 10:20:30"
+      }
+    ],
+    "noteItems": [
+      {
+        "id": 71,
+        "note_id": 62,
+        "text": "Keep ordering",
+        "checked": 1,
+        "position": 0
+      }
+    ],
+    "taskLists": [
+      {
+        "id": 81,
+        "name": "Home"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 91,
+        "title": "Parent",
+        "notes": "Details",
+        "list_id": 81,
+        "due_date": "2030-01-01",
+        "priority": 2,
+        "repeat": "yearly",
+        "reminder_time": "09:00",
+        "repeat_day": 1,
+        "completed_at": "2029-12-31 10:20:30",
+        "parent_id": null,
+        "created_at": "2029-12-31 10:20:30",
+        "updated_at": "2029-12-31 10:20:30"
+      },
+      {
+        "id": 92,
+        "title": "Next",
+        "notes": "Repeat details",
+        "list_id": 81,
+        "due_date": "2031-01-01",
+        "priority": 2,
+        "repeat": "yearly",
+        "reminder_time": "09:00",
+        "repeat_day": 1,
+        "completed_at": null,
+        "parent_id": 91,
+        "created_at": "2029-12-31 10:20:30",
+        "updated_at": "2029-12-31 10:20:30"
+      }
+    ]
+  },
+  "preferences": {
+    "theme": "dark",
+    "haptics": false,
+    "notes": {
+      "viewMode": "list",
+      "sort": "title"
+    }
+  }
+}

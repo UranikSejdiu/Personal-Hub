@@ -1,0 +1,12 @@
+{
+  "id": "notes",
+  "title": "Notes",
+  "packageId": "com.uranik.notes",
+  "scheme": "uraniknotes",
+  "tagPrefix": "notes-v",
+  "backupFormat": "uranik-notes.backup",
+  "tables": {
+    "notes": "notes",
+    "noteItems": "note_items"
+  }
+}

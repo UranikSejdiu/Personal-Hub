@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Regular text uses Typography; universal selectors do not reach Android. */
+
+.font-medium {
+  font-family: "Urbanist-Medium";
+  font-weight: normal;
+}
+
+.font-semibold {
+  font-family: "Urbanist-SemiBold";
+  font-weight: normal;
+}
+
+.font-bold,
+.font-extrabold {
+  font-family: "Urbanist-Bold";
+  font-weight: normal;
+}
+
+:root {
+  --radius: 0.75rem;
+}
