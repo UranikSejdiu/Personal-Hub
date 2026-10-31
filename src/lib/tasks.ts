@@ -47,12 +47,12 @@ export async function loadTasksPage({ filter, today, search = "", priority = nul
   return { tasks, hasMore: rows.length > limit, nextOffset: offset + tasks.length };
 }
 
-/** Reminders need only the next 50 eligible tasks, rather than task history. */
+/** Load future reminders only. Android must schedule them all without a refill on launch. */
 export async function loadReminderTasks(now = new Date()): Promise<Task[]> {
   const today = taskDateKey(now);
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   return db.query<Task>(`SELECT * FROM tasks WHERE completed_at IS NULL AND reminder_time IS NOT NULL
-    AND (due_date > ? OR (due_date = ? AND reminder_time > ?)) ORDER BY due_date, reminder_time, id LIMIT 50`, [today, today, time]);
+    AND (due_date > ? OR (due_date = ? AND reminder_time > ?)) ORDER BY due_date, reminder_time, id`, [today, today, time]);
 }
 
 export async function loadTasks(): Promise<Task[]> {

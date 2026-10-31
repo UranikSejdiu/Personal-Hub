@@ -16,6 +16,7 @@ import { Plus, X } from "../AppIcons";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { TaskEditor } from "./TaskEditor";
 import { TaskCard } from "./TaskCard";
+import { ReminderSetup } from "./ReminderSetup";
 
 type Editor = { task?: Task } | null;
 const CONTENT_STYLE = { paddingBottom: 120 };
@@ -223,11 +224,11 @@ export function TasksScreen() {
         initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7}
         contentContainerStyle={CONTENT_STYLE} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
         onEndReached={() => { if (!pagingFailed) void loadMore(); }} onEndReachedThreshold={0.3}
-        ListHeaderComponent={reminderTask ? <View className="mb-3 rounded-xl border border-primary p-2">
+        ListHeaderComponent={<View className="mb-3 gap-3"><ReminderSetup />{reminderTask ? <View className="rounded-xl border border-primary p-2">
           <View className="flex-row items-center justify-between"><Text className="flex-1 text-sm font-semibold text-primary">{t("tasksReminderOpen")}</Text>
             <IconButton icon={X} accessibilityLabel={t("tasksDismissReminder")} onPress={() => { reminderId.current = null; setReminderTask(null); }} /></View>
           <TaskCard task={reminderTask} today={today} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />
-        </View> : null}
+        </View> : null}</View>}
         ListFooterComponent={paging ? <ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
           : pagingFailed ? <View className="items-center gap-2 py-3"><Text className="text-sm text-destructive">{t("errorLoadingData")}</Text>
             <Button label={t("retry")} onPress={() => void loadMore()} /></View> : !loading && !failed ? (

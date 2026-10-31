@@ -85,6 +85,8 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 37,
+            "targetSdkVersion": 37,
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "enablePngCrunchInReleaseBuilds": true,

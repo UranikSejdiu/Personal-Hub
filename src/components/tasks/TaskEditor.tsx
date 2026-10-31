@@ -14,6 +14,7 @@ import { Button, IconButton } from "../ui/Button";
 import { cn } from "../../lib/utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { AnchoredMenu, useAnchoredMenu } from "../ui/AnchoredMenu";
+import { ReminderSetup } from "./ReminderSetup";
 
 const REPEATS: readonly { value: TaskRepeat; key: TKey }[] = [
   { value: "none", key: "tasksRepeatNone" }, { value: "daily", key: "tasksRepeatDaily" },
@@ -139,7 +140,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={colors.card} />
           </View>
           {!dueDate && <Text className="text-xs leading-[18px] text-muted-foreground">{t("tasksScheduleNeedsDate")}</Text>}
-          {reminder && dueDate ? <View><Text className={labelClass}>{t("tasksReminderTime")}</Text>
+          {reminder && dueDate ? <View><ReminderSetup /><Text className={labelClass}>{t("tasksReminderTime")}</Text>
             <TextInput value={time} onChangeText={setTime} editable={!busy} maxLength={5} autoCapitalize="none" autoCorrect={false}
               placeholder="09:00" placeholderTextColor={colors.mutedForeground} accessibilityLabel={t("tasksReminderTime")} className={inputClass} />
             <Text className="mt-2 text-xs leading-[18px] text-muted-foreground">{t("tasksReminderHint", { date: formatTaskDate(dueDate) })}</Text>

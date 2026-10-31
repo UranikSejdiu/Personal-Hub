@@ -80,6 +80,40 @@ Validation checks types, lint, data regressions, backup behavior, and theme
 contrast. Native appearance, device backup/restore, notifications, and installation
 still require testing on a compatible phone.
 
+Both apps compile and target Android 17 (API 37), with Android 7.0 (API 24)
+as the minimum supported version. Targeting the latest SDK does not certify
+every manufacturer's phone; verify release builds on actual devices too.
+
+### Task reminder delivery on Android
+
+Open **Tasks → Reminder delivery** in a new native build of Personal Hub.
+Enable notifications and **Alarms & reminders**. The app detects disabled
+notification channels as well as denied app notification permission. Exact
+alarm access lets Android schedule reminders during device sleep; denied access
+keeps an inexact fallback that can arrive late. Granting alarm access restores
+persisted schedules through a native receiver without needing to reopen Tasks.
+Expo also restores schedules after reboot and an APK update. Android schedules
+all future task reminders, rather than requiring a later launch to refill 50 slots.
+
+If Samsung still delays reminders, follow the panel's battery instructions:
+allow background usage / Unrestricted battery and remove Personal Hub from
+Sleeping apps and Deep sleeping apps. Android force-stop pauses reminders until
+the app is opened again. Repeating tasks create their next occurrence when the
+current task is completed, as described in the task editor.
+
+Before release, test on an S26 Ultra and an Android 17 device: schedule a reminder,
+leave the app, lock the phone, and wait without reopening it. Repeat after a
+reboot, APK update, and granting/revoking alarm access. Check notification denial,
+blocked channels, edited/deleted/completed tasks, and more than 50 future reminders.
+Verify both apps' navigation, keyboard, system bars, font scaling, backup import/
+export, and APK installation on Android 7, 12, 13, 16, and 17. These device checks
+are manual; passing source regressions and native compilation alone does not
+verify delivery on a physical phone.
+
+See Android's [alarm scheduling guidance](https://developer.android.com/develop/background-work/services/alarms)
+and [Android 17 SDK setup](https://developer.android.com/about/versions/17/setup-sdk),
+and Samsung's [background app management](https://developer.samsung.com/mobile/app-management.html).
+
 The apps have separate GitHub Actions builds and release tags. Read
 [Android builds and updates](.github/RELEASING.md) for signing-secret names,
 versioning, cached builds, and publishing. Signing keys and credentials belong

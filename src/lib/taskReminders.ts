@@ -2,6 +2,7 @@ import { isRunningInExpoGo, requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 import { loadReminderTasks } from "./tasks";
 import type { Task } from "../types/tasks";
+import { getReminderAccess } from "./reminderAccess";
 
 type NotificationsApi = typeof import("expo-notifications");
 const PREFIX = "personal-hub-task-";
@@ -35,6 +36,17 @@ export async function requestTaskReminderPermission(channelName: string): Promis
   let permission = await api.getPermissionsAsync();
   if (!allowed(api, permission) && permission.canAskAgain) permission = await api.requestPermissionsAsync();
   return allowed(api, permission) ? "granted" : "denied";
+}
+
+export async function taskReminderNotificationsEnabled(): Promise<boolean | null> {
+  const api = await getApi();
+  if (!api) return null;
+  if (!allowed(api, await api.getPermissionsAsync())) return false;
+  if (Platform.OS === "android") {
+    const channel = await api.getNotificationChannelAsync(CHANNEL);
+    if (channel?.importance === api.AndroidImportance.NONE) return false;
+  }
+  return true;
 }
 
 export function taskReminderDate(task: Pick<Task, "due_date" | "reminder_time">): Date | null {
@@ -74,12 +86,15 @@ async function reconcileTaskReminders(channelName: string): Promise<void> {
   const tasks = await loadReminderTasks();
   const scheduled = await api.getAllScheduledNotificationsAsync();
   const permission = await api.getPermissionsAsync();
+  // Access can change while the app is closed. A new signature replaces any
+  // retained inexact alarms when the user grants precise delivery access.
+  const exactAlarms = getReminderAccess()?.exactAlarms ?? false;
   const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
     const date = taskReminderDate(task);
     return !task.completed_at && date && date.getTime() > Date.now() ? [{ task, date }] : [];
-  }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, 50) : [];
+  }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, Platform.OS === "ios" ? 50 : undefined) : [];
   const wanted = new Map(reminders.map(({ task, date }) => [
-    `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify([task.title, date.getTime()]) },
+    `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify([task.title, date.getTime(), exactAlarms]) },
   ]));
   const retained = new Set<string>();
   for (const notification of scheduled) {

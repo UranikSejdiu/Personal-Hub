@@ -53,6 +53,8 @@ let folderMimeType = null;
 const scheduledReminders = new Map();
 let reminderPermission = { granted: true, canAskAgain: true };
 let reminderNativeAvailable = true;
+let exactAlarmAccess = false;
+let reminderChannelBlocked = false;
 let reminderScheduleFailure = false;
 let reminderPermissionRequests = 0;
 let reminderSchedules = 0;
@@ -97,10 +99,12 @@ const mocks = {
     getItemSync(key) { return stored.get(key) ?? null; },
     setItemSync(key, value) { stored.set(key, value); },
   } },
-  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: () => reminderNativeAvailable ? {} : null },
+  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => reminderNativeAvailable ? (name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms: exactAlarmAccess, batteryUnrestricted: false }) } : {}) : null },
+  'expo-intent-launcher': {},
   'expo-notifications': {
     setNotificationHandler() {},
-    AndroidImportance: { DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
+    AndroidImportance: { NONE: 0, DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
+    async getNotificationChannelAsync() { return { importance: reminderChannelBlocked ? 0 : 3 }; },
     async setNotificationChannelAsync() {},
     async getPermissionsAsync() { return reminderPermission; },
     async requestPermissionsAsync() { reminderPermissionRequests++; return reminderPermission; },
@@ -166,7 +170,8 @@ const reset = () => {
   stored.clear(); files.clear();
   folderPickerError = null; folderWriteError = null; folderCreateError = null; folderMimeType = null;
   scheduledReminders.clear(); reminderPermission = { granted: true, canAskAgain: true };
-  reminderNativeAvailable = true; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
+  reminderNativeAvailable = true; exactAlarmAccess = false; reminderChannelBlocked = false; reminderScheduleFailure = false; reminderPermissionRequests = 0; reminderSchedules = 0;
+  mocks['react-native'].Platform.OS = 'android';
   reminderReads = 0; reminderReadGate = null;
   reminderTapListener = undefined; lastReminderResponse = null; removedReminderListeners = 0;
 };
@@ -1373,17 +1378,51 @@ function migrationModule(fixture) {
     await taskReminders.syncTaskReminders('Task reminders');
     assert.equal(scheduledReminders.size, 0);
   });
-  await verify('Task reminder queue survives rapid edits and schedules only the nearest 50', async () => {
+  await verify('Reminder diagnostics detect blocked channels separately from app permission', async () => {
+    assert.equal(await taskReminders.taskReminderNotificationsEnabled(), true);
+    reminderChannelBlocked = true;
+    assert.equal(await taskReminders.taskReminderNotificationsEnabled(), false);
+    reminderChannelBlocked = false;
+    reminderPermission = { granted: false, canAskAgain: false };
+    assert.equal(await taskReminders.taskReminderNotificationsEnabled(), false);
+    reminderNativeAvailable = false;
+    assert.equal(await taskReminders.taskReminderNotificationsEnabled(), null);
+  });
+  await verify('Android schedules every future reminder without requiring another app launch to refill a queue', async () => {
     const input = { title: 'Many reminders', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
     for (let index = 0; index < 52; index++) await tasks.saveTask({ ...input, title: `Reminder ${index}` });
     await Promise.all([taskReminders.syncTaskReminders('Task reminders'), taskReminders.syncTaskReminders('Task reminders')]);
-    assert.equal(scheduledReminders.size, 50);
-    assert.equal(reminderSchedules, 50);
+    assert.equal(scheduledReminders.size, 52);
+    assert.equal(reminderSchedules, 52);
     const first = (await tasks.loadTasks()).find(t => t.title === 'Reminder 0');
     await tasks.completeTask(first.id);
     await taskReminders.syncTaskReminders('Task reminders');
-    assert.equal(scheduledReminders.size, 50);
+    assert.equal(scheduledReminders.size, 51);
     assert.equal(scheduledReminders.has(`personal-hub-task-${first.id}`), false);
+  });
+  await verify('Granting precise alarm access replaces inexact schedules without duplicates', async () => {
+    const id = await tasks.saveTask({ title: 'Precise reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' });
+    exactAlarmAccess = false;
+    await taskReminders.syncTaskReminders('Task reminders');
+    const previous = scheduledReminders.get(`personal-hub-task-${id}`).content.data.signature;
+    const count = reminderSchedules;
+    exactAlarmAccess = true;
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 1);
+    assert.equal(reminderSchedules, count + 1);
+    assert.notEqual(scheduledReminders.get(`personal-hub-task-${id}`).content.data.signature, previous);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(reminderSchedules, count + 1);
+    exactAlarmAccess = false;
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(reminderSchedules, count + 2, 'Revocation rebuilds a valid inexact fallback');
+  });
+  await verify('iOS keeps its bounded nearest-reminder queue', async () => {
+    mocks['react-native'].Platform.OS = 'ios';
+    const input = { title: 'iOS reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
+    for (let index = 0; index < 52; index++) await tasks.saveTask(input);
+    await taskReminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduledReminders.size, 50);
   });
   await verify('Reminder bursts share one pass and edits during a pass receive one current follow-up', async () => {
     const input = { title: 'Before', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
@@ -1530,7 +1569,7 @@ function migrationModule(fixture) {
     await tasks.deleteTask(done);
     assert.deepEqual({ ...await tasks.loadTaskCounts() }, { open: 88, total: 88 });
   });
-  await verify('Reminder queries exclude history and elapsed times before limiting to the nearest 50', async () => {
+  await verify('Reminder queries exclude history and elapsed times while retaining all future reminders', async () => {
     const input = { title: 'Reminder', notes: '', list_id: null, due_date: '2030-01-01', priority: 0, repeat: 'none', reminder_time: '09:00' };
     await tasks.saveTask({ ...input, title: 'Elapsed', reminder_time: '08:00' });
     await tasks.saveTask({ ...input, title: 'Same minute', reminder_time: '08:30' });
@@ -1538,7 +1577,7 @@ function migrationModule(fixture) {
     const next = await tasks.saveTask(input);
     for (let i = 0; i < 60; i++) await tasks.saveTask({ ...input, due_date: '2030-01-02', title: `Later ${i}` });
     const rows = await tasks.loadReminderTasks(new Date(2030, 0, 1, 8, 30));
-    assert.equal(rows.length, 50); assert.equal(rows[0].id, next);
+    assert.equal(rows.length, 61); assert.equal(rows[0].id, next);
     assert.ok(rows.every(task => task.completed_at === null && task.title !== 'Elapsed' && task.title !== 'Same minute'));
   });
   await verify('Backup preview validates files and reports counts without changing data or recovery files', async () => {

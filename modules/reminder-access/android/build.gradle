@@ -1,0 +1,25 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'com.uranik.reminders'
+version = '1.0.0'
+
+android {
+  namespace 'com.uranik.reminders'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Expo can link notifications from source or its bundled Maven artifact.
+  def notificationsProject = findProject(':expo-notifications')
+  if (notificationsProject != null) {
+    implementation notificationsProject
+  } else {
+    def configFile = file('../../../node_modules/expo-notifications/expo-module.config.json')
+    def publication = new groovy.json.JsonSlurper().parse(configFile).android.publication
+    implementation "${publication.groupId}:${publication.artifactId}:${publication.version}"
+  }
+}
