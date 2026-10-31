@@ -14,7 +14,11 @@ Hub JSON backups remain supported. Old source and release tags remain in Git his
 
 Only **Actions → Android apps → Run workflow** starts builds. There is one
 workflow for all four apps. Pushes, pull requests, and tags do not trigger it.
-Choose `all` to run the four app jobs in parallel, or select one app.
+Choose `changed` (the default) to build only apps with changes since their latest
+release tags. Each app is compared to its own tag, not another app's release.
+Choose `all` to run the four app jobs in parallel, or select one app explicitly.
+App documentation and test-script changes alone do not require an app release.
+With no app changes, the workflow finishes without building or publishing.
 
 Leave **publish** off to download signed APKs from the run's Artifacts section.
 Choose `universal` for both supported ARM architectures, or `arm64-test` for a
@@ -27,16 +31,50 @@ credentials or relaxing compiler-cache header checks. Each run saves updated
 compiler entries on main, including repeat builds of the same commit. Native
 release lint, app validation, and production bundles remain required.
 
-1. Update that app's package.json and package-lock.json version, app.json version,
-   and Android versionCode together. Never reuse a published versionCode.
+1. Prepare versions using the commands below. Never reuse a published versionCode.
 2. Commit and push the new versions to main. No release is created by a push.
-3. Open **Android apps**, choose main, select all or one app, choose `universal`,
+3. Open **Android apps**, choose main, select changed, all or one app, choose `universal`,
    and enable **publish**. Run the workflow when ready.
 4. Preflight rejects already released versions, non-increasing Android
    versionCodes, and conflicting existing tags before the expensive builds.
    All selected app builds must succeed before any publish job starts. Each
    publish job creates that app's matching version tag and attaches its signed
    APK to a separate GitHub Release. Existing release files are not overwritten.
+
+## Prepare release versions
+
+```sh
+# Preview which apps need the next patch release; no version files are written.
+npm run version:bump -- changed --dry-run
+
+# Increase only apps with pending app changes.
+npm run version:bump -- changed
+
+# Explicitly prepare one app, a group, or all four.
+npm run version:bump -- tasks
+npm run version:bump -- budget,notes
+npm run version:bump -- all
+
+# Choose a larger version increase when appropriate.
+npm run version:bump -- tasks --bump minor
+```
+
+The script synchronizes package.json, both version fields in package-lock.json,
+app.json's version, and Android versionCode. It fetches origin tags first;
+`--offline` explicitly uses only locally available tags. Changes include committed,
+staged, unstaged, and untracked app code; ignored private files are excluded.
+It compares each app with its latest stable `<app>-v<version>` tag. Those tags
+must be reserved for actual app releases. Shared repository tooling does not
+force new app versions; use `all` deliberately when all apps need an update.
+
+Repeated preparation retains an already increased version and build number.
+A minor/major request can raise that pending version further. A first release
+without a previous app tag retains its current version. Invalid or inconsistent
+version files stop the operation before writes; failed replacements roll back.
+The script never commits, pushes, creates tags, builds, or publishes. Review its
+output, commit/push when ready, then use the manual workflow. If selecting
+`changed` for publishing, every changed app must have a prepared newer version;
+choose one app explicitly to release only that app while other work is pending.
 
 Release tags are derived from the built-in version. Each updater
 sees a release only after its exact APK is attached. Standalone releases use

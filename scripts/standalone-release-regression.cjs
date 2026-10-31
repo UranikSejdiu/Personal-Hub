@@ -11,10 +11,13 @@ module.exports = function verifyStandaloneReleases(root) {
   const raw = fs.readFileSync(path.join(workflowRoot, 'android.yml'), 'utf8');
   const build = YAML.parse(raw);
   assert.deepEqual(Object.keys(build.on), ['workflow_dispatch'], 'Build and publication are manual');
-  assert.deepEqual(build.on.workflow_dispatch.inputs.apps.options, ['all', 'budget', 'notes', 'tasks', 'dhikr']);
+  assert.deepEqual(build.on.workflow_dispatch.inputs.apps.options, ['changed', 'all', 'budget', 'notes', 'tasks', 'dhikr']);
+  assert.equal(build.on.workflow_dispatch.inputs.apps.default, 'changed');
+  assert.equal(build.jobs.plan.steps[0].with['fetch-depth'], 0);
   assert.equal(build.on.workflow_dispatch.inputs.publish.default, false);
   assert.deepEqual(build.jobs.publish.needs, ['plan', 'build']);
-  assert.equal(build.jobs.publish.if, 'inputs.publish');
+  assert.equal(build.jobs.publish.if, "inputs.publish && needs.plan.outputs.has_apps == 'true'");
+  assert.equal(build.jobs.build.if, "needs.plan.outputs.has_apps == 'true'");
   assert.equal(build.jobs.build.strategy['fail-fast'], false);
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run validate'));
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run bundle:check'));

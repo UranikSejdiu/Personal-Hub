@@ -5,10 +5,10 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: Apps to build
+        description: Changed since release, all apps, or one app
         type: choice
-        options: [all, budget, notes, tasks, dhikr]
-        default: all
+        options: [changed, all, budget, notes, tasks, dhikr]
+        default: changed
       profile:
         description: Universal for releases; ARM64 test for modern phones only
         type: choice
@@ -32,8 +32,11 @@ jobs:
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has_apps: ${{ steps.plan.outputs.has_apps }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -52,6 +55,7 @@ jobs:
   build:
     name: Build ${{ matrix.title }}
     needs: plan
+    if: needs.plan.outputs.has_apps == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -147,7 +151,7 @@ jobs:
   publish:
     name: Publish ${{ matrix.title }}
     needs: [plan, build]
-    if: inputs.publish
+    if: inputs.publish && needs.plan.outputs.has_apps == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}

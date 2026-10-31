@@ -1,13 +1,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { selectApps } = require('./app-versions.cjs');
 
 const APPS = ['budget', 'notes', 'tasks', 'dhikr'];
 function createPlan(root, selection = 'all', profile = 'universal', publish = false) {
-  assert.ok(selection === 'all' || APPS.includes(selection), 'Choose all or a known app');
+  assert.ok(['changed', 'all', ...APPS].includes(selection), 'Choose changed, all or a known app');
   assert.ok(['universal', 'arm64-test'].includes(profile), 'Unknown Android build profile');
   assert.ok(!publish || profile === 'universal', 'Published APKs must support both ARM architectures');
-  return { include: (selection === 'all' ? APPS : [selection]).map(id => {
+  return { include: selectApps(root, selection).map(id => {
     const read = file => JSON.parse(fs.readFileSync(path.join(root, 'apps', id, file), 'utf8'));
     const pkg = read('package.json'), lock = read('package-lock.json'), config = read('app.json').expo;
     assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
@@ -61,6 +62,7 @@ if (require.main === module) (async () => {
   const root = path.resolve(__dirname, '..');
   const publish = process.env.PUBLISH_RELEASES === 'true';
   const plan = createPlan(root, process.env.SELECTED_APPS, process.env.BUILD_PROFILE, publish);
+  fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_apps=${plan.include.length > 0}\n`);
   if (publish) await checkRemote(plan, { repository: process.env.GITHUB_REPOSITORY, sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, token: process.env.GITHUB_TOKEN });
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(plan)}\n`);
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Android apps\n\n${publish ? 'Publish releases' : 'Build APKs only'} · ${process.env.BUILD_PROFILE}\n\n${plan.include.map(app => `- ${app.title} ${app.version} (Android ${app.versionCode})`).join('\n')}\n`);

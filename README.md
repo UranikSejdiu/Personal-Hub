@@ -76,7 +76,12 @@ provides notification, exact-alarm, and manufacturer battery setup guidance.
 
 ## Releases
 
-Use **Actions → Android apps → Run workflow**. Choose all apps or one app.
+Run `npm run version:bump -- changed --dry-run` to preview release versions,
+then `npm run version:bump -- changed` when ready. Use `tasks`, `budget,notes`,
+or `all` instead to choose apps explicitly. Already prepared versions are reused.
+The script does not commit, push, or publish.
+
+Use **Actions → Android apps → Run workflow**. Choose changed apps, all, or one.
 The default builds signed APK artifacts without publishing. `arm64-test` builds
 only for modern ARM64 phones; `universal` retains both supported ARM architectures.
 Enable **publish** only when ready for new GitHub Releases; all selected builds
