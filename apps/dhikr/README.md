@@ -103,8 +103,8 @@ Failed checks are shown as failures; a recent previously detected update is
 labelled as cached. Installation uses Android's normal installer and keeps a
 downloaded APK available for retry.
 
-Dhikr publishing leaves the repository's default latest release available to
-older hub builds. Its own checker reads the separate Dhikr releases directly.
+Dhikr checks its own release tags rather than the repository-wide latest
+release. Historical Hub releases have been removed; their Git tags remain.
 
 The manual workflow derives the release tag from the APK's version and rejects
 existing releases. Update `package.json`, package-lock.json, `app.json` version, and Android

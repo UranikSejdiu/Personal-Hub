@@ -40,9 +40,11 @@ release lint, app validation, and production bundles remain required.
 
 Release tags are derived from the built-in version. Each updater
 sees a release only after its exact APK is attached. Standalone releases use
-`make_latest: false`, preserving the historical Hub latest-release route for
-old installations without offering them an APK from another package. No new
-Hub releases are built. Never move or overwrite published tags.
+`make_latest: false`; a repository-wide latest release cannot represent all
+four independent apps. Each updater reads its own tag prefix instead.
+Historical Personal Hub release records and APK assets have been removed;
+their Git tags and source history remain. No new Hub releases are built.
+Never move or overwrite published tags.
 
 ## Signing
 
