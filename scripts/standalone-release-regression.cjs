@@ -6,6 +6,25 @@ const YAML = require('yaml');
 module.exports = function verifyStandaloneReleases(root) {
   assert.equal(fs.existsSync(path.join(root, '.github/workflows/build-release.yml')), false, 'Hub must not have an active APK build workflow');
   assert.equal(fs.existsSync(path.join(root, 'app.json')), false, 'The root is repository tooling, not a Hub app');
+  const workflowRoot = path.join(root, '.github/workflows');
+  assert.deepEqual(fs.readdirSync(workflowRoot).filter(name => /\.ya?ml$/.test(name)), ['android.yml'], 'Keep a single visible workflow');
+  const raw = fs.readFileSync(path.join(workflowRoot, 'android.yml'), 'utf8');
+  const build = YAML.parse(raw);
+  assert.deepEqual(Object.keys(build.on), ['workflow_dispatch'], 'Build and publication are manual');
+  assert.deepEqual(build.on.workflow_dispatch.inputs.apps.options, ['all', 'budget', 'notes', 'tasks', 'dhikr']);
+  assert.equal(build.on.workflow_dispatch.inputs.publish.default, false);
+  assert.deepEqual(build.jobs.publish.needs, ['plan', 'build']);
+  assert.equal(build.jobs.publish.if, 'inputs.publish');
+  assert.equal(build.jobs.build.strategy['fail-fast'], false);
+  assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run validate'));
+  assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run bundle:check'));
+  assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run build:apk'));
+  const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
+  assert.equal(publisher.with.make_latest, 'false');
+  assert.equal(publisher.with.overwrite_files, false);
+  assert.equal(publisher.with.fail_on_unmatched_files, true);
+  assert.ok(raw.includes('${{ secrets.KEYSTORE_BASE64 }}'));
+  assert.ok(raw.includes('${{ secrets.DHIKR_KEYSTORE_BASE64 }}'));
   for (const id of ['budget', 'notes', 'tasks']) {
     const appRoot = path.join(root, 'apps', id);
     const identity = JSON.parse(fs.readFileSync(path.join(appRoot, 'src/appIdentity.json'), 'utf8'));
@@ -17,20 +36,6 @@ module.exports = function verifyStandaloneReleases(root) {
     assert.equal(config.version, pkg.version);
     assert.equal(lock.version, pkg.version);
     assert.deepEqual(lock.packages[''].dependencies, pkg.dependencies);
-    const raw = fs.readFileSync(path.join(root, `.github/workflows/build-${id}.yml`), 'utf8');
-    const build = YAML.parse(raw);
-    const checks = YAML.parse(fs.readFileSync(path.join(root, `.github/workflows/${id}-checks.yml`), 'utf8'));
-    assert.deepEqual(build.on.push.tags, [`${identity.tagPrefix}*`]);
-    assert.equal(build.jobs.build.defaults.run['working-directory'], `apps/${id}`);
-    assert.equal(build.jobs.checks.uses, `./.github/workflows/${id}-checks.yml`);
-    assert.deepEqual(build.jobs.publish.needs, ['checks', 'build']);
-    assert.ok(build.jobs.publish.if.includes(`refs/tags/${identity.tagPrefix}`));
-    const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
-    assert.equal(publisher.with.make_latest, 'false');
-    assert.equal(publisher.with.fail_on_unmatched_files, true);
-    assert.ok(checks.on.pull_request.paths.includes(`apps/${id}/**`));
-    assert.ok(raw.includes('${{ secrets.KEYSTORE_BASE64 }}'));
-    assert.ok(!raw.includes('DHIKR_KEYSTORE'));
     const roots = [path.join(appRoot, 'src'), path.join(appRoot, 'app')];
     const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
     for (const file of roots.flatMap(walk).filter(file => /\.[jt]sx?$/.test(file))) {
@@ -40,5 +45,5 @@ module.exports = function verifyStandaloneReleases(root) {
       }
     }
   }
-  return { name: 'Standalone apps have isolated source, version locks, signing, release gates, tags, and APK publishing channels', passed: true };
+  return { name: 'One manual Android workflow preserves isolated apps, signing keys, validation gates, and update channels', passed: true };
 };

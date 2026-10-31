@@ -43,8 +43,10 @@ brand-new app that has never been distributed, `npm run signing:create` creates
 a new key and refuses to overwrite existing credentials. Local builds without
 credentials fall back to Android's debug key; CI requires release signing.
 
-The repository's **Build Dhikr APK** workflow runs independently on manual
-dispatch or a `dhikr-v<version>` tag. Set these repository secrets for Dhikr:
+Use **Actions → Android apps → Run workflow**, selecting all apps or dhikr.
+Pushes and tags do not start builds automatically. Leave publish off for build
+artifacts, or enable it with the universal profile for a new release after all
+selected builds pass. Set these repository secrets for Dhikr:
 `DHIKR_KEYSTORE_BASE64`, `DHIKR_KEYSTORE_PASSWORD`, `DHIKR_KEY_ALIAS`,
 `DHIKR_KEY_PASSWORD`. It uploads its own APK and attaches it to its own tagged
 release. Hub is now retired; Budget, Notes, and Tasks have their own builds
@@ -104,8 +106,8 @@ downloaded APK available for retry.
 Dhikr publishing leaves the repository's default latest release available to
 older hub builds. Its own checker reads the separate Dhikr releases directly.
 
-The tagged release workflow verifies that its tag matches the version built
-into the APK. Update `package.json`, `app.json` version, and Android
+The manual workflow derives the release tag from the APK's version and rejects
+existing releases. Update `package.json`, package-lock.json, `app.json` version, and Android
 `versionCode` together before publishing a new tagged release.
 
 ## Performance and battery use

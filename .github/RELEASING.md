@@ -5,27 +5,40 @@ Hub JSON backups remain supported. Old source and release tags remain in Git his
 
 | App | Source | Workflow | Tag | APK | Android package |
 | --- | --- | --- | --- | --- | --- |
-| Budget | `apps/budget` | Build Budget APK | `budget-v<version>` | `Budget-<version>.apk` | `com.uranik.budget` |
-| Notes | `apps/notes` | Build Notes APK | `notes-v<version>` | `Notes-<version>.apk` | `com.uranik.notes` |
-| Tasks | `apps/tasks` | Build Tasks APK | `tasks-v<version>` | `Tasks-<version>.apk` | `com.uranik.tasks` |
-| Dhikr | `apps/dhikr` | Build Dhikr APK | `dhikr-v<version>` | `Dhikr-<version>.apk` | `com.dhiker.counter` |
+| Budget | `apps/budget` | Android apps | `budget-v<version>` | `Budget-<version>.apk` | `com.uranik.budget` |
+| Notes | `apps/notes` | Android apps | `notes-v<version>` | `Notes-<version>.apk` | `com.uranik.notes` |
+| Tasks | `apps/tasks` | Android apps | `tasks-v<version>` | `Tasks-<version>.apk` | `com.uranik.tasks` |
+| Dhikr | `apps/dhikr` | Android apps | `dhikr-v<version>` | `Dhikr-<version>.apk` | `com.dhiker.counter` |
 
 ## Build and publish
 
-Main-branch app changes and manual dispatch run each app's independent checks
-and signed build, uploading APK artifacts without publishing. Documentation-only
-changes do not build native apps. Gradle and compiler caches are separated by
-app. Publication requires both validation and APK build success. Native release
-lint runs before assembly.
+Only **Actions → Android apps → Run workflow** starts builds. There is one
+workflow for all four apps. Pushes, pull requests, and tags do not trigger it.
+Choose `all` to run the four app jobs in parallel, or select one app.
+
+Leave **publish** off to download signed APKs from the run's Artifacts section.
+Choose `universal` for both supported ARM architectures, or `arm64-test` for a
+faster APK for a modern ARM64 phone such as the S26 Ultra. ARM64 test files are
+named `<App>-<version>-arm64-test.apk` and cannot be published as app updates.
+
+Gradle and compiler caches are separate for each app. CMake compiler launchers
+cover native dependency projects as well as the app, without caching signing
+credentials or relaxing compiler-cache header checks. Each run saves updated
+compiler entries on main, including repeat builds of the same commit. Native
+release lint, app validation, and production bundles remain required.
 
 1. Update that app's package.json and package-lock.json version, app.json version,
    and Android versionCode together. Never reuse a published versionCode.
-2. Run `npm run validate` and `npm run bundle:check` in its directory.
-3. Commit and push. Wait for the main build to pass and warm caches.
-4. Push its matching tag: `budget-v1.0.0`, `notes-v1.0.0`, or `tasks-v1.0.0`
-   for the new apps' first releases.
+2. Commit and push the new versions to main. No release is created by a push.
+3. Open **Android apps**, choose main, select all or one app, choose `universal`,
+   and enable **publish**. Run the workflow when ready.
+4. Preflight rejects already released versions, non-increasing Android
+   versionCodes, and conflicting existing tags before the expensive builds.
+   All selected app builds must succeed before any publish job starts. Each
+   publish job creates that app's matching version tag and attaches its signed
+   APK to a separate GitHub Release. Existing release files are not overwritten.
 
-The workflow rejects tags that differ from the built-in version. Each updater
+Release tags are derived from the built-in version. Each updater
 sees a release only after its exact APK is attached. Standalone releases use
 `make_latest: false`, preserving the historical Hub latest-release route for
 old installations without offering them an APK from another package. No new
@@ -77,3 +90,10 @@ and system backup on release builds on an actual phone. Android system backup
 includes each app's own databases, portable preferences, and recovery copy;
 provider availability varies. Never uninstall the only copy of personal data
 before validating the backups.
+
+## Saved for the next update test
+
+Keep the current app versions installed. When ready, publish higher versions
+through the manual workflow, then use each app's Settings update check to
+download and install its own APK. Verify that records and reminders survive
+the update. Do not publish an extra version just to test the build workflow.

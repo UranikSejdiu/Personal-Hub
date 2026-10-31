@@ -35,14 +35,23 @@ runs:
         mkdir -p "$CACHE_DIRECTORY"
         printf 'CCACHE_DIR=%s\nCCACHE_BASEDIR=%s\nCCACHE_COMPILERCHECK=content\nCCACHE_MAXSIZE=1G\n' \
           "$CACHE_DIRECTORY" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+        # Apply to dependency CMake projects too; RN's automatic detection only
+        # covers its own application project. Keep PCH's standard cache checks.
+        printf 'CMAKE_C_COMPILER_LAUNCHER=ccache\nCMAKE_CXX_COMPILER_LAUNCHER=ccache\n' >> "$GITHUB_ENV"
+    - name: Avoid nested React Native cache launchers
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: node .github/actions/android-cache/configure-launchers.cjs '${{ inputs.app }}'
     - name: Restore compiler cache
       id: restore
       uses: actions/cache/restore@v4
       with:
         path: ${{ runner.temp }}/ccache/${{ inputs.app }}
-        key: android-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-${{ inputs.fingerprint }}-${{ github.sha }}
+        key: android-ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-${{ inputs.fingerprint }}-${{ github.sha }}-${{ github.run_id }}
         restore-keys: |
-          android-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-${{ inputs.fingerprint }}-
+          android-ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-${{ inputs.fingerprint }}-${{ github.sha }}-
+          android-ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-${{ inputs.fingerprint }}-
+          android-ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-
           android-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.app }}-
     - name: Reset compiler cache statistics
       shell: bash

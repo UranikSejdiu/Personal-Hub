@@ -74,9 +74,12 @@ provides notification, exact-alarm, and manufacturer battery setup guidance.
 
 ## Releases
 
-Each app builds on its main-branch changes, manual dispatch, or its own version
-tag. Main/manual runs upload artifacts; tags publish after validation and the
-signed APK build pass. Updaters accept only their own tags and exact APK names.
+Use **Actions → Android apps → Run workflow**. Choose all apps or one app.
+The default builds signed APK artifacts without publishing. `arm64-test` builds
+only for modern ARM64 phones; `universal` retains both supported ARM architectures.
+Enable **publish** only when ready for new GitHub Releases; all selected builds
+must pass before publishing. Pushes and tags do not start builds automatically.
+Updaters accept only their own tags and exact APK names.
 See [Android releases](.github/RELEASING.md). Budget, Notes, and Tasks use the
 existing Hub signing secrets. Dhikr keeps its existing signing key and secrets.
 Never change a distributed app's package ID or signing key.

@@ -1,0 +1,176 @@
+name: Android apps
+run-name: Android · ${{ inputs.apps }} · ${{ inputs.profile }} · ${{ inputs.publish && 'publish' || 'build only' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: Apps to build
+        type: choice
+        options: [all, budget, notes, tasks, dhikr]
+        default: all
+      profile:
+        description: Universal for releases; ARM64 test for modern phones only
+        type: choice
+        options: [universal, arm64-test]
+        default: universal
+      publish:
+        description: Publish new versions to GitHub Releases after ALL selected builds pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apps-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --prefer-offline
+      - run: npm run check:releases
+      - name: Validate selection and release versions
+        id: plan
+        env:
+          SELECTED_APPS: ${{ inputs.apps }}
+          BUILD_PROFILE: ${{ inputs.profile }}
+          PUBLISH_RELEASES: ${{ inputs.publish }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/android-build-plan.cjs
+
+  build:
+    name: Build ${{ matrix.title }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.id }}
+    env:
+      NODE_ENV: production
+      ANDROID_BUILD_PROFILE: ${{ inputs.profile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/${{ matrix.id }}/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/${{ matrix.id }}/package-lock.json
+      - run: npm ci --prefer-offline --include=dev
+      - name: Validate app and backup/reminder regressions
+        run: npm run validate
+      - name: Check production Android and iOS bundles
+        run: npm run bundle:check
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Restore native compiler cache
+        id: native-cache
+        uses: ./.github/actions/android-cache
+        with:
+          app: ${{ matrix.id }}
+          fingerprint: ${{ hashFiles(format('apps/{0}/package-lock.json', matrix.id), format('apps/{0}/plugins/withGradleProperties.js', matrix.id), format('apps/{0}/plugins/withReleaseSigning.js', matrix.id)) }}
+      - name: Configure existing app signing key
+        env:
+          APP_ID: ${{ matrix.id }}
+          HUB_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
+          HUB_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          HUB_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          HUB_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          DHIKR_KEYSTORE: ${{ secrets.DHIKR_KEYSTORE_BASE64 }}
+          DHIKR_STORE_PASSWORD: ${{ secrets.DHIKR_KEYSTORE_PASSWORD }}
+          DHIKR_KEY_ALIAS: ${{ secrets.DHIKR_KEY_ALIAS }}
+          DHIKR_KEY_PASSWORD: ${{ secrets.DHIKR_KEY_PASSWORD }}
+        run: |
+          if [ "$APP_ID" = dhikr ]; then
+            KEYSTORE_BASE64="$DHIKR_KEYSTORE"; STORE_PASSWORD="$DHIKR_STORE_PASSWORD"
+            KEY_ALIAS="$DHIKR_KEY_ALIAS"; KEY_PASSWORD="$DHIKR_KEY_PASSWORD"
+          else
+            KEYSTORE_BASE64="$HUB_KEYSTORE"; STORE_PASSWORD="$HUB_STORE_PASSWORD"
+            KEY_ALIAS="$HUB_KEY_ALIAS"; KEY_PASSWORD="$HUB_KEY_PASSWORD"
+          fi
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          mkdir -p credentials
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
+          printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
+          test -s credentials/release-keystore.jks
+          chmod 600 credentials/release-keystore.jks credentials/keystore.properties
+      - name: Build signed standalone APK
+        run: npm run build:apk
+      - name: Compiler cache statistics
+        if: always()
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save compiler cache on main
+        if: always() && github.ref == 'refs/heads/main' && steps.native-cache.outcome == 'success' && steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.native-cache.outputs.path }}
+          key: ${{ steps.native-cache.outputs.key }}
+      - name: Upload build profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}-gradle-profile
+          path: apps/${{ matrix.id }}/android/build/reports/profile/*.html
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: apps/${{ matrix.id }}/build/${{ matrix.apk }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    name: Publish ${{ matrix.title }}
+    needs: [plan, build]
+    if: inputs.publish
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ matrix.title }} ${{ matrix.version }}
+          body: |
+            Install ${{ matrix.apk }}. Android package: ${{ matrix.packageId }}.
+            Each app has independent records, backups, and APK updates.
+            To transfer from Hub, import its JSON backup, verify your records and a fresh export, then uninstall Hub.
+            Build and migration instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
+          make_latest: "false"
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          files: release/${{ matrix.apk }}

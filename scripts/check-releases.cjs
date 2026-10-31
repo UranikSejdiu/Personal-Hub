@@ -1,3 +1,7 @@
 const path = require('node:path');
-const result = require('./standalone-release-regression.cjs')(path.resolve(__dirname, '..'));
-console.log(result.name);
+(async () => {
+  const root = path.resolve(__dirname, '..');
+  const result = require('./standalone-release-regression.cjs')(root);
+  console.log(result.name);
+  await require('./android-build-regression.cjs')(root);
+})().catch(error => { console.error(error); process.exitCode = 1; });

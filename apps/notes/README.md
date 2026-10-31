@@ -55,9 +55,10 @@ Restore the existing Hub signing key into ignored `credentials/` files:
 `build/Notes-<version>.apk`. Release builds require these credentials.
 Never change the signing key after distributing the first release.
 
-Workflow: **Build Notes APK**. Tags: `notes-v<version>`. Main and manual
-builds upload artifacts. Version tags publish only after checks and the signed
-build pass. CI uses the existing Hub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+Workflow: **Android apps** (manual). Select all apps or notes. Leave publish off
+for APK artifacts; enable it with the universal profile for new Releases after
+all selected builds pass. Pushes and tags do not build automatically.
+Tags: `notes-v<version>`. CI uses the existing Hub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
 `KEY_ALIAS`, and `KEY_PASSWORD` secrets; no new secrets are needed.
 
 Increment package.json, package-lock.json, app.json version, and versionCode
