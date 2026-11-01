@@ -1,10 +1,12 @@
+import { IconButton } from "./ui/Button";
+import { AppAlerts } from "./AppAlerts";
 import { Text } from "./ui/Typography";
 import { Pressable, Modal, View, ScrollView } from "react-native";
 import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";
 import { X } from "./AppIcons";
-import { useThemeColors, useThemeVariables } from "../lib/theme";
+import { useThemeVariables } from "../lib/theme";
 import { useI18n } from "../lib/i18n";
 
 interface ConfirmDialogProps {
@@ -28,7 +30,6 @@ export function ConfirmDialog({
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
-  const colors = useThemeColors();
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const { t } = useI18n();
@@ -80,17 +81,8 @@ export function ConfirmDialog({
             <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">
               {title}
             </Text>
-            <Pressable
-              onPress={handleClose}
-              disabled={isConfirming}
-              accessibilityState={{ disabled: isConfirming }}
-              className="ml-2 h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={t("cancel")}
-            >
-              <X size={16} color={colors.mutedForeground} />
-            </Pressable>
+            <IconButton icon={X} className="ml-2" onPress={handleClose} disabled={isConfirming}
+              accessibilityState={{ disabled: isConfirming }} accessibilityLabel={t("cancel")} />
           </View>
 
           <ScrollView className="mt-2 grow-0" contentContainerClassName="py-1">
@@ -129,6 +121,7 @@ export function ConfirmDialog({
           </View>
         </Pressable>
       </Pressable>
+      {visible && <AppAlerts />}
     </Modal>
   );
 }

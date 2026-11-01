@@ -1,6 +1,6 @@
 import { Text, TextInput } from "./ui/Typography";
-import { useEffect, useRef } from "react";
-import { Pressable, View, type TextInput as TextInputType } from "react-native";
+import { memo, useEffect, useRef } from "react";
+import { Pressable, View, type TextInputInstance as TextInputType } from "react-native";
 import { GripVertical, X } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";
@@ -27,7 +27,7 @@ interface ChecklistItemRowProps {
   registerInput: (key: string, ref: TextInputType | null) => void;
 }
 
-export function ChecklistItemRow({
+export const ChecklistItemRow = memo(function ChecklistItemRow({
   item,
   disabled = false,
   readOnly = false,
@@ -110,4 +110,4 @@ export function ChecklistItemRow({
       </Pressable>
     </View>
   );
-}
+});

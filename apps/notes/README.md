@@ -8,13 +8,17 @@ No Hub runtime imports or workspace dependencies. Use Node 24.
 
 The phone library uses rounded cards, a search field, All notes / Notes /
 Checklists filters, and a floating create button. Notes and Archive remain in
-the bottom navigation. The header gear opens Settings, including theme,
-grid/list layout, sorting, backup import/export, recovery, and updates.
+the bottom navigation. The view button beside the gear controls grid/list
+layout and sorting. Settings includes theme, backup import/export, recovery,
+updates, and the developer's GitHub link.
 Settings returns to the originating library view with the back arrow.
 
 Text notes and checklists open in full-screen editors. Save remains explicit;
 leaving with unsaved changes still prompts before discarding. Archived notes
-remain read-only until restored. The light and dark themes use the same layout.
+remain read-only until restored. The light and dark themes use neutral colors.
+The bottom attachment menu supports images, camera photos, voice recordings,
+and files. Formatting tools show their selected state and provide light haptic
+feedback where supported.
 
 ## Develop and verify
 
@@ -28,7 +32,7 @@ npm start
 ## Transfer existing records
 
 Keep Personal Hub installed. Save its JSON backup to a folder. In this app,
-choose Settings → Import Hub or app backup, select that file, review counts,
+choose Settings → Import backup, select that file, review counts,
 and confirm. The same Hub file can be used for all three standalone apps.
 Only this app's tables are copied, preserving IDs, timestamps, ordering, and
 relationships. Import replaces current records after saving a recovery copy;
@@ -38,12 +42,13 @@ Check all records and use Save to folder to export a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
 packages. Restore previous data returns to the pre-import snapshot.
 
-Exports use `uranik-notes.backup` version 1 and contain only this app's
-records. Other standalone apps' backups are rejected. Applicable Hub backup
+Exports use `uranik-notes.backup` version 2 and include this app's records and
+attachments. Standalone backup versions 1 and 2 are accepted. Other standalone
+apps' backups are rejected. Applicable Hub backup
 versions 1–7 are accepted. Tasks requires task tables, normally version 5+.
 Standalone exports include theme and applicable Notes display preferences.
-Legacy vibration preferences are accepted during import but ignored. Tap
-vibration is available only in Dhikr.
+Legacy vibration preferences are ignored; editor tools provide their own light
+feedback.
 Older backups leave missing preferences unchanged. Preference write failures
 are reported separately from a committed record import. Permission grants
 must be configured separately for the new package. The standalone Tasks app

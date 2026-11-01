@@ -1,18 +1,14 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, ScrollView, Keyboard } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ArrowLeft,
-  Bold,
-  Italic,
-  Strikethrough,
-  List,
-  ListOrdered,
   Plus,
 } from "../../src/components/AppIcons";
-import { Checkbox } from "../../src/components/ui/Checkbox";
+import { FormattingIcon } from "../../src/components/FormattingIcon";
+import { toolbarFeedback } from "../../src/lib/toolbarFeedback";
 import { EnrichedText, EnrichedTextInput } from "react-native-enriched-html";
 import type {
   EnrichedTextInputInstance,
@@ -23,7 +19,7 @@ import type {
   OnChangeTextEvent,
   TextShortcut,
 } from "react-native-enriched-html";
-import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
+import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import {
@@ -36,6 +32,9 @@ import {
 import { useThemeColors } from "../../src/lib/theme";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { NoteActions } from "../../src/components/NoteActions";
+import { NoteAttachments } from "../../src/components/NoteAttachments";
+import { AttachmentToolbarButton } from "../../src/components/AttachmentToolbarButton";
+import { useNoteAttachments } from "../../src/lib/useNoteAttachments";
 import {
   contentToEditorHtml,
   appendCheckboxItem,
@@ -56,12 +55,11 @@ type LoadTarget =
   | { kind: "invalid" }
   | { kind: "note"; id: number };
 
-type StyleStateKey = Exclude<keyof OnChangeStateEvent, "alignment">;
+type StyleStateKey = "bold" | "italic" | "strikeThrough" | "unorderedList" | "orderedList" | "checkboxList";
 
 type FormatButton = {
   type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
   labelKey: "notesBold" | "notesItalic" | "notesStrikethrough" | "notesBulletList" | "notesNumberedList" | "notesChecklist";
-  icon: typeof Bold;
   stateKey: StyleStateKey;
   toggle: (editor: EnrichedTextInputInstance) => void;
 };
@@ -72,50 +70,40 @@ const TEXT_SHORTCUTS: TextShortcut[] = [
   { trigger: "[] ", style: "checkbox_list" },
 ];
 
-function ChecklistIcon() {
-  return <Checkbox displayOnly checked />;
-}
-
 const FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "bold",
     labelKey: "notesBold",
-    icon: Bold,
     stateKey: "bold",
     toggle: (editor) => editor.toggleBold(),
   },
   {
     type: "italic",
     labelKey: "notesItalic",
-    icon: Italic,
     stateKey: "italic",
     toggle: (editor) => editor.toggleItalic(),
   },
   {
     type: "strikethrough",
     labelKey: "notesStrikethrough",
-    icon: Strikethrough,
     stateKey: "strikeThrough",
     toggle: (editor) => editor.toggleStrikeThrough(),
   },
   {
     type: "bullet",
     labelKey: "notesBulletList",
-    icon: List,
     stateKey: "unorderedList",
     toggle: (editor) => editor.toggleUnorderedList(),
   },
   {
     type: "numbered",
     labelKey: "notesNumberedList",
-    icon: ListOrdered,
     stateKey: "orderedList",
     toggle: (editor) => editor.toggleOrderedList(),
   },
   {
     type: "checklist",
     labelKey: "notesChecklist",
-    icon: ChecklistIcon,
     stateKey: "checkboxList",
     toggle: (editor) => editor.toggleCheckboxList(false),
   },
@@ -147,6 +135,8 @@ export default function NotesEditorScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const editorRef = useRef<EnrichedTextInputInstance>(null);
+  const attachmentState = useNoteAttachments();
+  const { initialize: initializeAttachments, hasChanges: attachmentsChanged, valueRef: attachmentsRef, busyRef: attachmentsBusyRef } = attachmentState;
   const [styleState, setStyleState] = useState<OnChangeStateEvent | null>(null);
 
   const [noteId, setNoteId] = useState<number | null>(() => {
@@ -169,7 +159,8 @@ export default function NotesEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const mutationInFlightRef = useRef(false);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
-  const allowRemoveRef = useRef(false);
+  const [removalAllowed, setRemovalAllowed] = useState(false);
+  const removalAllowedRef = useRef(false);
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const [toolbarHeight, setToolbarHeight] = useState(57);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -252,6 +243,7 @@ export default function NotesEditorScreen() {
           setTitle(note.title);
           setIsPinned(note.is_pinned);
           setIsArchived(note.is_archived);
+          initializeAttachments(note.attachments ?? []);
           setInitialHtml(applyCheckedStrikethrough(contentToEditorHtml(note.content)));
         } else {
           setNoteId(null);
@@ -273,7 +265,7 @@ export default function NotesEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, router, t]);
+  }, [loadTarget, router, t, initializeAttachments]);
 
   // Capture the editor's normalized HTML once it is ready so change checks
   // compare against the real serialized form, not the pre-parse default.
@@ -411,6 +403,7 @@ export default function NotesEditorScreen() {
 
   const isDirtyNow = useCallback(async (): Promise<boolean> => {
     if (isArchived) return false;
+    if (attachmentsChanged()) return true;
     const snapshot = savedSnapshotRef.current;
     const editor = editorRef.current;
     const fieldsChanged =
@@ -428,43 +421,37 @@ export default function NotesEditorScreen() {
       // An unreadable editor may contain unsaved text; ask before leaving.
       return true;
     }
-  }, [isArchived]);
+  }, [isArchived, attachmentsChanged]);
 
-  const navigation = useNavigation();
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
   const checkingRemoveRef = useRef(false);
-  useEffect(() => {
-    const unsubscribe = navigation.addListener(
-      "beforeRemove",
-      (event: {
-        preventDefault: () => void;
-        data: { action: { type: string } };
-      }) => {
-        if (allowRemoveRef.current) return;
-        event.preventDefault();
-        if (mutationInFlightRef.current || isAddingItem) return;
-        if (checkingRemoveRef.current) return;
-        const action = event.data.action;
-        checkingRemoveRef.current = true;
-        void isDirtyNow().then((dirty) => {
-          checkingRemoveRef.current = false;
-          // A save can start while the native HTML read above is pending.
-          if (mutationInFlightRef.current) return;
-          if (!dirty) {
-            allowRemoveRef.current = true;
-            navigation.dispatch(action as never);
-            return;
-          }
-          pendingRemoveActionRef.current = () => {
-            allowRemoveRef.current = true;
-            navigation.dispatch(action as never);
-          };
-          setConfirmState({ kind: "discard", action: "pending" });
-        });
+  const disableRemovalPrevention = usePreventRemove(!removalAllowed, ({ repeat }) => {
+    if (mutationInFlightRef.current || isAddingItem || attachmentsBusyRef.current) return;
+    if (checkingRemoveRef.current) return;
+    checkingRemoveRef.current = true;
+    void isDirtyNow().then((dirty) => {
+      checkingRemoveRef.current = false;
+      // A save can start while the native HTML read above is pending.
+      if (removalAllowedRef.current || mutationInFlightRef.current || attachmentsBusyRef.current) return;
+      if (!dirty) {
+        removalAllowedRef.current = true;
+        setRemovalAllowed(true);
+        repeat();
+        return;
       }
-    );
-    return unsubscribe;
-  }, [isAddingItem, isDirtyNow, navigation]);
+      pendingRemoveActionRef.current = () => {
+        removalAllowedRef.current = true;
+        setRemovalAllowed(true);
+        repeat();
+      };
+      setConfirmState({ kind: "discard", action: "pending" });
+    });
+  });
+  const allowRemoval = useCallback(() => {
+    removalAllowedRef.current = true;
+    setRemovalAllowed(true);
+    disableRemovalPrevention();
+  }, [disableRemovalPrevention]);
 
   const handleConfirmDiscard = useCallback(() => {
     if (mutationInFlightRef.current) return;
@@ -474,13 +461,13 @@ export default function NotesEditorScreen() {
     if (pending) {
       pending();
     } else {
-      allowRemoveRef.current = true;
+      allowRemoval();
       router.back();
     }
-  }, [router]);
+  }, [allowRemoval, router]);
 
   const persistNote = useCallback(async (archived?: boolean) => {
-    if (isArchived || mutationInFlightRef.current || isAddingItem || loading || loadFailed) return;
+    if (isArchived || mutationInFlightRef.current || isAddingItem || loading || loadFailed || attachmentsBusyRef.current) return;
     const editor = editorRef.current;
     if (!editor) return;
     mutationInFlightRef.current = true;
@@ -492,15 +479,16 @@ export default function NotesEditorScreen() {
       // the list preview can never show a struck-through unchecked item.
       const content = applyCheckedStrikethrough(await editor.getHTML());
       if (noteId) {
-        await updateNote(noteId, { title: savedTitle, content, is_pinned: savedPinned, is_archived: archived });
+        await updateNote(noteId, { title: savedTitle, content, is_pinned: savedPinned, is_archived: archived,
+          attachments: attachmentsChanged() ? attachmentsRef.current : undefined });
       } else {
-        const created = await createNote({ title: savedTitle, content, is_pinned: savedPinned });
+        const created = await createNote({ title: savedTitle, content, is_pinned: savedPinned, attachments: attachmentsRef.current });
         setNoteId(created.id);
       }
       savedSnapshotRef.current = content;
       contentChangedBeforeSnapshotRef.current = false;
       checkedStatesRef.current = parseCheckedStates(content);
-      allowRemoveRef.current = true;
+      allowRemoval();
 
       toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
@@ -510,7 +498,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [isArchived, isAddingItem, loading, loadFailed, noteId, router, t]);
+  }, [allowRemoval, isArchived, isAddingItem, loading, loadFailed, noteId, router, t, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -520,7 +508,7 @@ export default function NotesEditorScreen() {
     setIsSaving(true);
     try {
       await restoreNote(noteId);
-      allowRemoveRef.current = true;
+      allowRemoval();
 
       toast.success(t("notesUnarchived"));
       router.back();
@@ -530,7 +518,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
     if (mutationInFlightRef.current || isAddingItem) return;
@@ -545,7 +533,7 @@ export default function NotesEditorScreen() {
     try {
       await deleteNote(noteId);
 
-      allowRemoveRef.current = true;
+      allowRemoval();
       router.back();
     } catch {
       toast.error(t("deleteFailed"));
@@ -553,7 +541,7 @@ export default function NotesEditorScreen() {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [isAddingItem, noteId, router, t]);
+  }, [allowRemoval, isAddingItem, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || mutationInFlightRef.current || isAddingItem) return;
@@ -563,38 +551,55 @@ export default function NotesEditorScreen() {
   }, [isArchived, isAddingItem]);
 
   const formatToolbar = (
-    <View className="w-full max-w-md flex-row flex-wrap items-center justify-center self-center px-2 py-2">
-      <View className="max-w-full flex-row flex-wrap items-center rounded-[11px] bg-secondary px-1">
+    <View className="w-full max-w-md flex-row items-center gap-2 self-center px-3 py-2">
+      <AttachmentToolbarButton disabled={isSaving || isAddingItem} busy={attachmentState.busy}
+        onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
+      <ScrollView horizontal className="min-w-0 flex-1 overflow-hidden" showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="always" contentContainerStyle={{ alignItems: "center" }}>
+      <View className="flex-row items-center gap-1 pr-2">
         {FORMAT_BUTTONS.map((button) => {
           const state = styleState?.[button.stateKey];
           const active = state?.isActive ?? false;
           const blocked = state?.isBlocking ?? false;
           return (
             <Fragment key={button.type}>
-              {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" /> : null}
+              {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" accessible={false} /> : null}
               <Pressable
                 onPress={() => {
                   const editor = editorRef.current;
                   if (!editor || blocked || mutationInFlightRef.current) return;
                   button.toggle(editor);
-
+                  toolbarFeedback();
                 }}
                 disabled={blocked || isSaving || isAddingItem}
-                className={`h-11 w-11 items-center justify-center rounded-lg active:bg-primary/10 ${
+                className={`h-11 w-11 items-center justify-center rounded-xl active:bg-primary/20 ${
                   active ? "bg-primary/15" : blocked ? "opacity-40" : ""
                 }`}
                 accessibilityRole="button"
                 accessibilityLabel={t(button.labelKey)}
                 accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
               >
-                <button.icon
-                  size={18}
+                <FormattingIcon name={button.type}
+                  size={22}
                   color={active ? colors.primary : colors.foreground}
                 />
               </Pressable>
             </Fragment>
           );
         })}
+      </View>
+      </ScrollView>
+      <View className="border-l border-border/60 pl-2">
+      <Pressable onPress={() => {
+        toolbarFeedback();
+        editorRef.current?.blur();
+        Keyboard.dismiss();
+      }} disabled={isSaving || isAddingItem}
+        accessibilityRole="button" accessibilityLabel={t("notesDone")} accessibilityHint={t("notesDoneHint")}
+        className="min-h-[44px] shrink-0 flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
+        <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
+        <Text className="text-sm font-semibold text-primary-foreground">{t("notesDone")}</Text>
+      </Pressable>
       </View>
     </View>
   );
@@ -677,6 +682,7 @@ export default function NotesEditorScreen() {
                 </Pressable>}
               </View>
 
+              <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isSaving || isAddingItem} />
               <View className="mx-5 max-[360px]:mx-4 mt-1">
                 {isArchived ? (
                   <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={colors.primary}>

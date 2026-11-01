@@ -3,31 +3,17 @@ import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import {
-  LayoutDashboard,
-  Wallet,
-  PiggyBank,
-  Calculator,
-  Settings,
-  ListOrdered,
   FileText,
   Archive,
   CircleHelp,
-  CheckSquare,
 } from "./AppIcons";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
 import type { ComponentType } from "react";
 
 const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>> = {
-  "view-dashboard": LayoutDashboard,
-  wallet: Wallet,
-  "piggy-bank": PiggyBank,
-  calculator: Calculator,
-  cog: Settings,
-  "format-list-numbered": ListOrdered,
   "note-text": FileText,
   archive: Archive,
-  "check-square": CheckSquare,
 };
 
 export interface PillNavTab {

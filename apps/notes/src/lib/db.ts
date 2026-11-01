@@ -59,6 +59,31 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         }
         await connection.execAsync("PRAGMA user_version = 1");
       });
+      await connection.withTransactionAsync(async () => {
+        const columns = await connection.getAllAsync<{ name: string }>("PRAGMA table_info(notes)");
+        if (!columns.some(column => column.name === "attachments")) {
+          await connection.execAsync("ALTER TABLE notes ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'");
+        }
+        const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+        if ((version?.user_version ?? 0) < 2) await connection.execAsync("PRAGMA user_version = 2");
+      });
+      await connection.withTransactionAsync(async () => {
+        const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+        if ((version?.user_version ?? 0) >= 3) return;
+        await connection.execAsync("ALTER TABLE notes ADD COLUMN attachment_count INTEGER NOT NULL DEFAULT 0");
+        // Parse media JSON once on writes, rather than scanning megabytes for
+        // every card in every list page. Triggers also cover imported backups.
+        await connection.execAsync("UPDATE notes SET attachment_count = CASE WHEN json_valid(attachments) THEN json_array_length(attachments) ELSE 0 END");
+        for (const event of ["INSERT", "UPDATE OF attachments"]) {
+          const suffix = event === "INSERT" ? "ai" : "au";
+          await connection.execAsync(`CREATE TRIGGER notes_attachment_count_${suffix} AFTER ${event} ON notes BEGIN UPDATE notes SET attachment_count = json_array_length(new.attachments) WHERE id = new.id; END`);
+        }
+        if (await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'")) {
+          await connection.execAsync("DROP TRIGGER IF EXISTS notes_fts_au");
+          await connection.execAsync("CREATE TRIGGER notes_fts_au AFTER UPDATE OF title, plain_text ON notes BEGIN INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;");
+        }
+        await connection.execAsync("PRAGMA user_version = 3");
+      });
       notesFtsEnabled = Boolean(await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'"));
       db = connection;
       return connection;

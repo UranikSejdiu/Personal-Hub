@@ -41,7 +41,7 @@ export const NoteCard = React.memo(function NoteCard({
   return (
     <Pressable
       onPress={() => onPress(note)}
-      className={`relative mb-2.5 rounded-[22px] bg-card px-4 py-[18px] active:opacity-70 ${layout === "grid" ? "min-h-[140px]" : "min-h-[112px]"}`}
+      className={`relative mb-2.5 rounded-[12px] bg-card px-4 py-[18px] active:opacity-70 ${layout === "grid" ? "min-h-[140px]" : "min-h-[112px]"}`}
       accessible
       accessibilityRole="button"
       accessibilityLabel={note.title || untitledLabel}
@@ -120,6 +120,7 @@ export const NoteCard = React.memo(function NoteCard({
         </View>
       ) : null}
       <Text className="mt-4 text-[11px] leading-4 text-muted-foreground">{formatNoteDate(note.updated_at)}</Text>
+      {(note.attachmentCount ?? 0) > 0 && <Text className="mt-2 text-xs font-semibold text-primary">{note.attachmentCount} {note.attachmentCount === 1 ? "attachment" : "attachments"}</Text>}
     </Pressable>
   );
 });

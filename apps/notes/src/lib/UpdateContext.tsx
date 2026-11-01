@@ -54,7 +54,8 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           if (notifiedVersionRef.current !== result.latest.versionName) {
             notifiedVersionRef.current = result.latest.versionName;
             toast.success(
-              tRef.current("updateAvailableToast", { version: result.latest.versionName })
+              tRef.current("updateAvailableToast", { version: result.latest.versionName }),
+              { id: "update-available" }
             );
           }
         }

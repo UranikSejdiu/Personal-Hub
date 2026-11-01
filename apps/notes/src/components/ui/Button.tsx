@@ -48,7 +48,7 @@ export function Button({
     <Pressable
       {...props}
       accessible
-      accessibilityRole="button"
+      accessibilityRole={props.accessibilityRole ?? "button"}
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ ...accessibilityState, disabled: disabled || busy, busy }}
       disabled={disabled || busy}

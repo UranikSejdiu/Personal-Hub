@@ -3,6 +3,7 @@ import { type NoteColor } from "../constants/theme";
 import { type Note, type NoteItem, type NoteKind } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
 import { isLexicalJson } from "./lexicalPreview";
+import { parseAttachments, serializeAttachments } from "./attachmentData";
 
 export type { Note, NoteItem, NoteKind };
 
@@ -61,6 +62,8 @@ function toNote(row: Record<string, unknown>): Note {
     id: Number(row.id),
     title: String(row.title ?? ""),
     content: String(row.content ?? ""),
+    attachments: parseAttachments(row.attachments),
+    attachmentCount: Number(row.attachment_count ?? 0),
     kind: isNoteKind(rawKind) ? rawKind : "text",
     is_pinned: Number(row.is_pinned) === 1,
     is_archived: Number(row.is_archived) === 1,
@@ -83,7 +86,7 @@ function toNoteItem(row: Record<string, unknown>): NoteItem {
 // The list only renders a short preview, so ship a bounded slice of the
 // pre-derived plain text instead of every note's full content blob.
 const LIST_COLUMNS =
-  "id, title, substr(plain_text, 1, 2000) AS content, kind, is_pinned, is_archived, color, created_at, updated_at";
+  "id, title, substr(plain_text, 1, 2000) AS content, attachment_count, kind, is_pinned, is_archived, color, created_at, updated_at";
 
 const ITEM_COLUMNS = "id, note_id, text, checked, position";
 
@@ -244,18 +247,19 @@ export async function getNote(id: number): Promise<Note | undefined> {
 }
 
 export async function createNote(
-  fields: Pick<Note, "title" | "content" | "is_pinned">,
+  fields: Pick<Note, "title" | "content" | "is_pinned" | "attachments">,
   exec?: db.DbExecutor
 ): Promise<Note> {
   if (!exec) return db.withTransaction((tx) => createNote(fields, tx));
   const result = await exec.execute(
-    "INSERT INTO notes (title, content, is_pinned, color, plain_text) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO notes (title, content, is_pinned, color, plain_text, attachments) VALUES (?, ?, ?, ?, ?, ?)",
     [
       fields.title,
       fields.content,
       fields.is_pinned ? 1 : 0,
       "default",
       getPlainTextFromContent(fields.content),
+      serializeAttachments(fields.attachments ?? []),
     ]
   );
   const created = await exec.get<Record<string, unknown>>(
@@ -268,11 +272,15 @@ export async function createNote(
 
 export async function updateNote(
   id: number,
-  fields: Partial<Pick<Note, "title" | "content" | "is_pinned" | "is_archived">>,
+  fields: Partial<Pick<Note, "title" | "content" | "is_pinned" | "is_archived" | "attachments">>,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
   const sets: string[] = [];
   const values: (string | number)[] = [];
+  if (fields.attachments !== undefined) {
+    sets.push("attachments = ?");
+    values.push(serializeAttachments(fields.attachments));
+  }
   if (fields.title !== undefined) {
     sets.push("title = ?");
     values.push(fields.title);
@@ -334,7 +342,7 @@ export async function getChecklistItems(noteId: number): Promise<NoteItem[]> {
 }
 
 export async function createChecklistNote(
-  fields: Pick<Note, "title" | "is_pinned">,
+  fields: Pick<Note, "title" | "is_pinned" | "attachments">,
   items: readonly NewChecklistItem[],
   exec?: db.DbExecutor
 ): Promise<Note> {
@@ -342,8 +350,8 @@ export async function createChecklistNote(
     return db.withTransaction((tx) => createChecklistNote(fields, items, tx));
   }
   const result = await exec.execute(
-    "INSERT INTO notes (title, content, kind, is_pinned, color, plain_text) VALUES (?, '', 'checklist', ?, 'default', ?)",
-    [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items)]
+    "INSERT INTO notes (title, content, kind, is_pinned, color, plain_text, attachments) VALUES (?, '', 'checklist', ?, 'default', ?, ?)",
+    [fields.title, fields.is_pinned ? 1 : 0, plainTextFromItems(items), serializeAttachments(fields.attachments ?? [])]
   );
   const noteId = result.lastId;
   if (!noteId) throw new Error("Failed to create note.");
@@ -363,7 +371,7 @@ export async function createChecklistNote(
  */
 export async function saveChecklistNote(
   noteId: number,
-  fields: Pick<Note, "title" | "is_pinned"> & Partial<Pick<Note, "is_archived">>,
+  fields: Pick<Note, "title" | "is_pinned" | "attachments"> & Partial<Pick<Note, "is_archived">>,
   items: readonly NewChecklistItem[],
   exec?: db.DbExecutor
 ): Promise<void> {
@@ -373,6 +381,7 @@ export async function saveChecklistNote(
     [fields.title, fields.is_pinned ? 1 : 0, fields.is_archived === undefined ? null : fields.is_archived ? 1 : 0, plainTextFromItems(items), noteId]
   );
   if (result.changes !== 1) throw new Error("Checklist not found or archived.");
+  if (fields.attachments !== undefined) await exec.execute("UPDATE notes SET attachments = ? WHERE id = ?", [serializeAttachments(fields.attachments), noteId]);
   await exec.execute("DELETE FROM note_items WHERE note_id = ?", [noteId]);
   await insertChecklistItems(exec, noteId, items);
 }

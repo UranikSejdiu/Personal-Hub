@@ -1,7 +1,7 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { Pressable, View, type TextInput as TextInputType, type ScrollView as ScrollViewType } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { Keyboard, Pressable, View, type TextInputInstance as TextInputType } from "react-native";
+import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState } from "react-native-keyboard-controller";
 import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, X } from "../../src/components/AppIcons";
-import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
+import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
 import {
@@ -25,6 +25,11 @@ import {
 import { useThemeColors } from "../../src/lib/theme";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { NoteActions } from "../../src/components/NoteActions";
+import { NoteAttachments } from "../../src/components/NoteAttachments";
+import { AttachmentToolbarButton } from "../../src/components/AttachmentToolbarButton";
+import { FormattingIcon } from "../../src/components/FormattingIcon";
+import { toolbarFeedback } from "../../src/lib/toolbarFeedback";
+import { useNoteAttachments } from "../../src/lib/useNoteAttachments";
 import { Checkbox } from "../../src/components/ui/Checkbox";
 import {
   ChecklistItemRow,
@@ -33,7 +38,7 @@ import {
 
 type ConfirmState = { kind: "discard" } | { kind: "delete" } | null;
 const AnimatedGestureScrollView = Animated.createAnimatedComponent(GestureScrollView);
-const KeyboardGestureScrollView = forwardRef<ScrollViewType, ComponentProps<typeof Animated.ScrollView>>(
+const KeyboardGestureScrollView = forwardRef<Animated.ScrollView, ComponentProps<typeof Animated.ScrollView>>(
   function KeyboardGestureScrollView(props, ref) {
     return <AnimatedGestureScrollView {...props} ref={ref} />;
   }
@@ -58,7 +63,9 @@ export default function ChecklistEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const keyboardVisible = useKeyboardState(state => state.isVisible);
+  const attachmentState = useNoteAttachments();
+  const { initialize: initializeAttachments, hasChanges: attachmentsChanged, valueRef: attachmentsRef, busyRef: attachmentsBusyRef } = attachmentState;
 
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
@@ -82,10 +89,10 @@ export default function ChecklistEditorScreen() {
   const [isDragging, setIsDragging] = useState(false);
   // A ref closes the interval before React commits the disabled controls.
   const operationRef = useRef<"idle" | "dragging" | "saving" | "deleting">("idle");
-  const isBusy = isSaving || isDragging;
+  const isBusy = isSaving || isDragging || attachmentState.busy;
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
 
-  const allowRemoveRef = useRef(false);
+  const [removalAllowed, setRemovalAllowed] = useState(false);
   const snapshotRef = useRef<string | null>(null);
   const keyCounterRef = useRef(0);
   const inputRefs = useRef(new Map<string, TextInputType>());
@@ -135,6 +142,7 @@ export default function ChecklistEditorScreen() {
         setTitle(note.title);
         setIsPinned(note.is_pinned);
         setIsArchived(note.is_archived);
+        initializeAttachments(note.attachments ?? []);
         setItems(entries);
         snapshotRef.current = serialize(note.title, note.is_pinned, entries);
         setLoading(false);
@@ -148,7 +156,7 @@ export default function ChecklistEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, router, t]);
+  }, [loadTarget, router, t, initializeAttachments]);
 
   const activeItems = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checkedItems = useMemo(() => items.filter((item) => item.checked), [items]);
@@ -227,41 +235,34 @@ export default function ChecklistEditorScreen() {
 
   const isDirtyNow = useCallback((): boolean => {
     if (isArchived) return false;
+    if (attachmentsChanged()) return true;
     if (snapshotRef.current === null) return false;
     return serialize(titleRef.current, pinnedRef.current, itemsRef.current) !== snapshotRef.current;
-  }, [isArchived]);
+  }, [isArchived, attachmentsChanged]);
 
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
   const checkingRemoveRef = useRef(false);
-  useEffect(() => {
-    const unsubscribe = navigation.addListener(
-      "beforeRemove",
-      (event: {
-        preventDefault: () => void;
-        data: { action: { type: string } };
-      }) => {
-        if (allowRemoveRef.current) return;
-        event.preventDefault();
-        if (operationRef.current !== "idle") return;
-        if (checkingRemoveRef.current) return;
-        const action = event.data.action;
-        checkingRemoveRef.current = true;
-        if (!isDirtyNow()) {
-          checkingRemoveRef.current = false;
-          allowRemoveRef.current = true;
-          navigation.dispatch(action as never);
-          return;
-        }
-        checkingRemoveRef.current = false;
-        pendingRemoveActionRef.current = () => {
-          allowRemoveRef.current = true;
-          navigation.dispatch(action as never);
-        };
-        setConfirmState({ kind: "discard" });
-      }
-    );
-    return unsubscribe;
-  }, [isDirtyNow, navigation]);
+  const disableRemovalPrevention = usePreventRemove(!removalAllowed, ({ repeat }) => {
+    if (operationRef.current !== "idle" || attachmentsBusyRef.current) return;
+    if (checkingRemoveRef.current) return;
+    checkingRemoveRef.current = true;
+    if (!isDirtyNow()) {
+      checkingRemoveRef.current = false;
+      setRemovalAllowed(true);
+      repeat();
+      return;
+    }
+    checkingRemoveRef.current = false;
+    pendingRemoveActionRef.current = () => {
+      setRemovalAllowed(true);
+      repeat();
+    };
+    setConfirmState({ kind: "discard" });
+  });
+  const allowRemoval = useCallback(() => {
+    setRemovalAllowed(true);
+    disableRemovalPrevention();
+  }, [disableRemovalPrevention]);
 
   const handleConfirmDiscard = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -271,13 +272,13 @@ export default function ChecklistEditorScreen() {
     if (pending) {
       pending();
     } else {
-      allowRemoveRef.current = true;
+      allowRemoval();
       router.back();
     }
-  }, [router]);
+  }, [allowRemoval, router]);
 
   const persistNote = useCallback(async (archived?: boolean) => {
-    if (isArchived || operationRef.current !== "idle" || loading || loadFailed) return;
+    if (isArchived || operationRef.current !== "idle" || loading || loadFailed || attachmentsBusyRef.current) return;
     operationRef.current = "saving";
     setIsSaving(true);
     const savedItems = itemsRef.current;
@@ -286,13 +287,14 @@ export default function ChecklistEditorScreen() {
     try {
       const payload: NewChecklistItem[] = savedItems.map(({ text, checked }) => ({ text, checked }));
       if (noteId) {
-        await saveChecklistNote(noteId, { title: savedTitle, is_pinned: savedPinned, is_archived: archived }, payload);
+        await saveChecklistNote(noteId, { title: savedTitle, is_pinned: savedPinned, is_archived: archived,
+          attachments: attachmentsChanged() ? attachmentsRef.current : undefined }, payload);
       } else {
-        const created = await createChecklistNote({ title: savedTitle, is_pinned: savedPinned }, payload);
+        const created = await createChecklistNote({ title: savedTitle, is_pinned: savedPinned, attachments: attachmentsRef.current }, payload);
         setNoteId(created.id);
       }
       snapshotRef.current = serialize(savedTitle, savedPinned, savedItems);
-      allowRemoveRef.current = true;
+      allowRemoval();
 
       toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
       router.back();
@@ -302,7 +304,7 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [isArchived, loading, loadFailed, noteId, router, t]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, router, t, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -312,7 +314,7 @@ export default function ChecklistEditorScreen() {
     setIsSaving(true);
     try {
       await restoreNote(noteId);
-      allowRemoveRef.current = true;
+      allowRemoval();
 
       toast.success(t("notesUnarchived"));
       router.back();
@@ -322,7 +324,7 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
 
   const handleDelete = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -337,7 +339,7 @@ export default function ChecklistEditorScreen() {
     try {
       await deleteNote(noteId);
 
-      allowRemoveRef.current = true;
+      allowRemoval();
       router.back();
     } catch {
       toast.error(t("deleteFailed"));
@@ -345,7 +347,7 @@ export default function ChecklistEditorScreen() {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [noteId, router, t]);
+  }, [allowRemoval, noteId, router, t]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
@@ -498,7 +500,7 @@ export default function ChecklistEditorScreen() {
             onDragBegin={handleDragBegin}
             onDragEnd={handleDragEnd}
             keyboardShouldPersistTaps="handled"
-            renderScrollComponent={(props) => <KeyboardAwareScrollView {...props} ScrollViewComponent={KeyboardGestureScrollView} bottomOffset={16} />}
+            renderScrollComponent={(props) => <KeyboardAwareScrollView {...props} ScrollViewComponent={KeyboardGestureScrollView} bottomOffset={80} />}
             showsVerticalScrollIndicator={false}
             containerStyle={{ flex: 1 }}
             contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 40 }}
@@ -526,10 +528,24 @@ export default function ChecklistEditorScreen() {
                   <Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-primary-foreground">{t(isSaving ? "saving" : "save")}</Text>
                 </Pressable>}
               </View>
+              <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isBusy} />
               <View className="mx-5 max-[360px]:mx-4 h-2" />
             </View>}
             ListFooterComponent={listFooter}
           />
+          {!isArchived && <KeyboardStickyView className="w-full border-t border-border/60 bg-card"
+            style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
+            <View className="w-full max-w-md flex-row items-center justify-between self-center px-3 py-2">
+              <AttachmentToolbarButton disabled={isBusy} busy={attachmentState.busy}
+                onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
+              <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}
+                accessibilityRole="button" accessibilityLabel={t("notesDone")} accessibilityHint={t("notesDoneHint")}
+                className="min-h-[44px] flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
+                <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
+                <Text className="text-sm font-semibold text-primary-foreground">{t("notesDone")}</Text>
+              </Pressable>
+            </View>
+          </KeyboardStickyView>}
         </View>
       </View>
 

@@ -8,7 +8,13 @@ const { DatabaseSync } = require('node:sqlite');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const identity = require('../src/appIdentity.json');
-const fixture = require('./fixtures/hub-v7.json');
+const fixture = structuredClone(require('./fixtures/hub-v7.json'));
+// Legacy checklist rows can omit dates and receive SQLite's current timestamp.
+// Give this round-trip fixture fixed dates so a slower suite can cross seconds.
+for (const item of fixture.tables.noteItems ?? []) {
+  item.created_at ??= '2024-01-01 00:00:00';
+  item.updated_at ??= '2024-01-01 00:00:00';
+}
 const sqlite = new DatabaseSync(':memory:');
 const files = new Map();
 let failSql = false, failDisk = false, folderCancelled = false, folderBroken = false;
@@ -178,7 +184,11 @@ const plain = value => JSON.parse(JSON.stringify(value));
     assert.equal(scheduled.size, 1, 'Restoring cancels removed reminders');
   }
   if (identity.id === 'notes') {
+    await require('./dependency-regression.cjs')(root);
+    await require('./migration-regression.cjs')(root);
+    await require('./media-runtime-regression.cjs')(root);
     const notes = load(path.join(root, 'src/lib/notes.ts'));
+    await require('./attachments-regression.cjs')(notes, db, backup);
     await require('./notes-filter-regression.cjs')(notes, db);
     await backup.importBackup(json);
   }

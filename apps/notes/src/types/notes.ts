@@ -1,4 +1,5 @@
 import { type NoteColor } from "../constants/theme";
+import type { NoteAttachment } from "../lib/attachmentData";
 
 export type NoteKind = "text" | "checklist";
 
@@ -14,6 +15,8 @@ export interface Note {
   id: number;
   title: string;
   content: string;
+  attachments?: NoteAttachment[];
+  attachmentCount?: number;
   kind: NoteKind;
   is_pinned: boolean;
   is_archived: boolean;

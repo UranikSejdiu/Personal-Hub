@@ -1,20 +1,17 @@
-import { Tabs, useRouter } from "expo-router";
+import { Tabs } from "expo-router";
 import { PillNav } from "../../../src/components/PillNav";
 import { NOTES_TABS } from "../../../src/hub/tabs";
 import { useI18n } from "../../../src/lib/i18n";
-import { usePersistActiveTab } from "../../../src/hooks/usePersistActiveTab";
 import { useThemeColors } from "../../../src/lib/theme";
 
 export default function NotesTabsLayout() {
-  const router = useRouter();
   const { t } = useI18n();
   const colors = useThemeColors();
-  usePersistActiveTab("notes");
 
   return (
     <Tabs
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.background } }}
-      tabBar={({ state }) => {
+      tabBar={({ state, emitter, navigateToTab }) => {
         const routeName = state.routes[state.index].name;
         return (
             <PillNav
@@ -23,7 +20,9 @@ export default function NotesTabsLayout() {
             onTabPress={(tabId) => {
               const index = state.routes.findIndex((r) => r.name === tabId);
               if (index !== -1) {
-                router.push(`/(notes)/${tabId === "index" ? "" : tabId}`);
+                const route = state.routes[index];
+                const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+                if (!event.defaultPrevented && state.index !== index) navigateToTab(route.key);
               }
             }}
           />

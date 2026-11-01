@@ -32,10 +32,5 @@ export async function getNotesPreferences(): Promise<NotesPreferences> {
 }
 
 export async function setNotesPreferences(preferences: NotesPreferences): Promise<void> {
-  try {
-    await AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-  } catch (error) {
-    // Non-critical: the view still updates in memory for this session.
-    console.warn("[notes] failed to persist preferences", error);
-  }
+  await AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
 }

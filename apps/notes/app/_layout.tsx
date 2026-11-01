@@ -3,17 +3,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Stack, SplashScreen, useRouter, usePathname } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BackHandler, Pressable, View } from "react-native";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Toaster } from "sonner-native";
+import { AppAlerts } from "../src/components/AppAlerts";
 import { useFonts } from "expo-font";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
-import { ThemeProvider, useTheme, useThemeColors, useThemeVariables } from "../src/lib/theme";
+import { ThemeProvider, useTheme, useThemeVariables } from "../src/lib/theme";
 import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { initDatabase } from "../src/lib/db";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
 import { UpdateProvider } from "../src/lib/UpdateContext";
+import { clearAttachmentCache } from "../src/lib/attachmentFiles";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden or unsupported — safe to ignore.
@@ -21,8 +22,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 
 function RootLayoutInner() {
   const { resolvedTheme } = useTheme();
-  const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
   const themeVariables = useThemeVariables();
   const { t } = useI18n();
   const router = useRouter();
@@ -56,27 +55,7 @@ function RootLayoutInner() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(notes)" />
       </Stack>
-      <Toaster
-        position="top-center"
-        offset={insets.top + 64}
-        positionerStyle={{ maxWidth: 400, alignSelf: "center" }}
-        theme={resolvedTheme}
-        visibleToasts={2}
-        toastOptions={{
-          style: {
-            marginHorizontal: 16,
-            paddingHorizontal: 14,
-            paddingVertical: 11,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          },
-          toastContentStyle: { gap: 10 },
-          titleStyle: { color: colors.foreground, fontSize: 14, lineHeight: 20, fontFamily: "Urbanist-SemiBold", fontWeight: "normal" },
-          descriptionStyle: { fontFamily: "Urbanist-Regular", fontWeight: "normal" },
-        }}
-      />
+      <AppAlerts />
       <ConfirmDialog
         visible={showExitDialog}
         title={t("exitTitle")}
@@ -102,6 +81,7 @@ function BootstrapGate() {
     (async () => {
       try {
         await initDatabase();
+        try { clearAttachmentCache(); } catch { /* Cache maintenance must not block startup. */ }
         if (!cancelled) setDbReady(true);
       } catch (err) {
         if (!cancelled) {

@@ -1,7 +1,8 @@
 import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Pressable, FlatList, ActivityIndicator, StyleSheet, type ListRenderItemInfo } from "react-native";
-import { Archive, FileText, Plus, Search, Settings, XCircle } from "./AppIcons";
+import { View, Pressable, FlatList, ActivityIndicator, Keyboard, StyleSheet, type ListRenderItemInfo } from "react-native";
+import { Archive, FileText, LayoutGrid, Plus, Search, Settings, XCircle } from "./AppIcons";
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
@@ -13,10 +14,14 @@ import {
 } from "../lib/notes";
 import {
   getNotesPreferences,
+  setNotesPreferences,
+  type NotesPreferences,
   type NoteViewMode,
 } from "../lib/notesPreferences";
 import { NoteCard } from "./NoteCard";
 import { NoteTypeChooser } from "./NoteTypeChooser";
+import { NotesDisplayOptions } from "./NotesDisplayOptions";
+import { FormDialog } from "./ui/FormDialog";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../lib/theme";
 import type { NoteKind } from "../types/notes";
@@ -64,11 +69,27 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
+  const [sort, setSort] = useState<NoteSort>("updated");
+  const [viewOptionsVisible, setViewOptionsVisible] = useState(false);
+  const [displayReady, setDisplayReady] = useState(false);
+  const [savingDisplay, setSavingDisplay] = useState(false);
+  const displaySavingRef = useRef(false);
+  const preferencesRef = useRef<NotesPreferences>({ viewMode: "grid", sort: "updated" });
   const [kindFilter, setKindFilter] = useState<NoteKind | undefined>();
   const kindRef = useRef<NoteKind | undefined>(undefined);
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardState(state => state.isVisible);
   const [chooserVisible, setChooserVisible] = useState(false);
+  const creationProgress = useSharedValue(0);
+  useEffect(() => {
+    creationProgress.set(withTiming(chooserVisible ? 1 : 0, {
+      duration: 180,
+      reduceMotion: ReduceMotion.System,
+    }));
+  }, [chooserVisible, creationProgress]);
+  const creationIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${creationProgress.get() * 45}deg` }],
+  }));
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
   const pagingRef = useRef({ offset: 0, hasMore: false, loading: false });
@@ -141,16 +162,22 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     useCallback(() => {
       let active = true;
       setLoading(true);
+      setDisplayReady(false);
       // Read preferences before the first page, so opening the list does not
       // fetch once with defaults and again with the saved sort.
       void getNotesPreferences().then((preferences) => {
         if (!active) return;
         setViewMode(preferences.viewMode);
+        setSort(preferences.sort);
+        preferencesRef.current = preferences;
+        setDisplayReady(true);
         sortRef.current = preferences.sort;
         void load(searchRef.current, preferences.sort);
       });
       return () => {
         active = false;
+        setChooserVisible(false);
+        setViewOptionsVisible(false);
         ++searchSeqRef.current;
         if (debounceRef.current) clearTimeout(debounceRef.current);
         pagingRef.current.loading = false;
@@ -158,9 +185,33 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     }, [load])
   );
 
+  const changeDisplay = async (patch: Partial<NotesPreferences>) => {
+    if (!displayReady || displaySavingRef.current) return;
+    const previous = preferencesRef.current;
+    const next = { ...previous, ...patch };
+    if (next.sort === previous.sort && next.viewMode === previous.viewMode) return;
+    displaySavingRef.current = true;
+    setSavingDisplay(true);
+    preferencesRef.current = next;
+    setViewMode(next.viewMode);
+    setSort(next.sort);
+    sortRef.current = next.sort;
+    if (next.sort !== previous.sort) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      setNotes([]);
+      void load(searchRef.current, next.sort);
+    }
+    try { await setNotesPreferences(next); }
+    catch { toast.warning("View settings changed for this session only."); }
+    finally { displaySavingRef.current = false; setSavingDisplay(false); }
+  };
+
   const handleNew = useCallback(() => {
-    setChooserVisible(true);
+    setChooserVisible(current => !current);
   }, []);
+
+  const closeChooser = useCallback(() => setChooserVisible(false), []);
 
   const handleSelectType = useCallback(
     (kind: NoteKind) => {
@@ -290,6 +341,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold tracking-[-0.6px] text-foreground">
             {t(archived ? "notesArchiveTitle" : "notesTitle")}
           </Text>
+          <Pressable onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
+            className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
+            accessibilityRole="button" accessibilityLabel="View options" accessibilityHint="Change layout and sort order"
+            accessibilityState={{ expanded: viewOptionsVisible }}>
+            <LayoutGrid size={24} color={colors.mutedForeground} />
+          </Pressable>
           <Pressable onPress={() => { router.push("/(notes)/settings"); }}
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
             accessibilityRole="button" accessibilityLabel={t("navSettings")}>
@@ -348,7 +405,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         onEndReachedThreshold={0.5}
         ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel={t("loading")} /> : notes.length > 0 && loadFailed ? (
           <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel={t("retry")}><Text className="text-foreground">{t("retry")}</Text></Pressable>
-        ) : null}
+        ) : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(180, insets.bottom + 164) }]}
         style={styles.list}
@@ -357,18 +414,28 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         windowSize={7}
       />
 
+      <FormDialog visible={viewOptionsVisible} title="View options" onClose={() => setViewOptionsVisible(false)}>
+        <NotesDisplayOptions preferences={{ viewMode, sort }} disabled={!displayReady || savingDisplay}
+          onChange={patch => { void changeDisplay(patch); }} />
+      </FormDialog>
+
+      {!archived && !keyboardVisible && chooserVisible && <Pressable
+        onPress={closeChooser} accessible={false} style={StyleSheet.absoluteFill} />}
+
       {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute w-full max-w-md self-center px-5" style={{ bottom: Math.max(100, insets.bottom + 88) }}>
+        <NoteTypeChooser
+          visible={chooserVisible}
+          onClose={closeChooser}
+          onSelect={handleSelectType}
+        />
         <Pressable onPress={handleNew} className="h-16 w-16 self-end items-center justify-center rounded-full shadow-lg active:opacity-80"
-          style={{ backgroundColor: colors.action }} accessibilityRole="button" accessibilityLabel={t("notesNew")}>
-          <Plus size={28} color={colors.actionForeground} />
+          style={{ backgroundColor: colors.action }} accessibilityRole="button"
+          accessibilityState={{ expanded: chooserVisible }} accessibilityLabel={t(chooserVisible ? "cancel" : "notesNew")}>
+          <Animated.View style={creationIconStyle}>
+            <Plus size={28} color={colors.actionForeground} />
+          </Animated.View>
         </Pressable>
       </View>}
-
-      <NoteTypeChooser
-        visible={chooserVisible}
-        onClose={() => setChooserVisible(false)}
-        onSelect={handleSelectType}
-      />
     </KeyboardAvoidingView>
   );
 }
