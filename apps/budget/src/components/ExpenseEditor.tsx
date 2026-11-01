@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner-native";
-import { Pressable, View, type TextInput as NativeTextInput } from "react-native";
+import { Pressable, View, type TextInputInstance } from "react-native";
 import type { Expense, ExpenseDraft } from "../lib/budget";
 import { useI18n } from "../lib/i18n";
 import { parseNumberInput } from "../lib/numberInput";
@@ -18,7 +18,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
   const colors = useThemeColors();
   const [category, setCategory] = useState(expense?.category ?? "");
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
-  const amountInput = useRef<NativeTextInput>(null);
+  const amountInput = useRef<TextInputInstance>(null);
   const focusAfterSave = useRef(false);
   const [paid, setPaid] = useState(expense?.paid ?? false);
   const [recurring, setRecurring] = useState(expense?.is_recurring ?? false);

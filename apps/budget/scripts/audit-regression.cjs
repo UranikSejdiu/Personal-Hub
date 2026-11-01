@@ -6,6 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { DatabaseSync } = require('node:sqlite');
 const ts = require('typescript');
+const backupPassword = 'MoneyPlan regression password';
 const root = path.resolve(__dirname, '..');
 const identity = require('../src/appIdentity.json');
 const fixture = require('./fixtures/hub-v7.json');
@@ -51,6 +52,7 @@ const native = {
   'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { cache: new FakeDirectory('cache'), document: new FakeDirectory('document') } },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared = uri; } },
   'expo-application': { nativeApplicationVersion: '1.0.0' },
+  'expo-crypto': { getRandomBytesAsync: async n => new Uint8Array(require('node:crypto').randomBytes(n)) },
   'react-native': { Platform: { OS: 'android' } },
   'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms: true, batteryUnrestricted: false }) } : {} },
   'expo-intent-launcher': {},
@@ -71,6 +73,7 @@ function load(file) {
   const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const requireMock = name => {
     if (name in native) return native[name];
+    if (name.startsWith('@noble/') || name === '@scure/base') return require(name);
     if (name.startsWith('.')) { const target = path.resolve(path.dirname(file), name); return load(fs.existsSync(target) ? target : target + '.ts'); }
     throw new Error('Unexpected native dependency ' + name);
   };
@@ -211,15 +214,17 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), original.tables);
   await backup.importBackup(json);
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), original.tables, 'Repeated migration replaces a snapshot without duplication');
-  const uri = await backup.exportBackup();
+  const { decryptBackup, isEncryptedBackup } = load(path.join(root, 'src/lib/backupCrypto.ts'));
+  const uri = await backup.exportBackup(backupPassword);
   assert.equal(uri, shared);
-  assert.equal(JSON.parse(files.get(shared)).meta.format, identity.backupFormat);
-  assert.deepEqual(plain(backup.parseBackup(files.get(shared)).envelope.tables), plain(backup.parseBackup(JSON.stringify(original)).envelope.tables));
-  const folder = await backup.exportBackupToDirectory();
+  assert.equal(isEncryptedBackup(files.get(shared)), true, 'Shared backups must be encrypted');
+  assert.deepEqual(plain(backup.parseBackup(await decryptBackup(files.get(shared), backupPassword)).envelope.tables), plain(backup.parseBackup(JSON.stringify(original)).envelope.tables));
+  const folder = await backup.exportBackupToDirectory(backupPassword);
   assert.ok(folder.startsWith('content://backups/' + identity.id + '-backup-'));
-  assert.deepEqual(JSON.parse(files.get(folder)).tables, original.tables);
-  folderCancelled = true; assert.equal(await backup.exportBackupToDirectory(), null); folderCancelled = false;
-  folderBroken = true; await assert.rejects(backup.exportBackupToDirectory()); folderBroken = false;
+  const folderJson = await decryptBackup(files.get(folder), backupPassword);
+  assert.deepEqual(JSON.parse(folderJson).tables, original.tables);
+  folderCancelled = true; assert.equal(await backup.exportBackupToDirectory(backupPassword), null); folderCancelled = false;
+  folderBroken = true; await assert.rejects(backup.exportBackupToDirectory(backupPassword)); folderBroken = false;
   assert.ok([...files.entries()].every(([uri, data]) => !uri.startsWith('content://') || data !== ''), 'Failed provider writes leave no incomplete export');
   const before = plain((await backup.buildBackupEnvelope()).tables);
   failDisk = true; await assert.rejects(backup.importBackup(json)); failDisk = false;
@@ -278,7 +283,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   await backup.restoreSafetyBackup();
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), before);
   // Another device / fresh install reads the exact JSON saved through the folder provider.
-  await backup.importBackup(files.get(folder));
+  await backup.importBackup(await decryptBackup(files.get(folder), backupPassword));
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), before);
   const expected = `${identity.tagPrefix}${require('../package.json').version}`;
   const { spawnSync } = require('node:child_process');

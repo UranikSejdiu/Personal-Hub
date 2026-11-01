@@ -2,7 +2,7 @@
   "expo": {
     "name": "MoneyPlan",
     "slug": "budget",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.uranik.budget",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#3e5948",
@@ -84,7 +84,6 @@
               "armeabi-v7a",
               "arm64-v8a"
             ],
-            "kotlinVersion": "2.1.20",
             "useLegacyPackaging": false,
             "extraProguardRules": "-keep class com.uranik.budget.** { *; }"
           }
@@ -95,6 +94,7 @@
       "./plugins/withUnusedPermissions",
       "./plugins/withDarkSplash",
       "./plugins/withGradleProperties",
+      "./plugins/withWindowsCMakePaths",
       "./plugins/withReleaseSigning"
     ]
   }

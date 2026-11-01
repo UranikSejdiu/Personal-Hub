@@ -32,8 +32,15 @@ Check all records and use Save to folder to export a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
 packages. Restore previous data returns to the pre-import snapshot.
 
-Exports use `uranik-budget.backup` version 1 and contain only this app's
-records. Other standalone apps' backups are rejected. Applicable Hub backup
+New folder/share exports are password-protected using AES-256-GCM with a fresh
+native-random salt/nonce and PBKDF2-HMAC-SHA256 (600,000 iterations). The password
+is never saved. Keep it separately: a lost password cannot be recovered. Older
+unencrypted MoneyPlan/Hub backups can still be imported after confirmation.
+Existing exported files are not retroactively encrypted. The internal recovery
+snapshot remains in the app's private storage.
+
+The decrypted payload uses `uranik-budget.backup` version 1 and contains only
+this app's records. Other standalone apps' backups are rejected. Applicable Hub backup
 versions 1–7 are accepted. Standalone exports include the theme preference.
 Legacy Notes display and vibration fields are accepted but ignored.
 Older backups leave missing preferences unchanged. Preference write failures
@@ -64,3 +71,19 @@ identity, and updater isolation. Actual installation, permissions, and transfer
 must also be tested on a phone before removing Hub.
 
 Original source follows the included PolyForm Noncommercial license.
+
+## Security maintenance
+
+MoneyPlan uses Expo SDK 58, React 19.3 and React Native 0.88.1 with matching
+native modules. This removes the old Zod 3 tooling dependency and the vulnerable
+query-string/URL-decoder chain. Their compatibility adapter is no longer needed.
+The critical `shell-quote` dependency is also updated.
+
+`npm run check:security` covers encrypted backups, authentication failures,
+tampering, fixed KDF bounds, Node crypto interoperability, and dependency guards.
+`npm run check:dependency-audit` queries npm's registry and fails on any high or
+critical advisory. The complete November 1, 2026 audit reports zero high/critical
+and 25 moderate findings; it includes development and framework tooling.
+
+Native projects are generated from app.json. The Windows CMake plugin keeps
+generated object paths below the Windows limit and runs on each prebuild.

@@ -8,6 +8,8 @@ import { Text } from "./ui/Typography";
 import { Button } from "./ui/Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
+import { BackupPasswordDialog } from "./BackupPasswordDialog";
+import { decryptBackup, isEncryptedBackup } from "../lib/backupCrypto";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { Check } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
@@ -25,6 +27,8 @@ export default function SettingsScreen() {
   const [recover, setRecover] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [passwordAction, setPasswordAction] = useState<"folder" | "share" | "unlock" | null>(null);
+  const [encryptedFile, setEncryptedFile] = useState<string | null>(null);
   useFocusEffect(useCallback(() => {
     setSafety(hasSafetyBackup());
   }, []));
@@ -48,8 +52,27 @@ export default function SettingsScreen() {
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/json", "text/plain"], copyToCacheDirectory: true });
     if (result.canceled) return null;
     const json = await readBackupFile(result.assets[0].uri);
+    if (isEncryptedBackup(json)) {
+      setEncryptedFile(json); setPasswordAction("unlock");
+      return;
+    }
     setPending({ json, summary: previewBackup(json) });
   });
+  const submitPassword = async (password: string) => {
+    if (locked.current) return;
+    locked.current = true; setBusy(true); setActionError(null);
+    try {
+      if (passwordAction === "unlock") {
+        if (!encryptedFile) throw new Error("No backup selected.");
+        const json = await decryptBackup(encryptedFile, password);
+        setPending({ json, summary: previewBackup(json) });
+      } else {
+        const result = passwordAction === "folder" ? await exportBackupToDirectory(password) : await exportBackup(password);
+        if (result !== null) toast.success(passwordAction === "folder" ? "Backup saved" : "Backup ready");
+      }
+      setPasswordAction(null); setEncryptedFile(null);
+    } finally { locked.current = false; setBusy(false); }
+  };
   const confirmImport = () => run(async () => {
     if (!pending) return;
     const result = await importBackup(pending.json);
@@ -84,9 +107,9 @@ export default function SettingsScreen() {
         </View>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
-          <Text className="text-sm text-muted-foreground">Import replaces current data. A recovery copy is saved first.</Text>
-          <Button label="Save to folder" disabled={busy} onPress={() => void run(exportBackupToDirectory, "Backup saved", "Could not save backup.")} />
-          <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => void run(exportBackup, "Backup ready", "Could not share backup.")} />
+          <Text className="text-sm text-muted-foreground">Backups are password-protected. Import replaces current data after confirmation.</Text>
+          <Button label="Save to folder" disabled={busy} onPress={() => setPasswordAction("folder")} />
+          <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => setPasswordAction("share")} />
           <Button label="Import backup" variant="secondary" disabled={busy} onPress={() => void pick()} />
           {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}.</Text>}
           {actionError && <Text accessibilityRole="alert" className="text-xs text-destructive">{actionError}</Text>}
@@ -107,6 +130,8 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+    {passwordAction && <BackupPasswordDialog creating={passwordAction !== "unlock"} onSubmit={submitPassword}
+      onClose={() => { if (!locked.current) { setPasswordAction(null); setEncryptedFile(null); } }} />}
     <ConfirmDialog visible={pending !== null} title={`Import ${identity.title} data?`} message={`${pending?.summary ?? ""}\nThis replaces the current records in ${identity.title}. A recovery copy is saved first. Your Hub data is untouched.`} confirmLabel="Import" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setPending(null); }} onConfirm={confirmImport} />
     <ConfirmDialog visible={recover} title="Restore previous data?" message="Replace current records with the copy saved before the last import. Export your current data first if you want to keep both." confirmLabel="Restore" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setRecover(false); }} onConfirm={() => run(async () => {
       const result = await restoreSafetyBackup();

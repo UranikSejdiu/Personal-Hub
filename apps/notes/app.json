@@ -2,7 +2,7 @@
   "expo": {
     "name": "Notes",
     "slug": "notes",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon-personal-hub.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.uranik.notes",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F2F7FC",

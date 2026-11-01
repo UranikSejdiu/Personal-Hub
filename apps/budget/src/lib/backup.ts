@@ -8,6 +8,7 @@ import { validateEnvelope, type BackupEnvelope } from "./hubBackupValidation";
 import { saveBackupToFolder } from "./saveBackupToFolder";
 import { migrateLegacyRepayments } from "./repaymentMigration";
 import { applyBackupPreferences, readBackupPreferences, validateBackupPreferences, type BackupPreferences } from "./backupPreferences";
+import { encryptBackup, MAX_BACKUP_FILE_BYTES } from "./backupCrypto";
 
 type Row = Record<string, unknown>;
 type Envelope = { meta: { format: string; version: number; appVersion: string; exportedAt: string; platform: string }; tables: Record<string, Row[] | Row | null>; sequences?: Record<string, number>; preferences?: BackupPreferences };
@@ -94,17 +95,18 @@ export function buildBackupEnvelope(): Promise<Envelope> { return db.withTransac
 
 export function hasSafetyBackup(): boolean { return new File(Paths.document, SAFETY).exists; }
 
-export async function exportBackupToDirectory(): Promise<string | null> {
-  return saveBackupToFolder(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2));
+export async function exportBackupToDirectory(password: string): Promise<string | null> {
+  return saveBackupToFolder(`${identity.id}-backup`, async () => encryptBackup(JSON.stringify(await buildBackupEnvelope()), password));
 }
 
-export async function exportBackup(): Promise<string> {
+export async function exportBackup(password: string): Promise<string> {
   const envelope = await buildBackupEnvelope();
+  const encrypted = await encryptBackup(JSON.stringify(envelope), password);
   const file = new File(Paths.cache, `${identity.id}-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  file.write(JSON.stringify(envelope, null, 2));
+  file.write(encrypted);
   try {
     const exports = Paths.cache.list().filter((entry): entry is File => entry instanceof File && entry.name.startsWith(`${identity.id}-backup-`) && entry.name.endsWith(".json")).sort((a, b) => b.name.localeCompare(a.name));
-    for (const stale of exports.slice(3)) stale.delete();
+    for (const stale of exports) if (stale.uri !== file.uri) stale.delete();
   } catch { /* Cleanup must not invalidate a completed export. */ }
   if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is unavailable; use Save to folder");
   await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: `${identity.title} backup`, UTI: "public.json" });
@@ -113,7 +115,7 @@ export async function exportBackup(): Promise<string> {
 
 export async function readBackupFile(uri: string): Promise<string> {
   const file = new File(uri);
-  if (!file.exists || (file.size !== null && file.size > MAX_BYTES)) throw new Error("Backup is missing or exceeds 50 MB");
+  if (!file.exists || (file.size !== null && file.size > MAX_BACKUP_FILE_BYTES)) throw new Error("Backup is missing or exceeds 70 MB");
   try { return await file.text(); }
   finally {
     if (file.uri.startsWith(`${Paths.cache.uri.replace(/\/$/, "")}/`)) {
