@@ -42,8 +42,13 @@ async function checkRemote(plan, { repository, sha, ref, token, request = fetch 
       return response.json();
     };
     assert.equal(await get(`releases/tags/${app.tag}`), null, `${app.tag} is already released. Increase the app version and Android versionCode before publishing an update.`);
-    const existing = await get(`commits/${app.tag}`);
-    assert.ok(!existing || existing.sha === sha, `${app.tag} already points to another commit; never move a distributed tag`);
+    const existing = await get(`git/ref/tags/${app.tag}`);
+    let target = existing?.object;
+    for (let depth = 0; target?.type === 'tag' && depth < 8; depth++) {
+      assert.match(target.sha, /^[0-9a-f]{40}$/);
+      target = (await get(`git/tags/${target.sha}`))?.object;
+    }
+    assert.ok(!existing || (target?.type === 'commit' && target.sha === sha), `${app.tag} already points to another commit; never move a distributed tag`);
     // versionCode must also increase, even when the semantic version changes.
     const releases = await get('releases?per_page=100');
     const previous = releases?.find(release => !release.draft && !release.prerelease && release.tag_name.startsWith(`${app.id}-v`));

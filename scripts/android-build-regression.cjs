@@ -52,11 +52,17 @@ module.exports = async function verifyBuilds(root) {
   const missing = { status: 404, ok: false };
   const makeRequest = ({ release = null, sha = null, code = 0, tag = 'tasks-v0.9.0' } = {}) => async url => {
     if (url.includes('/releases/tags/')) return release ? response(release) : missing;
-    if (url.includes('/commits/')) return sha ? response({ sha }) : missing;
+    if (url.includes('/git/ref/tags/')) return sha ? response({ object: { type: 'commit', sha } }) : missing;
     if (url.includes('/contents/')) return response({ content: Buffer.from(JSON.stringify({ expo: { android: { versionCode: code } } })).toString('base64') });
     return response([{ tag_name: tag }]);
   };
   await checkRemote(single, { ...options, request: makeRequest() });
+  await checkRemote(single, { ...options, request: makeRequest({ sha: options.sha }) });
+  await checkRemote(single, { ...options, request: async url => {
+    if (url.includes('/git/ref/tags/')) return response({ object: { type: 'tag', sha: 'c'.repeat(40) } });
+    if (url.includes('/git/tags/')) return response({ object: { type: 'commit', sha: options.sha } });
+    return makeRequest()(url);
+  } });
   await assert.rejects(checkRemote(single, { ...options, ref: 'refs/heads/test', request: makeRequest() }), /main only/);
   await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ release: {} }) }), /already released/);
   await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ sha: 'b'.repeat(40) }) }), /another commit/);
