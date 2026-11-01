@@ -49,6 +49,7 @@
     "eslint-config-expo": "~58.0.4",
     "expo-build-properties": "~58.0.12",
     "patch-package": "^8.0.1",
+    "sharp": "^0.35.5",
     "typescript": "~6.0.3",
     "wawoff2": "^2.0.1"
   },
@@ -64,7 +65,8 @@
     "bundle:check": "expo export --platform android --platform ios --output-dir dist",
     "build:apk": "node scripts/build-apk.cjs",
     "prebuild": "expo prebuild --no-clean --platform android --no-install",
-    "postinstall": "patch-package --error-on-fail"
+    "postinstall": "patch-package --error-on-fail",
+    "branding:export": "node scripts/export-branding.cjs"
   },
   "overrides": {
     "react-native-enriched-html": {

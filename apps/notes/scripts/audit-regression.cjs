@@ -206,6 +206,6 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const { spawnSync } = require('node:child_process');
   assert.equal(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: expected }, encoding: 'utf8' }).status, 0);
   assert.notEqual(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: 'dhikr-v1.0.0' }, encoding: 'utf8' }).status, 0);
-  await require('./updater-cache-regression.cjs')(root, { tagPrefix: identity.tagPrefix, apkPrefix: identity.title, packageId: identity.packageId });
+  await require('./updater-cache-regression.cjs')(root, { tagPrefix: identity.tagPrefix, apkPrefix: identity.apkPrefix ?? identity.title, packageId: identity.packageId });
   console.log(`Passed ${identity.title}: isolated schema, mixed Hub migration, exact record round trips, folder/share exports, cancellation, disk/SQL rollback, recovery, wrong-file rejection, release tag and APK update isolation.`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => sqlite.close());

@@ -2,16 +2,16 @@
 
 Four independent Android apps using React Native, Expo, TypeScript, and local
 SQLite. Personal Hub is retired: its runtime and build workflow have been removed.
-MoneyPlan (formerly Budget), Notes, and Tasks replace it completely. Dhikr remains independent.
+MoneyPlan (formerly Budget), My Notes, and Tasks replace it completely. Dhikr remains independent.
 
 | App | Source | Android package | Tag | APK |
 | --- | --- | --- | --- | --- |
 | MoneyPlan | [apps/budget](apps/budget/) | `com.uranik.budget` | `budget-v<version>` | `Budget-<version>.apk` |
-| Notes | [apps/notes](apps/notes/) | `com.uranik.notes` | `notes-v<version>` | `Notes-<version>.apk` |
+| My Notes | [apps/notes](apps/notes/) | `com.uranik.notes` | `notes-v<version>` | `Notes-<version>.apk` |
 | Tasks | [apps/tasks](apps/tasks/) | `com.uranik.tasks` | `tasks-v<version>` | `Tasks-<version>.apk` |
 | Dhikr | [apps/dhikr](apps/dhikr/) | `com.dhiker.counter` | `dhikr-v<version>` | `Dhikr-<version>.apk` |
 
-MoneyPlan includes savings, loans, cards, and financial history. Notes includes
+MoneyPlan includes savings, loans, cards, and financial history. My Notes includes
 rich text, checklists, archives, search, and sorting. Tasks includes repeating
 tasks and native Android reminders. Each app has separate settings, storage,
 backups, build checks, signing configuration, and an APK update channel.
@@ -20,7 +20,7 @@ backups, build checks, signing configuration, and an APK update channel.
 
 1. Before uninstalling Hub, use its Settings → Backup & restore → Export →
    Save to folder. Save the JSON outside app-private storage.
-2. Install MoneyPlan, Notes, and Tasks from their matching [GitHub releases](https://github.com/UranikSejdiu/Personal-Hub/releases).
+2. Install MoneyPlan, My Notes, and Tasks from their matching [GitHub releases](https://github.com/UranikSejdiu/Personal-Hub/releases).
    In each app's Settings, choose **Import Hub or app backup**, select the
    same Hub JSON file, review the record counts, and confirm.
 3. Check financial history, rich notes, checklist ordering and archives, and

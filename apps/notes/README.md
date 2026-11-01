@@ -1,4 +1,9 @@
-# Notes
+# My Notes
+
+Display name: My Notes. Editable vector branding and launcher, adaptive, themed,
+and splash PNGs live in `assets/branding`. Regenerate with `npm run branding:export`.
+The existing `com.uranik.notes` package, database, backup format, deep links,
+`notes-v` release tags and `Notes-<version>.apk` updater filenames stay compatible.
 
 Independent Expo app. Android package: `com.uranik.notes`.
 Database: `notes_data`. Deep link scheme: `uraniknotes`.

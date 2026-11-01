@@ -1,6 +1,6 @@
 {
   "id": "notes",
-  "title": "Notes",
+  "title": "My Notes",
   "packageId": "com.uranik.notes",
   "scheme": "uraniknotes",
   "tagPrefix": "notes-v",
@@ -8,5 +8,6 @@
   "tables": {
     "notes": "notes",
     "noteItems": "note_items"
-  }
+  },
+  "apkPrefix": "Notes"
 }

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Notes",
+    "name": "My Notes",
     "slug": "notes",
     "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/icon-personal-hub.png",
+    "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "uraniknotes",
     "ios": {
@@ -17,8 +17,9 @@
       "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#F2F7FC",
-        "foregroundImage": "./assets/android-icon-foreground-personal-hub.png"
+        "backgroundColor": "#252824",
+        "foregroundImage": "./assets/branding/adaptive-foreground.png",
+        "monochromeImage": "./assets/branding/monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
