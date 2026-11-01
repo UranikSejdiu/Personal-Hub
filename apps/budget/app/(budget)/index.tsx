@@ -1,8 +1,10 @@
 import { Text } from "../../src/components/ui/Typography";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, View, FlatList, StyleSheet } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, View, FlatList, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Plus } from "../../src/components/AppIcons";
+import { Plus, PiggyBank, ChevronRight } from "../../src/components/AppIcons";
+import { getSavingsSummary } from "../../src/lib/savings";
+import { formatCurrency } from "../../src/lib/utils";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 
@@ -30,9 +32,12 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { t, lang } = useI18n();
   const [summaries, setSummaries] = useState<MonthSummary[]>([]);
+  const [savingsBalance, setSavingsBalance] = useState<number | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [monthToDelete, setMonthToDelete] = useState<string | null>(null);
+  const [quickExpense, setQuickExpense] = useState(false);
   const [creatingMonth, setCreatingMonth] = useState<string | null>(null);
+  const refreshRequest = useRef(0);
   const insets = useSafeAreaInsets();
 
   const colors = useThemeColors();
@@ -41,13 +46,17 @@ export default function DashboardScreen() {
   const otherMonths = summaries.filter((summary) => summary.month !== thisMonth);
 
   const refresh = useCallback(async () => {
+    const request = ++refreshRequest.current;
     setLoadState("loading");
     try {
       const loans = await loadLoans();
-      const data = await listMonthSummaries(loans);
+      const [data, savings] = await Promise.all([listMonthSummaries(loans), getSavingsSummary()]);
+      if (request !== refreshRequest.current) return;
+      setSavingsBalance(savings.balance);
       setSummaries(data);
       setLoadState("ready");
     } catch {
+      if (request !== refreshRequest.current) return;
       setLoadState("error");
       toast.error(t("errorLoadingData"));
     }
@@ -55,27 +64,11 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      setLoadState("loading");
-      void (async () => {
-        try {
-          const loans = await loadLoans();
-          const data = await listMonthSummaries(loans);
-          if (!cancelled) {
-            setSummaries(data);
-            setLoadState("ready");
-          }
-        } catch {
-          if (!cancelled) {
-            setLoadState("error");
-            toast.error(t("errorLoadingData"));
-          }
-        }
-      })();
+      void refresh();
       return () => {
-        cancelled = true;
+        ++refreshRequest.current;
       };
-    }, [t])
+    }, [refresh])
   );
 
   const openBudgetMonth = useCallback(
@@ -115,6 +108,7 @@ export default function DashboardScreen() {
         }
         await deleteBudget(month, tx);
       });
+      toast.success(t("monthDeleted"));
       await refresh();
 
     } catch {
@@ -153,12 +147,12 @@ export default function DashboardScreen() {
               <View className="flex-row flex-wrap items-center justify-between gap-3">
                 <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("dashboardTitle")}</Text>
                 <Button
-                  label={t("dashboardNextMonth")}
+                  label={t("addRow")}
                   icon={Plus}
                   variant="secondary"
                   disabled={loadState !== "ready" || creatingMonth !== null}
 
-                  onPress={() => { void handleCreateMonth(addMonths(thisMonth, 1)); }}
+                  onPress={() => { if (currentSummary) router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`); else { setQuickExpense(true); handleCreateMonth(thisMonth); } }}
                 />
               </View>
               <Text className="mt-1 text-xs leading-[18px] text-muted-foreground">{t("dashboardSubtitle")}</Text>
@@ -198,6 +192,15 @@ export default function DashboardScreen() {
               </Card>
             )}
 
+            {loadState === "ready" && savingsBalance !== null && <View className="gap-2 pt-2">
+              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("navSavings")}</Text>
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={t("navSavings")} className="min-h-[76px] flex-row items-center gap-3 rounded-[20px] bg-secondary px-4 py-3 active:opacity-70">
+                <PiggyBank size={24} color={colors.primary} />
+                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-foreground">{formatCurrency(savingsBalance)}</Text><Text className="text-xs text-muted-foreground">{t("savingsTotal")}</Text></View>
+                <ChevronRight size={18} color={colors.primary} />
+              </Pressable>
+            </View>}
+            {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label={t("dashboardNextMonth")} onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
             {loadState === "ready" && otherMonths.length > 0 && (
               <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("dashboardOtherMonths")}</Text>
             )}
@@ -205,7 +208,7 @@ export default function DashboardScreen() {
         }
       />
 
-      {creatingMonth ? <BudgetMonthEditor initialMonth={creatingMonth} onClose={() => setCreatingMonth(null)}
+      {creatingMonth ? <BudgetMonthEditor initialMonth={creatingMonth} onClose={() => { setCreatingMonth(null); setQuickExpense(false); }}
         onSave={async (month, income, savingsGoal) => {
           const { created } = await createBudgetMonth(month, { income, savingsGoal });
           setCreatingMonth(null);
@@ -214,7 +217,8 @@ export default function DashboardScreen() {
 
             toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
           }
-          openBudgetMonth(month);
+          if (quickExpense) { setQuickExpense(false); router.push(`/(budget)/budget?month=${month}&addExpense=1`); }
+          else openBudgetMonth(month);
         }} /> : null}
       <ConfirmDialog
         visible={monthToDelete !== null}

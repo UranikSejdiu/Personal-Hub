@@ -1,6 +1,6 @@
 {
   "id": "budget",
-  "title": "Budget",
+  "title": "MoneyPlan",
   "packageId": "com.uranik.budget",
   "scheme": "uranikbudget",
   "tagPrefix": "budget-v",
@@ -15,5 +15,6 @@
     "transactions": "savings_transactions",
     "repaymentPlans": "repayment_plans",
     "repaymentPayments": "repayment_payments"
-  }
+  },
+  "apkPrefix": "Budget"
 }

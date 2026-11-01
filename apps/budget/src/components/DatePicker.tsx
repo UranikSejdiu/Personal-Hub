@@ -1,10 +1,12 @@
+import { IconButton } from "./ui/Button";
+import { AppAlerts } from "./AppAlerts";
 import { Text } from "./ui/Typography";
 import { useMemo, useState } from "react";
 import { Modal, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, ChevronRight } from "./AppIcons";
 import { useI18n } from "../lib/i18n";
-import { useThemeColors, useThemeVariables } from "../lib/theme";
+import { useThemeVariables } from "../lib/theme";
 import { cn } from "../lib/utils";
 
 export interface DatePickerProps {
@@ -24,7 +26,6 @@ function parseValue(v: string | null): Date | null {
 
 export function DatePicker({ value, onChange, onClose, mode = "date", initialDisplay = "selected" }: DatePickerProps) {
   const { t } = useI18n();
-  const colors = useThemeColors();
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const today = useMemo(() => new Date(), []);
@@ -103,7 +104,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
           accessibilityViewIsModal
         >
           <View className="flex-row items-center justify-between">
-            <Pressable
+            <IconButton icon={ChevronLeft}
               onPress={() =>
                 setDisplay(
                   new Date(
@@ -113,17 +114,12 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
                   )
                 )
               }
-              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
-              accessible
-              accessibilityRole="button"
               accessibilityLabel={t(mode === "month" ? "previousYear" : "previousMonth")}
-            >
-              <ChevronLeft size={20} color={colors.mutedForeground} />
-            </Pressable>
+            />
             <Text className="text-base font-semibold text-foreground">
               {mode === "month" ? display.getFullYear() : monthLabel}
             </Text>
-            <Pressable
+            <IconButton icon={ChevronRight}
               onPress={() =>
                 setDisplay(
                   new Date(
@@ -133,13 +129,8 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
                   )
                 )
               }
-              className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
-              accessible
-              accessibilityRole="button"
               accessibilityLabel={t(mode === "month" ? "nextYear" : "nextMonth")}
-            >
-              <ChevronRight size={20} color={colors.mutedForeground} />
-            </Pressable>
+            />
           </View>
 
           {mode === "month" ? (
@@ -233,6 +224,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
           </View>
         </Pressable>
       </Pressable>
+      <AppAlerts />
     </Modal>
   );
 }

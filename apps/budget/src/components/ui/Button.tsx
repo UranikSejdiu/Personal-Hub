@@ -34,6 +34,7 @@ export function Button({
   disabled = false,
   className,
   accessibilityLabel = label,
+  accessibilityRole = "button",
   accessibilityState,
   ...props
 }: ButtonProps) {
@@ -48,12 +49,12 @@ export function Button({
     <Pressable
       {...props}
       accessible
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ ...accessibilityState, disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       className={cn(
-        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-[11px] px-3 py-2 active:opacity-70",
+        "min-h-[44px] flex-row items-center justify-center gap-2 rounded-[14px] px-4 py-3 active:opacity-70",
         BACKGROUNDS[variant],
         (disabled || busy) && "opacity-60",
         className
@@ -90,13 +91,13 @@ export function IconButton({
       accessibilityState={{ ...accessibilityState, disabled: disabled ?? false }}
       disabled={disabled ?? false}
       className={cn(
-        "h-11 w-11 items-center justify-center rounded-[10px] active:bg-muted",
-        selected && "bg-primary/10",
+        "h-11 w-11 items-center justify-center rounded-[14px] border border-border/60 bg-card active:bg-secondary",
+        selected && "border-primary/30 bg-secondary",
         disabled && "opacity-60",
         className
       )}
     >
-      <Icon size={18} color={selected ? colors.primary : colors.mutedForeground} />
+      <Icon size={18} color={selected ? colors.primary : colors.foreground} />
     </Pressable>
   );
 }

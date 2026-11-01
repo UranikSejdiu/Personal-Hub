@@ -5,7 +5,7 @@ import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
 import { useI18n, monthLabelFull } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { formatCurrency, cn } from "../lib/utils";
-import { IconButton } from "./ui/Button";
+import { Button, IconButton } from "./ui/Button";
 import { ActionDialog } from "./ui/ActionDialog";
 import { Card } from "./ui/Card";
 import type { MonthSummary } from "../types/budget";
@@ -35,7 +35,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
     { label: t("dashboardPaidOutflow"), value: summary.actualOutflow },
     { label: t("dashboardActualRemaining"), value: summary.actualRemaining },
   ];
-  return <Card className={featured ? "border-primary/20 p-[14px]" : undefined}>
+  return <Card className={featured ? "border-0 bg-secondary p-5" : undefined}>
     <View className="flex-row items-center gap-2">
       <Pressable onPress={onOpen} className="min-h-[44px] min-w-0 flex-1 justify-center active:opacity-70"
         accessible accessibilityRole="button" accessibilityLabel={t("dashboardOpenMonth", { month: monthLabel })}>
@@ -57,12 +57,12 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
     {featured && <>
       <Pressable onPress={onOpen} className="min-h-[44px] pb-[11px] pt-3 active:opacity-70"
         accessible accessibilityRole="button" accessibilityLabel={t("dashboardOpenMonth", { month: monthLabel })}>
-        <Text className="text-xs text-muted-foreground">{t("dashboardActualRemaining")}</Text>
-        <Text className={cn("mt-[3px] text-[28px] font-semibold tracking-[-0.5px]", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text>
+        <Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text>
+        <Text className={cn("mt-1 text-[40px] font-semibold tracking-[-1.4px]", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
       </Pressable>
-      <View className="flex-row flex-wrap gap-4 rounded-[10px] bg-background p-2.5">
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={cn("text-[15px] font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text></View>
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardPaidOutflow")}</Text><Text className="text-[15px] font-semibold text-foreground">{formatCurrency(summary.actualOutflow)}</Text></View>
+      <View className="flex-row flex-wrap gap-4 rounded-[14px] bg-background/60 p-3">
+        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={cn("text-[18px] font-semibold", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text></View>
+        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("unpaid")}</Text><Text className="text-[18px] font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text></View>
       </View>
     </>}
     {(featured || isExpanded) && summary.savingsGoal > 0 && <View className="mt-3 gap-[7px]">
@@ -75,6 +75,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
         <View className="h-full rounded-full bg-success" style={{ width: `${summary.goalProgress}%` }} />
       </View>
     </View>}
+    {featured && <Button className="mt-4" label={t("dashboardOpenBudget")} onPress={onOpen} />}
     {isExpanded && <View className="mt-3 gap-[7px] border-t border-border/60 pt-2.5">
       {details.map(detail => <View key={detail.label} className="flex-row flex-wrap justify-between gap-3">
         <Text className="shrink text-xs text-muted-foreground">{detail.label}</Text>

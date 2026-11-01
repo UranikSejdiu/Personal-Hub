@@ -53,8 +53,8 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
   return (
     <View
       className={cn(
-        "flex-row items-center justify-center rounded-full bg-card p-1 shadow-sm border border-border/60",
-        placement === "inline" ? "w-full" : "absolute left-[14px] right-[14px]"
+        "flex-row items-center justify-center rounded-[24px] bg-background p-1.5 border border-border/60",
+        placement === "inline" ? "w-full" : "absolute left-[16px] right-[16px]"
       )}
       style={placement === "floating" ? { bottom: Math.max(18, insets.bottom + 8) } : undefined}
     >
@@ -69,8 +69,8 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
               onTabPress(tab.id);
             }}
             className={cn(
-              "min-h-[50px] min-w-[44px] flex-1 flex-col items-center justify-center gap-[3px] rounded-full px-0.5 py-[5px] active:opacity-70",
-              isActive && "bg-primary/10"
+              "min-h-[54px] min-w-[44px] flex-1 flex-col items-center justify-center gap-[5px] rounded-[17px] px-0.5 py-[7px] active:opacity-70",
+              isActive && "bg-secondary"
             )}
             accessible
             accessibilityRole="tab"

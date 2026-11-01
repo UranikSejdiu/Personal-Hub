@@ -18,6 +18,7 @@ export function UpdateCard() {
   const [state, setState] = useState<UpdateState>("idle");
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [installFailed, setInstallFailed] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const pendingApkRef = useRef<File | null>(null);
   const pendingVersionRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -44,8 +45,10 @@ export function UpdateCard() {
     const result = await refresh();
     if (result.status === "up-to-date") {
       toast.success(t("updateUpToDate"));
+    } else if (result.status === "update") {
+      toast.success(t("updateAvailableToast", { version: result.latest.versionName }), { id: "update-available" });
     } else if (result.status === "no-releases") {
-      toast(t("updateNoReleases"));
+      toast.info(t("updateNoReleases"));
     } else if (result.status === "error") {
       toast.error(t("updateCheckFailed"));
     }
@@ -81,6 +84,7 @@ export function UpdateCard() {
   const handleInstall = useCallback(async () => {
     if (!latest || installInFlightRef.current) return;
     installInFlightRef.current = true;
+    setDownloadError(null);
     setState("downloading");
     setDownloadProgress(null);
     setInstallFailed(false);
@@ -109,7 +113,8 @@ export function UpdateCard() {
     } catch (error) {
       if (!mountedRef.current) return;
       const msg = error instanceof Error ? error.message : String(error);
-      toast.error(msg || t("updateCheckFailed"));
+      setDownloadError(msg || t("updateDownloadFailed"));
+      toast.error(t("updateDownloadFailed"));
       setState("idle");
     } finally {
       installInFlightRef.current = false;
@@ -126,6 +131,7 @@ export function UpdateCard() {
         <Text className="text-sm font-semibold text-foreground">{t("updatesTitle")}</Text>
       </View>
 
+      {downloadError && <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError}</Text>}
       {result?.status === "error" ? (
         <Text accessibilityRole="alert" className="text-xs text-muted-foreground">
           {t(result.cachedLatest ? "updateCachedWarning" : "updateCheckFailed")}

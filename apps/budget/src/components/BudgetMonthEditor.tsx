@@ -1,3 +1,5 @@
+import { AppAlerts } from "./AppAlerts";
+import { toast } from "sonner-native";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -67,11 +69,12 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
     try {
       if (!budget && await loadBudget(month)) {
         if (mounted.current) setError(t("monthAlreadyExists"));
+        toast.warning(t("monthAlreadyExists"));
         return;
       }
       await onSave(month, incomeValue, goalValue);
     }
-    catch { if (mounted.current) setError(t("saveFailed")); }
+    catch { if (mounted.current) { setError(t("saveFailed")); toast.error(t("saveFailed")); } }
     finally {
       busyRef.current = false;
       if (mounted.current) setBusy(false);
@@ -112,6 +115,7 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+      <AppAlerts />
     </Modal>
     {datePicker ? <DatePicker mode="month" value={month} onChange={(value) => { if (value) setMonth(value); }} onClose={() => setDatePicker(false)} /> : null}
     <ConfirmDialog visible={discard} title={t("discardChangesTitle")} message={t("monthDiscardHelp")}

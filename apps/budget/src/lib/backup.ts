@@ -7,8 +7,6 @@ import { getAppVersion } from "../constants/config";
 import { validateEnvelope, type BackupEnvelope } from "./hubBackupValidation";
 import { saveBackupToFolder } from "./saveBackupToFolder";
 import { migrateLegacyRepayments } from "./repaymentMigration";
-import { notifyTaskChanges } from "./taskEvents";
-import { resetPlainTextBackfill } from "./notes";
 import { applyBackupPreferences, readBackupPreferences, validateBackupPreferences, type BackupPreferences } from "./backupPreferences";
 
 type Row = Record<string, unknown>;
@@ -87,7 +85,6 @@ async function snapshot(tx: db.DbExecutor): Promise<Envelope> {
     if (TABLES.some(([, table]) => table === row.name)) sequences[row.name] = row.seq;
   }
   const preferences = await readBackupPreferences();
-  if (identity.id !== "notes") delete preferences.notes;
   const envelope = { meta: { format: identity.backupFormat, version: 1, appVersion: getAppVersion(), exportedAt: new Date().toISOString(), platform: Platform.OS }, tables, sequences, preferences };
   parseBackup(JSON.stringify(envelope)); // Never report a successful export that cannot be imported.
   return envelope;
@@ -156,27 +153,21 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
           if (table === "expenses" && row.budget_id === undefined && typeof row.budget_month === "string") {
             row.budget_id = (await tx.get<{ id: number }>("SELECT id FROM budgets WHERE month = ?", [row.budget_month]))?.id;
           }
-          if (table === "tasks") row.parent_id = null;
           const entries = Object.entries(row).filter(([column, value]) => columns.has(column) && value !== undefined);
           if (!entries.length) throw new Error(`Empty ${table} row`);
           await tx.execute(`INSERT INTO ${table} (${entries.map(([column]) => `"${column}"`).join(", ")}) VALUES (${entries.map(() => "?").join(", ")})`, entries.map(([, value]) => value));
         }
-      }
-      if (identity.id === "tasks") {
-        for (const row of envelope.tables.tasks ?? []) if (row.parent_id !== null) await tx.execute("UPDATE tasks SET parent_id = ? WHERE id = ?", [row.parent_id, row.id]);
       }
       for (const [table, sequence] of Object.entries(sequences)) {
         const existing = await tx.get<{ seq: number }>("SELECT seq FROM sqlite_sequence WHERE name = ?", [table]);
         if (existing) await tx.execute("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?", [sequence, table]);
         else await tx.execute("INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)", [table, sequence]);
       }
-      if (identity.id === "budget") await migrateLegacyRepayments(tx);
+      await migrateLegacyRepayments(tx);
       // Validate the records actually written before committing the replacement.
       await snapshot(tx);
     });
-    resetPlainTextBackfill();
-    notifyTaskChanges();
-    return { preferencesRestored: await applyBackupPreferences(preferences, identity.id === "notes"), preferences };
+    return { preferencesRestored: await applyBackupPreferences(preferences), preferences };
   } finally { importing = false; }
 }
 

@@ -1,7 +1,7 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { View, Pressable, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
-import { Plus, Pencil, ArrowDownLeft, ArrowUpRight, Archive, ChevronDown, Lock } from "../../src/components/AppIcons";
+import { Pencil, ArrowDownLeft, ArrowUpRight, Archive, ChevronDown, Lock } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useI18n } from "../../src/lib/i18n";
@@ -158,11 +158,11 @@ export default function SavingsScreen() {
     return entries.filter((e) => Number(e.date.slice(0, 4)) === selectedYear);
   }, [entries, selectedYear]);
 
-  const openCreateModal = useCallback(() => {
+  const openCreateModal = useCallback((type: SavingsEntryType = "deposit") => {
     setEditingId(null);
     setEditingMonth(null);
     setEditingKind("tx");
-    setFormType("purchase");
+    setFormType(type);
     setFormDesc("");
     setFormAmount("");
     setFormDate(todayDate());
@@ -218,7 +218,7 @@ export default function SavingsScreen() {
           (e.rawTx !== undefined && !isClosingMarkerDescription(e.rawTx.description))
       );
       if (!hasActivity) {
-        toast(t("savingsNoEntries"));
+        toast.info(t("savingsNoEntries"));
         return;
       }
       // A net of exactly 0 is still closable: it writes a carry-forward marker
@@ -241,12 +241,12 @@ export default function SavingsScreen() {
                 try {
                   const result = await closeYear(year, desc);
                   if (result.blockedYear !== undefined) {
-                    toast(t("closeYearBlocked", { year: result.blockedYear }));
+                    toast.warning(t("closeYearBlocked", { year: result.blockedYear }));
                     setConfirmAction(null);
                     return;
                   }
                   if (!result.created) {
-                    toast(t("closeYearNothing", { year }));
+                    toast.info(t("closeYearNothing", { year }));
                     setConfirmAction(null);
                     return;
                   }
@@ -254,7 +254,7 @@ export default function SavingsScreen() {
                   setSelectedYear(nextYear);
                   setConfirmAction(null);
 
-                  toast.success(t("savedSuccess"));
+                  toast.success(t("yearClosed"));
                 } catch {
                   toast.error(t("errorAddingSavings"));
                   setConfirmAction(null);
@@ -303,6 +303,7 @@ export default function SavingsScreen() {
         await updateTransaction(editingId, update);
       }
       setShowModal(false);
+      toast.success(t(editingKind === "auto" || editingId !== null ? "savingsEntryUpdated" : formType === "deposit" ? "depositAdded" : "withdrawalAdded"));
       await loadData();
 
     } catch {
@@ -330,6 +331,7 @@ export default function SavingsScreen() {
               await deleteTransaction(editingId);
             }
             setShowModal(false);
+            toast.success(t("savingsEntryDeleted"));
             await loadData();
             setConfirmAction(null);
           } catch {
@@ -372,9 +374,13 @@ export default function SavingsScreen() {
     <View className="gap-3">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
         <View className="gap-1"><Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
-        <Button icon={Plus} label={t("savingsNewEntry")} onPress={() => { openCreateModal(); }} />
+
       </View>
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
+      <View className="flex-row gap-2">
+        <Button className="flex-1" icon={ArrowDownLeft} label={t("savingsTypeDeposit")} onPress={() => openCreateModal("deposit")} />
+        <Button className="flex-1" variant="secondary" icon={ArrowUpRight} label={t("savingsTypePurchase")} onPress={() => openCreateModal("purchase")} />
+      </View>
       {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="secondary" icon={Archive} label={t("savingsClosePrior")} onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
       <View className="gap-[7px]">
         <Text className="text-[13px] font-semibold text-foreground">{t("savingsYear")}</Text>
@@ -425,7 +431,7 @@ export default function SavingsScreen() {
         <View className="h-px bg-border my-1" />
         <View className="flex-row justify-between">
           <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
-          <Text className="text-sm font-semibold text-success">{formatCurrency(summary.balance)}</Text>
+          <Text className={`text-sm font-semibold ${summary.balance < 0 ? "text-destructive" : "text-success"}`}>{formatCurrency(summary.balance)}</Text>
         </View>
       </View>
     </View>

@@ -1,10 +1,11 @@
+import { AppAlerts } from "../AppAlerts";
 import { Text } from "./Typography";
-import { useCallback, useRef, useState, type ComponentRef, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef, type ComponentType } from "react";
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useI18n } from "../../lib/i18n";
-import { useThemeColors } from "../../lib/theme";
+import { useThemeColors, useThemeVariables } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
 export interface MenuAnchor {
@@ -38,13 +39,16 @@ const MENU_PADDING = 16;
 export function useAnchoredMenu() {
   const triggerRef = useRef<ComponentRef<typeof View>>(null);
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  const measurement = useRef(0);
+  useEffect(() => () => { measurement.current++; }, []);
 
   const open = useCallback(() => {
+    const request = ++measurement.current;
     triggerRef.current?.measureInWindow((x, y, width, height) => {
-      if (width > 0 && height > 0) setAnchor({ x, y, width, height });
+      if (request === measurement.current && width > 0 && height > 0) setAnchor({ x, y, width, height });
     });
   }, []);
-  const close = useCallback(() => setAnchor(null), []);
+  const close = useCallback(() => { measurement.current++; setAnchor(null); }, []);
 
   return { triggerRef, anchor, open, close };
 }
@@ -52,6 +56,7 @@ export function useAnchoredMenu() {
 export function AnchoredMenu({ anchor, onClose, items, size = "compact", align = "end" }: AnchoredMenuProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const width = Math.min(size === "regular" ? 240 : 200, screenWidth - EDGE * 2);
@@ -73,6 +78,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
     <Modal visible={anchor !== null} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         className="flex-1 bg-black/30"
+        style={variables}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel={t("cancel")}
@@ -119,6 +125,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
           </View>
         ) : null}
       </Pressable>
+      {anchor !== null && <AppAlerts />}
     </Modal>
   );
 }

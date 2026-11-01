@@ -131,6 +131,7 @@ export async function setRepaymentPaid(planId: number, month: string, paid: bool
     const prior = await tx.get<{ counted: number }>("SELECT counted FROM repayment_payments WHERE plan_id = ? AND month = ?", [planId, month]);
     if (Boolean(prior) === paid) return plan;
     if (paid) {
+      if (!await tx.get("SELECT id FROM budgets WHERE month = ?", [month])) throw new Error("Budget not found for month");
       if (repaymentForMonth(plan, month) <= 0) throw new Error("No payment scheduled for this month");
       const counted = plan.term === 0 || plan.monthsPaid < plan.term ? 1 : 0;
       await tx.execute("INSERT INTO repayment_payments (plan_id, month, counted) VALUES (?, ?, ?)", [planId, month, counted]);

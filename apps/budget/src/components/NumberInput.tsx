@@ -19,6 +19,7 @@ interface NumberInputProps {
   autoFocus?: boolean;
   onBlur?: () => void;
   onSubmitEditing?: () => void;
+  onValidityChange?: (valid: boolean) => void;
 }
 
 export function NumberInput({
@@ -34,6 +35,7 @@ export function NumberInput({
   autoFocus,
   onBlur,
   onSubmitEditing,
+  onValidityChange,
 }: NumberInputProps) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [isFocused, setIsFocused] = useState(false);
@@ -53,18 +55,20 @@ export function NumberInput({
       setText(input);
       const num = parseNumberInput(input, decimals);
       setInvalid(num === null);
+      onValidityChange?.(num !== null);
       if (num !== null) {
         const clamped = Math.min(max, Math.max(min, num));
         onChange(Number(clamped.toFixed(decimals)));
       }
     },
-    [min, max, decimals, onChange]
+    [min, max, decimals, onChange, onValidityChange]
   );
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
     const num = parseNumberInput(text, decimals);
     setInvalid(num === null);
+    onValidityChange?.(num !== null);
     if (num === null) {
       return;
     } else {
@@ -73,7 +77,7 @@ export function NumberInput({
       setText(Number(clamped.toFixed(decimals)).toString());
       onBlur?.();
     }
-  }, [text, min, max, decimals, onChange, onBlur]);
+  }, [text, min, max, decimals, onChange, onBlur, onValidityChange]);
 
   return (
     <View className={className}>

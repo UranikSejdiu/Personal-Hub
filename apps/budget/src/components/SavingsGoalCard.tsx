@@ -10,9 +10,10 @@ export function SavingsGoalCard({ goalAmount, balance }: { goalAmount: number; b
   const colors = useThemeColors();
   const goalMet = goalAmount > 0 && balance >= goalAmount;
   const progress = goalAmount > 0 ? Math.max(0, Math.min(100, (balance / goalAmount) * 100)) : 0;
-  return <View className="rounded-[14px] border border-border/60 bg-card p-3">
-    <Text className="text-base font-semibold text-foreground">{t("savingsTotal")}</Text>
-    <Text className={`mt-1 text-[32px] font-semibold tracking-[-0.5px] ${balance < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(balance)}</Text>
+  return <View className="rounded-[24px] bg-secondary p-5">
+    <Text className="mb-5 text-[28px] text-primary" accessible={false}>✳</Text>
+    <Text className="text-xs text-muted-foreground">{t("savingsTotal")}</Text>
+    <Text className={`mb-2 mt-1 text-[38px] font-semibold tracking-[-1.2px] ${balance < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(balance)}</Text>
     {goalAmount > 0 && <>
       <View className="mt-2 flex-row flex-wrap items-center justify-between gap-2">
         <Text className="text-xs text-muted-foreground">{t("dashboardSavingsTarget", { amount: formatCurrency(goalAmount) })}</Text>

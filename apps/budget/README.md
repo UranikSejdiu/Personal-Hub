@@ -1,4 +1,10 @@
-# Budget
+# MoneyPlan
+
+Previously Budget. The display name is MoneyPlan; the existing package, database, backup format, deep links, release tags, signing key, and APK updater filename remain compatible.
+
+Brand assets and editable SVGs live in `assets/branding/`; regenerate with `node scripts/export-branding.cjs`. Both savings deposits and withdrawals, full history, recurring expenses, monthly plans, repayment management, imports, exports, and year closing remain available.
+
+Alerts use the shared `AppAlerts` host at the top of the app and inside each native modal window. Standard alerts last two seconds; expense Undo stays available for ten. Validation and detailed errors remain inline, and cancellations stay silent. `npm run check:alerts` exercises real action handlers with mocked native IO, including failed writes, without starting a server or touching installed app data; it is also part of `npm run validate`. These checks do not replace a visual device pass.
 
 Independent Expo app. Android package: `com.uranik.budget`.
 Database: `budget_data`. Deep link scheme: `uranikbudget`.
@@ -16,7 +22,7 @@ npm start
 ## Transfer existing records
 
 Keep Personal Hub installed. Save its JSON backup to a folder. In this app,
-choose Settings → Import Hub or app backup, select that file, review counts,
+choose Settings → Import backup, select that file, review counts,
 and confirm. The same Hub file can be used for all three standalone apps.
 Only this app's tables are copied, preserving IDs, timestamps, ordering, and
 relationships. Import replaces current records after saving a recovery copy;
@@ -28,14 +34,11 @@ packages. Restore previous data returns to the pre-import snapshot.
 
 Exports use `uranik-budget.backup` version 1 and contain only this app's
 records. Other standalone apps' backups are rejected. Applicable Hub backup
-versions 1–7 are accepted. Tasks requires task tables, normally version 5+.
-Standalone exports include theme and applicable Notes display preferences.
-Legacy vibration preferences are accepted during import but ignored. Tap
-vibration is available only in Dhikr.
+versions 1–7 are accepted. Standalone exports include the theme preference.
+Legacy Notes display and vibration fields are accepted but ignored.
 Older backups leave missing preferences unchanged. Preference write failures
 are reported separately from a committed record import. Permission grants
-must be configured separately for the new package. The standalone Tasks app
-retains native exact-alarm support; test reminders on a sleeping phone.
+must be configured separately for the new package.
 
 ## Build and release
 

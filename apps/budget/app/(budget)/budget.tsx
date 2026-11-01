@@ -17,7 +17,8 @@ import {
   type ExpenseDraft,
   updateExpense,
   setExpenseRecurring,
-  removeExpense,
+  removeExpenseWithUndo,
+  restoreDeletedExpense,
   copyBudgetFromMonth,
   currentMonth,
   addMonths,
@@ -42,7 +43,7 @@ export default function BudgetScreen() {
   const router = useRouter();
   const [editingMonth, setEditingMonth] = useState(false);
   const [confirmCopy, setConfirmCopy] = useState(false);
-  const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
+  const { month: monthParam, addExpense } = useLocalSearchParams<{ month?: string; addExpense?: string }>();
   const initialMonth = monthParam && /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentMonth();
   const { t, lang } = useI18n();
   const month = initialMonth;
@@ -60,6 +61,7 @@ export default function BudgetScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingsGoal, setSavingsGoal] = useState(0);
+  const [expenseFilter, setExpenseFilter] = useState<"all" | "unpaid" | "paid">("all");
 
   const tRef = useRef(t);
   const budgetIdRef = useRef<number | null>(null);
@@ -148,6 +150,7 @@ export default function BudgetScreen() {
       listRepaymentPlans(),
       paidRepaymentIds(m),
     ]);
+    const exps = b ? await listExpenses(b.id) : [];
     if (request !== loadRequestRef.current) return;
     setLoans(l);
     setRepayments(plans);
@@ -155,13 +158,7 @@ export default function BudgetScreen() {
     setHasPreviousBudget(!!pb);
     setSavingsGoal(b?.savings_goal ?? sg.goal_amount);
     budgetIdRef.current = b ? b.id : null;
-    if (b) {
-      const exps = await listExpenses(b.id);
-      if (request !== loadRequestRef.current) return;
-      setExpenses(exps);
-    } else {
-      setExpenses([]);
-    }
+    setExpenses(exps);
     const seedIncome = b ? b.income : sg.salary;
     setBudget(
       b ?? {
@@ -205,6 +202,10 @@ export default function BudgetScreen() {
     // with no row yet; it must be persisted before expenses can reference it.
     if (budget && budget.id !== 0) return budget;
     const { budget: b } = await createBudgetMonth(month);
+    // Creating a month also populates recurring expenses. Include those rows
+    // before appending the expense being saved from this previously empty month.
+    const seededExpenses = await listExpenses(b.id);
+    setExpenses(seededExpenses);
     setBudget(b);
     setSavingsGoal(b.savings_goal);
     budgetIdRef.current = b.id;
@@ -225,7 +226,7 @@ export default function BudgetScreen() {
         else next.delete(planId);
         return next;
       });
-
+      toast.success(t(nextPaid ? "paymentMarkedPaid" : "paymentMarkedUnpaid"));
     } catch {
       toast.error(t("errorUpdatingLoan"));
     } finally {
@@ -233,12 +234,13 @@ export default function BudgetScreen() {
     }
   }, [paidRepayments, ensureBudget, month, t]);
 
-  const handleSaveExpense = async (fields: ExpenseDraft, id?: number) => {
+  const handleSaveExpense = async (fields: ExpenseDraft, id?: number, keepOpen = false) => {
     await flushAllExpenseUpdates();
     const savedBudget = await ensureBudget();
     const saved = await saveExpenseDraft(savedBudget.id, fields, id);
     setExpenses(current => id === undefined ? [...current, saved] : current.map(expense => expense.id === id ? saved : expense));
-    setExpenseEditor(null);
+    if (!keepOpen) setExpenseEditor(null);
+    toast.success(t(id === undefined ? "expenseAdded" : "expenseSaved"));
 
   };
 
@@ -262,6 +264,7 @@ export default function BudgetScreen() {
       if (fields.paid !== undefined) {
         try {
           await updateExpense(id, { paid: fields.paid });
+          toast.success(t(fields.paid ? "paymentMarkedPaid" : "paymentMarkedUnpaid"));
         } catch {
           if (prevExpense) {
             setExpenses((prev) =>
@@ -288,6 +291,7 @@ export default function BudgetScreen() {
       try {
         await flushAllExpenseUpdates();
         await setExpenseRecurring(expense.id, expense.category, expense.amount, next);
+        toast.success(t(next ? "recurringEnabled" : "recurringDisabled"));
       } catch {
         if (prevExpense) {
           setExpenses((prev) =>
@@ -304,7 +308,18 @@ export default function BudgetScreen() {
     async (id: number) => {
       try {
         await flushAllExpenseUpdates();
-        await removeExpense(id);
+        const deleted = await removeExpenseWithUndo(id);
+        let restored = false;
+        let restoring = false;
+        toast(t("expenseDeleted"), { duration: 10000, action: { label: t("undo"), onClick: () => {
+          if (restored || restoring) return;
+          restoring = true;
+          void restoreDeletedExpense(deleted).then(expense => {
+            restored = true;
+            if (budgetIdRef.current === expense.budget_id) setExpenses(current => [...current.filter(item => item.id !== expense.id), expense].sort((a, b) => a.id - b.id));
+            toast.success(tRef.current("expenseRestored"));
+          }).catch(() => toast.error(tRef.current("restoreExpenseFailed"))).finally(() => { restoring = false; });
+        } } });
         cancelExpenseUpdate(id);
         setExpenses((curr) => curr.filter((e) => e.id !== id));
         setExpenseToDelete(null);
@@ -352,9 +367,22 @@ export default function BudgetScreen() {
     paidExpenses: expenses.reduce((total, expense) => total + (expense.paid ? expense.amount : 0), 0),
   }, loans, savingsGoal, repayments, paidRepayments) : null, [budget, loans, expenses, savingsGoal, repayments, paidRepayments]);
 
-  const activePayments = repayments.filter(plan => repaymentForMonth(plan, month) > 0);
+  useFocusEffect(useCallback(() => {
+    if (addExpense === "1" && !loading && !loadError) {
+      setExpenseEditor({});
+      router.setParams({ addExpense: undefined });
+    }
+  }, [addExpense, loading, loadError, router]));
 
-  if (loading || !loans || !budget) {
+  const activePayments = useMemo(() => repayments.filter(plan => repaymentForMonth(plan, month) > 0)
+    .sort((a, b) => Number(paidRepayments.has(a.id)) - Number(paidRepayments.has(b.id))), [repayments, month, paidRepayments]);
+  const editExpense = useCallback((expense: Expense) => setExpenseEditor({ expense }), []);
+  const visibleExpenses = useMemo(() => expenses.filter(expense => expenseFilter === "all" || expense.paid === (expenseFilter === "paid"))
+    .sort((a, b) => Number(a.paid) - Number(b.paid) || a.id - b.id), [expenses, expenseFilter]);
+  const paymentCount = expenses.length + activePayments.length;
+  const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(plan => paidRepayments.has(plan.id)).length;
+
+  if (loadError || loading || !loans || !budget) {
     if (loadError) {
       return (
         <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
@@ -415,7 +443,7 @@ export default function BudgetScreen() {
     <><FlatList
       className="flex-1 bg-background"
       contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-28"
-      data={expenses}
+      data={visibleExpenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
       keyboardDismissMode="on-drag"
@@ -426,13 +454,13 @@ export default function BudgetScreen() {
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
         <View className="border-x border-border/60 bg-card px-3">
-          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={expense => setExpenseEditor({ expense })} />
+          <CustomExpenseRow expense={item} isLast={index === visibleExpenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
         </View>
       )}
       ListHeaderComponent={
         <View className="gap-3">
           <View className="flex-row items-center gap-1">
-            <Button className="mr-auto border-0 bg-transparent px-0" variant="secondary" icon={ArrowLeft} label={t("navDashboard")} onPress={() => router.replace("/(budget)")} />
+            <Button className="mr-auto" variant="secondary" icon={ArrowLeft} label={t("navDashboard")} onPress={() => router.replace("/(budget)")} />
             <IconButton icon={ChevronLeft} accessibilityLabel={t("previousMonth")} onPress={() => router.setParams({ month: previousMonth })} />
             <IconButton icon={ChevronRight} accessibilityLabel={t("nextMonth")} onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
@@ -440,20 +468,27 @@ export default function BudgetScreen() {
             <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{monthLabelFull(lang, month)}</Text>
             <Text className="text-xs leading-[18px] text-muted-foreground">{t("monthSubtitle")}</Text>
           </View>
-          <View className="gap-2 rounded-[14px] border border-border/60 bg-card p-3">
-            <View className="flex-row flex-wrap gap-4 rounded-[10px] bg-background p-2.5">
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={`text-[15px] font-semibold ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={`text-[15px] font-semibold ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
+          <View className="gap-2 rounded-[22px] bg-secondary p-5">
+            <View className="flex-row flex-wrap gap-4 rounded-[14px] p-0">
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardPlannedRemaining")}</Text><Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
+              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
             </View>
-            <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
+            <Button className="self-start" variant="secondary" icon={Pencil} label={t("monthEditValues")} onPress={() => setEditingMonth(true)} />
           </View>
-          <CustomExpensesHeader expenses={expenses} onAdd={() => { setExpenseEditor({}); }} />
+          <View className="gap-2 rounded-[18px] border border-border/60 bg-card p-4">
+            <View className="flex-row justify-between gap-2"><Text className="text-xs font-semibold text-foreground">{t("paymentProgress", { paid: paidCount, total: paymentCount })}</Text><Text className="text-xs text-muted-foreground">{paymentCount - paidCount} {t("unpaid").toLowerCase()}</Text></View>
+            <View className="h-1.5 overflow-hidden rounded-full bg-secondary" accessible accessibilityRole="progressbar" accessibilityLabel={t("monthPayments")} accessibilityValue={{ min: 0, max: paymentCount || 1, now: paidCount }}><View className="h-full rounded-full bg-primary" style={{ width: `${paymentCount ? paidCount / paymentCount * 100 : 0}%` }} /></View>
+          </View>
+          <View className="flex-row gap-1 rounded-[14px] bg-secondary p-1">
+            {(["all", "unpaid", "paid"] as const).map(value => <Pressable key={value} onPress={() => setExpenseFilter(value)} accessibilityRole="button" accessibilityState={{ selected: expenseFilter === value }} className={`min-h-[44px] flex-1 items-center justify-center rounded-[11px] ${expenseFilter === value ? "bg-card" : ""}`}><Text className={`text-xs ${expenseFilter === value ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{t(value === "all" ? "allItems" : value)}</Text></Pressable>)}
+          </View>
+          <CustomExpensesHeader expenses={visibleExpenses} onAdd={() => { setExpenseEditor({}); }} />
         </View>
       }
       ListFooterComponent={
         <View className="gap-3">
           <View className="rounded-b-[14px] border-x border-b border-border/60 bg-card px-3 pb-2">
-            {hasPreviousBudget && <Button className="self-start border-0 bg-transparent px-0" variant="secondary" icon={Copy} label={t("copyFromPreviousMonth")} onPress={() => setConfirmCopy(true)} />}
+            {hasPreviousBudget && <Button className="self-start" variant="secondary" icon={Copy} label={t("copyFromPreviousMonth")} onPress={() => setConfirmCopy(true)} />}
           </View>
           {activePayments.length > 0 && <View className="gap-2.5">
             <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("monthPayments")}</Text>
@@ -472,6 +507,7 @@ export default function BudgetScreen() {
         if (!budget.id) await createBudgetMonth(month, { income, savingsGoal: goal });
         else await saveMonthPreferences(month, income, goal);
         setEditingMonth(false);
+        toast.success(t("monthSaved"));
 
         try { await loadData(month); }
         catch { setLoadError(t("errorLoadingData")); }

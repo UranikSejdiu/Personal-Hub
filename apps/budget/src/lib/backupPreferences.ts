@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getPreferenceSync, setPreference } from "./preferences";
 
 export interface BackupPreferences {
@@ -26,20 +25,15 @@ export async function readBackupPreferences(): Promise<BackupPreferences> {
     const theme = getPreferenceSync("app_theme");
     if (theme === "light" || theme === "dark") preferences.theme = theme;
   } catch { /* Optional preferences must not prevent a record backup. */ }
-  try {
-    const rawNotes = await AsyncStorage.getItem("notes_preferences");
-    if (rawNotes) preferences.notes = validateBackupPreferences({ notes: JSON.parse(rawNotes) })?.notes;
-  } catch { /* Match Notes' fallback when its display preference is malformed. */ }
   return preferences;
 }
 
 /** Record imports are already committed; report preference failures separately. */
-export async function applyBackupPreferences(preferences: BackupPreferences | undefined, includeNotes: boolean): Promise<boolean> {
+export async function applyBackupPreferences(preferences: BackupPreferences | undefined): Promise<boolean> {
   if (!preferences) return true;
   try {
     if (preferences.theme) await setPreference("app_theme", preferences.theme);
     // Accept legacy haptics fields when importing, but this app no longer uses them.
-    if (includeNotes && preferences.notes) await AsyncStorage.setItem("notes_preferences", JSON.stringify(preferences.notes));
     return true;
   } catch { return false; }
 }

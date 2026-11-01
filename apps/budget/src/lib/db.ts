@@ -4,7 +4,6 @@ type BindValue = string | number | null | Uint8Array;
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
-let notesFtsEnabled = false;
 const SCHEMA_STATEMENTS = [
   "CREATE TABLE IF NOT EXISTS repayment_plans (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    kind TEXT NOT NULL CHECK (kind IN ('loan', 'card')),\n    name TEXT NOT NULL DEFAULT '',\n    amount REAL NOT NULL,\n    apr REAL NOT NULL DEFAULT 0,\n    payment REAL NOT NULL DEFAULT 0,\n    term INTEGER NOT NULL,\n    months_paid INTEGER NOT NULL DEFAULT 0,\n    start_month TEXT NOT NULL,\n    end_month TEXT,\n    unbounded INTEGER NOT NULL DEFAULT 0,\n    created_at TEXT NOT NULL DEFAULT (datetime('now'))\n  );",
   "CREATE TABLE IF NOT EXISTS repayment_payments (\n    plan_id INTEGER NOT NULL REFERENCES repayment_plans(id) ON DELETE CASCADE,\n    month TEXT NOT NULL,\n    counted INTEGER NOT NULL DEFAULT 0 CHECK (counted IN (0, 1)),\n    PRIMARY KEY (plan_id, month)\n  );",
@@ -164,7 +163,6 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         for (const sql of INDEXES) await connection.execAsync(sql);
         await connection.execAsync("PRAGMA user_version = 1");
       });
-      notesFtsEnabled = Boolean(await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'"));
       db = connection;
       return connection;
     } catch (error) {
@@ -178,11 +176,6 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (db) return db;
   return initDatabase();
-}
-
-/** Whether this database has FTS5 full-text search available for notes. */
-export function isNotesFtsEnabled(): boolean {
-  return notesFtsEnabled;
 }
 
 export async function query<T = Record<string, unknown>>(

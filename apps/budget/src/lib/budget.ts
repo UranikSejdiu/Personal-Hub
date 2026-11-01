@@ -476,6 +476,7 @@ export async function deleteBudget(
   month: string,
   exec: db.DbExecutor = db.defaultExecutor
 ): Promise<void> {
+  if (exec === db.defaultExecutor) return db.withTransaction(tx => deleteBudget(month, tx));
   await clearRepaymentsForMonth(month, exec);
   // Exclusive transactions use a separate SQLite connection, where foreign
   // keys may be disabled. Remove children explicitly on that same executor.
@@ -540,6 +541,7 @@ export async function saveExpenseDraft(budgetId: number, fields: ExpenseDraft, i
     throw new Error("Invalid expense");
   }
   return db.withTransaction(async tx => {
+    if (!await tx.get("SELECT id FROM budgets WHERE id = ?", [budgetId])) throw new Error("Budget not found");
     const previous = id === undefined ? undefined : await tx.get<Expense>("SELECT * FROM expenses WHERE id = ? AND budget_id = ?", [id, budgetId]);
     if (id !== undefined && !previous) throw new Error("Expense not found in this month");
     const expense = previous ?? await addExpense(budgetId, category, fields.amount, false, tx);
@@ -605,8 +607,9 @@ export async function updateExpense(
   );
 }
 
-export async function removeExpense(id: number): Promise<void> {
-  await db.withTransaction(async (tx) => {
+export async function removeExpense(id: number, exec: db.DbExecutor = db.defaultExecutor): Promise<void> {
+  if (exec === db.defaultExecutor) return db.withTransaction(tx => removeExpense(id, tx));
+  const tx = exec;
     const expense = await tx.get<{ category: string; amount: number; is_recurring: number }>(
       "SELECT category, amount, is_recurring FROM expenses WHERE id = ?", [id]
     );
@@ -614,6 +617,43 @@ export async function removeExpense(id: number): Promise<void> {
       await tx.execute("DELETE FROM recurring_expenses WHERE category = ? AND amount = ?", [expense.category, expense.amount]);
     }
     await tx.execute("DELETE FROM expenses WHERE id = ?", [id]);
+}
+
+export interface DeletedExpense {
+  expense: Expense;
+  month: string;
+  templates: (RecurringExpense & { created_at: string })[];
+}
+
+/** Capture exactly what deletion removes, within the same transaction. */
+export async function removeExpenseWithUndo(id: number): Promise<DeletedExpense> {
+  return db.withTransaction(async tx => {
+    const expense = await tx.get<Expense>("SELECT * FROM expenses WHERE id = ?", [id]);
+    if (!expense) throw new Error("Expense not found");
+    const parent = await tx.get<{ month: string }>("SELECT month FROM budgets WHERE id = ?", [expense.budget_id]);
+    if (!parent) throw new Error("Budget not found");
+    const templates = expense.is_recurring ? await tx.query<RecurringExpense & { created_at: string }>(
+      "SELECT * FROM recurring_expenses WHERE category = ? AND amount = ?", [expense.category, expense.amount]
+    ) : [];
+    await removeExpense(id, tx);
+    return { expense, month: parent.month, templates };
+  });
+}
+
+/** Restore original IDs and flags; never replace an existing record. */
+export async function restoreDeletedExpense(deleted: DeletedExpense): Promise<Expense> {
+  return db.withTransaction(async tx => {
+    const e = deleted.expense;
+    const parent = await tx.get<{ month: string }>("SELECT month FROM budgets WHERE id = ?", [e.budget_id]);
+    if (parent?.month !== deleted.month) throw new Error("Original budget no longer exists");
+    await tx.execute("INSERT INTO expenses (id, budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?, ?)",
+      [e.id, e.budget_id, e.category, e.amount, e.paid ? 1 : 0, e.is_recurring ? 1 : 0]);
+    for (const template of deleted.templates) {
+      const existing = await tx.get("SELECT id FROM recurring_expenses WHERE category = ? AND amount = ?", [template.category, template.amount]);
+      if (!existing) await tx.execute("INSERT INTO recurring_expenses (id, category, amount, created_at) VALUES (?, ?, ?, ?)",
+        [template.id, template.category, template.amount, template.created_at]);
+    }
+    return { ...e, paid: !!e.paid, is_recurring: !!e.is_recurring };
   });
 }
 
@@ -621,68 +661,35 @@ export async function copyBudgetFromMonth(
   sourceMonth: string,
   targetMonth: string
 ): Promise<{ budget: Budget; expenses: Expense[] }> {
-  const sourceBudget = await loadBudget(sourceMonth);
-  if (!sourceBudget) {
-    const existingTarget = await loadBudget(targetMonth);
-    if (existingTarget) {
-      return {
-        budget: existingTarget,
-        expenses: await listExpenses(existingTarget.id),
-      };
+  if (!isCreditCardMonth(sourceMonth) || !isCreditCardMonth(targetMonth) || sourceMonth === targetMonth) {
+    throw new Error("Invalid source or target month");
+  }
+  // The existence checks and inserts share the write queue and transaction:
+  // concurrent copies cannot insert duplicates or leave an empty target on failure.
+  return db.withTransaction(async tx => {
+    const sourceBudget = await loadBudget(sourceMonth, tx);
+    if (!sourceBudget) throw new Error("Source budget not found");
+    const sourceExpenses = await listExpenses(sourceBudget.id, tx);
+    let targetBudget = await loadBudget(targetMonth, tx);
+    if (!targetBudget) {
+      const { salary, goal_amount } = await loadSavingsGoal(tx);
+      targetBudget = await saveBudget(targetMonth, salary, false, false, tx);
+      if (targetMonth === currentMonth()) await syncMonthlyAutoDeposit(goal_amount, tx, targetMonth);
     }
-    const { salary } = await loadSavingsGoal();
-    const targetBudget = await saveBudget(targetMonth, salary, false, false);
-    return { budget: targetBudget, expenses: [] };
-  }
-  const sourceExpenses = await listExpenses(sourceBudget.id);
-
-  let targetBudget = await loadBudget(targetMonth);
-  if (!targetBudget) {
-    const { salary } = await loadSavingsGoal();
-    targetBudget = await saveBudget(
-      targetMonth,
-      salary,
-      false,
-      false
-    );
-  }
-
-  const targetExisting = await db.query<Record<string, unknown>>(
-    "SELECT category, amount, is_recurring FROM expenses WHERE budget_id = ?",
-    [targetBudget.id]
-  );
-  const existingKeys = new Set(
-    targetExisting.map(
-      (r) =>
-        `${String(r.category)}::${Number(r.amount)}::${Number(r.is_recurring)}`
-    )
-  );
-  const toCopy = sourceExpenses.filter(
-    (e) =>
-      !existingKeys.has(
-        `${e.category}::${e.amount}::${e.is_recurring ? 1 : 0}`
-      )
-  );
-  if (toCopy.length > 0 && targetBudget) {
-    const targetId = targetBudget.id;
-    await db.withTransaction(async (tx) => {
-      for (const exp of toCopy) {
-        await tx.execute(
-          "INSERT INTO expenses (budget_id, category, amount, paid, is_recurring) VALUES (?, ?, ?, ?, ?)",
-          [
-            targetId,
-            exp.category,
-            exp.amount,
-            0,
-            exp.is_recurring ? 1 : 0,
-          ]
-        );
-      }
-    });
-  }
-
-  const newExpenses = await listExpenses(targetBudget.id);
-  return { budget: targetBudget, expenses: newExpenses };
+    const existing = await listExpenses(targetBudget.id, tx);
+    const key = (expense: Expense) => JSON.stringify([expense.category, expense.amount, !!expense.is_recurring]);
+    // Track multiplicity: two identical source expenses are still two records.
+    // Repeating the copy fills only missing occurrences and keeps paid flags.
+    const counts = new Map<string, number>();
+    for (const expense of existing) counts.set(key(expense), (counts.get(key(expense)) ?? 0) + 1);
+    for (const expense of sourceExpenses) {
+      const expenseKey = key(expense);
+      const count = counts.get(expenseKey) ?? 0;
+      if (count > 0) counts.set(expenseKey, count - 1);
+      else await addExpense(targetBudget.id, expense.category, expense.amount, expense.is_recurring, tx);
+    }
+    return { budget: targetBudget, expenses: await listExpenses(targetBudget.id, tx) };
+  });
 }
 
 // ---------------------------------------------------------------------------

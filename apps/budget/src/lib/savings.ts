@@ -30,6 +30,21 @@ function sanitizeAmount(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function validateEntry(fields: TransactionUpdate): void {
+  if (fields.type !== undefined && fields.type !== "deposit" && fields.type !== "purchase") throw new Error("Invalid savings type");
+  if (fields.amount !== undefined && (!Number.isFinite(fields.amount) || fields.amount <= 0 || fields.amount > Number.MAX_SAFE_INTEGER / 100)) {
+    throw new Error("Invalid savings amount");
+  }
+  if (fields.date !== undefined) {
+    // Month-only dates are retained for entries imported from older backups.
+    const date = /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(fields.date) ? `${fields.date}-01` : fields.date;
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+      throw new Error("Invalid savings date");
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Auto deposits (monthly snapshot of the savings goal)
 // ---------------------------------------------------------------------------
@@ -42,12 +57,12 @@ export async function ensureMonthlyAutoDeposit(
   if (amount === 0) return;
   const desc = description?.trim() ?? "";
   await db.withTransaction(async (tx) => {
-    await tx.execute(
+    const result = await tx.execute(
       `INSERT OR IGNORE INTO savings_auto_deposits (month, amount, description)
        VALUES (?, ?, ?)`,
       [currentMonth(), amount, desc]
     );
-    await refreshClosingBalances(tx);
+    if (result.changes > 0) await refreshClosingBalances(tx);
   });
 }
 
@@ -94,6 +109,9 @@ export async function updateAutoDeposit(
   month: string,
   fields: AutoDepositUpdate
 ): Promise<void> {
+  if (fields.amount !== undefined && (!Number.isFinite(fields.amount) || fields.amount < 0 || fields.amount > Number.MAX_SAFE_INTEGER / 100)) {
+    throw new Error("Invalid savings amount");
+  }
   const sets: string[] = [];
   const values: (string | number)[] = [];
   if (fields.description !== undefined) {
@@ -108,7 +126,7 @@ export async function updateAutoDeposit(
   values.push(month);
   await db.withTransaction(async (tx) => {
     await tx.execute(`UPDATE savings_auto_deposits SET ${sets.join(", ")} WHERE month = ?`, values);
-    await refreshClosingBalances(tx);
+    if (fields.amount !== undefined) await refreshClosingBalances(tx);
   });
 }
 
@@ -179,6 +197,7 @@ export async function addTransaction(
   if (isClosingMarkerDescription(description)) {
     throw new Error("Reserved savings description");
   }
+  validateEntry({ type, amount, date });
   return db.withTransaction(async (tx) => {
     const created = await insertTransaction(type, description, amount, date, tx);
     await refreshClosingBalances(tx);
@@ -197,6 +216,7 @@ export async function updateTransaction(
   id: number,
   fields: TransactionUpdate
 ): Promise<void> {
+  validateEntry(fields);
   const sets: string[] = [];
   const values: (string | number)[] = [];
   if (fields.type !== undefined) {
@@ -221,12 +241,15 @@ export async function updateTransaction(
   if (sets.length === 0) return;
   values.push(id);
   await db.withTransaction(async (tx) => {
-    const existing = await tx.get<{ is_closing: number }>(
-      "SELECT is_closing FROM savings_transactions WHERE id = ?", [id]
+    const existing = await tx.get<{ is_closing: number; type: SavingsEntryType; amount: number; date: string }>(
+      "SELECT is_closing, type, amount, date FROM savings_transactions WHERE id = ?", [id]
     );
     if (existing?.is_closing === 1) throw new Error("Cannot edit a closing balance");
+    if (!existing) throw new Error("Savings entry not found");
     await tx.execute(`UPDATE savings_transactions SET ${sets.join(", ")} WHERE id = ?`, values);
-    await refreshClosingBalances(tx);
+    if ((fields.amount !== undefined && fields.amount !== existing.amount) ||
+        (fields.type !== undefined && fields.type !== existing.type) ||
+        (fields.date !== undefined && fields.date !== existing.date)) await refreshClosingBalances(tx);
   });
 }
 
@@ -273,75 +296,25 @@ async function closingNetBefore(tx: db.DbExecutor, date: string): Promise<number
 // ---------------------------------------------------------------------------
 
 export async function getSavingsSummary(): Promise<SavingsSummary> {
-  // Find the most recent carry-forward (closing balance) transaction so we
-  // don't double-count data from already-closed years.
-  const closingTxs = await db.query<Record<string, unknown>>(
-    `SELECT id, amount, type, date FROM savings_transactions
-      WHERE is_closing = 1
-      ORDER BY date DESC, id DESC LIMIT 1`
+  // One SQLite statement reads a consistent snapshot and avoids four native
+  // bridge calls. Closing markers are carry-forward snapshots, never activity.
+  const row = await db.get<{ carry: number; automatic: number; saved: number; spent: number }>(
+    `WITH latest AS (
+       SELECT amount, type, date FROM savings_transactions WHERE is_closing = 1
+       ORDER BY date DESC, id DESC LIMIT 1
+     )
+     SELECT
+       COALESCE((SELECT CASE WHEN type = 'deposit' THEN amount ELSE -amount END FROM latest), 0) AS carry,
+       (SELECT COALESCE(SUM(amount), 0) FROM savings_auto_deposits
+         WHERE month >= COALESCE((SELECT substr(date, 1, 7) FROM latest), '')) AS automatic,
+       COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
+       COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
+     FROM savings_transactions
+     WHERE is_closing = 0 AND date >= COALESCE((SELECT date FROM latest), '')`
   );
-
-  let carryForwardNet = 0;
-  let latestClosingId: number | null = null;
-  let latestClosingDate: string | null = null;
-  if (closingTxs.length > 0) {
-    const latest = closingTxs[0];
-    const net =
-      Number(latest.amount) * (latest.type === "deposit" ? 1 : -1);
-    carryForwardNet = net;
-    latestClosingId = Number(latest.id);
-    latestClosingDate = String(latest.date);
-  }
-
-  if (latestClosingDate && latestClosingId !== null) {
-    // Only count auto-deposits and transactions AFTER the latest closing date.
-    // `>=` keeps legitimate entries made on the carry-forward date (Jan 1),
-    // while `id != markerId` excludes the marker row itself from the sum.
-    const [autoRow, txRow] = await Promise.all([
-      db.get<Record<string, unknown>>(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits WHERE month >= ?",
-        [latestClosingDate.slice(0, 7)]
-      ),
-      db.get<Record<string, unknown>>(
-        `SELECT
-           COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
-           COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
-         FROM savings_transactions WHERE date >= ? AND id != ?`,
-        [latestClosingDate, latestClosingId]
-      ),
-    ]);
-    const totalSaved =
-      carryForwardNet +
-      (Number(autoRow?.total) || 0) +
-      (Number(txRow?.saved) || 0);
-    const totalSpent = Number(txRow?.spent) || 0;
-    return {
-      balance: totalSaved - totalSpent,
-      totalSaved,
-      totalSpent,
-    };
-  }
-
-  // No closing transaction yet — sum everything from the beginning.
-  const [autoRow, txRow] = await Promise.all([
-    db.get<Record<string, unknown>>(
-      "SELECT COALESCE(SUM(amount), 0) AS total FROM savings_auto_deposits"
-    ),
-    db.get<Record<string, unknown>>(
-      `SELECT
-         COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END), 0) AS saved,
-         COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE 0 END), 0) AS spent
-       FROM savings_transactions`
-    ),
-  ]);
-  const totalSaved =
-    (Number(autoRow?.total) || 0) + (Number(txRow?.saved) || 0);
-  const totalSpent = Number(txRow?.spent) || 0;
-  return {
-    balance: totalSaved - totalSpent,
-    totalSaved,
-    totalSpent,
-  };
+  const totalSaved = Number(row?.carry ?? 0) + Number(row?.automatic ?? 0) + Number(row?.saved ?? 0);
+  const totalSpent = Number(row?.spent ?? 0);
+  return { balance: totalSaved - totalSpent, totalSaved, totalSpent };
 }
 
 export interface CloseYearResult {

@@ -1,6 +1,6 @@
 {
   "name": "budget",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -24,7 +24,6 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-css-interop": "^0.2.6",
-    "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "^1.21.9",
     "react-native-reanimated": "4.5.1",
@@ -43,6 +42,7 @@
     "eslint-config-expo": "~57.0.2",
     "expo-build-properties": "~57.0.21",
     "patch-package": "^8.0.1",
+    "sharp": "^0.35.5",
     "typescript": "~6.0.3",
     "wawoff2": "^2.0.1"
   },
@@ -54,7 +54,8 @@
     "lint": "expo lint",
     "audit:regression": "node scripts/audit-regression.cjs",
     "check:theme": "node scripts/theme-contrast.cjs",
-    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme",
+    "check:alerts": "node scripts/alerts-regression.cjs",
+    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme && npm run check:alerts",
     "bundle:check": "expo export --platform android --platform ios --output-dir dist",
     "build:apk": "node scripts/build-apk.cjs",
     "prebuild": "expo prebuild --no-clean --platform android --no-install",

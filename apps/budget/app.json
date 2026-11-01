@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Budget",
+    "name": "MoneyPlan",
     "slug": "budget",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon-personal-hub.png",
+    "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "uranikbudget",
     "ios": {
@@ -14,11 +14,12 @@
     "android": {
       "allowBackup": true,
       "package": "com.uranik.budget",
-      "versionCode": 1,
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#F2F7FC",
-        "foregroundImage": "./assets/android-icon-foreground-personal-hub.png"
+        "backgroundColor": "#3e5948",
+        "foregroundImage": "./assets/branding/adaptive-foreground.png",
+        "monochromeImage": "./assets/branding/monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },

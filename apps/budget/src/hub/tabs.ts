@@ -1,9 +1,6 @@
 import type { TKey } from "../lib/i18n";
 
-/**
- * Tab bar definitions per module, shared by the real layouts and the onboarding
- * tutorial so the tour can never show a tab bar the app does not have.
- */
+/** MoneyPlan's bottom navigation. */
 export interface HubTabDef {
   id: string;
   labelKey: TKey;
@@ -16,20 +13,3 @@ export const BUDGET_TABS: HubTabDef[] = [
   { id: "loans", labelKey: "navLoans", icon: "calculator" },
   { id: "settings", labelKey: "navSettings", icon: "cog" },
 ];
-
-export const NOTES_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "navNotes", icon: "note-text" },
-  { id: "archive", labelKey: "notesArchiveTitle", icon: "archive" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
-];
-
-export const TASKS_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "tutorialTasks", icon: "check-square" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
-];
-
-export function hubTabs(appId: string): HubTabDef[] {
-  if (appId === "tasks") return TASKS_TABS;
-  if (appId === "notes") return NOTES_TABS;
-  return BUDGET_TABS;
-}

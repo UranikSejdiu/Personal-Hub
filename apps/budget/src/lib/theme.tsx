@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
+import { toast } from "sonner-native";
 import { colorScheme, vars } from "nativewind";
 import { getPreference, getPreferenceSync, setPreference } from "./preferences";
 import {
@@ -55,6 +56,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     void setPreference(THEME_KEY, next).catch((err) => {
       // Non-critical: theme applies in-memory; persist failure only affects restart.
       console.warn("[theme] failed to persist theme:", err);
+      toast.error("Theme changed for this session only.");
     });
   }, []);
 

@@ -12,6 +12,7 @@ const fixture = require('./fixtures/hub-v7.json');
 const sqlite = new DatabaseSync(':memory:');
 const files = new Map();
 let failSql = false, failDisk = false, folderCancelled = false, folderBroken = false;
+let failSqlPattern = null;
 let shared = null;
 let openedName;
 let preferenceFailure = false;
@@ -34,7 +35,7 @@ class FakeDirectory {
 }
 const connection = {
   async execAsync(sql) { sqlite.exec(sql); },
-  async runAsync(sql, ...params) { if (failSql && sql.startsWith('INSERT INTO ')) throw new Error('Injected SQL failure'); const result = sqlite.prepare(sql).run(...params); return { changes: result.changes, lastInsertRowId: Number(result.lastInsertRowid) }; },
+  async runAsync(sql, ...params) { if ((failSql && sql.startsWith('INSERT INTO ')) || failSqlPattern?.test(sql)) throw new Error('Injected SQL failure'); const result = sqlite.prepare(sql).run(...params); return { changes: result.changes, lastInsertRowId: Number(result.lastInsertRowid) }; },
   async getAllAsync(sql, ...params) { return sqlite.prepare(sql).all(...params); },
   async getFirstAsync(sql, ...params) { return sqlite.prepare(sql).get(...params) ?? null; },
   async withTransactionAsync(fn) { sqlite.exec('BEGIN'); try { await fn(); sqlite.exec('COMMIT'); } catch (error) { sqlite.exec('ROLLBACK'); throw error; } },
@@ -93,6 +94,98 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(stored.get('haptics_enabled'), 'legacy-value', 'Legacy backups cannot reactivate tap vibration');
   assert.equal(JSON.stringify(fixture), json, 'Transfer never mutates the Hub backup');
   const original = plain(await backup.buildBackupEnvelope());
+  // Native Undo restores paid/recurring flags and the original ID atomically.
+  if (identity.id === 'budget') {
+    const budget = load(path.join(root, 'src/lib/budget.ts'));
+    const savings = load(path.join(root, 'src/lib/savings.ts'));
+    const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
+    const bootstrap = load(path.join(root, 'src/lib/bootstrap.ts'));
+    await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_name: 'Startup retry', loan_amount: 100, loan_payment: 10, loan_term: 10 });
+    const beforeMigration = (await repayments.listRepaymentPlans()).length;
+    failSqlPattern = /^INSERT INTO repayment_plans/;
+    await assert.rejects(bootstrap.initializeAppData());
+    failSqlPattern = null;
+    assert.equal((await budget.loadLoans()).loan_amount, 100, 'Failed startup migration preserves legacy data');
+    await bootstrap.initializeAppData();
+    assert.equal((await repayments.listRepaymentPlans()).length, beforeMigration + 1, 'Retry completes payment migration');
+    await bootstrap.initializeAppData();
+    assert.equal((await repayments.listRepaymentPlans()).length, beforeMigration + 1, 'Repeated initialization does not migrate twice');
+    await backup.importBackup(JSON.stringify(original));
+    const { budget: source } = await budget.createBudgetMonth('2034-01', { income: 2400, savingsGoal: 0 });
+    // Identical expenses are separate real records. Concurrent/repeated copying
+    // preserves their count without resetting paid flags in the destination.
+    for (let i = 0; i < 2; i++) await budget.addExpense(source.id, 'Same bill', 25);
+    await Promise.all([budget.copyBudgetFromMonth('2034-01', '2034-02'), budget.copyBudgetFromMonth('2034-01', '2034-02')]);
+    const copied = await budget.loadBudget('2034-02');
+    const copiedExpenses = await budget.listExpenses(copied.id);
+    assert.equal(copiedExpenses.filter(e => e.category === 'Same bill').length, 2, 'Concurrent copies preserve multiplicity without duplicates');
+    await budget.updateExpense(copiedExpenses[0].id, { paid: true });
+    await budget.copyBudgetFromMonth('2034-01', '2034-02');
+    assert.equal((await budget.listExpenses(copied.id)).find(e => e.id === copiedExpenses[0].id).paid, true, 'Repeating copy keeps payment state');
+    failSqlPattern = /^INSERT INTO expenses/;
+    await assert.rejects(budget.copyBudgetFromMonth('2034-01', '2034-03'));
+    failSqlPattern = null;
+    assert.equal(await budget.loadBudget('2034-03'), null, 'Failed copy also rolls back target creation');
+    await assert.rejects(budget.copyBudgetFromMonth('2033-01', '2034-03'));
+    await assert.rejects(budget.copyBudgetFromMonth('2034-01', '2034-01'));
+    const plan = await repayments.saveRepaymentPlan({ kind: 'loan', name: 'Delete rollback', amount: 100, payment: 10, apr: 0, term: 10, monthsPaid: 0, startMonth: '2034-02' });
+    await repayments.setRepaymentPaid(plan.id, '2034-02', true);
+    failSqlPattern = /^DELETE FROM budgets/;
+    await assert.rejects(budget.deleteBudget('2034-02'));
+    failSqlPattern = null;
+    assert.equal((await budget.listExpenses(copied.id)).length, copiedExpenses.length, 'Failed deletion restores expenses');
+    assert.ok((await repayments.paidRepaymentIds('2034-02')).has(plan.id), 'Failed deletion restores payment records');
+    assert.equal((await repayments.listRepaymentPlans()).find(p => p.id === plan.id).monthsPaid, 1, 'Failed deletion restores counters');
+    await budget.deleteBudget('2034-02');
+    assert.equal((await repayments.listRepaymentPlans()).find(p => p.id === plan.id).monthsPaid, 0);
+    await assert.rejects(budget.saveExpenseDraft(copied.id, { category: 'Deleted month', amount: 10, paid: false, is_recurring: false }), 'A save after month deletion must not leave an orphan expense');
+    await assert.rejects(repayments.setRepaymentPaid(plan.id, '2034-02', true), 'A save after month deletion must not leave an orphan payment');
+    for (const amount of [NaN, Infinity, -1, 0, Number.MAX_SAFE_INTEGER]) await assert.rejects(savings.addTransaction('deposit', 'Invalid amount', amount, '2034-01-01'));
+    for (const date of ['2034-02-30', '2034-13-01', 'garbage']) await assert.rejects(savings.addTransaction('deposit', 'Invalid date', 10, date));
+    const validEntry = await savings.addTransaction('deposit', 'Valid leap day', 10, '2032-02-29');
+    await assert.rejects(savings.updateTransaction(validEntry.id, { amount: NaN }));
+    assert.equal((await savings.listTransactions()).find(tx => tx.id === validEntry.id).amount, 10, 'Invalid edit preserves stored amount');
+    const blank = structuredClone(original);
+    for (const key of Object.keys(blank.tables)) blank.tables[key] = Array.isArray(blank.tables[key]) ? [] : null;
+    await backup.importBackup(JSON.stringify(blank));
+    const deposit = await savings.addTransaction('deposit', 'Prior savings', 100, '2020-02-29');
+    await savings.addTransaction('purchase', 'Purchase', 30, '2020-06-01');
+    await db.withTransaction(tx => savings.syncMonthlyAutoDeposit(20, tx, '2020-05'));
+    assert.deepEqual(await savings.getSavingsSummary(), { balance: 90, totalSaved: 120, totalSpent: 30 });
+    await savings.closeYear(2020, 'Closing balance 2020');
+    assert.deepEqual(await savings.getSavingsSummary(), { balance: 90, totalSaved: 90, totalSpent: 0 });
+    await savings.addTransaction('deposit', 'New Year', 10, '2021-01-01');
+    await savings.addTransaction('purchase', 'Same-day purchase', 5, '2021-01-01');
+    await db.withTransaction(tx => savings.syncMonthlyAutoDeposit(20, tx, '2021-01'));
+    assert.deepEqual(await savings.getSavingsSummary(), { balance: 115, totalSaved: 120, totalSpent: 5 }, 'Jan 1 activity is counted exactly once beside the carry-forward');
+    await savings.updateTransaction(deposit.id, { amount: 200 });
+    assert.deepEqual(await savings.getSavingsSummary(), { balance: 215, totalSaved: 220, totalSpent: 5 }, 'Editing a closed year refreshes the carry-forward');
+    await savings.closeYear(2021, 'Closing balance 2021');
+    await savings.addTransaction('deposit', 'Current activity', 25, '2022-01-01');
+    assert.deepEqual(await savings.getSavingsSummary(), { balance: 240, totalSaved: 240, totalSpent: 0 }, 'Multiple year markers never double-count older savings');
+    await savings.updateTransaction(deposit.id, { description: 'Renamed only' });
+    assert.equal((await savings.getSavingsSummary()).balance, 240);
+    await backup.importBackup(JSON.stringify(original));
+    const { budget: month } = await budget.createBudgetMonth('2035-01', { income: 2400, savingsGoal: 300 });
+    const expense = await budget.saveExpenseDraft(month.id, { category: 'Undo regression', amount: 25.50, paid: true, is_recurring: true });
+    const snapshot = plain((await backup.buildBackupEnvelope()).tables);
+    const deleted = await budget.removeExpenseWithUndo(expense.id);
+    assert.ok(!(await budget.listExpenses(month.id)).some(row => row.id === expense.id));
+    failSql = true;
+    await assert.rejects(budget.restoreDeletedExpense(deleted));
+    failSql = false;
+    assert.ok(!(await budget.listExpenses(month.id)).some(row => row.id === expense.id), 'Failed Undo must not partially restore');
+    const restored = await budget.restoreDeletedExpense(deleted);
+    assert.equal(restored.id, expense.id);
+    assert.equal(restored.paid, true);
+    assert.equal(restored.is_recurring, true);
+    assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), snapshot, 'Undo restores records and recurring templates exactly');
+    await assert.rejects(budget.restoreDeletedExpense(deleted), 'Repeated Undo never overwrites an existing expense');
+    const missingParent = await budget.removeExpenseWithUndo(expense.id);
+    await budget.deleteBudget('2035-01');
+    await assert.rejects(budget.restoreDeletedExpense(missingParent), 'Undo cannot restore into a removed month');
+    await backup.importBackup(JSON.stringify(original));
+  }
   assert.equal(original.preferences.theme, 'dark');
   assert.equal(original.preferences.haptics, undefined, 'Legacy vibration preferences do not return in new exports');
   assert.equal(original.preferences.notes?.viewMode, identity.id === 'notes' ? 'list' : undefined);
@@ -191,6 +284,6 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const { spawnSync } = require('node:child_process');
   assert.equal(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: expected }, encoding: 'utf8' }).status, 0);
   assert.notEqual(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: 'dhikr-v1.0.0' }, encoding: 'utf8' }).status, 0);
-  await require('./updater-cache-regression.cjs')(root, { tagPrefix: identity.tagPrefix, apkPrefix: identity.title, packageId: identity.packageId });
+  await require('./updater-cache-regression.cjs')(root, { tagPrefix: identity.tagPrefix, apkPrefix: identity.apkPrefix ?? identity.title, packageId: identity.packageId });
   console.log(`Passed ${identity.title}: isolated schema, mixed Hub migration, exact record round trips, folder/share exports, cancellation, disk/SQL rollback, recovery, wrong-file rejection, release tag and APK update isolation.`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => sqlite.close());

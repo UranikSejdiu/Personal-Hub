@@ -32,6 +32,7 @@ export default function LoansScreen() {
   const [choosingMonth, setChoosingMonth] = useState(false);
   const [startMonthTouched, setStartMonthTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [invalidFields, setInvalidFields] = useState<ReadonlySet<string>>(new Set());
   const [discard, setDiscard] = useState(false);
   const initialDraft = useRef("");
   const operationRef = useRef(false);
@@ -45,9 +46,10 @@ export default function LoansScreen() {
     return () => { active = false; };
   }, [t]));
 
-  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); };
+  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setInvalidFields(new Set()); setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); };
   const edit = (plan: RepaymentPlan) => {
     if (operationRef.current) return;
+    setInvalidFields(new Set());
     const { id, ...input } = plan;
     setEditingId(id);
     setStartMonthTouched(true);
@@ -59,9 +61,15 @@ export default function LoansScreen() {
   const update = (change: Partial<RepaymentInput>) => {
     if (!operationRef.current) setDraft((old) => old ? { ...old, ...change } : null);
   };
+  const setFieldValidity = (field: string, valid: boolean) => setInvalidFields(current => {
+    if (current.has(field) === !valid) return current;
+    const next = new Set(current);
+    if (valid) next.delete(field); else next.add(field);
+    return next;
+  });
   const save = async () => {
     if (!draft || operationRef.current) return;
-    if (!isValidRepaymentInput(draft)) { toast.error(t("paymentPlanInvalid")); return; }
+    if (invalidFields.size > 0 || !isValidRepaymentInput(draft)) { toast.error(t("paymentPlanInvalid")); return; }
     operationRef.current = true;
     readRequestRef.current++;
     setSaving(true);
@@ -71,7 +79,7 @@ export default function LoansScreen() {
       setDraft(null);
       setEditingId(null);
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
-
+      toast.success(t("repaymentSaved"));
     } catch {
       toast.error(t("paymentPlanSaveFailed"));
     } finally { operationRef.current = false; setSaving(false); }
@@ -86,7 +94,7 @@ export default function LoansScreen() {
       setPlans((current) => current.filter((plan) => plan.id !== deletingId));
       if (editingId === deletingId) { setDraft(null); setEditingId(null); }
       setDeletingId(null);
-
+      toast.success(t("repaymentDeleted"));
     } catch { toast.error(t("paymentPlanDeleteFailed")); }
     finally { operationRef.current = false; setSaving(false); }
   };
@@ -127,13 +135,13 @@ export default function LoansScreen() {
       <View pointerEvents={saving ? "none" : "auto"} accessibilityState={{ busy: saving }} className="gap-3">
           <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("paymentPlanName")}</Text><TextInput value={draft.name} onChangeText={(name) => update({ name })} maxLength={100} placeholder={t("paymentPlanNamePlaceholder")} placeholderTextColor={colors.mutedForeground} className="min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 text-base text-foreground" /></View>
           <Text className="text-sm text-muted-foreground">{t(draft.kind === "card" ? "paymentPlanCardHint" : "paymentPlanLoanHint")}</Text>
-          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t(draft.kind === "card" ? "paymentPlanTotal" : "loanAmount")}</Text><NumberInput value={draft.amount} onChange={(amount) => update({ amount })} decimals={2} min={0} max={MAX_LOAN_AMOUNT} placeholder="0.00" /></View>
+          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t(draft.kind === "card" ? "paymentPlanTotal" : "loanAmount")}</Text><NumberInput value={draft.amount} onValidityChange={(valid) => setFieldValidity("amount", valid)} onChange={(amount) => update({ amount })} decimals={2} min={0} max={MAX_LOAN_AMOUNT} placeholder="0.00" /></View>
           {(draft.kind === "loan" || draft.unbounded) && <>
-            <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("monthlyPayment")}</Text><NumberInput value={draft.payment} onChange={(payment) => update({ payment })} decimals={2} min={0} max={MAX_LOAN_AMOUNT} placeholder="0.00" /></View>
-            {draft.kind === "loan" && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("loanRate")}</Text><NumberInput value={draft.apr} onChange={(apr) => update({ apr })} decimals={2} min={0} max={MAX_LOAN_ANNUAL_RATE} placeholder="0" /></View>}
+            <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("monthlyPayment")}</Text><NumberInput value={draft.payment} onValidityChange={(valid) => setFieldValidity("payment", valid)} onChange={(payment) => update({ payment })} decimals={2} min={0} max={MAX_LOAN_AMOUNT} placeholder="0.00" /></View>
+            {draft.kind === "loan" && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("loanRate")}</Text><NumberInput value={draft.apr} onValidityChange={(valid) => setFieldValidity("apr", valid)} onChange={(apr) => update({ apr })} decimals={2} min={0} max={MAX_LOAN_ANNUAL_RATE} placeholder="0" /></View>}
           </>}
-          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t(draft.unbounded ? "paymentLimitOptional" : "paymentPlanCount")}</Text><NumberInput value={draft.term} onChange={(term) => update(draft.unbounded ? { term, endMonth: term > 0 ? installmentEndMonth(draft.startMonth, term) : null } : { term })} min={draft.unbounded ? 0 : 1} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /></View>
-          {editingId === null && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("paymentsAlreadyMade")}</Text><NumberInput value={draft.monthsPaid} onChange={(monthsPaid) => update({ monthsPaid, ...(startMonthTouched ? {} : { startMonth: addMonths(currentMonth(), -monthsPaid) }) })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /><Text className="mt-1 text-xs text-muted-foreground">{t("paymentsAlreadyMadeHint")}</Text></View>}
+          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t(draft.unbounded ? "paymentLimitOptional" : "paymentPlanCount")}</Text><NumberInput value={draft.term} onValidityChange={(valid) => setFieldValidity("term", valid)} onChange={(term) => update(draft.unbounded ? { term, endMonth: term > 0 ? installmentEndMonth(draft.startMonth, term) : null } : { term })} min={draft.unbounded ? 0 : 1} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /></View>
+          {editingId === null && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{t("paymentsAlreadyMade")}</Text><NumberInput value={draft.monthsPaid} onValidityChange={(valid) => setFieldValidity("monthsPaid", valid)} onChange={(monthsPaid) => update({ monthsPaid, ...(startMonthTouched ? {} : { startMonth: addMonths(currentMonth(), -monthsPaid) }) })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /><Text className="mt-1 text-xs text-muted-foreground">{t("paymentsAlreadyMadeHint")}</Text></View>}
           <Pressable onPress={() => setChoosingMonth(true)} accessible accessibilityRole="button" accessibilityLabel={t("paymentPlanFirstMonth")} className="min-h-[44px] justify-center rounded-[11px] border border-border/60 bg-card px-3 active:opacity-70"><Text className="text-sm text-foreground">{t("paymentPlanFirstMonth")}: {draft.startMonth}</Text></Pressable>
           {draftPayment > 0 && <View className="gap-1 rounded-lg bg-muted p-3">
             <Text className="text-sm font-semibold text-foreground">{t("monthlyPayment")}: {formatCurrency(draftPayment)}</Text>
@@ -141,7 +149,7 @@ export default function LoansScreen() {
             <Text className="text-xs text-muted-foreground">{t("lastPaymentMonth")}: {draft.endMonth ?? (draft.unbounded ? t("noEndMonth") : draftEndMonth)}</Text>
           </View>}
           {editingId !== null && <Pressable onPress={() => setDeletingId(editingId)} disabled={saving} accessibilityRole="button" accessibilityLabel={t("paymentPlanDeleteTitle")} className="min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">{t("delete")}</Text></Pressable>}
-          <View className="flex-row gap-2"><Button className="flex-1" label={t("cancel")} disabled={saving} variant="secondary" onPress={closeDraft} /><Button className="flex-1" label={t("save")} busy={saving} onPress={() => { void save(); }} /></View>
+          <View className="flex-row gap-2"><Button className="flex-1" label={t("cancel")} disabled={saving} variant="secondary" onPress={closeDraft} /><Button className="flex-1" label={t("save")} disabled={invalidFields.size > 0} busy={saving} onPress={() => { void save(); }} /></View>
       </View>
     </FormDialog>}
     <ConfirmDialog visible={discard} title={t("discardChangesTitle")} message={t("planDiscardHelp")} confirmLabel={t("discard")} cancelLabel={t("keepEditing")} onClose={() => setDiscard(false)} onConfirm={dismissDraft} />

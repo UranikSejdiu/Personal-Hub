@@ -1,20 +1,18 @@
 import { useEffect, useRef } from "react";
+import { useReducedMotion } from "react-native-reanimated";
 import { Tabs, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { PillNav } from "../../src/components/PillNav";
 import { BUDGET_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { useI18n } from "../../src/lib/i18n";
-import { useAppSwitching } from "../../src/hooks/useAppSwitching";
-import { usePersistActiveTab } from "../../src/hooks/usePersistActiveTab";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 
 export default function BudgetLayout() {
   const router = useRouter();
   const { t } = useI18n();
-  const { handleAppSelect } = useAppSwitching("budget");
-  usePersistActiveTab("budget");
+  const reducedMotion = useReducedMotion();
 
   const tRef = useRef(t);
   useEffect(() => {
@@ -36,9 +34,9 @@ export default function BudgetLayout() {
 
   return (
     <>
-      <HubHeader activeAppId="budget" onAppSelect={handleAppSelect} />
+      <HubHeader />
       <Tabs
-        screenOptions={{ headerShown: false }}
+        screenOptions={{ headerShown: false, animation: reducedMotion ? "none" : "fade" }}
         tabBar={({ state }) => {
           const routeName = state.routes[state.index].name;
           const activeTabId = routeName === "budget" ? "index" : routeName;
