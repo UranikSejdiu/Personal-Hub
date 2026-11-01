@@ -62,7 +62,8 @@ export default function BudgetLayout() {
         <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
         <Tabs.Screen
           name="budget"
-          options={{ href: null }}
+          // The custom PillNav already omits this screen. `href: null` hides
+          // the route itself in SDK 58 and redirects month views to Dashboard.
           dangerouslySingular={(_name, params) => {
             const month = params.month;
             return (typeof month === "string" ? month : month?.[0]) ?? "current";

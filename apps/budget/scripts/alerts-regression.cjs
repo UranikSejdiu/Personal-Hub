@@ -60,6 +60,66 @@ const find = (tree, predicate) => { const node = nodes(tree).find(predicate); as
 const hasAlert = (h,kind,message) => h.events.some(e=>e.kind===kind&&e.message===message);
 async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPress();await settle();}
 (async()=>{
+  // SDK 58 redirects focused hidden tabs. Exercise the installed router's
+  // processing and redirect hook against the actual MoneyPlan layout.
+  {
+    const Tabs = Object.assign(() => null, { Screen: 'TabScreen' });
+    const h = harness('app/(budget)/_layout.tsx', {}, {
+      'expo-router': { Tabs, useRouter: () => ({}) },
+      '../../src/hub/tabs': { BUDGET_TABS: [{ id: 'index', labelKey: 'navDashboard' }] },
+      budget: { loadSavingsGoal: async () => ({ goal_amount: 0 }), loadBudget: async () => null },
+    });
+    const tree = h.render('default');
+    const screens = nodes(tree).filter(n => n.type === 'TabScreen').map(n => n.props);
+    const routerRoot = path.dirname(require.resolve('expo-router/package.json'));
+    function sdkModule(file, mocks) {
+      const module = { exports: {} };
+      vm.runInNewContext(fs.readFileSync(path.join(routerRoot, 'build', file), 'utf8'), {
+        module, exports: module.exports, __DEV__: false,
+        require: id => mocks[id] ?? {},
+      }, { filename: file });
+      return module.exports;
+    }
+    const config = sdkModule('layouts/TabsClient.js', {
+      '../standard-navigation': { integrateWithRouter: (_navigator, _router, config) => config },
+    }).default;
+    const processed = config.processScreens(screens);
+    const routes = processed.map(screen => ({ key: screen.name, name: screen.name }));
+    const redirects = [];
+    const { useVisibleTabsWithRedirect } = sdkModule('standard-navigation/useVisibleTabsWithRedirect.js', {
+      react: { useMemo: fn => fn(), useEffect: fn => fn() },
+      '../Route': { useRouteNode: () => ({}) },
+      '../global-state/useRouterActions': { useRouterActions: () => ({ replace: href => redirects.push(href) }) },
+      '../layouts/GuardContext': { useGuardRedirect: () => undefined },
+      '../link/preview/PreviewRouteContext': { useIsPreview: () => false },
+      '../react-navigation/native': { useIsFocused: () => true },
+      '../routeNode': { getValidInitialRouteName: () => 'index' },
+      '../utils/orderRoutesByRouteNames': { orderRoutesByRouteNames: routes => routes },
+      './useBuildHref': { useBuildHref: () => route => route.name },
+    });
+    const descriptors = Object.fromEntries(processed.map(screen => [screen.name, { routeSource: 'layout', options: screen.options }]));
+    const args = { routes, routeNames: routes.map(route => route.name), focusedRouteKey: 'budget', descriptors };
+    assert.ok(useVisibleTabsWithRedirect(args).focusedIndex >= 0, 'Budget month must remain reachable');
+    assert.deepEqual(redirects, [], 'Opening a month must not redirect to Dashboard');
+    // Control: the previous href:null configuration reproduces the report.
+    const hidden = config.processScreens([{ name: 'budget', options: { href: null } }])[0];
+    useVisibleTabsWithRedirect({ ...args, descriptors: { ...descriptors, budget: { routeSource: 'layout', options: hidden.options } } });
+    assert.deepEqual(redirects, ['index']);
+  }
+  for (const month of ['2026-10', '2026-11', '2026-12']) {
+    const opened = [];
+    const h = harness('app/(budget)/index.tsx', { loadState: 'ready', summaries: [{ month }], creatingMonth: month }, {
+      'expo-router': { useFocusEffect() {}, useRouter: () => ({ push: href => opened.push(href) }) },
+      budget: { createBudgetMonth: async () => ({ created: true }), loadLoans: async () => ({}), listMonthSummaries: async () => [] },
+      savings: { getSavingsSummary: async () => ({ balance: 0 }) },
+    });
+    const tree = h.render('default');
+    const list = find(tree, n => n.type === 'FlatList');
+    const card = month === '2026-11' ? find(tree, n => n.type === 'BudgetMonthCard') : list.props.renderItem({ item: { month } });
+    card.props.onOpen();
+    await find(tree, n => n.type === 'BudgetMonthEditor').props.onSave(month, 1000, 100);
+    assert.deepEqual(opened, [`/(budget)/budget?month=${month}`, `/(budget)/budget?month=${month}`], 'Existing and newly saved plans open the selected month');
+  }
   // Every native modal owns an alert host; a root-only host is hidden on Android.
   const componentRoot=path.join(root,'src/components');
   const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);
@@ -219,5 +279,5 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const [kind,message]={ 'up-to-date':['success','updateUpToDate'],'no-releases':['info','updateNoReleases'],error:['error','updateCheckFailed'],update:['success','updateAvailableToast']}[status];
     assert.ok(hasAlert(h,kind,message));
   }
-  console.log(`Alert checks passed: ${modalCount} native modal hosts, safe top placement, 2-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
+  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 2-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});
