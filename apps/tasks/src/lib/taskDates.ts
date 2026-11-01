@@ -20,9 +20,7 @@ export function isTaskInput(value: unknown): value is TaskInput {
   const input = value as Record<string, unknown>;
   return typeof input.title === "string" && input.title.trim().length > 0 && input.title.length <= 200 &&
     typeof input.notes === "string" && input.notes.length <= 10000 &&
-    (input.list_id === null || (typeof input.list_id === "number" && Number.isSafeInteger(input.list_id) && input.list_id > 0)) &&
     (input.due_date === null || isTaskDate(input.due_date)) &&
-    (input.priority === 0 || input.priority === 1 || input.priority === 2) &&
     (input.repeat === "none" || input.repeat === "daily" || input.repeat === "weekly" || input.repeat === "monthly" || input.repeat === "yearly") &&
     (input.repeat === "none" || input.due_date !== null) &&
     (input.reminder_time === null || (isTaskTime(input.reminder_time) && input.due_date !== null));

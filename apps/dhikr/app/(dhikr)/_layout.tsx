@@ -13,7 +13,7 @@ export default function DhikrLayout() {
     <>
       <View className="bg-background" style={{ paddingTop: insets.top }}>
         <View className="flex-row items-center gap-2.5 px-4 py-3">
-          <Image source={require("../../assets/icon.png")} className="h-8 w-8 rounded-lg" accessible={false} />
+          <Image source={require("../../assets/branding/icon.png")} className="h-[36px] w-[36px] rounded-[12px]" accessible={false} />
           <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">{t("appName")}</Text>
         </View>
       </View>

@@ -20,6 +20,15 @@ npx expo config --type public
 npm run bundle:check
 ```
 
+## Logo and palette
+
+Dhikr uses an emerald prayer-bead mark with pearl, mint, and gold details.
+Vector artwork is defined in `scripts/export-branding.cjs`. SVG exports and
+launcher, adaptive, themed, splash, and store PNGs live in `assets/branding/`.
+Run `npm run branding:export` to regenerate them.
+Light and dark colors are defined in `src/constants/theme.ts` and checked by
+`npm run check:theme`. The in-app header uses the same mark as the launcher.
+
 ## Build an APK
 
 Install the Android SDK and JDK 17 or 21, configure `ANDROID_HOME` and `JAVA_HOME`,

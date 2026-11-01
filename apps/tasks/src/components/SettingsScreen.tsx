@@ -1,19 +1,22 @@
 import { useCallback, useRef, useState } from "react";
-import { BackHandler, ScrollView, View } from "react-native";
+import { BackHandler, Pressable, ScrollView, View } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 import { useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { toast } from "sonner-native";
 import { Text } from "./ui/Typography";
 import { Button } from "./ui/Button";
+import { Check } from "./AppIcons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
-import { useTheme } from "../lib/theme";
+import { useTheme, useThemeColors } from "../lib/theme";
 import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 import { ReminderSetup } from "./tasks/ReminderSetup";
 
 export default function SettingsScreen(_props: { activeAppId?: string }) {
   const { theme, setTheme } = useTheme();
+  const colors = useThemeColors();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [safety, setSafety] = useState(false);
@@ -59,20 +62,31 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
         <View className="mb-1"><Text className="mb-1 text-xs text-muted-foreground">SETTINGS</Text><Text accessibilityRole="header" className="text-[28px] font-semibold tracking-[-0.8px] text-foreground">Make it yours.</Text></View>
         <ReminderSetup />
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text className="text-base font-semibold text-foreground">Appearance</Text>
-          <View className="flex-row flex-wrap gap-2">{(["light", "dark"] as const).map(value => <Button key={value} label={value === "light" ? "Light" : "Dark"} variant={theme === value ? "primary" : "secondary"} disabled={busy} onPress={() => setTheme(value)} />)}</View>
-        </View>
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text className="text-base font-semibold text-foreground">Move from Personal Hub</Text>
-          <Text className="text-sm text-muted-foreground">Keep Personal Hub installed. In Hub, export a full JSON backup using Save to folder. Import that same file here. Only {identity.title} data will be copied. Check your records, then save a new backup before uninstalling Hub. Transfers are snapshots; the apps do not sync afterward.</Text>
-          <Button label="Import Hub or app backup" disabled={busy} onPress={() => void pick()} />
-          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}. Export a backup below to keep a separate copy.</Text>}
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row gap-1 rounded-[18px] bg-secondary p-1">
+            {(["light", "dark"] as const).map(value => {
+              const selected = theme === value;
+              const color = selected ? colors.primaryForeground : colors.mutedForeground;
+              return <Pressable key={value} disabled={busy} onPress={() => setTheme(value)}
+                accessibilityRole="radio" accessibilityLabel={value === "light" ? "Light" : "Dark"}
+                accessibilityState={{ checked: selected, disabled: busy }}
+                className={`min-h-[52px] min-w-0 flex-1 flex-row items-center justify-center gap-2 rounded-[14px] px-3 py-3 active:opacity-70 ${selected ? "bg-primary" : ""} ${busy ? "opacity-60" : ""}`}>
+                <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" accessible={false}>
+                  {value === "light" ? <><Circle cx={12} cy={12} r={4} /><Path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></> : <Path d="M20.8 13a9 9 0 0 1-9.8-9.8A9 9 0 1 0 20.8 13Z" />}
+                </Svg>
+                <Text className={`shrink text-center text-sm font-semibold ${selected ? "text-primary-foreground" : "text-muted-foreground"}`}>{value === "light" ? "Light" : "Dark"}</Text>
+                <View className="w-3">{selected && <Check size={12} color={color} />}</View>
+              </Pressable>;
+            })}
+          </View>
         </View>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
-          <Text className="text-sm text-muted-foreground">Exports contain only this app’s records. Import replaces this app’s current records after saving a recovery copy. Save a backup before importing if you have already added new data here.</Text>
+          <Text className="text-sm text-muted-foreground">Import replaces current tasks and saves a recovery copy.</Text>
           <Button label="Save to folder" disabled={busy} onPress={() => void run(exportBackupToDirectory, "Backup saved to the selected folder.")} />
           <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => void run(exportBackup, "Backup ready to share.")} />
+          <Button label="Import backup" variant="secondary" disabled={busy} onPress={() => void pick()} />
+          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}. Export a backup above to keep a separate copy.</Text>}
           {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => setRecover(true)} />}
         </View>
         <UpdateCard />

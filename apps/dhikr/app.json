@@ -2,9 +2,9 @@
   "expo": {
     "name": "Dhikr",
     "slug": "dhikr",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "dhikercounter",
     "ios": {
@@ -14,11 +14,12 @@
     "android": {
       "allowBackup": true,
       "package": "com.dhiker.counter",
-      "versionCode": 4,
+      "versionCode": 5,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#F2F7FC",
-        "foregroundImage": "./assets/adaptive-icon.png"
+        "backgroundColor": "#1b6a50",
+        "foregroundImage": "./assets/branding/adaptive-foreground.png",
+        "monochromeImage": "./assets/branding/monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -92,12 +93,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/icon.png",
-          "imageWidth": 160,
-          "backgroundColor": "#FFFFFF",
+          "image": "./assets/branding/splash-light.png",
+          "imageWidth": 180,
+          "backgroundColor": "#f5f9f7",
           "dark": {
-            "image": "./assets/icon.png",
-            "backgroundColor": "#080F2E"
+            "image": "./assets/branding/splash-dark.png",
+            "backgroundColor": "#101916"
           }
         }
       ],

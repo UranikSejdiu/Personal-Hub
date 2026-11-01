@@ -374,11 +374,11 @@ export default function BudgetScreen() {
     }
   }, [addExpense, loading, loadError, router]));
 
-  const activePayments = useMemo(() => repayments.filter(plan => repaymentForMonth(plan, month) > 0)
-    .sort((a, b) => Number(paidRepayments.has(a.id)) - Number(paidRepayments.has(b.id))), [repayments, month, paidRepayments]);
+  // Keep checkboxes in place while marking several payments. Sorting by paid
+  // state moves a different record into the position the user just tapped.
+  const activePayments = useMemo(() => repayments.filter(plan => repaymentForMonth(plan, month) > 0), [repayments, month]);
   const editExpense = useCallback((expense: Expense) => setExpenseEditor({ expense }), []);
-  const visibleExpenses = useMemo(() => expenses.filter(expense => expenseFilter === "all" || expense.paid === (expenseFilter === "paid"))
-    .sort((a, b) => Number(a.paid) - Number(b.paid) || a.id - b.id), [expenses, expenseFilter]);
+  const visibleExpenses = useMemo(() => expenses.filter(expense => expenseFilter === "all" || expense.paid === (expenseFilter === "paid")), [expenses, expenseFilter]);
   const paymentCount = expenses.length + activePayments.length;
   const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(plan => paidRepayments.has(plan.id)).length;
 

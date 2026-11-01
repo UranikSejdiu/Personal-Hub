@@ -23,9 +23,9 @@ function withNotificationLogo(config) {
     const projectRoot = cfg.modRequest.projectRoot;
     const directory = path.join(cfg.modRequest.platformProjectRoot, "app", "src", "main", "res", "drawable-nodpi");
     const { source } = await generateImageAsync(
-      { projectRoot, cacheType: "personal-hub-notification-logo" },
+      { projectRoot, cacheType: "tasks-notification-logo" },
       {
-        src: path.join(projectRoot, "assets", "icon-personal-hub.png"),
+        src: path.join(projectRoot, "assets", "branding", "icon.png"),
         width: 256,
         height: 256,
         resizeMode: "contain",

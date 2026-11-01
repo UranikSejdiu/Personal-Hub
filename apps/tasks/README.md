@@ -13,14 +13,22 @@ npm run bundle:check
 npm start
 ```
 
+## Icon assets
+
+The purple checklist icon is defined by editable SVG artwork in
+`assets/branding/`. Run `npm run branding:export` to regenerate the launcher,
+adaptive, themed, notification, splash, and store PNGs. The adaptive foreground
+uses a transparent background and keeps the mark inside Android's safe area.
+
 ## Task screens
 
-Today shows overdue and due tasks, summary filters, list chips, and search.
-Calendar offers month/week selection and the selected day's agenda. Lists
-supports creating, renaming, and deleting lists; deleting a list moves its
-tasks to Inbox, keeping their reminders. The center add button uses the
+Today shows overdue and due tasks, summary filters, and task search.
+Calendar offers month/week selection and the selected day's agenda. Tasks
+appear together without lists or priority. Older list/priority metadata stays
+in backups for compatibility. The plus button inside the task heading uses the
 selected calendar date or today. Completing a task offers Undo, with safe
 handling for recurring occurrences that have already been edited.
+The bottom bar contains Today, Calendar, and Settings.
 
 Task rows are virtualized and loaded in pages. Calendar dots and overview
 counts use SQLite aggregates instead of loading the full task history.
@@ -31,7 +39,7 @@ scheduler; switching screens does not change stored task data.
 ## Transfer existing records
 
 Keep Personal Hub installed. Save its JSON backup to a folder. In this app,
-choose Settings → Import Hub or app backup, select that file, review counts,
+choose Settings → Backup & restore → Import backup, select that file, review counts,
 and confirm. The same Hub file can be used for all three standalone apps.
 Only this app's tables are copied, preserving IDs, timestamps, ordering, and
 relationships. Import replaces current records after saving a recovery copy;

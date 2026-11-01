@@ -22,6 +22,16 @@ module.exports = function verifyStandaloneReleases(root) {
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run validate'));
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run bundle:check'));
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run build:apk'));
+  const emulatorQa = build.jobs.build.steps.find(step => step.uses === 'reactivecircus/android-emulator-runner@v2');
+  assert.ok(emulatorQa, 'Every selected app must pass native emulator QA before publishing');
+  assert.equal(emulatorQa.if, undefined, 'Emulator QA cannot be optional');
+  assert.notEqual(emulatorQa['continue-on-error'], true, 'Emulator failures must block releases');
+  assert.equal(emulatorQa.with['api-level'], 36);
+  assert.equal(emulatorQa.with.arch, 'x86_64');
+  assert.ok(emulatorQa.with.script.includes('node scripts/emulator-preview.cjs ${{ matrix.id }}'));
+  assert.ok(emulatorQa.with.script.includes('node scripts/emulator-qa.cjs ${{ matrix.id }}'));
+  assert.ok(build.jobs.build.steps.indexOf(emulatorQa) < build.jobs.build.steps.findIndex(step => step.run === 'npm run build:apk'), 'Smoke checks run before the signed release build');
+  assert.ok(build.jobs.build.steps.some(step => step.name === 'Upload emulator QA evidence' && step.if === 'always()'), 'Preserve QA evidence on failures');
   const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
   assert.equal(publisher.with.make_latest, 'false');
   assert.equal(publisher.with.overwrite_files, false);

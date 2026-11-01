@@ -10,8 +10,8 @@ import { localTaskDate } from "../../lib/taskCalendar";
 import { useTaskDesign } from "./design";
 import type { Task } from "../../types/tasks";
 
-export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, onEdit, onDelete, expanded = false, agenda = false, listName = "Inbox" }: {
-  task: Task; today: string; busy: boolean; expanded?: boolean; agenda?: boolean; listName?: string;
+export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, onEdit, onDelete, expanded = false, agenda = false }: {
+  task: Task; today: string; busy: boolean; expanded?: boolean; agenda?: boolean;
   onToggle: (task: Task) => void; onEdit: (task: Task) => void; onDelete: (task: Task) => void;
 }) {
   const { t } = useI18n();
@@ -25,17 +25,15 @@ export const TaskCard = memo(function TaskCard({ task, today, busy, onToggle, on
       <Checkbox checked={completed} disabled={busy} onPress={() => onToggle(task)} accessibilityLabel={t(completed ? "tasksReopenNamed" : "tasksCompleteNamed", { name: task.title })} />
       <Pressable onPress={() => { if (!completed) onEdit(task); else setMenu(true); }} onLongPress={() => setMenu(true)} disabled={busy}
         accessibilityRole="button" accessibilityLabel={completed ? `${task.title}, completed, task options` : t("tasksEditNamed", { name: task.title })} className="min-h-[52px] min-w-0 flex-1 justify-center py-1 active:opacity-70">
-        {agenda && <Text className="mb-1 text-[11px] text-muted-foreground">{listName}{task.priority === 2 ? " · High priority" : ""}</Text>}
         <Text className={`text-sm font-semibold leading-5 ${completed ? "text-muted-foreground line-through" : "text-foreground"}`}>{task.title}</Text>
         {expanded && task.notes ? <Text className="mt-1 text-xs leading-[18px] text-muted-foreground">{task.notes}</Text> : null}
         <View className="mt-1.5 flex-row flex-wrap items-center gap-x-1.5 gap-y-1">
           {task.reminder_time ? <Bell size={11} color={overdue ? colors.destructive : colors.mutedForeground} /> : <CalendarDays size={11} color={overdue ? colors.destructive : colors.mutedForeground} />}
           <Text className={`text-[11px] ${overdue ? "text-destructive" : "text-muted-foreground"}`}>{overdue ? "Overdue · " : ""}{!agenda || !task.reminder_time ? date : ""}{task.reminder_time ? `${!agenda ? " · " : ""}${task.reminder_time}` : ""}</Text>
-          {!agenda && <Text className="text-[11px] text-muted-foreground">· {listName}</Text>}
           {task.repeat !== "none" && <><Repeat size={11} color={colors.mutedForeground} /><Text className="text-[11px] capitalize text-muted-foreground">{task.repeat}</Text></>}
         </View>
       </Pressable>
-      <View className="items-center">{!agenda && task.priority === 2 && <View accessibilityLabel="High priority" className="h-1 w-1 rounded-full bg-destructive" />}<IconButton icon={completed ? MoreHorizontal : ChevronRight} disabled={busy} onPress={() => setMenu(true)} accessibilityLabel={t("tasksActionsNamed", { name: task.title })} /></View>
+      <IconButton icon={completed ? MoreHorizontal : ChevronRight} disabled={busy} onPress={() => setMenu(true)} accessibilityLabel={t("tasksActionsNamed", { name: task.title })} />
     </View>
     <ActionDialog visible={menu} title={task.title} onClose={() => setMenu(false)} actions={[
       ...(!completed ? [{ key: "edit", label: t("tasksEdit"), primary: true, onPress: () => onEdit(task) }] : []),

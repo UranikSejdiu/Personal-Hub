@@ -70,6 +70,32 @@ installs each app's dependencies; `npm run validate` checks release configuratio
 and all four apps. Use `npm run budget`, `npm run notes`, `npm run tasks`, or
 `npm run dhikr` to start an app.
 
+## QA before updates
+
+With a booted x86_64 Android emulator, run `npm run qa:emulator` before preparing
+an update. This validates all four apps, builds and installs current offline
+debug previews, then checks cold starts, main screens, settings, navigation,
+runtime errors, and relaunches. Existing emulator data is retained. The command
+rejects physical-device serials and never uninstalls an app or clears its data.
+
+To repeat one stage, use `npm run qa:emulator:build -- budget,notes` or
+`npm run qa:emulator:smoke -- all emulator-5554`. Finish builds before running
+smoke checks. Use English in the emulator for the accessibility-label checks.
+Screenshots, UI trees, runtime-error logs, and results are saved under `work/qa/`.
+Smoke checks require installed versions to match the source configuration.
+
+MoneyPlan's regression suite checks that expense and loan/card payment rows
+keep their positions when marked paid or unpaid, update only the selected ID,
+and retain the correct order under explicit paid/unpaid filters. These checks
+run in `npm run validate` and the existing Android release workflow.
+Each selected app must also pass the emulator smoke checks in that workflow
+before its signed APK is built. QA evidence is uploaded even when a check fails;
+publication still waits for every selected app to pass.
+
+Before publishing, also complete the device checks in
+[the release guide](.github/RELEASING.md#qa-before-publishing). Automated checks
+and one emulator do not cover every device, permission provider, or user flow.
+
 The new apps target Android 17 (API 37), with Android 7.0 (API 24) as the minimum.
 Native compilation and mocked tests do not certify every Android phone. Tasks
 provides notification, exact-alarm, and manufacturer battery setup guidance.

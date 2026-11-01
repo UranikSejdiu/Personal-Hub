@@ -54,6 +54,39 @@ release lint, app validation, and production bundles remain required.
    publish job creates that app's matching version tag and attaches its signed
    APK to a separate GitHub Release. Existing release files are not overwritten.
 
+## QA before publishing
+
+Run `npm run qa:emulator` from the repository root with a booted x86_64 Android
+emulator. It builds offline previews for all four apps, retaining existing data,
+then saves screenshots, UI trees, runtime-error logs, and smoke-check results in
+`work/qa/`. The existing release workflow also requires each selected app's
+validation suite, dependency audit, production bundles, Android API 36 emulator
+smoke checks, and native release lint. Each selected app gets its own emulator
+job within the build matrix; screenshots and logs are uploaded as
+`<App>-emulator-QA` artifacts even if a check fails. A failed check blocks the
+signed build and publication of all selected updates. The workflow uses
+[Android Emulator Runner](https://github.com/ReactiveCircus/android-emulator-runner)
+with the same build and smoke scripts used locally.
+
+Use disposable records for these additional checks on the release candidate:
+
+- MoneyPlan: mark several expenses and loan/card payments paid and unpaid.
+  Rows must stay in place in All; only the selected record may change. Check
+  paid/unpaid filters, totals, month switching, and force-stop/relaunch.
+- My Notes: create and reopen text and checklist notes; edit, search, pin,
+  archive/unarchive, reorder checklist items, and verify attachments survive.
+- Tasks: create and edit tasks, test completion/undo and repeats,
+  switch calendar dates, and verify reminder delivery with the phone locked.
+- Dhikr: select two different counters, tap rapidly, switch between them, and
+  verify counts, daily limits, reset isolation, and restart persistence.
+- Each app: export and restore a disposable backup, cancel file pickers,
+  switch light/dark appearance, and install the signed candidate over the
+  previous signed version without uninstalling. Verify data and settings.
+
+Treat failures as release blockers. Record the tested APK/version and device;
+emulator smoke checks do not certify notification delivery, external file
+providers, or a production signing-key upgrade on a physical phone.
+
 ## Prepare release versions
 
 ```sh

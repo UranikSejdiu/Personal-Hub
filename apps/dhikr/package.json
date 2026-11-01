@@ -1,6 +1,6 @@
 {
   "name": "dhikr",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -17,7 +17,8 @@
     "build:apk": "node scripts/build-apk.cjs",
     "signing:create": "node scripts/create-signing-key.cjs",
     "prebuild": "expo prebuild --no-clean --platform android --no-install",
-    "postinstall": "patch-package --error-on-fail"
+    "postinstall": "patch-package --error-on-fail",
+    "branding:export": "node scripts/export-branding.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -59,8 +60,9 @@
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
     "expo-build-properties": "~58.0.12",
-    "typescript": "~6.0.3",
-    "patch-package": "^8.0.1"
+    "patch-package": "^8.0.1",
+    "sharp": "^0.35.5",
+    "typescript": "~6.0.3"
   },
   "overrides": {
     "glob": "14.0.3",

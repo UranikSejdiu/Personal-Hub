@@ -11,13 +11,13 @@ import Animated, {
 } from "react-native-reanimated";
 
 const PALETTE = [
-  "#f59e0b",
-  "#22d3ee",
-  "#a78bfa",
-  "#34d399",
-  "#f472b6",
-  "#fbbf24",
-  "#60a5fa",
+  "#e4c477",
+  "#81dab8",
+  "#bfe6d1",
+  "#4ba581",
+  "#f7faf5",
+  "#f2db9e",
+  "#65b697",
 ];
 
 interface Particle {

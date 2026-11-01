@@ -1,9 +1,9 @@
 import { memo } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "../ui/Typography";
-import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, List, MoreHorizontal, Plus, Search, RotateCcw } from "../AppIcons";
+import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Search, RotateCcw } from "../AppIcons";
 import { IconButton } from "../ui/Button";
-import type { TaskFilter, TaskListSummary, TaskOverview } from "../../lib/tasks";
+import type { TaskFilter, TaskOverview } from "../../lib/tasks";
 import { localTaskDate } from "../../lib/taskCalendar";
 import { isTaskDate } from "../../lib/taskDates";
 import { useTaskDesign } from "./design";
@@ -28,18 +28,6 @@ export const TaskSummaryTiles = memo(function TaskSummaryTiles({ counts, filter,
   </View>;
 });
 
-export function TaskListChips({ lists, selected, onSelect }: { lists: TaskListSummary[]; selected: number | null | undefined; onSelect: (id: number | null | undefined) => void }) {
-  const colors = useTaskDesign();
-  const options = [{ id: undefined, name: "All lists" }, ...lists];
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerClassName="gap-1.5 py-1">
-    {options.map(list => <Pressable key={String(list.id)} accessibilityRole="button" accessibilityState={{ selected: list.id === selected }} onPress={() => onSelect(list.id)}
-      className="min-h-[40px] flex-row items-center gap-1.5 rounded-xl border px-3 py-2 active:opacity-70" style={{ backgroundColor: selected === list.id ? colors.foreground : colors.card, borderColor: selected === list.id ? colors.foreground : colors.border }}>
-      {list.id !== undefined && <View className="h-1 w-1 rounded-full" style={{ backgroundColor: selected === list.id ? colors.card : colors.primary }} />}
-      <Text className="text-xs font-medium" style={{ color: selected === list.id ? colors.card : colors.foreground }}>{list.name}</Text>
-    </Pressable>)}
-  </ScrollView>;
-}
-
 export const TaskCalendar = memo(function TaskCalendar({ days, month, selected, today, counts, week, onSelect, onMove, onWeek, onToday }: {
   days: string[]; month: string; selected: string; today: string; counts: Record<string, number>; week: boolean;
   onSelect: (date: string) => void; onMove: (direction: number) => void; onWeek: (week: boolean) => void; onToday: () => void;
@@ -58,18 +46,12 @@ export const TaskCalendar = memo(function TaskCalendar({ days, month, selected, 
   </View>;
 });
 
-export function TaskListTile({ list, onPress, onMenu }: { list: TaskListSummary; onPress: () => void; onMenu: () => void }) {
+export function TaskAddButton({ onPress, accessibilityLabel = "Add a task", disabled = false }: { onPress: () => void; accessibilityLabel?: string; disabled?: boolean }) {
   const colors = useTaskDesign();
-  return <View className="mb-2 flex-row items-center gap-3 rounded-[18px] bg-card px-4 py-2">
-    <Pressable accessibilityRole="button" accessibilityLabel={`${list.name}, ${list.open} open tasks`} onPress={onPress} className="min-h-[70px] min-w-0 flex-1 flex-row items-center gap-3">
-      <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: colors.tiles[list.id === null ? 0 : list.id % 4] }}><List size={18} color={colors.primary} /></View>
-      <View className="min-w-0 flex-1"><Text className="text-base font-semibold text-foreground">{list.name}</Text><Text className="mt-1 text-xs text-muted-foreground">{list.open} open · {list.completed} completed</Text></View>
-    </Pressable>
-    {list.id !== null ? <IconButton icon={MoreHorizontal} accessibilityLabel={`Manage ${list.name}`} onPress={onMenu} /> : null}
-  </View>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    className="h-[44px] w-[44px] items-center justify-center rounded-[14px] bg-primary active:opacity-70 disabled:opacity-50"><Plus size={20} color={colors.primaryForeground} /></Pressable>;
 }
 
-export function AgendaHeading({ title, count, onAdd }: { title: string; count: number; onAdd: () => void }) {
-  const colors = useTaskDesign();
-  return <View className="mb-3 flex-row items-center justify-between gap-2"><View className="min-w-0 flex-1"><Text className="text-xl font-semibold tracking-[-0.4px] text-foreground">{title}</Text><Text className="mt-1 text-xs text-muted-foreground">{count} on your plan</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Add task for selected day" onPress={onAdd} className="h-10 w-10 items-center justify-center rounded-xl bg-primary"><Plus size={18} color={colors.primaryForeground} /></Pressable></View>;
+export function AgendaHeading({ title, count, onAdd, disabled = false }: { title: string; count: number; onAdd: () => void; disabled?: boolean }) {
+  return <View className="mb-3 flex-row items-center justify-between gap-2"><View className="min-w-0 flex-1"><Text className="text-xl font-semibold tracking-[-0.4px] text-foreground">{title}</Text><Text className="mt-1 text-xs text-muted-foreground">{count} on your plan</Text></View><TaskAddButton accessibilityLabel="Add task for selected day" onPress={onAdd} disabled={disabled} /></View>;
 }

@@ -24,7 +24,8 @@ function harness(file, overrides = {}, modules = {}) {
   const toast = Object.assign(emit('info'), Object.fromEntries(['success','error','warning','info'].map(kind => [kind, emit(kind)])));
   const react = {
     useState(initial) { const name = stateNames[cursor++]; const value = Object.hasOwn(overrides, name) ? overrides[name] : typeof initial === 'function' ? initial() : initial;
-      state[name] = value; return [value, next => { state[name] = typeof next === 'function' ? next(state[name]) : next; }]; },
+      if (!Object.hasOwn(state, name)) state[name] = value;
+      return [state[name], next => { state[name] = typeof next === 'function' ? next(state[name]) : next; }]; },
     useRef: value => {const name=refNames[refCursor++];return {current:Object.hasOwn(overrides,name)?overrides[name]:value};}, useEffect: effect => { effect(); }, useCallback: fn => fn, useMemo: fn => fn(), memo: fn => fn,
   };
   const chain = { duration() { return this; }, reduceMotion() { return this; } };
@@ -196,6 +197,43 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   // Expense paid/recurring toggles and month edits use actual persisted outcomes.
   const sample={id:1,budget_id:1,category:'Groceries',amount:25,paid:false,is_recurring:false};
+  // Completing a row must never move another checkbox under the user's finger.
+  // Exercise the actual screen and rerender after each persisted toggle.
+  {
+    const bills = [sample, {...sample,id:2,category:'Rent'}, {...sample,id:3,category:'Electricity'}];
+    const plans = [{id:9,name:'Card',kind:'card',payment:25}, {id:7,name:'Loan',kind:'loan',payment:50}];
+    const writes = [], paymentWrites = [];
+    const h = harness('app/(budget)/budget.tsx', {budget:{id:1,month:'2026-11'},loans:{},loading:false,expenses:bills,repayments:plans}, {
+      budget:{updateExpense:async(id,fields)=>writes.push({id,...fields})},
+      repayments:{repaymentForMonth:()=>25,setRepaymentPaid:async(id,month,paid)=>{paymentWrites.push({id,month,paid});return plans.find(plan=>plan.id===id);}},
+    });
+    const list = () => find(h.render('default'),n=>n.type==='FlatList');
+    const rows = () => nodes(h.render('default')).filter(n=>n.type==='RepaymentPaymentSection');
+    const expectedPaid = new Map(bills.map(expense=>[expense.id,false]));
+    const expectedPlans = new Set();
+    for (const id of [1,2,1,3,2]) {
+      const before = list();
+      const item = before.props.data.find(expense=>expense.id===id);
+      const row = find(before.props.renderItem({item,index:before.props.data.indexOf(item)}),n=>n.type==='CustomExpenseRow');
+      await row.props.onUpdate(id,{paid:!item.paid});
+      expectedPaid.set(id,!item.paid);
+      assert.deepEqual(list().props.data.map(expense=>expense.id),[1,2,3],'Expense positions stay fixed after paid/unpaid toggles');
+      assert.equal(writes.at(-1).id,id,'Only the tapped expense is persisted');
+      assert.deepEqual(h.state.expenses.map(expense=>[expense.id,expense.paid]),[...expectedPaid],'Other expense paid flags remain unchanged');
+    }
+    for (const id of [9,7,9]) {
+      rows().find(row=>row.props.plan.id===id).props.onToggle(); await settle();
+      if(expectedPlans.has(id)) expectedPlans.delete(id); else expectedPlans.add(id);
+      assert.deepEqual(rows().map(row=>row.props.plan.id),[9,7],'Loan/card positions stay fixed after paid/unpaid toggles');
+      assert.deepEqual(paymentWrites.at(-1),{id,month:'2026-11',paid:expectedPlans.has(id)});
+      assert.deepEqual([...h.state.paidRepayments],[...expectedPlans],'Other loan/card paid flags remain unchanged');
+    }
+    for (const filter of ['paid','unpaid']) {
+      find(h.render('default'),n=>n.type==='Pressable'&&n.props.children?.props?.children===filter).props.onPress();
+      const expected = h.state.expenses.filter(expense=>expense.paid===(filter==='paid')).map(expense=>expense.id);
+      assert.deepEqual(list().props.data.map(expense=>expense.id),expected,'Explicit payment filters preserve record order');
+    }
+  }
   {
     const seeded={...sample,id:9,is_recurring:true};
     const h=harness('app/(budget)/budget.tsx',{budget:{id:0,month:'2026-11'},loans:{},loading:false,expenseEditor:{}},{budget:{createBudgetMonth:async()=>({budget:{id:1,month:'2026-11',savings_goal:0}}),listExpenses:async()=>[seeded],saveExpenseDraft:async(_id,fields)=>({...fields,id:10,budget_id:1})}});
@@ -279,5 +317,5 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const [kind,message]={ 'up-to-date':['success','updateUpToDate'],'no-releases':['info','updateNoReleases'],error:['error','updateCheckFailed'],update:['success','updateAvailableToast']}[status];
     assert.ok(hasAlert(h,kind,message));
   }
-  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 2-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
+  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 2-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across toggles and filters, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

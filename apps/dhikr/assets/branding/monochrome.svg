@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><path d="M377.65 582.35A190 190 0 1 1 646.35 582.35L512 662Z" fill="none" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>
+    <circle cx="377.65" cy="582.35" r="29" fill="#ffffff"/><circle cx="331.30" cy="506.71" r="29" fill="#ffffff"/><circle cx="324.34" cy="418.28" r="29" fill="#ffffff"/><circle cx="358.29" cy="336.32" r="29" fill="#ffffff"/><circle cx="425.74" cy="278.71" r="29" fill="#ffffff"/><circle cx="512.00" cy="258.00" r="29" fill="#ffffff"/><circle cx="598.26" cy="278.71" r="29" fill="#ffffff"/><circle cx="665.71" cy="336.32" r="29" fill="#ffffff"/><circle cx="699.66" cy="418.28" r="29" fill="#ffffff"/><circle cx="692.70" cy="506.71" r="29" fill="#ffffff"/><circle cx="646.35" cy="582.35" r="29" fill="#ffffff"/>
+    <rect x="491" y="636" width="42" height="61" rx="21" fill="#ffffff"/>
+    <g fill="none" stroke="#ffffff" stroke-width="15" stroke-linecap="round">
+      <path d="M512 710C512 742 478 751 480 784M512 710V792M512 710C512 742 546 751 544 784"/>
+    </g><rect x="481" y="696" width="62" height="18" rx="9" fill="#ffffff"/></svg>
