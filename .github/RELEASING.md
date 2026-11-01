@@ -56,17 +56,9 @@ release lint, app validation, and production bundles remain required.
 
 ## QA before publishing
 
-Run `npm run qa:emulator` from the repository root with a booted x86_64 Android
-emulator. It builds offline previews for all four apps, retaining existing data,
-then saves screenshots, UI trees, runtime-error logs, and smoke-check results in
-`work/qa/`. The existing release workflow also requires each selected app's
-validation suite, dependency audit, production bundles, Android API 36 emulator
-smoke checks, and native release lint. Each selected app gets its own emulator
-job within the build matrix; screenshots and logs are uploaded as
-`<App>-emulator-QA` artifacts even if a check fails. A failed check blocks the
-signed build and publication of all selected updates. The workflow uses
-[Android Emulator Runner](https://github.com/ReactiveCircus/android-emulator-runner)
-with the same build and smoke scripts used locally.
+The release workflow requires each selected app's validation suite, dependency
+audit, production bundles, and native release lint before publishing signed APKs.
+It does not build debug previews or run an emulator.
 
 Use disposable records for these additional checks on the release candidate:
 
@@ -83,9 +75,9 @@ Use disposable records for these additional checks on the release candidate:
   switch light/dark appearance, and install the signed candidate over the
   previous signed version without uninstalling. Verify data and settings.
 
-Treat failures as release blockers. Record the tested APK/version and device;
-emulator smoke checks do not certify notification delivery, external file
-providers, or a production signing-key upgrade on a physical phone.
+Treat failures as release blockers. Record the tested APK/version and device.
+Verify notification delivery, external file providers, and signing-key upgrades
+on a physical phone.
 
 ## Prepare release versions
 

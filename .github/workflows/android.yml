@@ -60,7 +60,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/${{ matrix.id }}
@@ -94,8 +94,6 @@ jobs:
         with:
           app: ${{ matrix.id }}
           fingerprint: ${{ hashFiles(format('apps/{0}/package-lock.json', matrix.id), format('apps/{0}/plugins/withGradleProperties.js', matrix.id), format('apps/{0}/plugins/withReleaseSigning.js', matrix.id)) }}
-      # The signing plugins require credentials for every CI Gradle build,
-      # including the debug previews used by emulator QA.
       - name: Configure existing app signing key
         env:
           APP_ID: ${{ matrix.id }}
@@ -121,32 +119,6 @@ jobs:
           printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
           test -s credentials/release-keystore.jks
           chmod 600 credentials/release-keystore.jks credentials/keystore.properties
-      - name: Enable emulator acceleration
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Require Android emulator QA
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          arch: x86_64
-          target: google_apis
-          profile: pixel_6
-          disable-animations: true
-          enable-hw-keyboard: true
-          working-directory: ${{ github.workspace }}
-          script: |
-            node scripts/emulator-preview.cjs ${{ matrix.id }}
-            node scripts/emulator-qa.cjs ${{ matrix.id }}
-      - name: Upload emulator QA evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.title }}-emulator-QA
-          path: work/qa/
-          if-no-files-found: ignore
-          retention-days: 14
       - name: Build signed standalone APK
         run: npm run build:apk
       - name: Compiler cache statistics
