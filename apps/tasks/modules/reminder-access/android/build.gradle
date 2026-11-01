@@ -20,6 +20,10 @@ dependencies {
   } else {
     def configFile = file('../../../node_modules/expo-notifications/expo-module.config.json')
     def publication = new groovy.json.JsonSlurper().parse(configFile).android.publication
-    implementation "${publication.groupId}:${publication.artifactId}:${publication.version}"
+    // SDK 58 defaults the publication version to the npm package version.
+    def packageFile = file('../../../node_modules/expo-notifications/package.json')
+    def notificationsVersion = publication.version ?: new groovy.json.JsonSlurper().parse(packageFile).version
+    if (!notificationsVersion) throw new GradleException('Cannot resolve expo-notifications publication version')
+    implementation "${publication.groupId}:${publication.artifactId}:${notificationsVersion}"
   }
 }
