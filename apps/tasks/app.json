@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tasks",
     "slug": "tasks",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon-personal-hub.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.uranik.tasks",
-      "versionCode": 1,
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F2F7FC",
@@ -90,7 +90,6 @@
               "armeabi-v7a",
               "arm64-v8a"
             ],
-            "kotlinVersion": "2.1.20",
             "useLegacyPackaging": false,
             "extraProguardRules": "-keep class com.uranik.tasks.** { *; }"
           }
@@ -102,7 +101,8 @@
       "./plugins/withDarkSplash",
       "./plugins/withGradleProperties",
       "./plugins/withReleaseSigning",
-      "./plugins/withNotificationLogo"
+      "./plugins/withNotificationLogo",
+      "./plugins/withWindowsCMakePaths"
     ]
   }
 }

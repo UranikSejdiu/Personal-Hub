@@ -9,9 +9,20 @@ module.exports = async function verifyBuilds(root) {
   const plan = createPlan(root);
   assert.equal(plan.include.length, 4);
   assert.deepEqual(plan.include.map(app => app.id), ['budget', 'notes', 'tasks', 'dhikr']);
+  for (const [id, title, artifact, apkPrefix] of [
+    ['budget', 'MoneyPlan', 'MoneyPlan-APK', 'Budget'],
+    ['notes', 'My Notes', 'My-Notes-APK', 'Notes'],
+  ]) {
+    const app = plan.include.find(app => app.id === id);
+    assert.equal(app.title, title);
+    assert.equal(app.artifact, artifact);
+    assert.equal(app.apk, `${apkPrefix}-${app.version}.apk`);
+    assert.equal(createPlan(root, id, 'arm64-test').include[0].artifact, `${artifact}-arm64-test`);
+  }
   for (const app of plan.include) {
     const only = createPlan(root, app.id, 'arm64-test');
-    assert.equal(only.include[0].apk, `${app.title}-${app.version}-arm64-test.apk`);
+    const apkPrefix = app.id[0].toUpperCase() + app.id.slice(1);
+    assert.equal(only.include[0].apk, `${apkPrefix}-${app.version}-arm64-test.apk`);
     for (const platform of ['linux', 'win32']) for (const profile of ['universal', 'arm64-test']) {
       const commands = [], copied = [];
       const mocks = {

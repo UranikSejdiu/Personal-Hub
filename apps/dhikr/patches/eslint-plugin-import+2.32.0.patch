@@ -1,0 +1,18 @@
+diff --git a/node_modules/eslint-plugin-import/lib/rules/no-internal-modules.js b/node_modules/eslint-plugin-import/lib/rules/no-internal-modules.js
+index 3b20616..9432eab 100644
+--- a/node_modules/eslint-plugin-import/lib/rules/no-internal-modules.js
++++ b/node_modules/eslint-plugin-import/lib/rules/no-internal-modules.js
+@@ -1 +1 @@
+-'use strict';var _minimatch = require('minimatch');var _minimatch2 = _interopRequireDefault(_minimatch);
++'use strict';var _minimatch = require('minimatch');
+@@ -51,2 +51,2 @@ module.exports = {
+-      var allowRegexps = (options.allow || []).map(function (p) {return _minimatch2['default'].makeRe(p);});
+-      var forbidRegexps = (options.forbid || []).map(function (p) {return _minimatch2['default'].makeRe(p);});
++      var allowMatchers = (options.allow || []).map(function (p) {return new _minimatch.Minimatch(p);});
++      var forbidMatchers = (options.forbid || []).map(function (p) {return new _minimatch.Minimatch(p);});
+@@ -74 +74 @@ module.exports = {
+-        return allowRegexps.some(function (re) {return re.test(importPath);});
++        return allowMatchers.some(function (matcher) {return matcher.match(importPath);});
+@@ -79 +79 @@ module.exports = {
+-        return forbidRegexps.some(function (re) {return re.test(importPath);});
++        return forbidMatchers.some(function (matcher) {return matcher.match(importPath);});

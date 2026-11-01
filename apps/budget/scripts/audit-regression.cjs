@@ -82,6 +82,7 @@ function load(file) {
 }
 const plain = value => JSON.parse(JSON.stringify(value));
 (async () => {
+  await require('./dependency-regression.cjs')(root);
   const db = load(path.join(root, 'src/lib/db.ts'));
   const backup = load(path.join(root, 'src/lib/backup.ts'));
   await db.initDatabase();

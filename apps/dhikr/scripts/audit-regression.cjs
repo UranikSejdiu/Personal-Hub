@@ -104,6 +104,7 @@ function load(file) {
 }
 
 async function main() {
+  await require('./dependency-regression.cjs')(root);
   const db = load('src/lib/db.ts');
   const dhikr = load('src/lib/dhikr.ts');
   const backup = load('src/lib/backup.ts');

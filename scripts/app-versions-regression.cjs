@@ -20,7 +20,7 @@ module.exports = function verifyVersions() {
       const version = id === 'dhikr' ? '1.0.2' : '1.0.0';
       write(id, 'package.json', { name: id, version, dependencies: {} });
       write(id, 'package-lock.json', { version, packages: { '': { version, dependencies: {} } } });
-      write(id, 'app.json', { expo: { version, android: { package: `com.test.${id}`, versionCode: id === 'dhikr' ? 3 : 1 } } });
+      write(id, 'app.json', { expo: { name: id === 'budget' ? 'MoneyPlan' : id === 'notes' ? 'My Notes' : id[0].toUpperCase() + id.slice(1), version, android: { package: `com.test.${id}`, versionCode: id === 'dhikr' ? 3 : 1 } } });
       write(id, 'src/main.ts', 'export const value = 1;\n');
       write(id, 'README.md', 'Documentation\n');
       write(id, 'scripts/test.cjs', '// tests\n');

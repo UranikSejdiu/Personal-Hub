@@ -1,16 +1,29 @@
 # Android builds and updates
 
-Hub is retired. Only Budget, Notes, Tasks, and Dhikr are maintained. Existing
+Hub is retired. Only MoneyPlan, My Notes, Tasks, and Dhikr are maintained. Existing
 Hub JSON backups remain supported. Old source and release tags remain in Git history.
 
 | App | Source | Workflow | Tag | APK | Android package |
 | --- | --- | --- | --- | --- | --- |
-| Budget | `apps/budget` | Android apps | `budget-v<version>` | `Budget-<version>.apk` | `com.uranik.budget` |
-| Notes | `apps/notes` | Android apps | `notes-v<version>` | `Notes-<version>.apk` | `com.uranik.notes` |
+| MoneyPlan | `apps/budget` | Android apps | `budget-v<version>` | `Budget-<version>.apk` | `com.uranik.budget` |
+| My Notes | `apps/notes` | Android apps | `notes-v<version>` | `Notes-<version>.apk` | `com.uranik.notes` |
 | Tasks | `apps/tasks` | Android apps | `tasks-v<version>` | `Tasks-<version>.apk` | `com.uranik.tasks` |
 | Dhikr | `apps/dhikr` | Android apps | `dhikr-v<version>` | `Dhikr-<version>.apk` | `com.dhiker.counter` |
 
 ## Build and publish
+
+### App and download names
+
+Workflow jobs, summaries, and release titles use the app display names from
+`app.json`: **MoneyPlan** and **My Notes**. Downloadable artifacts are named
+`MoneyPlan-APK.zip` and `My-Notes-APK.zip` (with `-arm64-test` for that profile).
+Existing runs retain their original names.
+
+The APKs inside keep `Budget-<version>.apk` and `Notes-<version>.apk` because
+installed updaters require those exact filenames. Android package IDs, tags,
+signing keys, and data remain compatible.
+
+### Run a build
 
 Only **Actions → Android apps → Run workflow** starts builds. There is one
 workflow for all four apps. Pushes, pull requests, and tags do not trigger it.
@@ -86,7 +99,7 @@ Never move or overwrite published tags.
 
 ## Signing
 
-Budget, Notes, and Tasks use the existing Hub signing key, with separate Android
+MoneyPlan, My Notes, and Tasks use the existing Hub signing key, with separate Android
 package IDs. Their workflows use the existing repository secrets:
 `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`.
 No new secrets are required. Preserve this key for every future update.
@@ -116,7 +129,7 @@ repository. Tokens are never bundled in an APK.
 ## Migration and device checks
 
 Save a full JSON backup from the existing Hub before uninstalling it. Import
-the same file separately into Budget, Notes, and Tasks. Each app reads only
+the same file separately into MoneyPlan, My Notes, and Tasks. Each app reads only
 its own tables. Check the records and a fresh per-app export, then uninstall
 Hub; it is not required after transfer.
 

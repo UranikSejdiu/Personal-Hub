@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dhikr",
     "slug": "dhikr",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.dhiker.counter",
-      "versionCode": 3,
+      "versionCode": 4,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F2F7FC",
@@ -82,7 +82,6 @@
               "armeabi-v7a",
               "arm64-v8a"
             ],
-            "kotlinVersion": "2.1.20",
             "useLegacyPackaging": false,
             "extraProguardRules": "-keep class com.dhiker.counter.** { *; }"
           }
@@ -104,7 +103,8 @@
       ],
       "./plugins/withAndroidBackupRules",
       "./plugins/withReleaseSigning",
-      "./plugins/withInstallPermission"
+      "./plugins/withInstallPermission",
+      "./plugins/withWindowsCMakePaths"
     ]
   }
 }

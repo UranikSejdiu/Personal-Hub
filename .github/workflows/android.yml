@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: Changed since release, all apps, or one app
+        description: Changed, all, or one app (budget = MoneyPlan; notes = My Notes)
         type: choice
         options: [changed, all, budget, notes, tasks, dhikr]
         default: changed
@@ -77,6 +77,8 @@ jobs:
       - run: npm ci --prefer-offline --include=dev
       - name: Validate app and backup/reminder regressions
         run: npm run validate
+      - name: Check dependency security advisories
+        run: npm audit --audit-level=moderate
       - name: Check production Android and iOS bundles
         run: npm run bundle:check
       - uses: actions/setup-java@v4
@@ -135,7 +137,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.id }}-gradle-profile
+          name: ${{ matrix.title }}-gradle-profile
           path: apps/${{ matrix.id }}/android/build/reports/profile/*.html
           if-no-files-found: ignore
           retention-days: 14

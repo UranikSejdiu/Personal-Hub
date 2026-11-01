@@ -1,0 +1,13 @@
+diff --git a/node_modules/minimatch/dist/commonjs/index.js b/node_modules/minimatch/dist/commonjs/index.js
+index eb1c915..a9de8ab 100644
+--- a/node_modules/minimatch/dist/commonjs/index.js
++++ b/node_modules/minimatch/dist/commonjs/index.js
+@@ -1547,4 +1547,7 @@ Object.defineProperty(exports, "unescape", { enumerable: true, get: function ()
+ exports.minimatch.Minimatch = Minimatch;
+ exports.minimatch.escape = escape_js_1.escape;
+ exports.minimatch.unescape = unescape_js_1.unescape;
++// Preserve the callable CommonJS API used by ESLint 9 and its plugins.
++// Matching still uses minimatch 11's fixed nonrecursive engine.
++module.exports = Object.assign(exports.minimatch, exports);
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file

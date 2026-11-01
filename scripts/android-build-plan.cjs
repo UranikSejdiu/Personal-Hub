@@ -16,11 +16,14 @@ function createPlan(root, selection = 'all', profile = 'universal', publish = fa
     assert.equal(lock.version, pkg.version, `${id}: lock version differs`);
     assert.equal(lock.packages[''].version, pkg.version, `${id}: lock root version differs`);
     assert.ok(Number.isSafeInteger(config.android.versionCode) && config.android.versionCode > 0);
-    const title = id[0].toUpperCase() + id.slice(1);
+    const apkPrefix = id[0].toUpperCase() + id.slice(1);
+    const title = config.name;
+    assert.ok(typeof title === 'string' && title.trim(), `${id}: app display name is missing`);
+    const artifactPrefix = title.replace(/\s+/g, '-');
     const suffix = profile === 'arm64-test' ? '-arm64-test' : '';
     return { id, title, version: pkg.version, versionCode: config.android.versionCode,
       tag: `${id}-v${pkg.version}`, packageId: config.android.package,
-      artifact: `${title}-APK${suffix}`, apk: `${title}-${pkg.version}${suffix}.apk` };
+      artifact: `${artifactPrefix}-APK${suffix}`, apk: `${apkPrefix}-${pkg.version}${suffix}.apk` };
   }) };
 }
 
