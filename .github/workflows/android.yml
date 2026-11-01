@@ -94,6 +94,33 @@ jobs:
         with:
           app: ${{ matrix.id }}
           fingerprint: ${{ hashFiles(format('apps/{0}/package-lock.json', matrix.id), format('apps/{0}/plugins/withGradleProperties.js', matrix.id), format('apps/{0}/plugins/withReleaseSigning.js', matrix.id)) }}
+      # The signing plugins require credentials for every CI Gradle build,
+      # including the debug previews used by emulator QA.
+      - name: Configure existing app signing key
+        env:
+          APP_ID: ${{ matrix.id }}
+          HUB_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
+          HUB_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          HUB_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          HUB_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          DHIKR_KEYSTORE: ${{ secrets.DHIKR_KEYSTORE_BASE64 }}
+          DHIKR_STORE_PASSWORD: ${{ secrets.DHIKR_KEYSTORE_PASSWORD }}
+          DHIKR_KEY_ALIAS: ${{ secrets.DHIKR_KEY_ALIAS }}
+          DHIKR_KEY_PASSWORD: ${{ secrets.DHIKR_KEY_PASSWORD }}
+        run: |
+          if [ "$APP_ID" = dhikr ]; then
+            KEYSTORE_BASE64="$DHIKR_KEYSTORE"; STORE_PASSWORD="$DHIKR_STORE_PASSWORD"
+            KEY_ALIAS="$DHIKR_KEY_ALIAS"; KEY_PASSWORD="$DHIKR_KEY_PASSWORD"
+          else
+            KEYSTORE_BASE64="$HUB_KEYSTORE"; STORE_PASSWORD="$HUB_STORE_PASSWORD"
+            KEY_ALIAS="$HUB_KEY_ALIAS"; KEY_PASSWORD="$HUB_KEY_PASSWORD"
+          fi
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          mkdir -p credentials
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
+          printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
+          test -s credentials/release-keystore.jks
+          chmod 600 credentials/release-keystore.jks credentials/keystore.properties
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -120,31 +147,6 @@ jobs:
           path: work/qa/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Configure existing app signing key
-        env:
-          APP_ID: ${{ matrix.id }}
-          HUB_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
-          HUB_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          HUB_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          HUB_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          DHIKR_KEYSTORE: ${{ secrets.DHIKR_KEYSTORE_BASE64 }}
-          DHIKR_STORE_PASSWORD: ${{ secrets.DHIKR_KEYSTORE_PASSWORD }}
-          DHIKR_KEY_ALIAS: ${{ secrets.DHIKR_KEY_ALIAS }}
-          DHIKR_KEY_PASSWORD: ${{ secrets.DHIKR_KEY_PASSWORD }}
-        run: |
-          if [ "$APP_ID" = dhikr ]; then
-            KEYSTORE_BASE64="$DHIKR_KEYSTORE"; STORE_PASSWORD="$DHIKR_STORE_PASSWORD"
-            KEY_ALIAS="$DHIKR_KEY_ALIAS"; KEY_PASSWORD="$DHIKR_KEY_PASSWORD"
-          else
-            KEYSTORE_BASE64="$HUB_KEYSTORE"; STORE_PASSWORD="$HUB_STORE_PASSWORD"
-            KEY_ALIAS="$HUB_KEY_ALIAS"; KEY_PASSWORD="$HUB_KEY_PASSWORD"
-          fi
-          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
-          mkdir -p credentials
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > credentials/release-keystore.jks
-          printf 'STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > credentials/keystore.properties
-          test -s credentials/release-keystore.jks
-          chmod 600 credentials/release-keystore.jks credentials/keystore.properties
       - name: Build signed standalone APK
         run: npm run build:apk
       - name: Compiler cache statistics

@@ -30,6 +30,8 @@ module.exports = function verifyStandaloneReleases(root) {
   assert.equal(emulatorQa.with.arch, 'x86_64');
   assert.ok(emulatorQa.with.script.includes('node scripts/emulator-preview.cjs ${{ matrix.id }}'));
   assert.ok(emulatorQa.with.script.includes('node scripts/emulator-qa.cjs ${{ matrix.id }}'));
+  const signingSetupIndex = build.jobs.build.steps.findIndex(step => step.name === 'Configure existing app signing key');
+  assert.ok(signingSetupIndex >= 0 && signingSetupIndex < build.jobs.build.steps.indexOf(emulatorQa), 'Restore signing credentials before emulator previews: every CI Gradle build requires them, including debug builds');
   assert.ok(build.jobs.build.steps.indexOf(emulatorQa) < build.jobs.build.steps.findIndex(step => step.run === 'npm run build:apk'), 'Smoke checks run before the signed release build');
   assert.ok(build.jobs.build.steps.some(step => step.name === 'Upload emulator QA evidence' && step.if === 'always()'), 'Preserve QA evidence on failures');
   const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
