@@ -176,7 +176,7 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   assert.ok(modalCount >= 5);
   const alertHost=harness('src/components/AppAlerts.tsx');const config=alertHost.render('AppAlerts').props;
-  assert.equal(config.position,'top-center');assert.equal(config.offset,32);assert.equal(config.duration,2000);assert.equal(config.fullWindowOverlay,false);
+  assert.equal(config.position,'top-center');assert.equal(config.offset,32);assert.equal(config.duration,1000);assert.equal(config.fullWindowOverlay,false);
   assert.equal(config.closeButton,false);assert.equal(config.ToastWrapper({toastId:1}).props.accessibilityLiveRegion,'polite');
   for(const visible of [true,false]){
     const h=harness('src/components/ui/FormDialog.tsx');const tree=h.render('FormDialog',{title:'Test',visible,onClose(){},children:null});
@@ -355,5 +355,5 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const [kind,message]={ 'up-to-date':['success','updateUpToDate'],'no-releases':['info','updateNoReleases'],error:['error','updateCheckFailed'],update:['success','updateAvailableToast']}[status];
     assert.ok(hasAlert(h,kind,message));
   }
-  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 2-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across toggles and filters, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
+  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 1-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across toggles and filters, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

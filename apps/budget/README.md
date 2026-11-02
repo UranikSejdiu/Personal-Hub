@@ -4,7 +4,7 @@ Previously Budget. The display name is MoneyPlan; the existing package, database
 
 Brand assets and editable SVGs live in `assets/branding/`; regenerate with `node scripts/export-branding.cjs`. Both savings deposits and withdrawals, full history, recurring expenses, monthly plans, repayment management, imports, exports, and year closing remain available.
 
-Alerts use the shared `AppAlerts` host at the top of the app and inside each native modal window. Standard alerts last two seconds; expense Undo stays available for ten. Validation and detailed errors remain inline, and cancellations stay silent. `npm run check:alerts` exercises real action handlers with mocked native IO, including failed writes, without starting a server or touching installed app data; it is also part of `npm run validate`. These checks do not replace a visual device pass.
+Alerts use the shared `AppAlerts` host at the top of the app and inside each native modal window. Standard alerts last one second; expense Undo stays available for ten. Validation and detailed errors remain inline, and cancellations stay silent. `npm run check:alerts` exercises real action handlers with mocked native IO, including failed writes, without starting a server or touching installed app data; it is also part of `npm run validate`. These checks do not replace a visual device pass.
 
 Independent Expo app. Android package: `com.uranik.budget`.
 Database: `budget_data`. Deep link scheme: `uranikbudget`.

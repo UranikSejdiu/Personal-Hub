@@ -23,7 +23,7 @@ export function AppAlerts() {
         positionerStyle={{ maxWidth: 360, alignSelf: "center" }}
         theme={resolvedTheme}
         visibleToasts={1}
-        duration={2000}
+        duration={1000}
         closeButton={false}
         autoWiggleOnUpdate="never"
         swipeToDismissDirection="up"
