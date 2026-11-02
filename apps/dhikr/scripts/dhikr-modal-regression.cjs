@@ -31,6 +31,7 @@ module.exports = async function verifyModal(root) {
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 24, bottom: 16 }) },
     './ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
     './AppIcons': { X: 'X' },
+    './AppAlerts': { AppAlerts: 'AppAlerts' },
     './NumberInput': { NumberInput: 'NumberInput' },
     '../lib/i18n': { useI18n: () => ({ t: key => key }) },
     '../lib/theme': { useThemeColors: () => ({}), useThemeVariables: () => ({}) },

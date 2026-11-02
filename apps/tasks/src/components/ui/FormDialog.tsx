@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AppAlerts } from "../AppAlerts";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,5 +33,6 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
         </Pressable>
       </Pressable>
     </KeyboardAvoidingView>
+    {visible && <AppAlerts />}
   </Modal>;
 }

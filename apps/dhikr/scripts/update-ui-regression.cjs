@@ -88,7 +88,7 @@ module.exports = async function verifyUpdateUi(root) {
   const clock = { now: Date.now() };
   const successes = [];
   const errors = [];
-  const toast = Object.assign(() => {}, { success: message => successes.push(message), error: message => errors.push(message) });
+  const toast = Object.assign(() => {}, { success: message => successes.push(message), error: message => errors.push(message), info() {} });
   const gates = [];
   const requests = [];
   let listener;

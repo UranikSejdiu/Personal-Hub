@@ -1,4 +1,5 @@
 import { Text, TextInput } from "./ui/Typography";
+import { AppAlerts } from "./AppAlerts";
 import { useCallback, useRef, useState } from "react";
 import { View, Pressable, Modal, ScrollView } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -176,6 +177,7 @@ export function DhikrModal(props: Props) {
         </Pressable>
       </Pressable>
       </KeyboardAvoidingView>
+      <AppAlerts />
     </Modal>
   );
 }

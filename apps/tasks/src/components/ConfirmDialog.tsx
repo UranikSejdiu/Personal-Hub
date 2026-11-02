@@ -1,4 +1,5 @@
 import { Text } from "./ui/Typography";
+import { AppAlerts } from "./AppAlerts";
 import { Pressable, Modal, View, ScrollView } from "react-native";
 import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -129,6 +130,7 @@ export function ConfirmDialog({
           </View>
         </Pressable>
       </Pressable>
+      {visible && <AppAlerts />}
     </Modal>
   );
 }

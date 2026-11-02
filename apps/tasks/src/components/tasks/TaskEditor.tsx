@@ -15,6 +15,7 @@ import { cn } from "../../lib/utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ActionDialog } from "../ui/ActionDialog";
 import { ReminderSetup } from "./ReminderSetup";
+import { AppAlerts } from "../AppAlerts";
 
 const REPEATS: readonly { value: TaskRepeat; key: TKey }[] = [
   { value: "none", key: "tasksRepeatNone" }, { value: "daily", key: "tasksRepeatDaily" },
@@ -41,6 +42,7 @@ function TaskFormDialog({ title, busy, onClose, children }: { title: string; bus
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+      <AppAlerts />
     </Modal>
   );
 }

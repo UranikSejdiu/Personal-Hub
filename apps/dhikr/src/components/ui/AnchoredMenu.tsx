@@ -1,4 +1,5 @@
 import { Text } from "./Typography";
+import { AppAlerts } from "../AppAlerts";
 import { useCallback, useRef, useState, type ComponentRef, type ComponentType } from "react";
 import { Modal, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -118,6 +119,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
           </View>
         ) : null}
       </Pressable>
+      {anchor !== null && <AppAlerts />}
     </Modal>
   );
 }

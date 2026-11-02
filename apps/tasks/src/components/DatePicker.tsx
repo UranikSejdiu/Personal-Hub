@@ -1,4 +1,5 @@
 import { Text } from "./ui/Typography";
+import { AppAlerts } from "./AppAlerts";
 import { useMemo, useState } from "react";
 import { Modal, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -233,6 +234,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
           </View>
         </Pressable>
       </Pressable>
+      <AppAlerts />
     </Modal>
   );
 }

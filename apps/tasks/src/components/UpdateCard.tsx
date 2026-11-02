@@ -45,7 +45,7 @@ export function UpdateCard() {
     if (result.status === "up-to-date") {
       toast.success(t("updateUpToDate"));
     } else if (result.status === "no-releases") {
-      toast(t("updateNoReleases"));
+      toast.info(t("updateNoReleases"));
     } else if (result.status === "error") {
       toast.error(t("updateCheckFailed"));
     }

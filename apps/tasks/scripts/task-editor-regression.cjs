@@ -35,6 +35,7 @@ module.exports = async function verifyEditor(root, load) {
       '../ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
       '../ui/ActionDialog': { ActionDialog: 'ActionDialog' },
       './ReminderSetup': { ReminderSetup: 'ReminderSetup' },
+      '../AppAlerts': { AppAlerts: 'AppAlerts' },
     };
     const module = { exports: {} };
     const code = ts.transpileModule(fs.readFileSync(path.join(root, 'src/components/tasks/TaskEditor.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
