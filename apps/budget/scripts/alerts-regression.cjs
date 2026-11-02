@@ -81,22 +81,24 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
         return outputRange[index] + fraction * (outputRange[index + 1] - outputRange[index]);
       },
     } } }).sceneStyle;
-    assert.equal(options(true).sceneStyle.backgroundColor, colors.background, 'Reveal pages must be opaque in the current theme');
+    assert.equal(options(true).sceneStyle.backgroundColor, colors.background, 'Scenes use the current theme');
+    assert.equal(options(true).transitionSpec.config.duration, 200, 'Tab switches finish quickly');
     for (const direction of [-1, 1]) {
       const entering = sample(true, direction);
       const departing = sample(false, direction);
-      assert.equal(entering.transform[0].translateX, direction * 390, 'Incoming page starts beyond the matching screen edge');
-      assert.ok(Math.abs(departing.transform[0].translateX) < 390 / 4, 'Previous page stays visible underneath');
-      assert.ok(departing.transform[1].scale < 1 && departing.transform[1].scale > 0.9, 'Previous page recedes slightly');
+      assert.equal(entering.transform[0].translateX, direction * 16, 'Movement stays subtle in either direction');
+      assert.deepEqual(departing, entering, 'Focus changes never swap the animation path during a switch');
+      assert.equal(entering.opacity, 0, 'Inactive scenes fade away');
+      assert.equal(entering.transform.length, 1, 'No screen scaling is applied');
+      assert.equal(entering.borderRadius, undefined, 'No animated corner clipping is applied');
       const midway = sample(true, direction / 2);
-      assert.equal(midway.transform[0].translateX, direction * 195, 'Reveal travels continuously in either direction');
-      assert.equal(midway.opacity, undefined, 'Pages reveal without cross-fading');
-      assert.equal(midway.overflow, 'hidden', 'Rounded moving pages clip their contents');
+      assert.equal(midway.transform[0].translateX, direction * 8, 'Position changes continuously');
+      assert.equal(midway.opacity, 0.5, 'Opacity changes continuously');
+      assert.deepEqual(sample(true, direction * 2), entering, 'Interrupted transitions stay within their bounds');
     }
     const settled = sample(true, 0);
     assert.equal(settled.transform[0].translateX, 0);
-    assert.equal(settled.transform[1].scale, 1);
-    assert.equal(settled.borderRadius, 0, 'Settled page fills its normal bounds');
+    assert.equal(settled.opacity, 1, 'Active pages remain fully visible');
     const reduced = harness('app/(budget)/_layout.tsx', {}, {
       'expo-router': { Tabs, useRouter: () => ({}) },
       'react-native-reanimated': { useReducedMotion: () => true },

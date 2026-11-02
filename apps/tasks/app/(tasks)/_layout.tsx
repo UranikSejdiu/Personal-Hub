@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from "expo-router";
-import { Easing, Pressable, useWindowDimensions, View } from "react-native";
+import { Easing, Pressable, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarDays, CheckSquare, Settings } from "../../src/components/AppIcons";
@@ -13,51 +13,37 @@ export default function TasksLayout() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
-  const { width } = useWindowDimensions();
   return <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
     <Tabs
-      screenOptions={({ navigation }) => {
-        const focused = navigation.isFocused();
-        return {
-          headerShown: false,
-          lazy: true,
-          freezeOnBlur: true,
-          animation: reducedMotion ? "none" : "shift",
-          transitionSpec: {
-            animation: "timing",
-            config: { duration: reducedMotion ? 0 : 320, easing: Easing.bezier(0.2, 0, 0, 1) },
-          },
-          sceneStyle: { backgroundColor: colors.background },
-          // The focused scene sits above the outgoing scene in the tab renderer.
-          // Slide it over a gently receding page, without cross-fading either one.
-          sceneStyleInterpolator: reducedMotion ? undefined : ({ current }) => ({
-            sceneStyle: {
-              overflow: "hidden",
-              borderRadius: current.progress.interpolate({
+      screenOptions={() => ({
+        headerShown: false,
+        lazy: true,
+        freezeOnBlur: true,
+        animation: reducedMotion ? "none" : "shift",
+        transitionSpec: {
+          animation: "timing",
+          config: { duration: reducedMotion ? 0 : 200, easing: Easing.bezier(0.2, 0, 0, 1) },
+        },
+        sceneStyle: { backgroundColor: colors.background },
+        // Keep the same short path when focus changes or a transition reverses.
+        // Opacity and translation run on the navigator's native animation driver.
+        sceneStyleInterpolator: reducedMotion ? undefined : ({ current }) => ({
+          sceneStyle: {
+            opacity: current.progress.interpolate({
+              inputRange: [-1, 0, 1],
+              outputRange: [0, 1, 0],
+              extrapolate: "clamp",
+            }),
+            transform: [{
+              translateX: current.progress.interpolate({
                 inputRange: [-1, 0, 1],
-                outputRange: [24, 0, 24],
+                outputRange: [-16, 0, 16],
                 extrapolate: "clamp",
               }),
-              transform: [
-                {
-                  translateX: current.progress.interpolate({
-                    inputRange: [-1, 0, 1],
-                    outputRange: focused ? [-width, 0, width] : [-width * 0.16, 0, width * 0.16],
-                    extrapolate: "clamp",
-                  }),
-                },
-                {
-                  scale: current.progress.interpolate({
-                    inputRange: [-1, 0, 1],
-                    outputRange: focused ? [0.98, 1, 0.98] : [0.96, 1, 0.96],
-                    extrapolate: "clamp",
-                  }),
-                },
-              ],
-            },
-          }),
-        };
-      }}
+            }],
+          },
+        }),
+      })}
       tabBar={({ state }) => {
         const current = state.routes[state.index].name;
         const buttons = NAV.map(tab => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: current === tab.name }} onPress={() => router.navigate(tab.href)} className="min-h-[54px] min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl px-1 active:opacity-60">
