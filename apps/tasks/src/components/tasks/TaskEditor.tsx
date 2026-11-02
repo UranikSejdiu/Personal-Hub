@@ -1,6 +1,6 @@
 import { Text, TextInput } from "../ui/Typography";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Pressable, ScrollView, Switch, View } from "react-native";
+import { Linking, Modal, Pressable, ScrollView, Switch, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useI18n, type TKey } from "../../lib/i18n";
@@ -174,6 +174,11 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
         </ScrollView>
         <View className="gap-2 border-t border-border/60 bg-card px-[18px] py-3">
           {error ? <Text accessibilityRole="alert" className="text-sm text-destructive">{error}</Text> : null}
+          {(error === t("tasksReminderDenied") || error === t("tasksReminderSettingsFailed")) && <Button variant="secondary" label={t("tasksOpenAppSettings")} disabled={busy}
+            onPress={() => {
+              if (busyRef.current) return;
+              void Linking.openSettings().catch(() => { if (mountedRef.current) setError(t("tasksReminderSettingsFailed")); });
+            }} />}
           <View className="flex-row items-center gap-2">
             {task && onDelete && <Pressable accessibilityRole="button" accessibilityLabel={t("tasksDeleteTitle")} disabled={busy} className="mr-auto min-h-[44px] justify-center rounded-[11px] disabled:opacity-50" onPress={onDelete}><Text className="text-xs font-semibold text-destructive">{t("delete")}</Text></Pressable>}
             <Button className="flex-1" variant="secondary" label={t("cancel")} disabled={busy} onPress={close} />

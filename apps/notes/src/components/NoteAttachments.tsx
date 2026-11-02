@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { AppState, Image, Keyboard, Pressable, View } from "react-native";
+import { AppState, Image, Keyboard, Linking, Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as Sharing from "expo-sharing";
 import { File } from "expo-file-system";
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from "expo-audio";
+import { getRecordingPermissionsAsync, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from "expo-audio";
 import { toast } from "sonner-native";
 import { serializeAttachments, type NoteAttachment } from "../lib/attachmentData";
 import { readAttachment, materializeAttachment } from "../lib/attachmentFiles";
@@ -15,6 +15,7 @@ import { AttachmentIcon } from "./AttachmentIcons";
 import { FormDialog } from "./ui/FormDialog";
 import { Button } from "./ui/Button";
 import { Text } from "./ui/Typography";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const time = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 const report = (error: unknown) => toast.error(error instanceof Error ? error.message : "Could not add attachment. Please try again.");
@@ -59,6 +60,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
   const colors = useThemeColors();
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [preview, setPreview] = useState<NoteAttachment | null>(null);
+  const [permissionNeeded, setPermissionNeeded] = useState<"audio" | "camera" | null>(null);
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, bitRate: 64000 });
   const [durationMillis, setDurationMillis] = useState(0);
   // Native status polling is needed only while this dialog is recording.
@@ -106,6 +108,17 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
     if (recordingOpen && durationMillis >= 120000) void finishRecording(true);
   }, [durationMillis, recordingOpen, finishRecording]);
 
+  const ensurePermission = async (kind: "audio" | "camera") => {
+    let permission = kind === "audio" ? await getRecordingPermissionsAsync() : await ImagePicker.getCameraPermissionsAsync();
+    if (!permission.granted && permission.canAskAgain) {
+      permission = kind === "audio" ? await requestRecordingPermissionsAsync() : await ImagePicker.requestCameraPermissionsAsync();
+    }
+    if (permission.granted) return true;
+    if (!permission.canAskAgain) setPermissionNeeded(kind);
+    else toast.error(kind === "audio" ? "Microphone access was not allowed. Tap Record voice to try again when ready." : "Camera access was not allowed. Tap Take photo to try again when ready.");
+    return false;
+  };
+
   const add = async (kind: "image" | "camera" | "audio" | "file") => {
     if (disabled || readOnly || busyRef.current) return;
     Keyboard.dismiss();
@@ -115,8 +128,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       if (valueRef.current.length >= 10) throw new Error("A note can contain up to 10 attachments.");
       if (kind === "audio") {
         setDurationMillis(0);
-        const permission = await requestRecordingPermissionsAsync();
-        if (!permission.granted) throw new Error("Allow microphone access in Settings to record a voice note.");
+        if (!await ensurePermission("audio")) return;
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await recorder.prepareToRecordAsync();
         recorder.record();
@@ -130,8 +142,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
         try { new File(asset.uri).delete(); } catch { /* Provider may keep its copy locked. */ }
       } else {
         if (kind === "camera") {
-          const permission = await ImagePicker.requestCameraPermissionsAsync();
-          if (!permission.granted) throw new Error("Allow camera access in Settings to take a photo.");
+          if (!await ensurePermission("camera")) return;
         }
         const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.65 };
         const result = kind === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
@@ -188,5 +199,15 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       {preview && <Image source={{ uri: `data:${preview.mimeType};base64,${preview.base64}` }} resizeMethod="resize" resizeMode="contain" style={{ width: "100%", height: 320 }} />}
       {preview && <Button label="Share image" variant="secondary" onPress={() => void share(preview)} />}
     </FormDialog>
+    <ConfirmDialog visible={permissionNeeded !== null}
+      title={permissionNeeded === "audio" ? "Microphone access is off" : "Camera access is off"}
+      message={permissionNeeded === "audio"
+        ? "To record a voice note, allow microphone access for My Notes in your phone settings. You can keep using notes without it."
+        : "To take a photo, allow camera access for My Notes in your phone settings. You can still attach an existing image or use notes without it."}
+      confirmLabel="Open app settings" cancelLabel="Not now" onClose={() => setPermissionNeeded(null)}
+      onConfirm={async () => {
+        try { await Linking.openSettings(); setPermissionNeeded(null); }
+        catch { toast.error("Could not open app settings. Open system Settings and select My Notes."); }
+      }} />
   </View>;
 }

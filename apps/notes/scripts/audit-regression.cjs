@@ -187,6 +187,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
     await require('./dependency-regression.cjs')(root);
     await require('./migration-regression.cjs')(root);
     await require('./media-runtime-regression.cjs')(root);
+      await require('./attachment-permissions-regression.cjs')(root);
     const notes = load(path.join(root, 'src/lib/notes.ts'));
     await require('./attachments-regression.cjs')(notes, db, backup);
     await require('./notes-filter-regression.cjs')(notes, db);

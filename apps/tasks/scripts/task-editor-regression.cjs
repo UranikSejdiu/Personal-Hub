@@ -6,6 +6,8 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 module.exports = async function verifyEditor(root, load) {
+  let settingsOpened = 0;
+  let settingsFailure = false;
   const dates = load(path.join(root, 'src/lib/taskDates.ts'));
   const reminders = load(path.join(root, 'src/lib/taskReminders.ts'));
   function editor(props, permission = async () => 'granted') {
@@ -17,7 +19,8 @@ module.exports = async function verifyEditor(root, load) {
     };
     const mocks = {
       react: hooks, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
-      'react-native': Object.fromEntries(['Modal', 'Pressable', 'ScrollView', 'Switch', 'View'].map(key => [key, key])),
+      'react-native': { ...Object.fromEntries(['Modal', 'Pressable', 'ScrollView', 'Switch', 'View'].map(key => [key, key])),
+        Linking: { openSettings: async () => { settingsOpened++; if (settingsFailure) throw Error('Settings unavailable'); } } },
       'react-native-keyboard-controller': { KeyboardAvoidingView: 'KeyboardAvoidingView' },
       'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
       '../ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
@@ -103,5 +106,12 @@ module.exports = async function verifyEditor(root, load) {
   denied.nodes(node => node.type === 'Switch')[0].props.onValueChange(true); await new Promise(setImmediate); denied.render();
   assert.equal(denied.nodes(node => node.type === 'Switch')[0].props.value, false);
   assert.ok(denied.error().includes('tasksReminderDenied'));
+  denied.button('tasksOpenAppSettings').onPress(); await new Promise(setImmediate);
+  assert.equal(settingsOpened, 1, 'Denied reminders provide a route to app settings');
+  settingsFailure = true;
+  denied.button('tasksOpenAppSettings').onPress(); await new Promise(setImmediate); denied.render();
+  assert.ok(denied.error().includes('tasksReminderSettingsFailed'), 'Failure to open settings remains visible');
+  assert.equal(denied.button('tasksOpenAppSettings').disabled, false, 'Settings can be retried after a failure');
+  assert.equal(denied.nodes(node => node.type === 'Switch')[0].props.value, false, 'Opening settings never assumes permission was granted');
   console.log('Passed Tasks editor: list/priority removal, date shortcuts, repeat/reminder resets, notes and existing schedules, discard protection, denied permissions, and double-save locking.');
 };

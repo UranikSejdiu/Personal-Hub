@@ -104,6 +104,7 @@ const dict = {
     tasksReminderTime: "Time (24-hour)",
     tasksReminderHint: "Notify me on {date} at this time.",
     tasksReminderDenied: "Notifications are disabled. Enable them in your device settings to use reminders.",
+    tasksOpenAppSettings: "Open app settings",
     tasksReminderBuild: "Reminders require a new native build of Tasks. You can still save and use tasks.",
     tasksReminderFailed: "Tasks are saved, but reminders could not be updated. Open Tasks again to retry.",
     tasksReminderPast: "Choose a future date and time for the reminder.",

@@ -76,6 +76,14 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
           <PreferenceChoices label="Appearance" value={theme} options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
             disabled={busy} onChange={setTheme} />
         </View>
+        <View className="gap-4 rounded-[24px] border border-border/40 bg-card p-5">
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
+          <Text className="text-sm text-muted-foreground">Review or turn off camera, microphone, and other permissions in the app settings on your phone.</Text>
+          <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
+            if (locked.current) return;
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
+          }} />
+        </View>
         <View className="gap-4 rounded-[22px] bg-card p-5">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Import replaces current data. A recovery copy is saved first.</Text>

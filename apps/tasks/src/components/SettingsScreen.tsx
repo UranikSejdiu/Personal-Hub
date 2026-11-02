@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { BackHandler, Pressable, ScrollView, View } from "react-native";
+import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
@@ -79,6 +79,14 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
               </Pressable>;
             })}
           </View>
+        </View>
+        <View className="gap-3 rounded-xl border border-border bg-card p-4">
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
+          <Text className="text-sm text-muted-foreground">Manage notification permissions and other device options in system settings.</Text>
+          <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
+            if (locked.current) return;
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
+          }} />
         </View>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>

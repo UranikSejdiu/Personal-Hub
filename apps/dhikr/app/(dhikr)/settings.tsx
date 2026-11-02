@@ -165,6 +165,14 @@ export default function SettingsScreen() {
                 <SettingsRow icon={Download} label={t("settingsBackupRestore")} onPress={() => setSection("backup")} />
               </View>
             </View>
+            <View className="gap-3 rounded-2xl border border-border/60 bg-card p-4">
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
+              <Text className="text-sm text-muted-foreground">Open system settings to review permissions and other device options for Dhikr.</Text>
+              <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
+                if (busyRef.current) return;
+                void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr."));
+              }} />
+            </View>
             <View className="gap-2">
               <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsHelp")}</Text>
               <View className="rounded-2xl border border-border/60 bg-card px-3">

@@ -35,7 +35,7 @@ function harness(file, overrides = {}, modules = {}) {
     if (Object.hasOwn(modules, id)) return modules[id];
     if (id === 'react') return react;
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' };
-    if (id === 'react-native') return { View:'View', Pressable:'Pressable', Modal:'Modal', ScrollView:'ScrollView', FlatList:'FlatList', Image:'Image', StyleSheet:{create:v=>v}, Platform:{OS:'android'}, BackHandler:{addEventListener:()=>({remove(){}})}, useWindowDimensions:()=>({width:390,height:844}) };
+    if (id === 'react-native') return { View:'View', Pressable:'Pressable', Modal:'Modal', ScrollView:'ScrollView', FlatList:'FlatList', Image:'Image', StyleSheet:{create:v=>v}, Easing:{bezier:()=>value=>value}, Platform:{OS:'android'}, BackHandler:{addEventListener:()=>({remove(){}})}, useWindowDimensions:()=>({width:390,height:844}) };
     if (id === 'sonner-native') return { toast, Toaster:'Toaster' };
     if (id === 'expo-router') return { useFocusEffect() {}, useRouter:()=>router, useLocalSearchParams:()=>({month:'2026-11'}) };
     if (id.includes('safe-area')) return { useSafeAreaInsets:()=>({top:24,bottom:16,left:0,right:0}) };
@@ -71,6 +71,42 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       budget: { loadSavingsGoal: async () => ({ goal_amount: 0 }), loadBudget: async () => null },
     });
     const tree = h.render('default');
+    const tabs = find(tree, n => n.type === Tabs);
+    const options = focused => tabs.props.screenOptions({ navigation: { isFocused: () => focused } });
+    const sample = (focused, value) => options(focused).sceneStyleInterpolator({ current: { progress: {
+      interpolate({ inputRange, outputRange }) {
+        const clamped = Math.max(inputRange[0], Math.min(inputRange.at(-1), value));
+        const index = clamped <= 0 ? 0 : 1;
+        const fraction = (clamped - inputRange[index]) / (inputRange[index + 1] - inputRange[index]);
+        return outputRange[index] + fraction * (outputRange[index + 1] - outputRange[index]);
+      },
+    } } }).sceneStyle;
+    assert.equal(options(true).sceneStyle.backgroundColor, colors.background, 'Reveal pages must be opaque in the current theme');
+    for (const direction of [-1, 1]) {
+      const entering = sample(true, direction);
+      const departing = sample(false, direction);
+      assert.equal(entering.transform[0].translateX, direction * 390, 'Incoming page starts beyond the matching screen edge');
+      assert.ok(Math.abs(departing.transform[0].translateX) < 390 / 4, 'Previous page stays visible underneath');
+      assert.ok(departing.transform[1].scale < 1 && departing.transform[1].scale > 0.9, 'Previous page recedes slightly');
+      const midway = sample(true, direction / 2);
+      assert.equal(midway.transform[0].translateX, direction * 195, 'Reveal travels continuously in either direction');
+      assert.equal(midway.opacity, undefined, 'Pages reveal without cross-fading');
+      assert.equal(midway.overflow, 'hidden', 'Rounded moving pages clip their contents');
+    }
+    const settled = sample(true, 0);
+    assert.equal(settled.transform[0].translateX, 0);
+    assert.equal(settled.transform[1].scale, 1);
+    assert.equal(settled.borderRadius, 0, 'Settled page fills its normal bounds');
+    const reduced = harness('app/(budget)/_layout.tsx', {}, {
+      'expo-router': { Tabs, useRouter: () => ({}) },
+      'react-native-reanimated': { useReducedMotion: () => true },
+      budget: { loadSavingsGoal: async () => ({ goal_amount: 0 }), loadBudget: async () => null },
+    });
+    const reducedTabs = find(reduced.render('default'), n => n.type === Tabs);
+    const reducedOptions = reducedTabs.props.screenOptions({ navigation: { isFocused: () => true } });
+    assert.equal(reducedOptions.animation, 'none');
+    assert.equal(reducedOptions.transitionSpec.config.duration, 0, 'Reduced motion also disables the explicit transition timing');
+    assert.equal(reducedOptions.sceneStyleInterpolator, undefined);
     const screens = nodes(tree).filter(n => n.type === 'TabScreen').map(n => n.props);
     const routerRoot = path.dirname(require.resolve('expo-router/package.json'));
     function sdkModule(file, mocks) {
