@@ -85,6 +85,29 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Install the React Native Android NDK
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK path is missing}}"
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          ndk_version="$(sed -nE 's/^ndkVersion[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*$/\1/p' node_modules/react-native/gradle/libs.versions.toml)"
+          if [[ ! "$ndk_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not read the pinned NDK version from React Native."
+            exit 1
+          fi
+          ndk_dir="$sdk_root/ndk/$ndk_version"
+          ndk_ready() {
+            test -f "$ndk_dir/source.properties" &&
+              test -x "$ndk_dir/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          }
+          for attempt in 1 2 3; do
+            if ndk_ready || { "$sdkmanager" --sdk_root="$sdk_root" --install "ndk;$ndk_version" </dev/null && ndk_ready; }; then
+              exit 0
+            fi
+            echo "::warning::NDK $ndk_version installation failed (attempt $attempt of 3)."
+            if [[ "$attempt" -lt 3 ]]; then sleep "$((attempt * 10))"; fi
+          done
+          echo "::error::Could not install a usable Android NDK $ndk_version."
+          exit 1
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
