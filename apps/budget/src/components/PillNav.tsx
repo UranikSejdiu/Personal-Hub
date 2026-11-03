@@ -1,5 +1,7 @@
 import { Text } from "./ui/Typography";
-import { Pressable, View } from "react-native";
+import { I18nManager, Pressable, View, type LayoutRectangle } from "react-native";
+import { useState } from "react";
+import Animated, { Easing, LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import {
@@ -17,6 +19,8 @@ import {
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
 import type { ComponentType } from "react";
+
+const TAB_HIGHLIGHT_TRANSITION = LinearTransition.duration(200).easing(Easing.bezier(0.2, 0, 0, 1));
 
 const ICON_MAP: Record<string, ComponentType<{ size?: number; color?: string }>> = {
   "view-dashboard": LayoutDashboard,
@@ -47,6 +51,8 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
+  const [tabLayouts, setTabLayouts] = useState<Partial<Record<string, LayoutRectangle>>>({});
+  const activeLayout = tabLayouts[activeTabId];
 
   if (keyboardVisible) return null;
 
@@ -58,20 +64,34 @@ export function PillNav({ tabs, activeTabId, onTabPress, placement = "floating" 
       )}
       style={placement === "floating" ? { bottom: Math.max(18, insets.bottom + 8) } : undefined}
     >
+      {activeLayout && (
+        <Animated.View
+          pointerEvents="none"
+          importantForAccessibility="no"
+          layout={TAB_HIGHLIGHT_TRANSITION}
+          className="absolute rounded-[17px] bg-secondary"
+          style={{
+            [I18nManager.isRTL ? "end" : "start"]: activeLayout.x,
+            top: activeLayout.y,
+            width: activeLayout.width,
+            height: activeLayout.height,
+          }}
+        />
+      )}
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         const Icon = ICON_MAP[tab.icon] ?? CircleHelp;
         return (
           <Pressable
             key={tab.id}
+            onLayout={({ nativeEvent: { layout } }) => {
+              setTabLayouts((previous) => ({ ...previous, [tab.id]: layout }));
+            }}
             onPress={() => {
 
               onTabPress(tab.id);
             }}
-            className={cn(
-              "min-h-[54px] min-w-[44px] flex-1 flex-col items-center justify-center gap-[5px] rounded-[17px] px-0.5 py-[7px] active:opacity-70",
-              isActive && "bg-secondary"
-            )}
+            className="min-h-[54px] min-w-[44px] flex-1 flex-col items-center justify-center gap-[5px] rounded-[17px] px-0.5 py-[7px] active:opacity-70"
             accessible
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
