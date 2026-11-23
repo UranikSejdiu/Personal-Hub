@@ -14,20 +14,26 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
 }) {
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
+  const sidePadding = placement === "bottom" ? 0 : 16;
   const close = () => { if (!busy) onClose(); };
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
     <KeyboardAvoidingView behavior="padding" automaticOffset className="flex-1" style={variables}>
-      <Pressable onPress={close} accessible={false} className={`flex-1 items-center bg-black/50 ${placement === "bottom" ? "justify-end" : "justify-center px-4"}`}
-        style={{ paddingTop: insets.top + 16, paddingBottom: placement === "bottom" ? 0 : insets.bottom + 16 }}>
+      <Pressable onPress={close} accessible={false} className={`flex-1 items-center bg-black/50 ${placement === "bottom" ? "justify-end" : "justify-center"}`}
+        style={{
+          paddingTop: insets.top + 16,
+          paddingBottom: placement === "bottom" ? 0 : insets.bottom + 16,
+          paddingLeft: insets.left + sidePadding,
+          paddingRight: insets.right + sidePadding,
+        }}>
         <Pressable onPress={event => event.stopPropagation()} accessible={false} accessibilityViewIsModal
           className={`max-h-full w-full max-w-md overflow-hidden border border-border/60 bg-card ${placement === "bottom" ? "rounded-t-[28px]" : "rounded-[22px]"}`}
           style={placement === "bottom" ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}>
-          <View className="flex-row items-center justify-between gap-2 px-[18px] pt-2.5">
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-[22px] font-semibold text-foreground">{title}</Text>
-            <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
-          </View>
-          <ScrollView className="grow-0" contentContainerClassName="gap-3 p-[18px]" keyboardShouldPersistTaps="handled">
-            {children}
+          <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled">
+            <View className="flex-row items-center justify-between gap-2 px-[18px] pt-2.5">
+              <Text accessibilityRole="header" className="min-w-0 flex-1 text-[22px] font-semibold text-foreground">{title}</Text>
+              <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
+            </View>
+            <View className="gap-3 p-[18px]">{children}</View>
           </ScrollView>
         </Pressable>
       </Pressable>

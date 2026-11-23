@@ -2,7 +2,7 @@ import { isRunningInExpoGo, requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 import { loadReminderTasks } from "./tasks";
 import type { Task } from "../types/tasks";
-import { getReminderAccess } from "./reminderAccess";
+import { getReminderAccess, openReminderSettings } from "./reminderAccess";
 
 type NotificationsApi = typeof import("expo-notifications");
 const PREFIX = "personal-hub-task-";
@@ -26,27 +26,49 @@ async function getApi(): Promise<NotificationsApi | null> {
 }
 
 function allowed(api: NotificationsApi, permission: Awaited<ReturnType<NotificationsApi["getPermissionsAsync"]>>): boolean {
+  if (Platform.OS === "android" && permission.status === "denied") return false;
   return permission.granted || permission.ios?.status === api.IosAuthorizationStatus.PROVISIONAL;
+}
+
+function hasAndroidChannels(): boolean {
+  return Platform.OS === "android" && Number(Platform.Version) >= 26;
+}
+
+async function ensureReminderChannel(api: NotificationsApi, name: string): Promise<void> {
+  if (hasAndroidChannels()) {
+    await api.setNotificationChannelAsync(CHANNEL, {
+      name, importance: api.AndroidImportance.DEFAULT, enableVibrate: true,
+    });
+  }
+}
+
+async function isReminderChannelEnabled(api: NotificationsApi): Promise<boolean> {
+  if (!hasAndroidChannels()) return true;
+  const channel = await api.getNotificationChannelAsync(CHANNEL);
+  return channel?.importance !== api.AndroidImportance.NONE;
+}
+
+export async function openTaskReminderChannelSettings(channelName: string): Promise<void> {
+  const api = await getApi();
+  if (!api || !hasAndroidChannels()) return;
+  await ensureReminderChannel(api, channelName);
+  await openReminderSettings("notifications", CHANNEL);
 }
 
 export async function requestTaskReminderPermission(channelName: string): Promise<"granted" | "denied" | "unavailable"> {
   const api = await getApi();
   if (!api) return "unavailable";
-  if (Platform.OS === "android") await api.setNotificationChannelAsync(CHANNEL, { name: channelName, importance: api.AndroidImportance.DEFAULT });
+  await ensureReminderChannel(api, channelName);
   let permission = await api.getPermissionsAsync();
   if (!allowed(api, permission) && permission.canAskAgain) permission = await api.requestPermissionsAsync();
-  return allowed(api, permission) ? "granted" : "denied";
+  return allowed(api, permission) && await isReminderChannelEnabled(api) ? "granted" : "denied";
 }
 
 export async function taskReminderNotificationsEnabled(): Promise<boolean | null> {
   const api = await getApi();
   if (!api) return null;
   if (!allowed(api, await api.getPermissionsAsync())) return false;
-  if (Platform.OS === "android") {
-    const channel = await api.getNotificationChannelAsync(CHANNEL);
-    if (channel?.importance === api.AndroidImportance.NONE) return false;
-  }
-  return true;
+  return isReminderChannelEnabled(api);
 }
 
 export function taskReminderDate(task: Pick<Task, "due_date" | "reminder_time">): Date | null {
@@ -89,12 +111,15 @@ async function reconcileTaskReminders(channelName: string): Promise<void> {
   // Access can change while the app is closed. A new signature replaces any
   // retained inexact alarms when the user grants precise delivery access.
   const exactAlarms = getReminderAccess()?.exactAlarms ?? false;
+  const legacyVibration = Platform.OS === "android" && !hasAndroidChannels();
   const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
     const date = taskReminderDate(task);
     return !task.completed_at && date && date.getTime() > Date.now() ? [{ task, date }] : [];
   }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, Platform.OS === "ios" ? 50 : undefined) : [];
   const wanted = new Map(reminders.map(({ task, date }) => [
-    `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify([task.title, date.getTime(), exactAlarms]) },
+    `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify(
+      legacyVibration ? [task.title, date.getTime(), exactAlarms, "vibration"] : [task.title, date.getTime(), exactAlarms],
+    ) },
   ]));
   const retained = new Set<string>();
   for (const notification of scheduled) {
@@ -103,11 +128,17 @@ async function reconcileTaskReminders(channelName: string): Promise<void> {
     if (target && notification.content.data?.signature === target.signature) retained.add(notification.identifier);
     else await api.cancelScheduledNotificationAsync(notification.identifier);
   }
-  if (Platform.OS === "android" && wanted.size) await api.setNotificationChannelAsync(CHANNEL, { name: channelName, importance: api.AndroidImportance.DEFAULT });
+  if (wanted.size) await ensureReminderChannel(api, channelName);
   for (const [identifier, { task, date, signature }] of wanted) {
     if (retained.has(identifier)) continue;
     await api.scheduleNotificationAsync({ identifier,
-      content: { title: channelName, body: task.title, sound: "default", data: { module: "tasks", taskId: task.id, signature } },
+      content: {
+        title: channelName,
+        body: task.title,
+        sound: "default",
+        ...(legacyVibration ? { vibrate: [0, 250] } : {}),
+        data: { module: "tasks", taskId: task.id, signature },
+      },
       trigger: { type: api.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL },
     });
   }

@@ -62,6 +62,10 @@ release lint, app validation, and production bundles remain required.
    public, then checks that the public release has the expected APK. Existing
    tags and published APKs are not overwritten.
 
+Automated releases leave notes blank. If adding notes on GitHub, describe only
+user-facing changes in that app and version. Keep installation and migration
+instructions in this guide.
+
 The publish job uses GitHub Actions' built-in token with `contents: write`.
 If GitHub denies writes from that token with HTTP 403, the repository owner can
 set the `ANDROID_RELEASE_TOKEN` Actions secret to a fine-grained token scoped to
@@ -92,6 +96,14 @@ Use disposable records for these additional checks on the release candidate:
 Treat failures as release blockers. Record the tested APK/version and device.
 Verify notification delivery, external file providers, and signing-key upgrades
 on a physical phone.
+
+Check Tasks reminders on Pixel, Samsung One UI, and another Android skin. With
+the app backgrounded and the phone locked, verify delivery and vibration,
+including after reboot. Check with **On-time reminders** enabled and disabled.
+Without exact-alarm access Android can deliver reminders later. Use **Reminder
+sound & vibration** in Tasks to check the system channel, including on upgrades
+where Android keeps the existing channel settings. Check Dhikr and My Notes
+haptics on an older Android version and with system touch feedback disabled.
 
 ## Prepare release versions
 

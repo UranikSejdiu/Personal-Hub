@@ -16,6 +16,10 @@ let shared = null;
 let openedName;
 let preferenceFailure = false;
 const scheduled = new Map();
+const channels = new Map();
+const settingsIntents = [];
+let notificationPermission = { granted: true };
+let exactAlarms = true;
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(p => p.uri || p).join('/'); }
   get name() { return this.uri.split('/').at(-1); }
@@ -49,14 +53,16 @@ const native = {
   'expo-sqlite': { openDatabaseAsync: async name => { openedName = name; return connection; } },
   'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { cache: new FakeDirectory('cache'), document: new FakeDirectory('document') } },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared = uri; } },
-  'expo-application': { nativeApplicationVersion: '1.0.0' },
-  'react-native': { Platform: { OS: 'android' } },
-  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms: true, batteryUnrestricted: false }) } : {} },
-  'expo-intent-launcher': {},
+  'expo-application': { nativeApplicationVersion: '1.0.0', applicationId: 'com.uranik.tasks' },
+  'react-native': { Platform: { OS: 'android', Version: 37 } },
+  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms, batteryUnrestricted: false }) } : {} },
+  'expo-intent-launcher': { startActivityAsync: async (action, options) => settingsIntents.push({ action, options }) },
   'expo-notifications': {
     AndroidImportance: { NONE: 0, DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
-    setNotificationHandler() {}, setNotificationChannelAsync: async () => {},
-    getPermissionsAsync: async () => ({ granted: true }),
+    setNotificationHandler() {},
+    setNotificationChannelAsync: async (id, channel) => { if (!channels.has(id)) channels.set(id, channel); },
+    getNotificationChannelAsync: async id => channels.get(id),
+    getPermissionsAsync: async () => notificationPermission,
     getAllScheduledNotificationsAsync: async () => [...scheduled.values()],
     cancelScheduledNotificationAsync: async id => scheduled.delete(id),
     scheduleNotificationAsync: async request => { scheduled.set(request.identifier, request); return request.identifier; },
@@ -174,10 +180,34 @@ const plain = value => JSON.parse(JSON.stringify(value));
     await reminders.syncTaskReminders('Task reminders');
     assert.equal(scheduled.size, 1, 'Imported reminder works in the standalone Tasks scheduler');
     assert.equal([...scheduled.values()][0].content.data.taskId, 92);
+    assert.equal(channels.get('task-reminders').enableVibrate, true);
+    await reminders.openTaskReminderChannelSettings('Task reminders');
+    assert.deepEqual(settingsIntents.at(-1), {
+      action: 'android.settings.CHANNEL_NOTIFICATION_SETTINGS',
+      options: { extra: { 'android.provider.extra.APP_PACKAGE': 'com.uranik.tasks', 'android.provider.extra.CHANNEL_ID': 'task-reminders' } },
+    });
+    const channel = channels.get('task-reminders');
+    channel.importance = 0;
+    assert.equal(await reminders.requestTaskReminderPermission('Task reminders'), 'denied', 'A blocked channel is not a granted reminder');
+    assert.equal(channel.importance, 0, 'Recreating a channel must not override its user settings');
+    channel.importance = 3;
+    notificationPermission = { granted: true, status: 'denied' };
+    assert.equal(await reminders.taskReminderNotificationsEnabled(), false, 'Android can report app notifications off even when the runtime grant is present');
+    notificationPermission = { granted: true };
+    exactAlarms = false;
+    await reminders.syncTaskReminders('Task reminders');
+    assert.equal(scheduled.size, 1, 'A reminder is still scheduled without exact-alarm access');
+    assert.equal(JSON.parse([...scheduled.values()][0].content.data.signature)[2], false);
+    exactAlarms = true;
+    native['react-native'].Platform.Version = 24;
+    await reminders.syncTaskReminders('Task reminders');
+    assert.deepEqual([...scheduled.values()][0].content.vibrate, [0, 250], 'Legacy Android receives vibration on the notification itself');
+    native['react-native'].Platform.Version = 37;
     const tasks = load(path.join(root, 'src/lib/tasks.ts'));
     for (let index = 0; index < 52; index++) await tasks.saveTask({ title: 'Future ' + index, notes: '', due_date: '2031-02-01', repeat: 'none', reminder_time: '09:00' });
     await reminders.syncTaskReminders('Task reminders');
     assert.equal(scheduled.size, 53, 'Android does not truncate the transferred reminder queue at 50');
+    assert.equal([...scheduled.values()][0].content.vibrate, undefined, 'Modern Android uses the channel vibration preference');
     await backup.importBackup(json);
     await reminders.syncTaskReminders('Task reminders');
     assert.equal(scheduled.size, 1, 'Restoring cancels removed reminders');

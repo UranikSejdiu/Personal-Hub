@@ -122,7 +122,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
   const selectedRepeat = REPEATS.find(option => option.value === repeat)!.label;
   return (
     <><TaskFormDialog title={task ? "Edit task" : "Add task"} busy={busy} onClose={close}>
-        <ScrollView className="grow-0 shrink" contentContainerClassName="gap-[12px] p-[14px]" keyboardShouldPersistTaps="handled">
+        <ScrollView className="min-h-0 grow-0 shrink" contentContainerClassName="gap-[12px] p-[14px]" keyboardShouldPersistTaps="handled">
           <View className={sectionClass}><Text accessibilityRole="header" className={labelClass}>Task name</Text>
             <TextInput value={title} onChangeText={setTitle} editable={!busy} maxLength={200} autoFocus={!task}
               placeholder="What needs to be done?" placeholderTextColor={colors.mutedForeground} accessibilityLabel="Task name" className={inputClass} />

@@ -15,6 +15,7 @@
       "allowBackup": true,
       "package": "com.uranik.tasks",
       "versionCode": 7,
+      "permissions": ["android.permission.VIBRATE"],
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#5e37b9",

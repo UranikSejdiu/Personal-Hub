@@ -25,6 +25,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   const [pending, setPending] = useState<{ json: string; summary: string } | null>(null);
   const [recover, setRecover] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   useFocusEffect(useCallback(() => {
     setSafety(hasSafetyBackup());
   }, []));
@@ -36,11 +37,12 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   const run = async (action: () => Promise<unknown>, message?: string) => {
     if (locked.current) return;
     locked.current = true; setBusy(true);
+    setActionError(null);
     try {
       const result = await action();
       if (result !== null && message) toast.success(message);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      setActionError(error instanceof Error ? error.message : String(error));
     } finally { setSafety(hasSafetyBackup()); locked.current = false; setBusy(false); }
   };
   const pick = () => run(async () => {
@@ -85,7 +87,11 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
           <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => void run(exportBackup, "Backup ready to share.")} />
           <Button label="Import backup" variant="secondary" disabled={busy} onPress={() => void pick()} />
           {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}.</Text>}
-          {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => setRecover(true)} />}
+          {actionError && !pending && !recover && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
+          {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => {
+            setActionError(null);
+            setRecover(true);
+          }} />}
         </View>
         <UpdateCard />
         <View className="gap-4 rounded-[22px] border border-border/60 bg-card p-5">
@@ -103,8 +109,8 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
         </View>
       </View>
     </ScrollView>
-    <ConfirmDialog visible={pending !== null} title={`Import ${identity.title} data?`} message={`${pending?.summary ?? ""}\nThis replaces the current records in ${identity.title}. A recovery copy is saved first. Your Hub data is untouched.`} confirmLabel="Import" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setPending(null); }} onConfirm={confirmImport} />
-    <ConfirmDialog visible={recover} title="Restore previous data?" message="Replace current records with the copy saved before the last import. Export your current data first if you want to keep both." confirmLabel="Restore" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setRecover(false); }} onConfirm={() => run(async () => {
+    <ConfirmDialog visible={pending !== null} title={`Import ${identity.title} data?`} message={`${pending?.summary ?? ""}\nThis replaces the current records in ${identity.title}. A recovery copy is saved first. Your Hub data is untouched.`} error={actionError} confirmLabel="Import" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setPending(null); }} onConfirm={confirmImport} />
+    <ConfirmDialog visible={recover} title="Restore previous data?" message="Replace current records with the copy saved before the last import. Export your current data first if you want to keep both." error={actionError} confirmLabel="Restore" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setRecover(false); }} onConfirm={() => run(async () => {
       const result = await restoreSafetyBackup();
       if (result.preferencesRestored && result.preferences?.theme) setTheme(result.preferences.theme);
       setRecover(false); setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));

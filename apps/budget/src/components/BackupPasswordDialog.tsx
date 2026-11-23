@@ -42,9 +42,9 @@ export function BackupPasswordDialog({ creating, onSubmit, onClose }: {
     </View>
     {creating && confirmation.length > 0 && password !== confirmation && <Text accessibilityLiveRegion="polite" className="text-xs text-destructive">Passwords don’t match.</Text>}
     {error && <Text accessibilityRole="alert" className="text-xs text-destructive">{error}</Text>}
-    <View className="flex-row justify-end gap-2">
-      <Button label="Cancel" variant="secondary" disabled={busy} onPress={onClose} />
-      <Button label={creating ? "Continue" : "Unlock"} disabled={!valid} busy={busy} onPress={() => { void submit(); }} />
+    <View className="flex-row flex-wrap justify-end gap-2">
+      <Button className="max-w-full" label="Cancel" variant="secondary" disabled={busy} onPress={onClose} />
+      <Button className="max-w-full" label={creating ? "Continue" : "Unlock"} disabled={!valid} busy={busy} onPress={() => { void submit(); }} />
     </View>
   </FormDialog>;
 }

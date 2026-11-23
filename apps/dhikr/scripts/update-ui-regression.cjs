@@ -5,7 +5,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const flush = () => new Promise(resolve => setImmediate(resolve));
-const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+const deferred = () => {
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+};
 
 function fixture(root, file, name, mocks, clock) {
   const ts = createRequire(path.join(root, 'package.json'))('typescript');
@@ -59,7 +63,7 @@ function fixture(root, file, name, mocks, clock) {
   }).outputText;
   class TestDate extends Date { static now() { return clock.now; } }
   vm.runInNewContext(js, {
-    module, exports: module.exports, Date: TestDate,
+    module, exports: module.exports, Date: TestDate, Error,
     require: key => { assert.ok(key in base, `Unexpected UI dependency: ${key}`); return base[key]; },
   }, { filename: file });
   return {
@@ -108,7 +112,7 @@ module.exports = async function verifyUpdateUi(root) {
   const repeated = value.refresh();
   assert.equal(gates.length, 1);
   assert.equal(requests[0].length, 0, 'Startup requests a fresh update check');
-  const latest = { versionName: '1.1.0', versionCode: 1001000, downloadUrl: 'https://example.test/app.apk', body: '' };
+  const latest = { versionName: '1.1.0', versionCode: 1001000, downloadUrl: 'https://example.test/app.apk', body: 'Legacy release notes' };
   const fresh = { status: 'update', currentVersion: '1.0.0', latest, checkedAt: clock.now };
   gates[0].resolve(fresh);
   await repeated;
@@ -180,6 +184,7 @@ module.exports = async function verifyUpdateUi(root) {
   card.render();
   const button = label => card.nodes(node => node.props.accessibilityLabel === label)[0];
   assert.ok(button('Check for updates'), 'A known update must not hide Check for updates');
+  assert.equal(card.nodes(node => node.props.children === latest.body).length, 0, 'Cached release notes stay hidden');
   assert.ok(card.nodes(node => node.props.children === 'Could not check now. Showing the update found during the last successful check.').length);
   button('Check for updates').props.onPress();
   await flush();
@@ -197,6 +202,16 @@ module.exports = async function verifyUpdateUi(root) {
   context = { ...context, latest: { ...latest, versionName: '1.2.0' } };
   card.render(); card.render();
   assert.equal(button('Install now'), undefined, 'A newly detected version must not install the old pending APK');
+  downloadGate = deferred();
+  button('Download & Install').props.onPress();
+  const detail = 'Download failed after the connection closed. '.repeat(8).trim();
+  downloadGate.reject(Error(detail));
+  await flush();
+  card.render();
+  const alert = card.nodes(node => node.props.accessibilityRole === 'alert' && node.props.children === detail)[0];
+  assert.ok(alert, 'The full download error stays on screen');
+  assert.equal(alert.props.numberOfLines, undefined);
+  assert.equal(errors.at(-1), 'Download failed. Try again.');
   downloadGate = deferred();
   button('Download & Install').props.onPress();
   card.dispose();

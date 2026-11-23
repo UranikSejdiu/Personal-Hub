@@ -21,9 +21,16 @@ async function main() {
   let resolveRead;
   const hooks={useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn()};
   class Clock extends Date {static now(){return now;}}
+  const platform = { OS: 'android', Version: 37 };
   const haptics=compile('src/hooks/useHaptics.ts',{
     react:hooks,
+    'react-native': { Platform: platform },
     'expo-haptics':{
+      AndroidHaptics: {
+        Segment_Tick: 'segment', Clock_Tick: 'clock', Context_Click: 'context', Confirm: 'confirm', Reject: 'reject',
+        Virtual_Key: 'virtual-key', Long_Press: 'long-press',
+      },
+      performAndroidHapticsAsync: async kind => pulses.push(kind),
       ImpactFeedbackStyle:{Light:'light',Medium:'medium'},
       NotificationFeedbackType:{Success:'success',Warning:'warning'},
       impactAsync:async kind=>pulses.push(kind),
@@ -39,12 +46,24 @@ async function main() {
   resolveRead();await Promise.all(readers);
   const feedback=haptics.useHaptics();
   for(let i=0;i<20;i++){await feedback.light();now+=5;}
-  assert.equal(pulses.filter(x=>x==='light').length,2,'Rapid presses have bounded haptic frequency');
+  assert.equal(pulses.filter(x=>x==='segment').length,2,'Rapid presses have bounded haptic frequency');
   for(let i=0;i<20;i++){await feedback.warning();now+=5;}
-  assert.equal(pulses.filter(x=>x==='warning').length,1,'Repeated warnings do not vibrate repeatedly');
+  assert.equal(pulses.filter(x=>x==='reject').length,1,'Repeated warnings do not vibrate repeatedly');
+  platform.Version = 24;
+  now += 500;
+  await feedback.light();
+  await feedback.medium();
+  await feedback.success();
+  await feedback.warning();
+  assert.deepEqual(pulses.slice(-4), ['clock', 'context', 'virtual-key', 'long-press']);
+  platform.OS = 'ios';
+  now += 500;
+  await feedback.light();
+  assert.equal(pulses.at(-1), 'light');
+  const beforeDisabling = pulses.length;
   await haptics.setHapticsEnabled(false);
   await feedback.light();await feedback.success();await feedback.warning();
-  assert.equal(pulses.length,3,'Disabled haptics never call native feedback');
+  assert.equal(pulses.length,beforeDisabling,'Disabled haptics never call native feedback');
   assert.equal(await haptics.getHapticsEnabled(),false);
   assert.equal(reads,1,'Loaded preferences stay in memory');
 

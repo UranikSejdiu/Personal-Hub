@@ -18,17 +18,15 @@ import { Text } from "./ui/Typography";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const time = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
-const report = (error: unknown) => toast.error(error instanceof Error ? error.message : "Could not add attachment. Please try again.");
-
-function AudioAttachment({ item, disabled }: { item: NoteAttachment; disabled: boolean }) {
+function AudioAttachment({ item, disabled, onError }: { item: NoteAttachment; disabled: boolean; onError: (error: unknown) => void }) {
   const colors = useThemeColors();
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   const ready = status.isLoaded;
   useEffect(() => {
     try { player.replace(materializeAttachment(item).uri); }
-    catch (error) { report(error); }
-  }, [item, player]);
+    catch (error) { onError(error); }
+  }, [item, player, onError]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", state => { if (state !== "active") player.pause(); });
     if (disabled) player.pause();
@@ -44,7 +42,7 @@ function AudioAttachment({ item, disabled }: { item: NoteAttachment; disabled: b
           if (status.didJustFinish || (status.duration > 0 && status.currentTime >= status.duration)) await player.seekTo(0);
           player.play();
         }
-      })().catch(report);
+      })().catch(onError);
     }} className="min-h-[48px] min-w-0 flex-1 flex-row items-center gap-3 py-2 disabled:opacity-50">
     <AttachmentIcon name={status.playing ? "pause" : "play"} color={colors.primary} />
     <View className="min-w-0 flex-1">
@@ -61,14 +59,14 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [preview, setPreview] = useState<NoteAttachment | null>(null);
   const [permissionNeeded, setPermissionNeeded] = useState<"audio" | "camera" | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const report = useCallback((error: unknown) => {
+    const summary = "Could not open or add the attachment.";
+    setAttachmentError(error instanceof Error && error.message ? error.message : summary);
+    toast.error(summary);
+  }, []);
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, bitRate: 64000 });
   const [durationMillis, setDurationMillis] = useState(0);
-  // Native status polling is needed only while this dialog is recording.
-  useEffect(() => {
-    if (!recordingOpen) return;
-    const timer = setInterval(() => setDurationMillis(recorder.getStatus().durationMillis), 250);
-    return () => clearInterval(timer);
-  }, [recorder, recordingOpen]);
   const endingRef = useRef(false);
   const { onChange, setBusy, valueRef, busyRef } = state;
 
@@ -95,7 +93,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       setBusy(false);
       endingRef.current = false;
     }
-  }, [append, recorder, setBusy]);
+  }, [append, recorder, report, setBusy]);
 
   useEffect(() => {
     if (!recordingOpen) return;
@@ -104,9 +102,16 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
     });
     return () => subscription.remove();
   }, [finishRecording, recordingOpen]);
+  // Native status polling is needed only while this dialog is recording.
   useEffect(() => {
-    if (recordingOpen && durationMillis >= 120000) void finishRecording(true);
-  }, [durationMillis, recordingOpen, finishRecording]);
+    if (!recordingOpen) return;
+    const timer = setInterval(() => {
+      const elapsed = recorder.getStatus().durationMillis;
+      setDurationMillis(elapsed);
+      if (elapsed >= 120000) void finishRecording(true);
+    }, 250);
+    return () => clearInterval(timer);
+  }, [recorder, recordingOpen, finishRecording]);
 
   const ensurePermission = async (kind: "audio" | "camera") => {
     let permission = kind === "audio" ? await getRecordingPermissionsAsync() : await ImagePicker.getCameraPermissionsAsync();
@@ -122,6 +127,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
   const add = async (kind: "image" | "camera" | "audio" | "file") => {
     if (disabled || readOnly || busyRef.current) return;
     Keyboard.dismiss();
+    setAttachmentError(null);
     setBusy(true);
     let recordingStarted = false;
     try {
@@ -162,19 +168,22 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
   useImperativeHandle(state.actionRef, () => ({ add }));
 
   const share = async (item: NoteAttachment) => {
+    setAttachmentError(null);
     try {
       if (!await Sharing.isAvailableAsync()) throw new Error("File sharing is unavailable on this device.");
       await Sharing.shareAsync(materializeAttachment(item).uri, { mimeType: item.mimeType, dialogTitle: item.name });
     } catch (error) { report(error); }
   };
 
-  return <View className={state.attachments.length > 0 ? "gap-3 px-5 pb-4" : undefined}>
+  const errorAlert = attachmentError && <Text accessibilityRole="alert" className="text-sm text-destructive">{attachmentError}</Text>;
+  return <View className={state.attachments.length > 0 || attachmentError ? "gap-3 px-5 pb-4" : undefined}>
+    {!preview && errorAlert}
     {state.attachments.map(item => <View key={item.id} className="overflow-hidden rounded-[18px] border border-border/60 bg-card">
-      {item.kind === "image" && <Pressable onPress={() => { Keyboard.dismiss(); setPreview(item); }} accessibilityRole="button" accessibilityLabel={`View ${item.name}`}>
+      {item.kind === "image" && <Pressable onPress={() => { Keyboard.dismiss(); setAttachmentError(null); setPreview(item); }} accessibilityRole="button" accessibilityLabel={`View ${item.name}`}>
         <Image source={{ uri: `data:${item.mimeType};base64,${item.base64}` }} resizeMethod="resize" resizeMode="cover" style={{ width: "100%", height: 180 }} />
       </Pressable>}
       <View className="flex-row items-center gap-2 px-3">
-        {item.kind === "audio" ? <AudioAttachment item={item} disabled={disabled || state.busy} /> : <Pressable onPress={() => void share(item)}
+        {item.kind === "audio" ? <AudioAttachment item={item} disabled={disabled || state.busy} onError={report} /> : <Pressable onPress={() => void share(item)}
           accessibilityRole="button" accessibilityLabel={`Open or share ${item.name}`} className="min-h-[48px] min-w-0 flex-1 flex-row items-center gap-3 py-2">
           <AttachmentIcon name={item.kind === "image" ? "image" : "file"} color={colors.primary} />
           <Text className="min-w-0 flex-1 text-sm font-semibold text-foreground" numberOfLines={1}>{item.name}</Text>
@@ -198,6 +207,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
     <FormDialog visible={preview !== null} title={preview?.name ?? "Image"} onClose={() => setPreview(null)}>
       {preview && <Image source={{ uri: `data:${preview.mimeType};base64,${preview.base64}` }} resizeMethod="resize" resizeMode="contain" style={{ width: "100%", height: 320 }} />}
       {preview && <Button label="Share image" variant="secondary" onPress={() => void share(preview)} />}
+      {preview && errorAlert}
     </FormDialog>
     <ConfirmDialog visible={permissionNeeded !== null}
       title={permissionNeeded === "audio" ? "Microphone access is off" : "Camera access is off"}

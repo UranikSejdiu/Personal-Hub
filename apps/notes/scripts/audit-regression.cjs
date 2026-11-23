@@ -22,6 +22,7 @@ let shared = null;
 let openedName;
 let preferenceFailure = false;
 const scheduled = new Map();
+const haptics = [];
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(p => p.uri || p).join('/'); }
   get name() { return this.uri.split('/').at(-1); }
@@ -56,7 +57,12 @@ const native = {
   'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { cache: new FakeDirectory('cache'), document: new FakeDirectory('document') } },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared = uri; } },
   'expo-application': { nativeApplicationVersion: '1.0.0' },
-  'react-native': { Platform: { OS: 'android' } },
+  'react-native': { Platform: { OS: 'android', Version: 37 } },
+  'expo-haptics': {
+    AndroidHaptics: { Segment_Tick: 'segment', Clock_Tick: 'clock' },
+    performAndroidHapticsAsync: async type => haptics.push(type),
+    selectionAsync: async () => haptics.push('selection'),
+  },
   'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms: true, batteryUnrestricted: false }) } : {} },
   'expo-intent-launcher': {},
   'expo-notifications': {
@@ -84,6 +90,16 @@ function load(file) {
 }
 const plain = value => JSON.parse(JSON.stringify(value));
 (async () => {
+  const { toolbarFeedback } = load(path.join(root, 'src/lib/toolbarFeedback.ts'));
+  toolbarFeedback();
+  const platform = native['react-native'].Platform;
+  platform.Version = 24;
+  toolbarFeedback();
+  platform.OS = 'ios';
+  toolbarFeedback();
+  assert.deepEqual(haptics, ['segment', 'clock', 'selection']);
+  Object.assign(platform, { OS: 'android', Version: 37 });
+
   const db = load(path.join(root, 'src/lib/db.ts'));
   const backup = load(path.join(root, 'src/lib/backup.ts'));
   await db.initDatabase();

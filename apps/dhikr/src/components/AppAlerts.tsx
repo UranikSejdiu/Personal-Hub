@@ -6,8 +6,10 @@ import { useTheme, useThemeColors } from "../lib/theme";
 import { CircleCheck, XCircle, Info, CircleHelp } from "./AppIcons";
 
 /** Same alert store and styling in the app and every native modal window. */
-function AlertSurface({ toastId: _toastId, ...props }: ViewProps & { toastId: string | number }) {
-  return <View {...props} accessibilityRole="alert" accessibilityLiveRegion="polite" />;
+function AlertSurface({ toastId: _toastId, style, ...props }: ViewProps & { toastId: string | number }) {
+  // Sonner positions its toast absolutely, so the wrapper needs its own width.
+  return <View {...props} style={[{ width: "100%", maxWidth: 360 }, style]}
+    accessibilityRole="alert" accessibilityLiveRegion="polite" />;
 }
 
 export function AppAlerts() {
@@ -20,7 +22,7 @@ export function AppAlerts() {
         ToastWrapper={AlertSurface}
         position="top-center"
         offset={insets.top + 8}
-        positionerStyle={{ maxWidth: 360, alignSelf: "center" }}
+        positionerStyle={{ width: "auto", left: insets.left + 16, right: insets.right + 16 }}
         theme={resolvedTheme}
         visibleToasts={1}
         duration={1000}
@@ -39,7 +41,7 @@ export function AppAlerts() {
         }}
         toastOptions={{
           style: {
-            marginHorizontal: 16,
+            marginHorizontal: 0,
             paddingHorizontal: 16,
             paddingVertical: 12,
             minHeight: 48,
@@ -52,11 +54,11 @@ export function AppAlerts() {
             shadowRadius: 8,
             elevation: 3,
           },
-          toastContentStyle: { gap: 10, alignItems: "center" },
-          textContainerStyle: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 10 },
-          buttonsStyle: { marginTop: 0, gap: 8 },
-          titleStyle: { color: colors.background, flexGrow: 1, flexShrink: 1, fontSize: 13, lineHeight: 20, fontFamily: "Urbanist-SemiBold", fontWeight: "normal" },
-          descriptionStyle: { color: colors.background, opacity: 0.8, width: "100%", fontSize: 12, lineHeight: 18, fontFamily: "Urbanist-Regular", fontWeight: "normal" },
+          toastContentStyle: { gap: 10, alignItems: "flex-start" },
+          textContainerStyle: { minWidth: 0 },
+          buttonsStyle: { marginTop: 0, flexWrap: "wrap", gap: 8 },
+          titleStyle: { color: colors.background, fontSize: 13, lineHeight: 20, fontFamily: "Urbanist-SemiBold", fontWeight: "normal" },
+          descriptionStyle: { color: colors.background, opacity: 0.8, fontSize: 12, lineHeight: 18, fontFamily: "Urbanist-Regular", fontWeight: "normal" },
           actionButtonStyle: { minHeight: 44, borderRadius: 10, backgroundColor: colors.background, borderWidth: 0, paddingHorizontal: 12 },
           actionButtonTextStyle: { color: colors.foreground, fontFamily: "Urbanist-SemiBold", fontWeight: "normal" },
         }}

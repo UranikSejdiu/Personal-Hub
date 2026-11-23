@@ -43,11 +43,12 @@ module.exports = async function checkAttachmentPermissions(root) {
     };
     const fallback = new Proxy({}, { get: (_target, key) => key });
     const module = { exports: {} };
-    vm.runInNewContext(code, { module, exports: module.exports, require: id => mocks[id] ?? fallback });
+    vm.runInNewContext(code, { module, exports: module.exports, Error, require: id => mocks[id] ?? fallback });
     const render = () => { cursor = 0; tree = module.exports.NoteAttachments({ state, disabled, readOnly }); };
     const dialog = () => tree.props.children.find(node => node?.type === 'ConfirmDialog').props;
+    const errorText = () => tree.props.children.find(node => node?.props?.accessibilityRole === 'alert')?.props.children;
     render();
-    return { state, calls, errors, render, dialog, add: kind => state.actionRef.current.add(kind) };
+    return { state, calls, errors, render, dialog, errorText, add: kind => state.actionRef.current.add(kind) };
   }
   const granted = { granted: true, canAskAgain: true };
   const denied = { granted: false, canAskAgain: true };
@@ -82,8 +83,9 @@ module.exports = async function checkAttachmentPermissions(root) {
     await failed.add(kind); failed.render(); await failed.dialog().onConfirm(); failed.render();
     assert.equal(failed.dialog().visible, true); assert.equal(failed.errors.length, 1, 'Settings failure leaves a retry available');
     const broken = harness(denied, denied, { failRequest: true });
-    await broken.add(kind);
+    await broken.add(kind); broken.render();
     assert.equal(broken.state.busyRef.current, false); assert.equal(broken.errors.length, 1);
+    assert.equal(broken.errorText(), 'Permission request failed', 'Details remain in the note after the toast dismisses');
     for (const guard of [{ disabled: true }, { readOnly: true }]) {
       const locked = harness(denied, granted, guard);
       await locked.add(kind); assert.equal(locked.calls.checked, 0, 'Read-only and disabled notes never prompt');

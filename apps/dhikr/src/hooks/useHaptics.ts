@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getPreference, setPreference } from "../lib/preferences";
 
@@ -57,7 +58,13 @@ export function useHaptics() {
   const light = useCallback(async () => {
     try {
       if (shouldVibrate("light", 70)) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Platform.OS === "android") {
+          await Haptics.performAndroidHapticsAsync(
+            Number(Platform.Version) >= 34 ? Haptics.AndroidHaptics.Segment_Tick : Haptics.AndroidHaptics.Clock_Tick,
+          );
+        } else {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
       }
     } catch {
       // Native haptics can be unavailable on simulators and unsupported devices.
@@ -67,7 +74,11 @@ export function useHaptics() {
   const medium = useCallback(async () => {
     try {
       if (shouldVibrate("medium", 70)) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (Platform.OS === "android") {
+          await Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Context_Click);
+        } else {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
       }
     } catch {
       // Native haptics can be unavailable on simulators and unsupported devices.
@@ -77,7 +88,13 @@ export function useHaptics() {
   const success = useCallback(async () => {
     try {
       if (shouldVibrate("success", 250)) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (Platform.OS === "android") {
+          await Haptics.performAndroidHapticsAsync(
+            Number(Platform.Version) >= 30 ? Haptics.AndroidHaptics.Confirm : Haptics.AndroidHaptics.Virtual_Key,
+          );
+        } else {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
       }
     } catch {
       // Native haptics can be unavailable on simulators and unsupported devices.
@@ -87,7 +104,13 @@ export function useHaptics() {
   const warning = useCallback(async () => {
     try {
       if (shouldVibrate("warning", 500)) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        if (Platform.OS === "android") {
+          await Haptics.performAndroidHapticsAsync(
+            Number(Platform.Version) >= 30 ? Haptics.AndroidHaptics.Reject : Haptics.AndroidHaptics.Long_Press,
+          );
+        } else {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
       }
     } catch {
       // Native haptics can be unavailable on simulators and unsupported devices.

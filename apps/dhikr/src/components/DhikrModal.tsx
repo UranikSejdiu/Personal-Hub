@@ -85,7 +85,7 @@ export function DhikrModal(props: Props) {
           onPress={(e) => e.stopPropagation()}
           className="max-h-full w-full max-w-sm overflow-hidden rounded-2xl bg-card"
         >
-          <ScrollView className="grow-0" keyboardShouldPersistTaps="handled" contentContainerClassName="p-4">
+          <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled" contentContainerClassName="p-4">
           <View className="flex-row items-center justify-between">
             <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">
               {mode === "add" ? "New Dhikr" : "Edit Dhikr"}

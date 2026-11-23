@@ -30,6 +30,7 @@ module.exports = async function verifyReminderSetup(root) {
 
       '../../lib/theme': {useThemeColors:()=>({})},
       '../ui/Typography': {Text:'Text'},
+      '../ui/Button': {Button:'Button'},
       '../../lib/reminderAccess': {
         getReminderAccess:()=>env.access?{...env.access}:null,
         async openReminderSettings(kind) { opened.push(kind); await settingsChange(kind); },
@@ -38,6 +39,7 @@ module.exports = async function verifyReminderSetup(root) {
         async taskReminderNotificationsEnabled() { const value=env.notifications; const wait=readGate;readGate=null;if(wait)await wait.promise;return value; },
         async requestTaskReminderPermission() { requests++;if(requestGate)await requestGate.promise;if(requestFailure)throw Error('Permission unavailable');if(env.result==='denied')return 'denied';env.notifications=true;return 'granted'; },
         async syncTaskReminders() {syncs++;},
+        async openTaskReminderChannelSettings() { opened.push('channel'); },
       },
     };
     const module={exports:{}};
@@ -74,6 +76,8 @@ module.exports = async function verifyReminderSetup(root) {
     assert.equal(h.switch(notifications).value,true,'Cancelling Android settings preserves the real on state');
     h.settings(kind=>{if(kind==='notifications')h.env.notifications=false;});
     h.change(notifications,false);await h.settle();assert.equal(h.switch(notifications).value,false);
+    h.nodes('Button').find(n=>n.props.label==='Reminder sound & vibration').props.onPress();await h.settle();
+    assert.equal(h.opened.at(-1),'channel');
     h.dispose();
   }
   {
@@ -102,6 +106,8 @@ module.exports = async function verifyReminderSetup(root) {
     const h=fixture({notifications:null,access:null});await h.settle();assert.ok(h.nodes('Switch').every(n=>n.props.disabled));h.dispose();
     const legacy=fixture({version:30,access:{exactAlarms:true,batteryUnrestricted:false}});await legacy.settle();
     assert.equal(legacy.switch(alarms).value,true);assert.equal(legacy.switch(alarms).disabled,true,'Older Android has no exact-alarm permission to toggle');legacy.dispose();
+    const preChannel=fixture({version:25});await preChannel.settle();
+    assert.equal(preChannel.nodes('Button').length,0,'Android 7 has no channel settings page');preChannel.dispose();
   }
   console.log('Passed reminder switches: actual permission states, grant/deny, settings cancellation/revocation, rapid-toggle locking, failure retry, stale reads, native availability and cleanup.');
 };

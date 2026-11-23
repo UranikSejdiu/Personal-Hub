@@ -45,6 +45,7 @@ export default function SettingsScreen() {
   const [safetyAvailable, setSafetyAvailable] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ json: string; count: number } | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [section, setSection] = useState<SettingsSection>(null);
   const { triggerRef, anchor, open: openExportMenu, close: closeExportMenu } = useAnchoredMenu();
 
@@ -69,13 +70,14 @@ export default function SettingsScreen() {
     if (busyRef.current) return false;
     busyRef.current = true;
     setBusy(true);
+    setActionError(null);
     try {
       const result = await action();
       setSafetyAvailable(hasSafetyBackup());
       if (result !== null) toast.success(success);
       return result !== null;
     } catch (error) {
-      toast.error(`Could not complete the operation: ${error instanceof Error ? error.message : String(error)}`);
+      setActionError(error instanceof Error ? error.message : String(error));
       return false;
     } finally {
       setSafetyAvailable(hasSafetyBackup());
@@ -88,6 +90,7 @@ export default function SettingsScreen() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    setActionError(null);
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/json"], copyToCacheDirectory: true });
       if (result.canceled) return;
@@ -95,7 +98,7 @@ export default function SettingsScreen() {
       const rows = parseBackup(json);
       setPendingImport({ json, count: rows.length });
     } catch (error) {
-      toast.error(`Could not complete the operation: ${error instanceof Error ? error.message : String(error)}`);
+      setActionError(error instanceof Error ? error.message : String(error));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -174,7 +177,11 @@ export default function SettingsScreen() {
                   }} label="Export backup" />
               </View>
               <Button variant="secondary" disabled={busy} onPress={() => { void pickImport(); }} label="Import counts" />
-              {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => setRestoring(true)} label="Restore previous data" />}
+              {actionError && !pendingImport && !restoring && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
+              {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => {
+                setActionError(null);
+                setRestoring(true);
+              }} label="Restore previous data" />}
             </View>
           </View>}
           {section === "about" && <>
@@ -198,13 +205,14 @@ export default function SettingsScreen() {
         ]} />
       <ConfirmDialog visible={pendingImport !== null} title="Import counts"
         message={`Import ${pendingImport?.count ?? 0} dhikrs? This replaces your current counts. A recovery copy of your current data will be saved first.`} destructive
+        error={actionError}
         confirmLabel="Import counts" onClose={() => setPendingImport(null)}
         onConfirm={async () => {
           if (!pendingImport) return;
           if (await run(() => importBackup(pendingImport.json), "Data imported successfully")) setPendingImport(null);
         }} />
       <ConfirmDialog visible={restoring} title="Restore previous data"
-        message="Replace your current counts with the recovery copy from before your last import?" destructive onClose={() => setRestoring(false)}
+        message="Replace your current counts with the recovery copy from before your last import?" error={actionError} destructive onClose={() => setRestoring(false)}
         onConfirm={async () => {
           if (await run(restoreSafetyBackup, "Data imported successfully")) setRestoring(false);
         }} />

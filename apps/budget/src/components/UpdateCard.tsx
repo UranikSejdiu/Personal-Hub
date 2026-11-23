@@ -16,7 +16,7 @@ export function UpdateCard() {
   const [state, setState] = useState<UpdateState>("idle");
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [installFailed, setInstallFailed] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<{ version: string; message: string } | null>(null);
   const pendingApkRef = useRef<File | null>(null);
   const pendingVersionRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -111,7 +111,7 @@ export function UpdateCard() {
     } catch (error) {
       if (!mountedRef.current) return;
       const msg = error instanceof Error ? error.message : String(error);
-      setDownloadError(msg || "Download failed. Try again.");
+      setDownloadError({ version: latest.versionName, message: msg || "Download failed. Try again." });
       toast.error("Download failed. Try again.");
       setState("idle");
     } finally {
@@ -129,7 +129,6 @@ export function UpdateCard() {
         <Text className="text-sm font-semibold text-foreground">Updates</Text>
       </View>
 
-      {downloadError && <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError}</Text>}
       {result?.status === "error" ? (
         <Text accessibilityRole="alert" className="text-xs text-muted-foreground">
           {result.cachedLatest ? "Could not check now. Showing the update found during the last successful check." : "Failed to check for updates"}
@@ -145,15 +144,15 @@ export function UpdateCard() {
         </Text>
       ) : null}
 
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
+      <View className="flex-row flex-wrap items-center justify-between gap-2">
+        <View className="max-w-full flex-row flex-wrap items-center gap-2">
           <Text className="text-xs text-muted-foreground">Current version</Text>
           <View className="rounded-full bg-muted/60 px-2 py-0.5">
             <Text className="text-[11px] font-semibold text-foreground">v{currentVersion}</Text>
           </View>
         </View>
         {hasUpdate && latest ? (
-          <View className="rounded-full bg-primary/15 px-2 py-0.5">
+          <View className="max-w-full rounded-full bg-primary/15 px-2 py-0.5">
             <Text className="text-[11px] font-semibold text-primary">
               Update available v{latest.versionName}
             </Text>
@@ -166,14 +165,9 @@ export function UpdateCard() {
           <Text className="text-xs text-muted-foreground">
             {`New version ${latest.versionName} is ready to install.`}
           </Text>
-          {latest.body ? (
-            <View className="rounded-lg border border-border bg-muted/40 p-3">
-              <Text className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Changelog
-              </Text>
-              <Text className="text-xs text-muted-foreground">{latest.body}</Text>
-            </View>
-          ) : null}
+          {downloadError?.version === latest.versionName && (
+            <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError.message}</Text>
+          )}
 
           {state === "downloading" && downloadProgress !== null ? (
             <View className="gap-1.5">
@@ -197,7 +191,7 @@ export function UpdateCard() {
               accessibilityLabel={"Download & Install"}
             >
               <Download size={14} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">{"Download & Install"}</Text>
+              <Text className="shrink text-center text-sm font-medium text-primary-foreground">{"Download & Install"}</Text>
             </Pressable>
           )}
 
@@ -209,7 +203,7 @@ export function UpdateCard() {
               accessibilityLabel="Install now"
             >
               <Download size={14} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">Install now</Text>
+              <Text className="shrink text-center text-sm font-medium text-primary-foreground">Install now</Text>
             </Pressable>
           )}
 
@@ -226,7 +220,7 @@ export function UpdateCard() {
                 accessibilityRole="button"
                 accessibilityLabel="Open install settings"
               >
-                <Text className="text-sm font-medium text-foreground">Open install settings</Text>
+                <Text className="shrink text-center text-sm font-medium text-foreground">Open install settings</Text>
               </Pressable>
             </View>
           )}
@@ -239,7 +233,7 @@ export function UpdateCard() {
               accessibilityLabel="Download again"
             >
               <Download size={14} color={colors.foreground} />
-              <Text className="text-sm font-medium text-foreground">Download again</Text>
+              <Text className="shrink text-center text-sm font-medium text-foreground">Download again</Text>
             </Pressable>
           )}
 
@@ -257,7 +251,7 @@ export function UpdateCard() {
           ) : (
             <RefreshCw size={14} color={colors.primary} />
           )}
-          <Text className="text-sm font-medium text-primary">
+          <Text className="shrink text-center text-sm font-medium text-primary">
             {checking ? "Checking for updates..." : "Check for updates"}
           </Text>
         </Pressable>

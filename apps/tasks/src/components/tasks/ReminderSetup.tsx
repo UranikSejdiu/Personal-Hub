@@ -3,8 +3,9 @@ import { AppState, Platform, Switch, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { getReminderAccess, openReminderSettings, type ReminderAccess } from "../../lib/reminderAccess";
-import { requestTaskReminderPermission, syncTaskReminders, taskReminderNotificationsEnabled } from "../../lib/taskReminders";
+import { openTaskReminderChannelSettings, requestTaskReminderPermission, syncTaskReminders, taskReminderNotificationsEnabled } from "../../lib/taskReminders";
 import { useThemeColors } from "../../lib/theme";
+import { Button } from "../ui/Button";
 import { Text } from "../ui/Typography";
 
 export function ReminderSetup() {
@@ -32,12 +33,14 @@ export function ReminderSetup() {
     return () => { focused.current = false; ++sequence.current; listener.remove(); };
   }, [refresh]));
   if (Platform.OS !== "android" || !status) return null;
-  const change = async (kind: "alarms" | "notifications" | "battery", enabled: boolean) => {
+  const change = async (kind: "alarms" | "notifications" | "battery" | "channel", enabled = false) => {
     if (operation.current) return;
     operation.current = true;
     setBusy(true);
     try {
-      if (kind === "notifications" && enabled && await requestTaskReminderPermission("Task reminders") === "granted" && await taskReminderNotificationsEnabled()) {
+      if (kind === "channel") {
+        await openTaskReminderChannelSettings("Task reminders");
+      } else if (kind === "notifications" && enabled && await requestTaskReminderPermission("Task reminders") === "granted" && await taskReminderNotificationsEnabled()) {
         await refresh();
         await syncTaskReminders("Task reminders");
       } else await openReminderSettings(kind);
@@ -66,6 +69,9 @@ export function ReminderSetup() {
           trackColor={{ false: colors.input, true: colors.primary }} thumbColor={option.enabled ? colors.primaryForeground : colors.mutedForeground} />
       </View>)}
     </View>
+    {status.notifications !== null && Number(Platform.Version) >= 26 && (
+      <Button label="Reminder sound & vibration" variant="secondary" disabled={busy} onPress={() => { void change("channel"); }} />
+    )}
     <Text className="text-xs text-muted-foreground">{status.notifications === null || !status.access ? "Reminder settings need a native build." : "Changes may open Android settings."}</Text>
   </View>;
 }

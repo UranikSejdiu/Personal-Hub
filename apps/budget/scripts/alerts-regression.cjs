@@ -177,13 +177,26 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   assert.ok(modalCount >= 5);
   const alertHost=harness('src/components/AppAlerts.tsx');const config=alertHost.render('AppAlerts').props;
   assert.equal(config.position,'top-center');assert.equal(config.offset,32);assert.equal(config.duration,1000);assert.equal(config.fullWindowOverlay,false);
-  assert.equal(config.closeButton,false);assert.equal(config.ToastWrapper({toastId:1}).props.accessibilityLiveRegion,'polite');
+  assert.equal(config.closeButton,false);
+  const wrapper = config.ToastWrapper({ toastId: 1 });
+  assert.equal(wrapper.props.accessibilityLiveRegion, 'polite');
+  assert.deepEqual(wrapper.props.style[0], { width: '100%', maxWidth: 360 });
+  const cutout = harness('src/components/AppAlerts.tsx', {}, {
+    'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 16, left: 32, right: 8 }) },
+  }).render('AppAlerts').props;
+  assert.deepEqual(cutout.positionerStyle, { width: 'auto', left: 48, right: 24 });
+  assert.equal(config.toastOptions.textContainerStyle.minWidth, 0);
+  assert.notEqual(config.toastOptions.textContainerStyle.flexDirection, 'row');
   for(const visible of [true,false]){
     const h=harness('src/components/ui/FormDialog.tsx');const tree=h.render('FormDialog',{title:'Test',visible,onClose(){},children:null});
     assert.equal(nodes(tree).filter(n=>n.type==='AppAlerts').length,visible?1:0);
   }
-  const confirm=harness('src/components/ConfirmDialog.tsx');const confirmTree=confirm.render('ConfirmDialog',{visible:true,title:'Delete',message:'Test',onClose(){},onConfirm:async()=>{throw Error('write failed');}});
-  const confirmButton=find(confirmTree,n=>n.props?.accessibilityLabel==='Confirm');confirmButton.props.onPress();await settle();
+  const message = 'Review the details before removing this item. '.repeat(12).trim();
+  const confirm=harness('src/components/ConfirmDialog.tsx');const confirmTree=confirm.render('ConfirmDialog',{visible:true,title:'Delete',message,onClose(){},onConfirm:async()=>{throw Error('write failed');}});
+  const dialogScroll = find(confirmTree, n => n.type === 'ScrollView');
+  assert.match(dialogScroll.props.className, /\bshrink\b/);
+  assert.equal(find(dialogScroll, n => n.props?.children === message).props.numberOfLines, undefined);
+  const confirmButton=find(dialogScroll,n=>n.props?.accessibilityLabel==='Confirm');confirmButton.props.onPress();await settle();
   assert.ok(hasAlert(confirm,'error','Failed to save.'));assert.equal(confirm.state.isConfirming,false);
   // Savings operations announce only persisted success; invalid input stays inline.
   for(const formType of ['deposit','purchase']){

@@ -47,6 +47,7 @@ module.exports = function verifyStandaloneReleases(root) {
   assert.ok(publisher.run.includes('test -s "release/$RELEASE_APK"'));
   assert.ok(publisher.run.includes('--target "$GITHUB_SHA"'));
   assert.ok(publisher.run.includes('--latest=false'));
+  assert.ok(publisher.run.includes('--notes ""'), 'Automated releases keep notes blank');
   assert.ok(publisher.run.includes('gh release view'));
   assert.equal(publisher.env.RELEASE_APK, '${{ matrix.apk }}');
   const artifactUploads = build.jobs.build.steps.filter(step => step.uses?.startsWith('actions/upload-artifact'));
