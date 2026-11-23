@@ -46,13 +46,13 @@ export function Button({
       accessibilityState={{ ...accessibilityState, disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       className={cn(
-        "min-h-[48px] flex-row items-center justify-center gap-2 rounded-full px-4 py-2 active:opacity-70",
+        "min-h-[48px] flex-row items-center justify-center gap-2 rounded-full px-3.5 py-2 active:opacity-70",
         appearance.container,
         (disabled || busy) && "opacity-60",
         className
       )}
     >
-      {busy ? <ActivityIndicator size="small" color={foreground} /> : Icon ? <Icon size={18} color={foreground} /> : null}
+      {busy ? <ActivityIndicator size="small" color={foreground} /> : Icon ? <Icon size={16} color={foreground} /> : null}
       <Text className={cn("shrink text-center text-label-large font-medium", appearance.label)}>{label}</Text>
     </Pressable>
   );
@@ -90,7 +90,7 @@ export function IconButton({
         className
       )}
     >
-      <Icon size={22} color={selected ? colors.onSecondaryContainer : colors.foreground} />
+      <Icon size={20} color={selected ? colors.onSecondaryContainer : colors.foreground} />
     </Pressable>
   );
 }

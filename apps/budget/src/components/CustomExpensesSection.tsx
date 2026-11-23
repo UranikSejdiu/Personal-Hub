@@ -21,18 +21,12 @@ interface Props {
 
 export function CustomExpensesHeader({ expenses, onAdd }: Pick<Props, "expenses" | "onAdd">) {
   return <View className="gap-2.5">
-    <View className="flex-row items-center justify-between gap-2">
-      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Expenses</Text>
+    <View className="flex-row flex-wrap items-center justify-between gap-x-2">
+      <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Expenses</Text>
       <Button icon={Plus} label="Add expense" onPress={onAdd} />
     </View>
-    <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-3">
-      {expenses.length === 0 ? <Text className="py-4 text-center text-xs text-muted-foreground">Add category…</Text> :
-        <View className="flex-row items-center gap-1 pb-2">
-          <Text className="w-9 max-[360px]:w-7 text-center text-[10px] text-muted-foreground">Paid off</Text>
-          <Text className="min-w-0 flex-1 text-[10px] text-muted-foreground">Expense</Text>
-          <Text className="w-[76px] max-[360px]:w-[65px] text-right text-[10px] text-muted-foreground">Amount</Text>
-          <View className="w-8 max-[360px]:w-7" />
-        </View>}
+    <View className="rounded-t-xl border-x border-t border-border/60 bg-card px-2">
+      {expenses.length === 0 && <Text className="px-2 py-3 text-body-medium text-muted-foreground">No expenses</Text>}
     </View>
   </View>;
 }
@@ -46,13 +40,13 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
   const { triggerRef, anchor, open, close } = useAnchoredMenu();
 
   return (
-    <View className={`py-2 ${isLast ? "" : "border-b border-border/60"}`}>
+    <View className={`py-1 ${isLast ? "" : "border-b border-border/60"}`}>
       <View className="min-h-[48px] flex-row items-center gap-1">
         <Checkbox
           checked={expense.paid}
           onPress={() => { onUpdate(expense.id, { paid: !expense.paid }); }}
-          className="w-9 max-[360px]:w-7 shrink-0" hitSlop={4}
-          accessibilityLabel={`Paid off: ${expense.category || "Add category…"}`}
+          className="shrink-0"
+          accessibilityLabel={`Paid: ${expense.category || "Add category…"}`}
           android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
         />
 
@@ -71,15 +65,15 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         ) : (
           <Pressable
             onPress={() => { close(); setEditing("category"); }}
-            className="min-h-[44px] min-w-0 flex-1 justify-center gap-1 rounded-lg active:opacity-70"
+            className="min-h-[44px] min-w-0 flex-1 flex-row items-center gap-1.5 rounded-lg active:opacity-70"
             accessible accessibilityRole="button"
-            accessibilityLabel={`Edit: ${expense.category || "Add category…"}`}
+            accessibilityLabel={`Edit ${expense.category || "category"}${expense.is_recurring ? ", recurring" : ""}`}
           >
-            <Text className={`shrink text-sm font-medium ${expense.paid || !expense.category ? "text-muted-foreground" : "text-foreground"}`} numberOfLines={1}>
+            <Text className={`shrink text-sm font-medium ${expense.paid || !expense.category ? "text-muted-foreground" : "text-foreground"}`}>
               {expense.category || "Add category…"}
             </Text>
-            {expense.is_recurring && <View className="flex-row items-center gap-1">
-              <Repeat size={12} color={colors.mutedForeground} /><Text className="text-xs text-muted-foreground">Recurring</Text>
+            {expense.is_recurring && <View className="shrink-0" accessible={false} importantForAccessibility="no-hide-descendants">
+              <Repeat size={13} color={colors.mutedForeground} />
             </View>}
           </Pressable>
         )}
@@ -87,16 +81,15 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
         {editing === "amount" ? <NumberInput autoFocus value={expense.amount}
           onChange={(value) => onUpdate(expense.id, { amount: value })} min={0} decimals={2} placeholder="0.00"
           onBlur={() => setEditing(null)} onSubmitEditing={() => setEditing(null)}
-          accessibilityLabel={`Edit amount for ${expense.category || "Category"}`} className="w-[76px] max-[360px]:w-[65px]" /> :
+          accessibilityLabel={`Edit amount for ${expense.category || "Category"}`} className="w-[84px] max-[360px]:w-[72px]" /> :
           <Pressable onPress={() => { close(); setEditing("amount"); }}
-            className="min-h-[44px] w-[76px] max-[360px]:w-[65px] shrink-0 items-end justify-center rounded-lg active:bg-muted"
+            className="min-h-[44px] w-[84px] max-[360px]:w-[72px] shrink-0 items-end justify-center rounded-lg active:bg-muted"
             accessible accessibilityRole="button" accessibilityLabel={`Edit amount for ${expense.category || "Category"}`}>
-            <Text className={`text-sm font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount).replace("€", "")}</Text>
+            <Text className={`text-right text-body-medium font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount)}</Text>
           </Pressable>}
         <View ref={triggerRef} collapsable={false}>
           <IconButton
             icon={MoreHorizontal}
-            className="w-8 max-[360px]:w-7" hitSlop={6}
             selected={anchor !== null}
             onPress={() => { setEditing(null); if (onEdit) onEdit(expense); else open(); }}
             accessibilityLabel={`Options for ${expense.category || "Category"}`}

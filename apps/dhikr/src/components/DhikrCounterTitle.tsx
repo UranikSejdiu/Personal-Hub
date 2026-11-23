@@ -7,7 +7,7 @@ function MeasuredTitle({ name }: { name: string }) {
 
   return (
     <Text
-      className={`w-full min-w-0 text-center font-semibold text-foreground ${multiline ? "text-base leading-6" : "text-lg leading-7"}`}
+      className={`w-full min-w-0 text-center font-semibold text-foreground ${multiline ? "text-body-medium" : "text-base"}`}
       onTextLayout={({ nativeEvent }) => {
         // Keep the smaller size once wrapping is detected, even if it fits on
         // one line at that size. Otherwise the two sizes can oscillate.

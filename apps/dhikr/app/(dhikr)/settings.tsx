@@ -26,7 +26,7 @@ function SettingsRow({ icon: Icon, label, onPress, disabled = false }: {
   const colors = useThemeColors();
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityState={{ disabled }}
-      className="min-h-[56px] flex-row items-center gap-3 rounded-lg px-1 py-3"
+      className="min-h-[48px] flex-row items-center gap-2 rounded-lg px-1 py-2"
       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
       accessible accessibilityRole="button" accessibilityLabel={label}>
       <Icon size={18} color={colors.mutedForeground} />
@@ -108,31 +108,31 @@ export default function SettingsScreen() {
   return (
     <>
       <ScrollView key={section ?? "settings"} className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-5 px-4 pt-3 pb-6">
-          <View className="flex-row items-center gap-2">
+        <View className="w-full max-w-md self-center gap-3 px-4 pt-1 pb-4">
+          <View className="min-h-[48px] flex-row items-center gap-2">
             {section && <Pressable disabled={busy} onPress={() => setSection(null)}
-              className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
               android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
               accessible accessibilityRole="button" accessibilityLabel="Back to Settings"
               accessibilityState={{ disabled: busy }}>
-              <ChevronLeft size={24} color={colors.foreground} />
+              <ChevronLeft size={20} color={colors.foreground} />
             </Pressable>}
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold text-foreground">
+            <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
               {section === "backup" ? "Backup & restore" : section === "about" ? "About & updates" : "Settings"}
             </Text>
           </View>
           {!section && <>
             <View className="gap-2">
               <Text accessibilityRole="header" className="px-1 text-sm font-semibold text-foreground">Appearance</Text>
-              <View className="rounded-2xl border border-border/60 bg-card p-3">
-                <View className="flex-row rounded-xl bg-muted/60 p-1" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
+              <View className="rounded-xl border border-border/60 bg-card p-3">
+                <View className="flex-row rounded-full border border-outline" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
                   {(["light", "dark"] as const).map(value => (
                     <Pressable key={value} onPress={() => setTheme(value)}
-                      className={`min-h-[44px] flex-1 items-center justify-center rounded-lg ${theme === value ? "bg-card" : ""}`}
+                      className={`min-h-[48px] min-w-0 flex-1 items-center justify-center px-2 py-1 ${value === "light" ? "rounded-l-full border-r border-outline" : "rounded-r-full"} ${theme === value ? "bg-secondary-container" : ""}`}
                       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                       accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
                       accessibilityLabel={value === "light" ? "Light" : "Dark"}>
-                      <Text className={`text-sm font-medium ${theme === value ? "text-foreground" : "text-muted-foreground"}`}>
+                      <Text className={`text-label-large font-medium ${theme === value ? "text-on-secondary-container" : "text-muted-foreground"}`}>
                         {value === "light" ? "Light" : "Dark"}
                       </Text>
                     </Pressable>
@@ -140,7 +140,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-            <View className="min-h-[56px] flex-row items-center justify-between rounded-2xl border border-border/60 bg-card px-3 py-2">
+            <View className="min-h-[52px] flex-row items-center justify-between gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
               <Text className="flex-1 text-[15px] font-medium text-foreground">Vibration feedback</Text>
               <Switch value={haptics} disabled={busy} accessibilityLabel="Vibration feedback"
                 accessibilityState={{ disabled: busy }}
@@ -157,7 +157,7 @@ export default function SettingsScreen() {
                     });
                 }} />
             </View>
-            <View className="rounded-2xl border border-border/60 bg-card px-3">
+            <View className="rounded-xl border border-border/60 bg-card px-3">
               <SettingsRow icon={Download} label="Backup & restore" onPress={() => setSection("backup")} />
               <SettingsRow icon={Settings} label="Manage app permissions" disabled={busy} onPress={() => {
                 if (busyRef.current) return;

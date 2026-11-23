@@ -292,6 +292,12 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const header = nodes(list().props.ListHeaderComponent);
     assert.equal(header.filter(node => node.props?.children === 'Current remaining').length, 1);
     assert.equal(header.some(node => node.props?.children === 'Planned remaining'), false);
+    for (const label of ['Back to months', 'Previous month', 'Next month']) {
+      assert.equal(find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === label).type, 'IconButton');
+    }
+    find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === 'Edit income and savings target').props.onPress();
+    assert.equal(h.state.editingMonth, true);
+    assert.equal(find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === 'Payments made').props.accessibilityValue.max, 5);
   }
   {
     const seeded={...sample,id:9,is_recurring:true};

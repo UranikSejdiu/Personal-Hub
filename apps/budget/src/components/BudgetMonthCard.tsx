@@ -5,7 +5,7 @@ import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
 import { monthLabel } from "../lib/monthLabel";
 import { useThemeColors } from "../lib/theme";
 import { formatCurrency, cn } from "../lib/utils";
-import { Button, IconButton } from "./ui/Button";
+import { IconButton } from "./ui/Button";
 import { ActionDialog } from "./ui/ActionDialog";
 import { Card } from "./ui/Card";
 import type { MonthSummary } from "../types/budget";
@@ -29,21 +29,18 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
   const isExpanded = expanded ?? internalExpanded;
   const handleToggle = onToggleExpand ?? (() => setInternalExpanded(value => !value));
   const details = [
-    { label: "Income:", value: summary.income },
+    { label: "Income", value: summary.income },
     { label: "Outgoings", value: summary.outflow },
     { label: "Paid so far", value: summary.actualOutflow },
-    { label: "Current remaining", value: summary.actualRemaining },
+    ...(!featured ? [{ label: "Current remaining", value: summary.actualRemaining }] : []),
   ];
-  return <Card className={featured ? "border-0 bg-surface-container p-5" : undefined}>
-    <View className="flex-row items-center gap-2">
+  return <Card className={cn("p-3", featured && "border-0 bg-surface-container")}>
+    <View className="flex-row items-center">
       <Pressable onPress={onOpen} className="min-h-[44px] min-w-0 flex-1 justify-center active:opacity-70"
         accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>
-        {featured && <Text className="mb-1 text-[10px] font-semibold uppercase tracking-[0.8px] text-primary">Current month</Text>}
-        <Text className={cn("font-semibold text-foreground", featured ? "text-[17px]" : "text-sm")}>{monthName}</Text>
-        {!featured && <>
-          <Text className="mt-[3px] text-[11px] text-muted-foreground">Planned remaining</Text>
-          <Text className={cn("mt-[3px] text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
-        </>}
+        <Text className={cn("font-semibold text-foreground", featured ? "text-base" : "text-body-medium")}>{monthName}</Text>
+        <Text className="text-label-medium text-muted-foreground">Planned remaining</Text>
+        <Text className={cn("font-semibold", featured ? "text-[24px]" : "text-base", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
       </Pressable>
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
         onPress={() => { handleToggle(); }}
@@ -54,17 +51,12 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
       </View>
     </View>
     {featured && <>
-      <Pressable onPress={onOpen} className="min-h-[44px] pb-[11px] pt-3 active:opacity-70"
-        accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>
-        <Text className="text-xs text-muted-foreground">Planned remaining</Text>
-        <Text className={cn("mt-1 text-[40px] font-semibold tracking-[-1.4px]", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
-      </Pressable>
-      <View className="flex-row flex-wrap gap-4 rounded-[14px] bg-background/60 p-3">
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Current remaining</Text><Text className={cn("text-[18px] font-semibold", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text></View>
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Unpaid</Text><Text className="text-[18px] font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text></View>
+      <View className="mt-2 flex-row flex-wrap gap-x-3 gap-y-2 border-t border-border/60 pt-2">
+        <View className="min-w-[112px] flex-1"><Text className="text-[11px] text-muted-foreground">Current remaining</Text><Text className={cn("text-base font-semibold", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text></View>
+        <View className="min-w-[112px] flex-1"><Text className="text-[11px] text-muted-foreground">Unpaid</Text><Text className="text-base font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text></View>
       </View>
     </>}
-    {(featured || isExpanded) && summary.savingsGoal > 0 && <View className="mt-3 gap-[7px]">
+    {(featured || isExpanded) && summary.savingsGoal > 0 && <View className="mt-2 gap-1.5">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
         <Text className="text-[11px] text-muted-foreground">{`Savings target · ${formatCurrency(summary.savingsGoal)}`}</Text>
         <View className="flex-row items-center gap-1"><CircleCheck size={13} color={summary.goalMet ? colors.success : colors.mutedForeground} /><Text className={cn("text-[11px]", summary.goalMet ? "text-success" : "text-muted-foreground")}>{summary.goalMet ? "Target met" : "In progress"}</Text></View>
@@ -74,7 +66,6 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
         <View className="h-full rounded-full bg-success" style={{ width: `${summary.goalProgress}%` }} />
       </View>
     </View>}
-    {featured && <Button className="mt-4" label="Open budget" onPress={onOpen} />}
     {isExpanded && <View className="mt-3 gap-[7px] border-t border-border/60 pt-2.5">
       {details.map(detail => <View key={detail.label} className="flex-row flex-wrap justify-between gap-3">
         <Text className="shrink text-xs text-muted-foreground">{detail.label}</Text>

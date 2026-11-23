@@ -21,7 +21,7 @@ type ModalState =
   | { visible: true; mode: "edit"; dhikr: Dhikr };
 
 const ROW_TRANSITION = LinearTransition.duration(180);
-const LIST_CONTENT_STYLE = { paddingBottom: 24 };
+const LIST_CONTENT_STYLE = { paddingBottom: 16 };
 const dhikrKey = (item: Dhikr) => String(item.id);
 
 function MoveUpIcon(props: AppIconProps) {
@@ -53,8 +53,8 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
   const goalComplete = hasGoal && item.daily_count >= dailyLimit;
 
   return (
-    <View className={`border-x border-border/60 bg-card px-3 ${index === 0 ? "rounded-t-2xl border-t" : ""} ${index === count - 1 ? "rounded-b-2xl border-b" : ""}`}>
-      <View className={`py-3 ${index < count - 1 ? "border-b border-border/60" : ""}`}>
+    <View className={`border-x border-border/60 bg-card px-2.5 ${index === 0 ? "rounded-t-xl border-t" : ""} ${index === count - 1 ? "rounded-b-xl border-b" : ""}`}>
+      <View className={`py-1 ${index < count - 1 ? "border-b border-border/60" : ""}`}>
       <View className="flex-row items-center gap-2">
         {arranging && (
           <Text className="w-5 text-sm font-medium text-muted-foreground">{index + 1}</Text>
@@ -62,14 +62,14 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
         <Pressable
           onPress={() => onSelect(item)}
           disabled={arranging || saving}
-          className="min-h-[56px] min-w-0 flex-1 justify-center gap-1.5 rounded-lg py-1 active:opacity-70"
+          className="min-h-[52px] min-w-0 flex-1 justify-center gap-0.5 rounded-lg py-1 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel={`Open ${item.name}`}
           accessibilityState={{ disabled: arranging || saving }}
         >
-          <Text className="text-[15px] font-semibold text-foreground">{item.name}</Text>
-          <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <Text className="text-body-medium font-semibold text-foreground">{item.name}</Text>
+          <View className="flex-row flex-wrap items-center gap-x-3">
             <Text className="text-xs text-muted-foreground">Total: {item.total_count.toLocaleString("en")}</Text>
             <View className="max-w-full flex-row flex-wrap items-center gap-1">
               <Text className="text-xs text-muted-foreground">Today</Text>
@@ -280,13 +280,13 @@ export default function DhikrListScreen() {
   return (
     <>
       <View className="flex-1 bg-background">
-        <View className="w-full max-w-md flex-1 self-center px-4 pt-3">
-          <View className="mb-3 min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
+        <View className="w-full max-w-md flex-1 self-center px-4 pt-1">
+          <View className="mb-2 min-h-[48px] flex-row flex-wrap items-center justify-between gap-x-2">
             <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
             {arranging ? (
-              <View className="flex-row items-center gap-1">
+              <View className="max-w-full flex-row flex-wrap items-center gap-x-1">
                 <Pressable onPress={cancelArrange} disabled={isSaving}
-                  className="min-h-[44px] items-center justify-center rounded-lg px-3 active:bg-muted"
+                  className="min-h-[48px] items-center justify-center rounded-full px-3 active:bg-muted"
                   accessible accessibilityRole="button" accessibilityLabel="Cancel"
                   accessibilityState={{ disabled: isSaving }}>
                   <Text className="text-sm font-medium text-muted-foreground">Cancel</Text>
@@ -294,10 +294,10 @@ export default function DhikrListScreen() {
                 <Button label={isSaving ? "Saving…" : "Done"} onPress={finishArrange} busy={isSaving} className="px-4 py-2" />
               </View>
             ) : (
-              <View className="flex-row items-center gap-1">
+              <View className="max-w-full flex-row flex-wrap items-center gap-x-1">
                 {dhikrs.length > 1 && (
                   <Pressable onPress={beginArrange} disabled={isSaving || isLoading || loadFailed}
-                    className="min-h-[44px] items-center justify-center rounded-lg px-2 active:bg-muted"
+                    className="min-h-[48px] items-center justify-center rounded-full px-2 active:bg-muted"
                     accessible accessibilityRole="button" accessibilityLabel="Arrange"
                     accessibilityState={{ disabled: isSaving || isLoading || loadFailed }}>
                     <Text className="text-sm font-semibold text-primary">Arrange</Text>

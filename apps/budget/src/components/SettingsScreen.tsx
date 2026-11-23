@@ -83,21 +83,21 @@ export default function SettingsScreen() {
 
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-6">
-      <View className="w-full max-w-md self-center gap-5 px-4 pt-3">
-        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
+      <View className="w-full max-w-md self-center gap-3 px-4 pt-2">
+        <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Settings</Text>
+        <View className="gap-2.5 rounded-xl border border-border bg-card p-3">
           <Text className="text-base font-semibold text-foreground">Appearance</Text>
-          <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row gap-1 rounded-[18px] bg-secondary p-1">
+          <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row rounded-full border border-outline">
             {(["light", "dark"] as const).map(value => {
               const active = theme === value;
-              const color = active ? colors.primaryForeground : colors.mutedForeground;
+              const color = active ? colors.onSecondaryContainer : colors.mutedForeground;
               return <Pressable key={value} accessibilityRole="radio" accessibilityLabel={value === "light" ? "Light" : "Dark"}
                 accessibilityState={{ checked: active, disabled: busy }} disabled={busy} onPress={() => setTheme(value)}
-                className={`min-h-[52px] flex-1 flex-row items-center justify-center gap-2 rounded-[14px] px-3 py-3 active:opacity-70 ${active ? "bg-primary" : ""} ${busy ? "opacity-60" : ""}`}>
+                className={`min-h-[48px] min-w-0 flex-1 flex-row items-center justify-center gap-2 px-3 py-2 active:opacity-70 ${value === "light" ? "rounded-l-full border-r border-outline" : "rounded-r-full"} ${active ? "bg-secondary-container" : ""} ${busy ? "opacity-60" : ""}`}>
                 <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" accessible={false}>
                   {value === "light" ? <><Circle cx={12} cy={12} r={4} /><Path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></> : <Path d="M20.8 13a9 9 0 0 1-9.8-9.8A9 9 0 1 0 20.8 13Z" />}
                 </Svg>
-                <Text className={`text-sm font-semibold ${active ? "text-primary-foreground" : "text-muted-foreground"}`}>{value === "light" ? "Light" : "Dark"}</Text>
+                <Text className={`shrink text-label-large font-medium ${active ? "text-on-secondary-container" : "text-muted-foreground"}`}>{value === "light" ? "Light" : "Dark"}</Text>
                 <View className="w-3">{active && <Check size={12} color={color} />}</View>
               </Pressable>;
             })}
@@ -107,7 +107,7 @@ export default function SettingsScreen() {
           if (locked.current) return;
           void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select MoneyPlan."));
         }} />
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
+        <View className="gap-2.5 rounded-xl border border-border bg-card p-3">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Backups are password-protected. Import replaces current data after confirmation.</Text>
           <Button label="Save to folder" disabled={busy} onPress={() => setPasswordAction("folder")} />
@@ -121,13 +121,12 @@ export default function SettingsScreen() {
           }} />}
         </View>
         <UpdateCard />
-        <View className="gap-4 rounded-[22px] border border-border/60 bg-card p-5">
+        <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
           <View className="flex-row items-center gap-3">
-            <Image source={require("../../assets/developer-avatar.png")} accessibilityLabel="Uranik Sejdiu" style={{ width: 58, height: 58, borderRadius: 29 }} />
+            <Image source={require("../../assets/developer-avatar.png")} accessibilityLabel="Uranik Sejdiu" style={{ width: 36, height: 36, borderRadius: 18 }} />
             <View className="min-w-0 flex-1 gap-1">
               <Text className="text-base font-semibold text-foreground">Uranik Sejdiu</Text>
-              <Text className="text-xs text-muted-foreground">Creator of MoneyPlan</Text>
             </View>
           </View>
 

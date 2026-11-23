@@ -1,6 +1,6 @@
 import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Pressable, FlatList, ActivityIndicator, Keyboard, StyleSheet, type ListRenderItemInfo } from "react-native";
+import { View, Pressable, FlatList, ActivityIndicator, Keyboard, StyleSheet, useWindowDimensions, type ListRenderItemInfo } from "react-native";
 import { Archive, FileText, LayoutGrid, Plus, Search, Settings, XCircle } from "./AppIcons";
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
@@ -26,7 +26,7 @@ import type { NoteKind } from "../types/notes";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 8 },
+  listContent: { paddingHorizontal: 16, paddingTop: 4 },
 });
 
 const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
@@ -36,12 +36,13 @@ const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
 ];
 
 type NotesListRow =
-  | { type: "section"; key: string; label: string; spacedTop?: boolean }
+  | { type: "section"; key: string; label: string }
   | { type: "notes"; key: string; notes: (Note | null)[] };
 
 export default function NotesListScreen({ archived = false }: { archived?: boolean }) {
   const router = useRouter();
   const colors = useThemeColors();
+  const { width, fontScale } = useWindowDimensions();
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
@@ -218,9 +219,11 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     [router, archived]
   );
 
+  // Keep a readable column width as the device or its text size changes.
+  const layout = viewMode === "grid" && Math.min(width, 448) / fontScale >= 360 ? "grid" : "list";
   const listData = useMemo<NotesListRow[]>(() => {
     const data: NotesListRow[] = [];
-    const columns = viewMode === "grid" ? 2 : 1;
+    const columns = layout === "grid" ? 2 : 1;
     const appendRows = (group: Note[]) => {
       for (let i = 0; i < group.length; i += columns) {
         const first = group[i];
@@ -233,14 +236,13 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       data.push({ type: "section", key: "section-pinned", label: "Pinned" });
       appendRows(pinned);
       if (pinned.length < notes.length) {
-        data.push({ type: "section", key: "section-others", label: "Unpinned", spacedTop: true });
         appendRows(notes.filter(note => !note.is_pinned));
       }
     } else {
       appendRows(notes);
     }
     return data;
-  }, [archived, notes, viewMode]);
+  }, [archived, notes, layout]);
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<NotesListRow>) => {
@@ -248,9 +250,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         return (
           <Text
             accessibilityRole="header"
-            className={`mb-3 text-[11px] font-semibold uppercase tracking-[1.6px] text-muted-foreground ${
-              item.spacedTop ? "mt-3" : ""
-            }`}
+            className="mb-2 text-label-medium font-semibold text-muted-foreground"
           >
             {item.label}
           </Text>
@@ -263,7 +263,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               <View key={note.id} className="flex-1">
                 <NoteCard
                   note={note}
-                  layout={viewMode}
+                  layout={layout}
                   onPress={handleNotePress}
                 />
               </View>
@@ -274,13 +274,13 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         </View>
       );
     },
-    [handleNotePress, viewMode]
+    [handleNotePress, layout]
   );
 
   const listEmpty = useMemo(
     () => (
-      <View className="items-center gap-3 py-20">
-        {archived ? <Archive size={40} color={colors.mutedForeground} /> : <FileText size={40} color={colors.mutedForeground} />}
+      <View className="items-center gap-2 py-10">
+        {archived ? <Archive size={28} color={colors.mutedForeground} /> : <FileText size={28} color={colors.mutedForeground} />}
         <Text className="text-sm text-muted-foreground">
           {searchQuery || kindFilter ? "No notes found" : (archived ? "No archived notes" : "No notes yet")}
         </Text>
@@ -291,8 +291,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-4 px-5 max-[360px]:px-4 pt-4 pb-2">
-        <View className="flex-row items-center justify-between gap-3">
+      <View className="w-full max-w-md self-center gap-2 px-4 pt-1 pb-1">
+        <View className="flex-row items-center justify-between">
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
             {archived ? "Archive" : "My Notes"}
           </Text>
@@ -300,16 +300,16 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
             accessibilityRole="button" accessibilityLabel="View options" accessibilityHint="Change layout and sort order"
             accessibilityState={{ expanded: viewOptionsVisible }}>
-            <LayoutGrid size={24} color={colors.mutedForeground} />
+            <LayoutGrid size={20} color={colors.mutedForeground} />
           </Pressable>
           <Pressable onPress={() => { router.push("/(notes)/settings"); }}
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
             accessibilityRole="button" accessibilityLabel="Settings">
-            <Settings size={25} color={colors.mutedForeground} />
+            <Settings size={20} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
-        <View className="min-h-[48px] flex-row items-center gap-3 rounded-full bg-surface-container-high px-4">
+        <View className="min-h-[48px] flex-row items-center gap-2 rounded-full bg-surface-container-high px-3">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -321,12 +321,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
             placeholder={archived ? "Search archive" : "Search notes"}
             accessibilityLabel={archived ? "Search archive" : "Search notes"}
             placeholderTextColor={colors.mutedForeground}
-            className="min-h-[48px] min-w-0 flex-1 text-base text-foreground"
+            className="min-h-[48px] min-w-0 flex-1 text-body-medium text-foreground"
           />
           {searchQuery.length > 0 && (
             <Pressable
               onPress={clearSearch}
-              className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+              className="h-12 w-12 items-center justify-center rounded-full active:opacity-70"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Clear"
@@ -335,12 +335,14 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
             </Pressable>
           )}
         </View>
-        <View className="flex-row flex-wrap gap-2 pb-2">
+        <View className="flex-row flex-wrap gap-x-2">
           {FILTERS.map(option => (
             <Pressable key={option.kind ?? "all"} onPress={() => handleFilter(option.kind)}
               accessibilityRole="button" accessibilityLabel={option.label} accessibilityState={{ selected: kindFilter === option.kind }}
-              className={`min-h-[48px] items-center justify-center rounded-[8px] border px-4 py-2 ${kindFilter === option.kind ? "border-transparent bg-secondary-container" : "border-outline"} active:opacity-70`}>
-              <Text className={`text-sm font-medium ${kindFilter === option.kind ? "text-on-secondary-container" : "text-muted-foreground"}`}>{option.label}</Text>
+              className="min-h-[48px] max-w-full justify-center active:opacity-70">
+              <View className={`min-h-8 items-center justify-center rounded-lg border px-3 py-1 ${kindFilter === option.kind ? "border-transparent bg-secondary-container" : "border-outline"}`}>
+                <Text className={`text-label-medium font-medium ${kindFilter === option.kind ? "text-on-secondary-container" : "text-muted-foreground"}`}>{option.label}</Text>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -362,7 +364,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel="Retry"><Text className="text-foreground">Retry</Text></Pressable>
         ) : undefined}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.listContent, { paddingBottom: archived ? 24 : 88 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: archived ? 16 : 76 }]}
         style={styles.list}
         initialNumToRender={8}
         maxToRenderPerBatch={8}
@@ -377,7 +379,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       {!archived && !keyboardVisible && chooserVisible && <Pressable
         onPress={closeChooser} accessible={false} style={StyleSheet.absoluteFill} />}
 
-      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute bottom-4 w-full max-w-md self-center px-5">
+      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute bottom-3 w-full max-w-md self-center px-4">
         <NoteTypeChooser
           visible={chooserVisible}
           onClose={closeChooser}

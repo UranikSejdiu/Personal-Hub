@@ -62,8 +62,8 @@ export function AttachmentToolbarButton({ disabled, busy, onSelect }: {
       }} disabled={disabled || busy}
         accessibilityRole="button" accessibilityLabel="Add attachment" accessibilityHint="Choose an image, camera, voice recording, or file"
         accessibilityState={{ expanded: visible, disabled: disabled || busy, busy }}
-        className="h-11 w-11 items-center justify-center rounded-full bg-secondary active:opacity-70 disabled:opacity-50">
-        {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <Animated.View style={iconStyle}><Plus size={24} color={colors.foreground} /></Animated.View>}
+        className="h-12 w-12 items-center justify-center rounded-full bg-secondary-container active:opacity-70 disabled:opacity-50">
+        {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <Animated.View style={iconStyle}><Plus size={20} color={colors.onSecondaryContainer} /></Animated.View>}
       </Pressable>
     <Modal visible={visible} transparent statusBarTranslucent navigationBarTranslucent
       animationType={reducedMotion ? "none" : "fade"} onRequestClose={close} onDismiss={commitSelection}>
@@ -76,7 +76,7 @@ export function AttachmentToolbarButton({ disabled, busy, onSelect }: {
             <View className="flex-row items-center justify-between gap-3 px-5 pb-2 pt-3">
               <Text accessibilityRole="header" className="min-w-0 flex-1 text-lg font-semibold text-foreground">Add attachment</Text>
               <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close attachment menu"
-                className="h-11 w-11 items-center justify-center rounded-full bg-secondary active:opacity-70">
+                className="h-12 w-12 items-center justify-center rounded-full bg-secondary-container active:opacity-70">
                 <X size={20} color={colors.foreground} />
               </Pressable>
             </View>
@@ -84,9 +84,9 @@ export function AttachmentToolbarButton({ disabled, busy, onSelect }: {
               contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 8 }}>
               {OPTIONS.map(option =>
                 <Pressable onPress={() => select(option.kind)} accessibilityRole="button" accessibilityLabel={option.label}
-                  key={option.kind} className="min-h-[56px] flex-row items-center gap-3 rounded-2xl px-3 py-2 active:bg-secondary">
-                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-secondary">
-                    <AttachmentIcon name={option.kind} size={21} color={colors.primary} />
+                  key={option.kind} className="min-h-[48px] flex-row items-center gap-3 rounded-xl px-3 py-1 active:bg-secondary">
+                  <View className="h-8 w-8 items-center justify-center rounded-lg bg-secondary-container">
+                    <AttachmentIcon name={option.kind} size={18} color={colors.onSecondaryContainer} />
                   </View>
                   <Text className="min-w-0 flex-1 text-base font-medium text-foreground">{option.label}</Text>
                 </Pressable>

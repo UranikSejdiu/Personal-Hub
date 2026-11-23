@@ -36,7 +36,7 @@ export function Checkbox({ checked, size = "md", displayOnly = false, children,
   const indicator = (
     <Animated.View style={animatedStyle} className={cn(
       "shrink-0 items-center justify-center rounded-[3px] border-2",
-      size === "sm" ? "h-4 w-4" : "h-5 w-5",
+      size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]",
       checked ? "border-primary bg-primary" : "border-outline"
     )}>
       {checked && <Check size={size === "sm" ? 10 : 12} color={colors.primaryForeground} />}
@@ -52,8 +52,8 @@ export function Checkbox({ checked, size = "md", displayOnly = false, children,
       accessibilityState={{ ...accessibilityState, checked, disabled }}
       disabled={disabled}
       className={cn(
-        "min-h-[44px] flex-row items-center gap-2 rounded-lg active:bg-muted active:opacity-70",
-        !children && "h-11 w-11 justify-center",
+        "min-h-[48px] flex-row items-center gap-2 rounded-lg active:bg-muted active:opacity-70",
+        !children && "h-12 w-12 justify-center",
         disabled && "opacity-50",
         className
       )}

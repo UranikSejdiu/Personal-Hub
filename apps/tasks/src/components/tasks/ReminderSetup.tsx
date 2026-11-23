@@ -60,7 +60,7 @@ export function ReminderSetup() {
   return <View className="gap-2 rounded-xl border border-border bg-card p-3">
     <Text accessibilityRole="header" className="text-sm font-semibold text-foreground">Reminder delivery</Text>
     <View>
-      {options.map((option, index) => <View key={option.kind} className={`min-h-[52px] flex-row items-center justify-between gap-3 ${index < options.length - 1 ? "border-b border-border/60" : ""}`}>
+      {options.map((option, index) => <View key={option.kind} className={`min-h-[48px] flex-row items-center justify-between gap-3 ${index < options.length - 1 ? "border-b border-border/60" : ""}`}>
         <Text className="flex-1 text-sm text-foreground">{option.label}</Text>
         <Switch value={option.enabled} disabled={busy || !option.available} hitSlop={9}
           onValueChange={enabled => { void change(option.kind, enabled); }}
@@ -72,6 +72,6 @@ export function ReminderSetup() {
     {status.notifications !== null && Number(Platform.Version) >= 26 && (
       <Button label="Reminder sound & vibration" variant="secondary" disabled={busy} onPress={() => { void change("channel"); }} />
     )}
-    <Text className="text-xs text-muted-foreground">{status.notifications === null || !status.access ? "Reminder settings need a native build." : "Changes may open Android settings."}</Text>
+    {(status.notifications === null || !status.access) && <Text className="text-xs text-muted-foreground">Reminder settings need a native build.</Text>}
   </View>;
 }

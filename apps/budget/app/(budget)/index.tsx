@@ -21,6 +21,7 @@ import {
   type MonthSummary,
 } from "../../src/lib/budget";
 import { withTransaction } from "../../src/lib/db";
+import { HubHeader } from "../../src/components/HubHeader";
 import { BudgetMonthCard } from "../../src/components/BudgetMonthCard";
 import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
@@ -140,10 +141,11 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View className="gap-3">
-            <View className="flex-row flex-wrap items-center justify-between gap-3">
-              <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Monthly budget</Text>
+            <View className="flex-row flex-wrap items-center justify-between gap-x-3">
+              <HubHeader />
               <Button
                 label="Add expense"
+                className="max-w-[55%]"
                 icon={Plus}
                 disabled={loadState !== "ready" || creatingMonth !== null}
 
@@ -183,9 +185,9 @@ export default function DashboardScreen() {
             )}
 
             {loadState === "ready" && savingsBalance !== null && (
-              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[76px] flex-row items-center gap-3 rounded-2xl bg-secondary-container px-4 py-3 active:opacity-70">
-                <PiggyBank size={24} color={colors.onSecondaryContainer} />
-                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-on-secondary-container">{formatCurrency(savingsBalance)}</Text><Text className="text-label-medium text-on-secondary-container">Total savings</Text></View>
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[56px] flex-row items-center gap-3 rounded-xl bg-secondary-container px-3 py-2 active:opacity-70">
+                <PiggyBank size={20} color={colors.onSecondaryContainer} />
+                <View className="min-w-0 flex-1 flex-row flex-wrap items-center justify-between gap-x-3"><Text className="text-body-medium text-on-secondary-container">Total savings</Text><Text className="text-body-medium font-semibold text-on-secondary-container">{formatCurrency(savingsBalance)}</Text></View>
                 <ChevronRight size={18} color={colors.onSecondaryContainer} />
               </Pressable>
             )}
@@ -229,5 +231,5 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 12 },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16, gap: 8 },
 });

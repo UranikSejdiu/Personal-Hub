@@ -446,38 +446,43 @@ export default function BudgetScreen() {
       windowSize={7}
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
-        <View className="border-x border-border/60 bg-card px-3">
+        <View className="border-x border-border/60 bg-card px-2">
           <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
         </View>
       )}
       ListHeaderComponent={
         <View className="gap-3">
-          <View className="flex-row items-center gap-1">
-            <Button className="mr-auto" variant="secondary" icon={ArrowLeft} label="Months" onPress={() => router.replace("/(budget)")} />
+          <View className="flex-row items-center">
+            <IconButton icon={ArrowLeft} accessibilityLabel="Back to months" onPress={() => router.replace("/(budget)")} />
+            <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{monthLabel(month)}</Text>
             <IconButton icon={ChevronLeft} accessibilityLabel="Previous month" onPress={() => router.setParams({ month: previousMonth })} />
             <IconButton icon={ChevronRight} accessibilityLabel="Next month" onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
-          <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{monthLabel(month)}</Text>
-          <View className="gap-2 rounded-[22px] bg-secondary p-5">
-            <View className="gap-1">
-              <Text className="text-[11px] text-muted-foreground">Current remaining</Text>
-              <Text className={`text-[23px] font-semibold tracking-[-0.7px] ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
-                {formatCurrency(monthSummary.actualRemaining)}
-              </Text>
+          <View className="gap-2 rounded-2xl bg-surface-container px-3 py-2">
+            <View className="flex-row items-center">
+              <View className="min-w-0 flex-1">
+                <Text className="text-label-medium text-muted-foreground">Current remaining</Text>
+                <Text className={`text-[24px] font-semibold ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                  {formatCurrency(monthSummary.actualRemaining)}
+                </Text>
+              </View>
+              <IconButton icon={Pencil} accessibilityLabel="Edit income and savings target" onPress={() => setEditingMonth(true)} />
             </View>
-            <Button className="self-start" variant="secondary" icon={Pencil} label={"Income & savings target"} onPress={() => setEditingMonth(true)} />
-          </View>
-          <View className="gap-2 rounded-[18px] border border-border/60 bg-card p-4">
-            <View className="flex-row justify-between gap-2"><Text className="text-xs font-semibold text-foreground">{`${paidCount} of ${paymentCount} paid`}</Text><Text className="text-xs text-muted-foreground">{paymentCount - paidCount} {"Unpaid".toLowerCase()}</Text></View>
-            <View className="h-1.5 overflow-hidden rounded-full bg-secondary" accessible accessibilityRole="progressbar" accessibilityLabel={"Loan & card payments"} accessibilityValue={{ min: 0, max: paymentCount || 1, now: paidCount }}><View className="h-full rounded-full bg-primary" style={{ width: `${paymentCount ? paidCount / paymentCount * 100 : 0}%` }} /></View>
+            {paymentCount > 0 && <View className="gap-1.5 pb-1">
+              <Text className="text-label-medium text-muted-foreground">{`${paidCount} of ${paymentCount} paid`}</Text>
+              <View className="h-1 overflow-hidden rounded-full bg-secondary" accessible accessibilityRole="progressbar" accessibilityLabel="Payments made"
+                accessibilityValue={{ min: 0, max: paymentCount, now: paidCount }}>
+                <View className="h-full rounded-full bg-primary" style={{ width: `${paidCount / paymentCount * 100}%` }} />
+              </View>
+            </View>}
           </View>
           <CustomExpensesHeader expenses={expenses} onAdd={() => { setExpenseEditor({}); }} />
         </View>
       }
       ListFooterComponent={
         <View className="gap-3">
-          <View className="rounded-b-[14px] border-x border-b border-border/60 bg-card px-3 pb-2">
-            {hasPreviousBudget && <Button className="self-start" variant="secondary" icon={Copy} label="Copy from previous month" onPress={() => setConfirmCopy(true)} />}
+          <View className="rounded-b-xl border-x border-b border-border/60 bg-card px-2 pb-1">
+            {hasPreviousBudget && <Button className="self-start" variant="text" icon={Copy} label="Copy from previous month" onPress={() => setConfirmCopy(true)} />}
           </View>
           {activePayments.length > 0 && <View className="gap-2.5">
             <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{"Loan & card payments"}</Text>

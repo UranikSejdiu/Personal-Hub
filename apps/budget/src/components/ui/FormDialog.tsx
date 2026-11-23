@@ -26,11 +26,11 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
         <AnimatedPressable entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)} onPress={event => event.stopPropagation()} accessible={false} accessibilityViewIsModal
           className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high">
           <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled">
-            <View className="flex-row items-center justify-between gap-2 px-[18px] pt-2.5">
+            <View className="flex-row items-center justify-between gap-2 px-4 pt-1.5">
               <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{title}</Text>
               <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
             </View>
-            <View className="gap-3 p-[18px]">{children}</View>
+            <View className="gap-3 px-4 pb-4">{children}</View>
           </ScrollView>
         </AnimatedPressable>
       </Pressable>

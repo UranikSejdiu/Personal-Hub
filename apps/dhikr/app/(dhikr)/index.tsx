@@ -240,13 +240,13 @@ export default function CounterScreen() {
   if (dhikrs.length === 0 || !activeDhikr) {
     return (
       <View className="flex-1 items-center justify-center bg-background px-8">
-        <Star size={48} color={colors.mutedForeground} />
-        <Text className="mt-4 text-lg font-semibold text-foreground">
+        <Star size={32} color={colors.mutedForeground} />
+        <Text className="mt-2 text-base font-semibold text-foreground">
           No dhikr yet
         </Text>
         <Pressable
           onPress={handleOpenList}
-          className="mt-4 min-h-[48px] flex-row items-center gap-2 rounded-full bg-primary-container px-4 py-2.5 active:opacity-70"
+          className="mt-3 min-h-[48px] flex-row items-center gap-2 rounded-full bg-primary-container px-4 py-2.5 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel="Add Dhikr"
@@ -273,11 +273,11 @@ export default function CounterScreen() {
       )}
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="w-full max-w-md flex-1 items-center self-center px-4 pt-3">
-          <View className="w-full flex-row items-center gap-2 rounded-2xl bg-surface-container p-1">
+        <View className="w-full max-w-md flex-1 items-center self-center px-4 pt-2">
+          <View className="w-full flex-row items-center rounded-xl bg-surface-container">
             <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
@@ -290,11 +290,11 @@ export default function CounterScreen() {
               <ChevronLeft size={20} color={colors.primary} />
             </Pressable>
             <Pressable onPress={handleOpenList} disabled={resetting}
-              className="min-h-[44px] min-w-0 flex-1 items-center justify-center py-1 active:opacity-70"
+              className="min-h-[48px] min-w-0 flex-1 items-center justify-center py-1 active:opacity-70"
               accessibilityRole="button" accessibilityLabel={`Choose a dhikr: ${activeDhikr.name}`}
               accessibilityState={{ disabled: resetting }}>
               <DhikrCounterTitle name={activeDhikr.name} />
-              <Text className="mt-0.5 text-xs text-muted-foreground">{`${activeIndex + 1} of ${dhikrs.length}`}</Text>
+              {dhikrs.length > 1 && <Text className="text-label-medium text-muted-foreground">{`${activeIndex + 1} of ${dhikrs.length}`}</Text>}
             </Pressable>
             <Pressable
               onPress={handleNext}
@@ -315,7 +315,7 @@ export default function CounterScreen() {
             accessibilityState={{ disabled: isLoading || resetting }}
             unstable_pressDelay={0}
             android_disableSound={true}
-            className="min-h-[240px] w-full flex-1 items-center justify-center py-6 active:opacity-70"
+            className="min-h-[200px] w-full flex-1 items-center justify-center py-3 active:opacity-70"
             accessible
             accessibilityRole="button"
             accessibilityLabel="Tap to count"
@@ -329,20 +329,23 @@ export default function CounterScreen() {
               className={`w-full text-center font-extralight ${
                 limitReached ? "text-success" : "text-foreground"
               }`}
-              style={{ fontSize: Math.min(132, width * 0.34), letterSpacing: -2 }}
+              style={{ fontSize: Math.min(80, width * 0.22), letterSpacing: -1 }}
             >
               {activeDhikr.total_count.toLocaleString("en")}
             </Text>
           </Pressable>
-          <View className="items-center gap-3">
-            {limitReached && <Text className="text-center text-sm font-medium text-success">Daily Goal Complete!</Text>}
+          <View className="w-full items-center gap-1.5">
+            {(showLimitWarning || limitReached) && <Text accessibilityLiveRegion="polite"
+              className={`text-center text-body-medium font-medium ${showLimitWarning ? "text-destructive" : "text-success"}`}>
+              {showLimitWarning ? "Daily limit reached" : "Daily goal complete"}
+            </Text>}
             <Pressable
               onPress={() => {
                 if (interactiveRef.current && !resettingRef.current) setResetTarget({ id: activeDhikr.id, name: activeDhikr.name });
               }}
               disabled={isLoading || resetting}
               accessibilityState={{ disabled: isLoading || resetting, busy: resetting }}
-              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary-container px-4 py-2.5 active:opacity-70"
+              className="min-h-[48px] flex-row items-center gap-2 rounded-full bg-secondary-container px-4 py-2.5 active:opacity-70"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Reset"
@@ -358,22 +361,6 @@ export default function CounterScreen() {
         confirmLabel="Reset" destructive
         onClose={() => { if (!resettingRef.current) setResetTarget(null); }} onConfirm={handleReset} />
 
-      {/* Limit reached warning banner */}
-      {showLimitWarning && (
-        <View className="absolute inset-x-0 z-40 items-center px-4" style={{ bottom: 84 }}>
-          <View
-            className="max-w-full rounded-[8px] border px-5 py-2.5"
-            style={{
-              backgroundColor: colors.destructive,
-              borderColor: colors.destructive,
-            }}
-          >
-            <Text className="text-sm font-medium text-destructive-foreground">
-              Daily limit reached
-            </Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 }

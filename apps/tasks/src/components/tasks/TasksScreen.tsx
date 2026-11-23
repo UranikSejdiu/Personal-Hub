@@ -203,26 +203,28 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     setMonth(`${next.slice(0, 7)}-01`); setSelectedDate(next);
   };
   const header = <View>
-    <View className="mb-4 flex-row items-center justify-between gap-3">
+    <View className="mb-1.5 min-h-[48px] flex-row items-center justify-between gap-1">
       <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
         {mode === "calendar" ? "Calendar" : "Tasks"}
       </Text>
       {mode === "calendar" ? (
         <IconButton icon={Bell} accessibilityLabel="Open reminder settings" onPress={() => router.navigate("/(tasks)/settings")} />
       ) : (
-        <IconButton icon={searchOpen ? X : Search} accessibilityLabel={searchOpen ? "Close search" : "Search tasks"}
-          accessibilityState={{ expanded: searchOpen }} onPress={() => { setSearchOpen(value => !value); setSearch(""); }} />
+        <>
+          <IconButton icon={searchOpen ? X : Search} accessibilityLabel={searchOpen ? "Close search" : "Search tasks"}
+            accessibilityState={{ expanded: searchOpen }} onPress={() => { setSearchOpen(value => !value); setSearch(""); }} />
+          <TaskAddButton onPress={() => setEditor({})} disabled={busy} />
+        </>
       )}
     </View>
     {mode === "overview" && <>
+      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full bg-surface-container-high px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] min-w-0 flex-1 text-body-medium text-foreground" /></View>}
       <TaskSummaryTiles counts={counts} filter={filter} onFilter={setFilter} />
-      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full bg-surface-container-high px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[46px] min-w-0 flex-1 text-base text-foreground" /></View>}
-      <View className="mb-2 flex-row items-center justify-between gap-3">
-        <Text accessibilityRole="header" className="min-w-0 flex-1 text-lg font-semibold tracking-[-0.4px] text-foreground">{FILTER_TITLES[filter]}</Text>
-        <Pressable accessibilityRole="button" onPress={() => setFilter(filter === "active" ? "today" : "active")} className="min-h-[44px] justify-center">
-          <Text className="text-sm text-primary">{filter === "active" ? "Today" : "All open"}</Text>
-        </Pressable>
-        <TaskAddButton onPress={() => setEditor({})} disabled={busy} />
+      <View className="flex-row items-center justify-between gap-2">
+        <Text accessibilityRole="header" className="min-w-0 flex-1 text-base font-semibold text-foreground">{FILTER_TITLES[filter]}</Text>
+        {filter !== "active" && <Pressable accessibilityRole="button" onPress={() => setFilter("active")} className="min-h-[48px] max-w-[45%] justify-center px-2">
+          <Text className="text-label-medium font-medium text-primary">All open</Text>
+        </Pressable>}
       </View>
     </>}
     {mode === "calendar" && <><TaskCalendar days={days} month={month} selected={selectedDate} today={today} counts={dayCounts} week={week} onWeek={setWeek} onMove={move} onToday={() => { const date = taskDateKey(); setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} onSelect={date => { setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} />
@@ -236,7 +238,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     : reminder && tasks.length > 0 ? undefined
     : <Text className="py-8 text-center text-sm text-muted-foreground">{debouncedSearch ? "No matching tasks" : "No tasks"}</Text>;
   return <>
-    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-5 max-[360px]:px-4 pt-5">
+    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-4 pt-1">
       <FlatList ref={listRef} data={visible} keyExtractor={keyForTask} renderItem={renderTask} ListHeaderComponent={header} ListEmptyComponent={empty} initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} keyboardShouldPersistTaps="handled" contentContainerStyle={CONTENT_STYLE} showsVerticalScrollIndicator={false}
           onEndReached={() => { if (!pagingFailed) void loadMore(); }} onEndReachedThreshold={0.3} ListFooterComponent={paging ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading more tasks" /> : pagingFailed ? <Button label="Retry loading more" onPress={() => void loadMore()} /> : undefined} />
     </View></View>

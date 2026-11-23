@@ -1,11 +1,11 @@
 import { useEffect } from "react";
-import { Easing } from "react-native";
+import { Easing, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotion } from "react-native-reanimated";
 import { Tabs, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { NavigationBar } from "../../src/components/NavigationBar";
 import { BUDGET_TABS } from "../../src/hub/tabs";
-import { HubHeader } from "../../src/components/HubHeader";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 import { useThemeColors } from "../../src/lib/theme";
@@ -14,7 +14,7 @@ export default function BudgetLayout() {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
   const colors = useThemeColors();
-
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     void Promise.all([loadSavingsGoal(), loadBudget(currentMonth())])
@@ -30,8 +30,7 @@ export default function BudgetLayout() {
   }, []);
 
   return (
-    <>
-      <HubHeader />
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <Tabs
         screenOptions={() => ({
           headerShown: false,
@@ -92,6 +91,6 @@ export default function BudgetLayout() {
           }}
         />
       </Tabs>
-    </>
+    </View>
   );
 }

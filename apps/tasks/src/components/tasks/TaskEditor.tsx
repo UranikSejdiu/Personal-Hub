@@ -32,7 +32,7 @@ function TaskFormDialog({ title, busy, onClose, children }: { title: string; bus
           style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
           <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
             className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high">
-            <View className="flex-row items-center justify-between px-[18px] py-2.5">
+            <View className="flex-row items-center justify-between px-4 py-1">
               <Text accessibilityRole="header" className="flex-1 text-title-large font-medium text-foreground">{title}</Text>
               <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={onClose} />
             </View>
@@ -112,9 +112,9 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
     finally { busyRef.current = false; if (mountedRef.current) setBusy(false); }
   };
 
-  const labelClass = "mb-[7px] text-[13px] font-semibold text-foreground";
+  const labelClass = "mb-1 text-label-medium font-semibold text-foreground";
   const sectionClass = "gap-1";
-  const inputClass = "min-h-[48px] rounded-[8px] border border-outline px-3 py-3 text-base text-foreground focus:border-primary";
+  const inputClass = "min-h-[48px] rounded-lg border border-outline px-3 py-2 text-base text-foreground focus:border-primary";
   const today = taskDateKey();
   const tomorrowDate = new Date(`${today}T12:00:00`);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -122,7 +122,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
   const selectedRepeat = REPEATS.find(option => option.value === repeat)!.label;
   return (
     <><TaskFormDialog title={task ? "Edit task" : "Add task"} busy={busy} onClose={close}>
-        <ScrollView className="min-h-0 grow-0 shrink" contentContainerClassName="gap-[12px] p-[14px]" keyboardShouldPersistTaps="handled">
+        <ScrollView className="min-h-0 grow-0 shrink" contentContainerClassName="gap-3 px-4 pb-4" keyboardShouldPersistTaps="handled">
           <View className={sectionClass}><Text accessibilityRole="header" className={labelClass}>Task name</Text>
             <TextInput value={title} onChangeText={setTitle} editable={!busy} maxLength={200} autoFocus={!task}
               placeholder="What needs to be done?" placeholderTextColor={colors.mutedForeground} accessibilityLabel="Task name" className={inputClass} />
@@ -131,23 +131,23 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
             <Text accessibilityRole="header" className="text-[13px] font-semibold text-foreground">Schedule</Text>
             <Pressable disabled={busy} onPress={() => setShowDate(true)} accessibilityRole="button"
               accessibilityLabel="Date (optional)" accessibilityValue={{ text: dueDate ? formatTaskDate(dueDate) : "No date" }} accessibilityState={{ disabled: busy }}
-              className="min-h-[52px] flex-row items-center gap-3 rounded-[13px] border border-border/60 bg-background px-3 py-3 active:opacity-70 disabled:opacity-50">
+              className="min-h-[48px] flex-row items-center gap-2 rounded-lg border border-outline px-3 py-2 active:opacity-70 disabled:opacity-50">
               <CalendarDays size={19} color={colors.primary} /><Text className="text-sm text-muted-foreground">Date</Text>
               <Text numberOfLines={1} className="min-w-0 flex-1 text-right text-sm font-semibold text-foreground">{dueDate ? formatTaskDate(dueDate) : "No date"}</Text><ChevronDown size={16} color={colors.mutedForeground} />
             </Pressable>
-            <View className="flex-row gap-2">
-              <Button className="min-w-0 flex-1" variant={dueDate === today ? "tonal" : "secondary"} label="Today" disabled={busy} accessibilityState={{ selected: dueDate === today }} onPress={() => changeDate(today)} />
-              <Button className="min-w-0 flex-1" variant={dueDate === tomorrow ? "tonal" : "secondary"} label="Tomorrow" disabled={busy} accessibilityState={{ selected: dueDate === tomorrow }} onPress={() => changeDate(tomorrow)} />
-              <Button className="min-w-0 flex-1" variant={dueDate === null ? "tonal" : "secondary"} label="No date" disabled={busy} accessibilityState={{ selected: dueDate === null }} onPress={() => changeDate(null)} />
+            <View className="flex-row flex-wrap gap-2">
+              <Button className="min-w-[72px] flex-1" variant={dueDate === today ? "tonal" : "secondary"} label="Today" disabled={busy} accessibilityState={{ selected: dueDate === today }} onPress={() => changeDate(today)} />
+              <Button className="min-w-[72px] flex-1" variant={dueDate === tomorrow ? "tonal" : "secondary"} label="Tomorrow" disabled={busy} accessibilityState={{ selected: dueDate === tomorrow }} onPress={() => changeDate(tomorrow)} />
+              <Button className="min-w-[72px] flex-1" variant={dueDate === null ? "tonal" : "secondary"} label="No date" disabled={busy} accessibilityState={{ selected: dueDate === null }} onPress={() => changeDate(null)} />
             </View>
-            <View className="rounded-[13px] border border-border/60 bg-background px-3">
+            <View className="rounded-lg border border-border/60 px-3">
               <Pressable disabled={busy || !dueDate} onPress={() => setShowRepeat(true)} accessibilityRole="button"
                 accessibilityLabel="Repeat" accessibilityValue={{ text: selectedRepeat }} accessibilityState={{ expanded: showRepeat, disabled: busy || !dueDate }}
-                className="min-h-[52px] flex-row items-center gap-3 py-3 active:opacity-70 disabled:opacity-50">
+                className="min-h-[48px] flex-row items-center gap-2 py-2 active:opacity-70 disabled:opacity-50">
                 <Repeat size={19} color={colors.mutedForeground} /><Text className="flex-1 text-sm text-foreground">Repeat</Text>
                 <Text className="shrink text-sm font-semibold text-foreground">{selectedRepeat}</Text><ChevronDown size={16} color={colors.mutedForeground} />
               </Pressable>
-              <View className="min-h-[52px] flex-row items-center gap-3 border-t border-border/60 py-2">
+              <View className="min-h-[48px] flex-row items-center gap-2 border-t border-border/60 py-1">
                 <Bell size={19} color={colors.mutedForeground} /><Text className="flex-1 text-sm text-foreground">Reminder</Text>
                 <Switch value={reminder} onValueChange={(enabled) => void toggleReminder(enabled)} disabled={busy || !dueDate} hitSlop={9}
                   accessibilityLabel="Reminder" accessibilityState={{ checked: reminder, disabled: busy || !dueDate, busy }}
@@ -173,17 +173,17 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               textAlignVertical="top" accessibilityLabel="Notes (optional)" className={cn(inputClass, "min-h-[80px]")} />
           </View>
         </ScrollView>
-        <View className="gap-2 border-t border-border/60 px-[18px] py-3">
+        <View className="gap-2 border-t border-border/60 px-4 py-2">
           {error ? <Text accessibilityRole="alert" className="text-sm text-destructive">{error.message}</Text> : null}
           {error?.openSettings && <Button variant="secondary" label="Open app settings" disabled={busy}
             onPress={() => {
               if (busyRef.current) return;
               void Linking.openSettings().catch(() => { if (mountedRef.current) setError({ message: "Couldn’t update reminder settings.", openSettings: true }); });
             }} />}
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row flex-wrap items-center gap-2">
             {task && onDelete && <Pressable accessibilityRole="button" accessibilityLabel="Delete task?" disabled={busy} className="mr-auto min-h-[44px] justify-center rounded-[11px] disabled:opacity-50" onPress={onDelete}><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
-            <Button className="flex-1" variant="text" label="Cancel" disabled={busy} onPress={close} />
-            <Button className="flex-1" label="Save" busy={busy} onPress={() => void save()} /></View>
+            <Button className="min-w-[72px] flex-1" variant="text" label="Cancel" disabled={busy} onPress={close} />
+            <Button className="min-w-[72px] flex-1" label="Save" busy={busy} onPress={() => void save()} /></View>
         </View>
       <ActionDialog visible={showRepeat} title="Repeat" layout="list" onClose={() => setShowRepeat(false)}
         actions={REPEATS.map(option => ({ key: option.value, label: option.label, selected: repeat === option.value, disabled: busy, onPress: () => { setRepeat(option.value); setShowRepeat(false); } }))} />

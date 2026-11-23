@@ -123,10 +123,13 @@ export function UpdateCard() {
   if (Platform.OS !== "android") return null;
 
   return (
-    <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-3">
-      <View className="flex-row items-center gap-2">
-        <Rocket size={16} color={colors.primary} />
-        <Text className="text-sm font-semibold text-foreground">Updates</Text>
+    <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
+      <View className="flex-row flex-wrap items-center justify-between gap-x-3">
+        <View className="flex-row items-center gap-2">
+          <Rocket size={16} color={colors.primary} />
+          <Text className="text-base font-semibold text-foreground">Updates</Text>
+        </View>
+        <Text accessibilityLabel={`Current version ${currentVersion}`} className="text-label-medium text-muted-foreground">v{currentVersion}</Text>
       </View>
 
       {result?.status === "error" ? (
@@ -144,27 +147,9 @@ export function UpdateCard() {
         </Text>
       ) : null}
 
-      <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <View className="max-w-full flex-row flex-wrap items-center gap-2">
-          <Text className="text-xs text-muted-foreground">Current version</Text>
-          <View className="rounded-full bg-muted/60 px-2 py-0.5">
-            <Text className="text-[11px] font-semibold text-foreground">v{currentVersion}</Text>
-          </View>
-        </View>
-        {hasUpdate && latest ? (
-          <View className="max-w-full rounded-full bg-primary/15 px-2 py-0.5">
-            <Text className="text-[11px] font-semibold text-primary">
-              Update available v{latest.versionName}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
       {hasUpdate && latest ? (
-        <View className="gap-3">
-          <Text className="text-xs text-muted-foreground">
-            {`New version ${latest.versionName} is ready to install.`}
-          </Text>
+        <View className="gap-2">
+          <Text className="text-body-medium text-foreground">Update available v{latest.versionName}</Text>
           {downloadError?.version === latest.versionName && (
             <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError.message}</Text>
           )}
@@ -186,7 +171,7 @@ export function UpdateCard() {
           {state === "idle" && (
             <Pressable
               onPress={() => void handleInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+              className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-2"
               accessibilityRole="button"
               accessibilityLabel={"Download & Install"}
             >
@@ -198,7 +183,7 @@ export function UpdateCard() {
           {state === "ready" && (
             <Pressable
               onPress={() => void handleManualInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
+              className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-2"
               accessibilityRole="button"
               accessibilityLabel="Install now"
             >
@@ -216,7 +201,7 @@ export function UpdateCard() {
                 onPress={() => {
                   void openInstallSettings();
                 }}
-                className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
+                className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full border border-outline px-4 py-2"
                 accessibilityRole="button"
                 accessibilityLabel="Open install settings"
               >
@@ -228,7 +213,7 @@ export function UpdateCard() {
           {installFailed && state === "ready" && (
             <Pressable
               onPress={() => void handleInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
+              className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full border border-outline px-4 py-2"
               accessibilityRole="button"
               accessibilityLabel="Download again"
             >
@@ -242,7 +227,7 @@ export function UpdateCard() {
         <Pressable
           onPress={() => void handleCheck()}
           disabled={checking || state === "downloading"}
-          className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-primary/10 p-3 disabled:opacity-50"
+          className="min-h-[48px] flex-row items-center justify-center gap-2 rounded-full border border-outline px-4 py-2 disabled:opacity-50"
           accessibilityRole="button"
           accessibilityLabel="Check for updates"
         >

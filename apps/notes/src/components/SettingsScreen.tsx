@@ -62,16 +62,16 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
 
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
-      <View className="w-full max-w-md self-center gap-5 px-5 pt-4">
-        <View className="flex-row items-center gap-4 pb-2">
+      <View className="w-full max-w-md self-center gap-3 px-4 pt-1">
+        <View className="flex-row items-center gap-2">
           <Pressable disabled={busy} onPress={() => { if (!locked.current) { if (router.canGoBack()) router.back(); else router.replace("/(notes)"); } }}
-            className="h-12 w-12 items-center justify-center rounded-full bg-card disabled:opacity-50"
+            className="h-12 w-12 items-center justify-center rounded-full active:bg-secondary disabled:opacity-50"
             accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: busy }}>
             <ArrowLeft size={22} color={colors.foreground} />
           </Pressable>
-          <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold text-foreground">Settings</Text>
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">Settings</Text>
         </View>
-        <View className="gap-4 rounded-[24px] border border-border/40 bg-card p-5">
+        <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
           <PreferenceChoices label="Appearance" value={theme} options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
             disabled={busy} onChange={setTheme} />
@@ -80,7 +80,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
           if (locked.current) return;
           void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
         }} />
-        <View className="gap-4 rounded-[22px] bg-card p-5">
+        <View className="gap-2.5 rounded-xl bg-card p-3">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Import replaces current data. A recovery copy is saved first.</Text>
           <Button label="Save to folder" disabled={busy} onPress={() => void run(exportBackupToDirectory, "Backup saved to the selected folder.")} />
@@ -94,13 +94,12 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
           }} />}
         </View>
         <UpdateCard />
-        <View className="gap-4 rounded-[22px] border border-border/60 bg-card p-5">
+        <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
           <View className="flex-row items-center gap-3">
             <Image source={require("../../assets/developer-avatar.png")} accessibilityLabel="Uranik Sejdiu" style={{ width: 58, height: 58, borderRadius: 29 }} />
             <View className="min-w-0 flex-1 gap-1">
               <Text className="text-base font-semibold text-foreground">Uranik Sejdiu</Text>
-              <Text className="text-xs text-muted-foreground">Creator of {identity.title}</Text>
             </View>
           </View>
 

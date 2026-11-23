@@ -1,8 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
-import { Easing, Image, View } from "react-native";
+import { Easing, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Text } from "../../src/components/ui/Typography";
 import { ListOrdered, Settings, Sparkles } from "../../src/components/AppIcons";
 import { NavigationBar, type NavigationDestination } from "../../src/components/NavigationBar";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -21,13 +20,7 @@ export default function DhikrLayout() {
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   return (
-    <>
-      <View className="bg-background" style={{ paddingTop: insets.top }}>
-        <View className="min-h-[64px] w-full max-w-md flex-row items-center gap-3 self-center px-4 py-2">
-          <Image source={require("../../assets/branding/icon.png")} className="h-8 w-8 rounded-lg" accessible={false} />
-          <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">Dhikr</Text>
-        </View>
-      </View>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <Tabs
         screenOptions={() => ({
           headerShown: false,
@@ -72,6 +65,6 @@ export default function DhikrLayout() {
         <Tabs.Screen name="list" options={{ title: "Dhikrs" }} />
         <Tabs.Screen name="settings" options={{ title: "Settings" }} />
       </Tabs>
-    </>
+    </View>
   );
 }

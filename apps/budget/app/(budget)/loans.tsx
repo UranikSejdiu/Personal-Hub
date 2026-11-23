@@ -115,10 +115,10 @@ export default function LoansScreen() {
       keyboardShouldPersistTaps="handled"
       contentContainerClassName="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-6"
       ListHeaderComponent={<View className="gap-3">
-        <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Repayments</Text>
+        <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Payments</Text>
         <View className="flex-row flex-wrap gap-2">
-          <Button disabled={saving} label="Add loan" icon={Plus} onPress={() => start("loan")} />
-          <Button disabled={saving} label="Add card" icon={CreditCard} variant="secondary" onPress={() => start("card")} />
+          <Button className="min-w-[116px] flex-1" disabled={saving} label="Add loan" icon={Plus} onPress={() => start("loan")} />
+          <Button className="min-w-[116px] flex-1" disabled={saving} label="Add card" icon={CreditCard} variant="secondary" onPress={() => start("card")} />
         </View>
         {plans.length === 0 && !draft && <Text className="py-6 text-center text-sm text-muted-foreground">No loans or card payments yet.</Text>}
       </View>}
@@ -129,7 +129,7 @@ export default function LoansScreen() {
     />
     {draft && <FormDialog title={editingId === null ? draft.kind === "loan" ? "Add loan" : "Add card" : "Edit payment plan"} busy={saving} onClose={closeDraft}>
       <View pointerEvents={saving ? "none" : "auto"} accessibilityState={{ busy: saving }} className="gap-3">
-          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Name</Text><TextInput value={draft.name} onChangeText={(name) => update({ name })} maxLength={100} placeholder="e.g. Car loan or phone payment" placeholderTextColor={colors.mutedForeground} className="min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 text-base text-foreground" /></View>
+          <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Name</Text><TextInput value={draft.name} onChangeText={(name) => update({ name })} maxLength={100} placeholder="e.g. Car loan or phone payment" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] rounded-lg border border-outline px-3 text-base focus:border-primary text-foreground" /></View>
           <Text className="text-sm text-muted-foreground">{draft.kind === "card" ? "Each installment is tracked separately and split evenly over the payment months." : "Enter a monthly payment, or an amount and interest rate to calculate one."}</Text>
           <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{draft.kind === "card" ? "Total amount (€)" : "Loan Amount (€)"}</Text><NumberInput value={draft.amount} onValidityChange={(valid) => setFieldValidity("amount", valid)} onChange={(amount) => update({ amount })} decimals={2} min={0} max={MAX_LOAN_AMOUNT} placeholder="0.00" /></View>
           {(draft.kind === "loan" || draft.unbounded) && <>
@@ -138,14 +138,14 @@ export default function LoansScreen() {
           </>}
           <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{draft.unbounded ? "Payment limit (optional)" : "Number of monthly payments"}</Text><NumberInput value={draft.term} onValidityChange={(valid) => setFieldValidity("term", valid)} onChange={(term) => update(draft.unbounded ? { term, endMonth: term > 0 ? installmentEndMonth(draft.startMonth, term) : null } : { term })} min={draft.unbounded ? 0 : 1} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /></View>
           {editingId === null && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Payments already made</Text><NumberInput value={draft.monthsPaid} onValidityChange={(valid) => setFieldValidity("monthsPaid", valid)} onChange={(monthsPaid) => update({ monthsPaid, ...(startMonthTouched ? {} : { startMonth: addMonths(currentMonth(), -monthsPaid) }) })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /><Text className="mt-1 text-xs text-muted-foreground">Count payments already made, including those before you started using the app.</Text></View>}
-          <Pressable onPress={() => setChoosingMonth(true)} accessible accessibilityRole="button" accessibilityLabel="First payment month" className="min-h-[44px] justify-center rounded-[11px] border border-border/60 bg-card px-3 active:opacity-70"><Text className="text-sm text-foreground">First payment month: {draft.startMonth}</Text></Pressable>
+          <Pressable onPress={() => setChoosingMonth(true)} accessible accessibilityRole="button" accessibilityLabel="First payment month" className="min-h-[48px] justify-center rounded-lg border border-outline px-3 active:opacity-70"><Text className="text-sm text-foreground">First payment month: {draft.startMonth}</Text></Pressable>
           {draftPayment > 0 && <View className="gap-1 rounded-lg bg-muted p-3">
             <Text className="text-sm font-semibold text-foreground">Monthly Payment: {formatCurrency(draftPayment)}</Text>
             {draft.term > 0 ? <Text className="text-xs text-muted-foreground">{`${draft.monthsPaid} of ${draft.term} paid`} · {`${Math.max(0, draft.term - draft.monthsPaid)} payments remaining`}</Text> : <Text className="text-xs text-muted-foreground">{`${draft.monthsPaid} payments recorded`}</Text>}
             <Text className="text-xs text-muted-foreground">Last payment month: {draft.endMonth ?? (draft.unbounded ? "No end month" : draftEndMonth)}</Text>
           </View>}
           {editingId !== null && <Pressable onPress={() => setDeletingId(editingId)} disabled={saving} accessibilityRole="button" accessibilityLabel="Delete payment plan?" className="min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
-          <View className="flex-row gap-2"><Button className="flex-1" label="Cancel" disabled={saving} variant="secondary" onPress={closeDraft} /><Button className="flex-1" label="Save" disabled={invalidFields.size > 0} busy={saving} onPress={() => { void save(); }} /></View>
+          <View className="flex-row gap-2"><Button className="flex-1" label="Cancel" disabled={saving} variant="text" onPress={closeDraft} /><Button className="flex-1" label="Save" disabled={invalidFields.size > 0} busy={saving} onPress={() => { void save(); }} /></View>
       </View>
     </FormDialog>}
     <ConfirmDialog visible={discard} title="Discard changes?" message="Your changes to this payment plan have not been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onClose={() => setDiscard(false)} onConfirm={dismissDraft} />

@@ -91,8 +91,8 @@ export function NumberInput({
         placeholder={placeholder}
         keyboardType="decimal-pad"
         className={cn(
-          "min-h-[44px] flex-1 rounded-[11px] border px-3 py-2.5 text-base text-foreground bg-card",
-          invalid ? "border-destructive" : isFocused ? "border-primary" : "border-border"
+          "min-h-[48px] min-w-0 flex-1 rounded-lg border bg-card px-2.5 py-2 text-base text-foreground",
+          invalid ? "border-destructive" : isFocused ? "border-primary" : "border-outline"
         )}
         placeholderTextColor={colors.mutedForeground}
       />

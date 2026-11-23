@@ -31,7 +31,7 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
       className="bg-surface-container"
       style={{ paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}
     >
-      <View accessibilityRole="tablist" className="min-h-[80px] w-full max-w-md flex-row self-center px-2">
+      <View accessibilityRole="tablist" className="min-h-[64px] w-full max-w-md flex-row self-center px-2">
         {tabs.map(({ id, label, icon: Icon }) => {
           const selected = id === activeTabId;
           return (
@@ -41,10 +41,10 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
               accessibilityLabel={label}
               accessibilityState={{ selected }}
               onPress={() => onTabPress(id)}
-              className="min-w-0 flex-1 items-center justify-center gap-1 px-0.5 py-2 active:opacity-70"
+              className="min-w-0 flex-1 items-center justify-center gap-0.5 px-0.5 py-1.5 active:opacity-70"
             >
-              <View className={cn("h-8 w-16 max-w-full items-center justify-center rounded-full", selected && "bg-secondary-container")}>
-                <Icon size={24} color={selected ? colors.onSecondaryContainer : colors.mutedForeground} />
+              <View className={cn("h-7 w-14 max-w-full items-center justify-center rounded-full", selected && "bg-secondary-container")}>
+                <Icon size={22} color={selected ? colors.onSecondaryContainer : colors.mutedForeground} />
               </View>
               <Text className={cn("text-center text-label-medium font-medium", selected ? "text-foreground" : "text-muted-foreground")}>
                 {label}

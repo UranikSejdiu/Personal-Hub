@@ -181,7 +181,7 @@ export default function NotesEditorScreen() {
 
   const htmlStyle = useMemo<HtmlStyle>(
     () => ({
-      h1: { fontSize: 28, bold: true },
+      h1: { fontSize: 26, bold: true },
       h2: { fontSize: 22, bold: true },
       h3: { fontSize: 18, bold: true },
       blockquote: { borderColor: colors.border, color: colors.mutedForeground },
@@ -204,13 +204,13 @@ export default function NotesEditorScreen() {
   // of this screen (which fires on each editor state event).
   const editorStyle = useMemo(
     () => ({
-      minHeight: 300,
+      minHeight: 160,
       paddingHorizontal: 0,
       paddingTop: 10,
       paddingBottom: 12,
       backgroundColor: "transparent",
       color: colors.foreground,
-      fontSize: 18,
+      fontSize: 16,
       fontFamily: "Urbanist",
     }),
     [colors.foreground]
@@ -549,19 +549,19 @@ export default function NotesEditorScreen() {
   }, [isArchived, isAddingItem]);
 
   const formatToolbar = (
-    <View className="w-full max-w-md flex-row items-center gap-2 self-center px-3 py-2">
+    <View className="w-full max-w-md flex-row items-center gap-0.5 self-center px-2 py-1">
       <AttachmentToolbarButton disabled={isSaving || isAddingItem} busy={attachmentState.busy}
         onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
       <ScrollView horizontal className="min-w-0 flex-1 overflow-hidden" showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="always" contentContainerStyle={{ alignItems: "center" }}>
-      <View className="flex-row items-center gap-1 pr-2">
+      <View className="flex-row items-center">
         {FORMAT_BUTTONS.map((button) => {
           const state = styleState?.[button.stateKey];
           const active = state?.isActive ?? false;
           const blocked = state?.isBlocking ?? false;
           return (
             <Fragment key={button.type}>
-              {button.type === "bullet" ? <View className="mx-1 h-6 w-px bg-border" accessible={false} /> : null}
+              {button.type === "bullet" ? <View className="h-5 w-px bg-border" accessible={false} /> : null}
               <Pressable
                 onPress={() => {
                   const editor = editorRef.current;
@@ -570,16 +570,16 @@ export default function NotesEditorScreen() {
                   toolbarFeedback();
                 }}
                 disabled={blocked || isSaving || isAddingItem}
-                className={`h-11 w-11 items-center justify-center rounded-xl active:bg-primary/20 ${
-                  active ? "bg-primary/15" : blocked ? "opacity-40" : ""
+                className={`h-12 w-12 items-center justify-center rounded-full active:bg-secondary ${
+                  active ? "bg-secondary-container" : blocked ? "opacity-40" : ""
                 }`}
                 accessibilityRole="button"
                 accessibilityLabel={button.label}
                 accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
               >
                 <FormattingIcon name={button.type}
-                  size={22}
-                  color={active ? colors.primary : colors.foreground}
+                  size={19}
+                  color={active ? colors.onSecondaryContainer : colors.foreground}
                 />
               </Pressable>
             </Fragment>
@@ -587,18 +587,17 @@ export default function NotesEditorScreen() {
         })}
       </View>
       </ScrollView>
-      <View className="border-l border-border/60 pl-2">
+      {keyboardVisible && <View className="shrink-0 border-l border-border/60 pl-1">
       <Pressable onPress={() => {
         toolbarFeedback();
         editorRef.current?.blur();
         Keyboard.dismiss();
       }} disabled={isSaving || isAddingItem}
-        accessibilityRole="button" accessibilityLabel="Done" accessibilityHint="Dismiss the keyboard and finish formatting. Use Save to save your note."
-        className="min-h-[44px] shrink-0 flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
-        <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
-        <Text className="text-sm font-semibold text-primary-foreground">Done</Text>
+        accessibilityRole="button" accessibilityLabel="Dismiss keyboard"
+        className="h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container active:opacity-80 disabled:opacity-50">
+        <FormattingIcon name="done" size={18} color={colors.onSecondaryContainer} />
       </Pressable>
-      </View>
+      </View>}
     </View>
   );
 
@@ -631,12 +630,12 @@ export default function NotesEditorScreen() {
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
-          <View className="w-full max-w-md flex-row items-center justify-between gap-3 self-center px-5 max-[360px]:px-4 pt-4 pb-5">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pb-1 pt-1">
             <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isSaving || isAddingItem }}>
               <ArrowLeft size={22} color={colors.foreground} />
             </Pressable>
-            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-2">
+            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-1">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
                 saving={isSaving} onSave={handleSave} onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
             </View>
@@ -651,7 +650,7 @@ export default function NotesEditorScreen() {
             keyboardShouldPersistTaps="handled"
             bottomOffset={toolbarHeight + 12}
             extraKeyboardSpace={toolbarHeight}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 32 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: isArchived ? insets.bottom + 16 : 16 }}
             showsVerticalScrollIndicator={false}
           >
             <View className="w-full max-w-md flex-grow self-center">
@@ -666,7 +665,7 @@ export default function NotesEditorScreen() {
                 accessibilityLabel="Title"
                 placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
-                className="w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[32px] leading-[39px] font-semibold text-foreground"
+                className="w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[26px] leading-8 font-semibold text-foreground"
                 multiline
               />
 
@@ -731,7 +730,7 @@ export default function NotesEditorScreen() {
 
           {/* Pinned toolbar — rides above the software keyboard. */}
           {!isArchived && <KeyboardStickyView
-            className="w-full border-t border-border/60 bg-card"
+            className="w-full border-t border-border/60 bg-surface-container"
             style={toolbarStyle}
             onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
           >

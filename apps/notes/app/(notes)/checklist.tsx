@@ -477,12 +477,12 @@ export default function ChecklistEditorScreen() {
     <>
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
-          <View className="w-full max-w-md flex-row items-center justify-between gap-3 self-center px-5 max-[360px]:px-4 pt-4 pb-5">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pb-1 pt-1">
             <Pressable onPress={handleBack} disabled={isBusy} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isBusy }}>
               <ArrowLeft size={22} color={colors.foreground} />
             </Pressable>
-            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-2">
+            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-1">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isBusy}
                 saving={isSaving} onSave={handleSave} onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
             </View>
@@ -501,7 +501,7 @@ export default function ChecklistEditorScreen() {
             renderScrollComponent={(props) => <KeyboardAwareScrollView {...props} ScrollViewComponent={KeyboardGestureScrollView} bottomOffset={80} />}
             showsVerticalScrollIndicator={false}
             containerStyle={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 40 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: isArchived ? insets.bottom + 16 : 16 }}
             ListHeaderComponent={<View>
               <TextInput
                 value={title}
@@ -514,7 +514,7 @@ export default function ChecklistEditorScreen() {
                 accessibilityLabel="Title"
                 placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
-                className="mb-3 w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[32px] leading-[39px] font-semibold text-foreground"
+                className="mb-3 w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[26px] leading-8 font-semibold text-foreground"
                 multiline
               />
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isBusy} />
@@ -522,17 +522,16 @@ export default function ChecklistEditorScreen() {
             </View>}
             ListFooterComponent={listFooter}
           />
-          {!isArchived && <KeyboardStickyView className="w-full border-t border-border/60 bg-card"
+          {!isArchived && <KeyboardStickyView className="w-full border-t border-border/60 bg-surface-container"
             style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
-            <View className="w-full max-w-md flex-row items-center justify-between self-center px-3 py-2">
+            <View className="w-full max-w-md flex-row items-center justify-between self-center px-3 py-1">
               <AttachmentToolbarButton disabled={isBusy} busy={attachmentState.busy}
                 onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
-              <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}
-                accessibilityRole="button" accessibilityLabel="Done" accessibilityHint="Dismiss the keyboard and finish formatting. Use Save to save your note."
-                className="min-h-[44px] flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
-                <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primary-foreground">Done</Text>
-              </Pressable>
+              {keyboardVisible && <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}
+                accessibilityRole="button" accessibilityLabel="Dismiss keyboard"
+                className="h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container active:opacity-80 disabled:opacity-50">
+                <FormattingIcon name="done" size={18} color={colors.onSecondaryContainer} />
+              </Pressable>}
             </View>
           </KeyboardStickyView>}
         </View>
