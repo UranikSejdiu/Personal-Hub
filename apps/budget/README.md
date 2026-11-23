@@ -81,9 +81,8 @@ The critical `shell-quote` dependency is also updated.
 
 `npm run check:security` covers encrypted backups, authentication failures,
 tampering, fixed KDF bounds, Node crypto interoperability, and dependency guards.
-`npm run check:dependency-audit` queries npm's registry and fails on any high or
-critical advisory. The complete November 1, 2026 audit reports zero high/critical
-and 25 moderate findings; it includes development and framework tooling.
+`npm run validate` starts with `npm run check:dependency-audit`. It checks the
+locked runtime and development dependencies and fails on moderate or higher advisories.
 
 Native projects are generated from app.json. The Windows CMake plugin keeps
 generated object paths below the Windows limit and runs on each prebuild.

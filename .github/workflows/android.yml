@@ -75,10 +75,8 @@ jobs:
           cache: npm
           cache-dependency-path: apps/${{ matrix.id }}/package-lock.json
       - run: npm ci --prefer-offline --include=dev
-      - name: Validate app and backup/reminder regressions
+      - name: Audit dependencies and validate app
         run: npm run validate
-      - name: Check dependency security advisories
-        run: npm audit --audit-level=moderate
       - name: Check production Android and iOS bundles
         run: npm run bundle:check
       - uses: actions/setup-java@v4

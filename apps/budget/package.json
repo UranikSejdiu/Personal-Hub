@@ -61,13 +61,13 @@
     "audit:regression": "node scripts/audit-regression.cjs",
     "check:theme": "node scripts/theme-contrast.cjs",
     "check:alerts": "node scripts/alerts-regression.cjs",
-    "validate": "npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme && npm run check:alerts && npm run check:security",
+    "check:dependency-audit": "node scripts/audit-dependencies.cjs",
+    "validate": "npm run check:dependency-audit && npm run typecheck && npm run lint -- --max-warnings=0 && npm run audit:regression && npm run check:theme && npm run check:alerts && npm run check:security",
     "bundle:check": "expo export --platform android --platform ios --output-dir dist",
     "build:apk": "node scripts/build-apk.cjs",
     "prebuild": "expo prebuild --no-clean --platform android --no-install",
     "postinstall": "patch-package --error-on-fail",
-    "check:security": "node scripts/security-regression.cjs",
-    "check:dependency-audit": "node scripts/audit-dependencies.cjs"
+    "check:security": "node scripts/security-regression.cjs"
   },
   "private": true,
   "overrides": {

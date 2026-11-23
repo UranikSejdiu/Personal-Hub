@@ -20,6 +20,26 @@ module.exports = function verifyStandaloneReleases(root) {
   assert.equal(build.jobs.build.if, "needs.plan.outputs.has_apps == 'true'");
   assert.equal(build.jobs.build.strategy['fail-fast'], false);
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run validate'));
+  for (const id of ['budget', 'notes', 'tasks', 'dhikr']) {
+    const { scripts } = JSON.parse(fs.readFileSync(path.join(root, 'apps', id, 'package.json'), 'utf8'));
+    assert.ok(scripts.validate.startsWith('npm run check:dependency-audit && '), `${id} must audit before validation`);
+    assert.equal(scripts['check:dependency-audit'], 'node scripts/audit-dependencies.cjs');
+    const audit = fs.readFileSync(path.join(root, 'apps', id, 'scripts/audit-dependencies.cjs'), 'utf8');
+    const processStub = { execPath: 'node', env: { npm_execpath: 'npm-cli.js', npm_config_allow_scripts: 'test' } };
+    require('node:vm').runInNewContext(audit, {
+      process: processStub,
+      require(name) {
+        assert.equal(name, 'node:child_process');
+        return { spawnSync(executable, args, options) {
+          assert.equal(executable, 'node');
+          assert.deepEqual(Array.from(args), ['npm-cli.js', 'audit', '--include=dev', '--audit-level=moderate']);
+          assert.equal(options.env.npm_config_allow_scripts, undefined);
+          return { status: 1 };
+        } };
+      },
+    });
+    assert.equal(processStub.exitCode, 1, `${id} must propagate a failed audit`);
+  }
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run bundle:check'));
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run build:apk'));
   const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
