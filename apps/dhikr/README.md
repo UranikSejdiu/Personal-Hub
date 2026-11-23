@@ -53,7 +53,7 @@ a new key and refuses to overwrite existing credentials. Local builds without
 credentials fall back to Android's debug key; CI requires release signing.
 
 Use **Actions → Android apps → Run workflow**, selecting all apps or dhikr.
-Pushes and tags do not start builds automatically. Leave publish off for build
+Pushes and tags do not start builds automatically. Clear the publish checkbox for build
 artifacts, or enable it with the universal profile for a new release after all
 selected builds pass. Set these repository secrets for Dhikr:
 `DHIKR_KEYSTORE_BASE64`, `DHIKR_KEYSTORE_PASSWORD`, `DHIKR_KEY_ALIAS`,

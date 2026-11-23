@@ -15,9 +15,9 @@ on:
         options: [universal, arm64-test]
         default: universal
       publish:
-        description: Publish new versions to GitHub Releases after ALL selected builds pass
+        description: Publish signed universal APKs to GitHub Releases (clear for build only)
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read

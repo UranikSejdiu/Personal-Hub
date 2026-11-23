@@ -14,7 +14,7 @@ module.exports = function verifyStandaloneReleases(root) {
   assert.deepEqual(build.on.workflow_dispatch.inputs.apps.options, ['changed', 'all', 'budget', 'notes', 'tasks', 'dhikr']);
   assert.equal(build.on.workflow_dispatch.inputs.apps.default, 'changed');
   assert.equal(build.jobs.plan.steps[0].with['fetch-depth'], 0);
-  assert.equal(build.on.workflow_dispatch.inputs.publish.default, false);
+  assert.equal(build.on.workflow_dispatch.inputs.publish.default, true);
   assert.deepEqual(build.jobs.publish.needs, ['plan', 'build']);
   assert.equal(build.jobs.publish.if, "inputs.publish && needs.plan.outputs.has_apps == 'true'");
   assert.equal(build.jobs.build.if, "needs.plan.outputs.has_apps == 'true'");

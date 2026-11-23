@@ -95,10 +95,9 @@ or `all` instead to choose apps explicitly. Already prepared versions are reused
 The script does not commit, push, or publish.
 
 Use **Actions → Android apps → Run workflow**. Choose changed apps, all, or one.
-The default builds signed APK artifacts without publishing. `arm64-test` builds
-only for modern ARM64 phones; `universal` retains both supported ARM architectures.
-Enable **publish** only when ready for new GitHub Releases; all selected builds
-must pass before publishing. Pushes and tags do not start builds automatically.
+A default run on main publishes the prepared versions to GitHub Releases after
+all selected universal APKs build successfully. Clear **Publish** for an
+artifact-only run, including when you select the `arm64-test` profile. Pushes and tags do not start builds automatically.
 Updaters accept only their own tags and exact APK names.
 See [Android releases](.github/RELEASING.md). Budget, Notes, and Tasks use the
 existing Hub signing secrets. Dhikr keeps its existing signing key and secrets.

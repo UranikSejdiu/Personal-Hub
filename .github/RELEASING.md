@@ -33,7 +33,8 @@ Choose `all` to run the four app jobs in parallel, or select one app explicitly.
 App documentation and test-script changes alone do not require an app release.
 With no app changes, the workflow finishes without building or publishing.
 
-Leave **publish** off to download signed APKs from the run's Artifacts section.
+Publishing is enabled by default. Clear **Publish** for an artifact-only run,
+including ARM64 test builds and builds on other branches.
 Choose `universal` for both supported ARM architectures, or `arm64-test` for a
 faster APK for a modern ARM64 phone such as the S26 Ultra. ARM64 test files are
 named `<App>-<version>-arm64-test.apk` and cannot be published as app updates.
@@ -47,7 +48,7 @@ release lint, app validation, and production bundles remain required.
 1. Prepare versions using the commands below. Never reuse a published versionCode.
 2. Commit and push the new versions to main. No release is created by a push.
 3. Open **Android apps**, choose main, select changed, all or one app, choose `universal`,
-   and enable **publish**. Run the workflow when ready.
+   and leave **Publish** selected. Run the workflow when ready.
 4. Preflight rejects already released versions, non-increasing Android
    versionCodes, and conflicting existing tags before the expensive builds.
    All selected app builds must succeed before any publish job starts. Each

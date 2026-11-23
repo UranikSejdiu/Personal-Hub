@@ -55,7 +55,7 @@ Restore the existing Hub signing key into ignored `credentials/` files:
 `build/Budget-<version>.apk`. Release builds require these credentials.
 Never change the signing key after distributing the first release.
 
-Workflow: **Android apps** (manual). Select all apps or budget. Leave publish off
+Workflow: **Android apps** (manual). Select all apps or budget. Clear the publish checkbox
 for APK artifacts; enable it with the universal profile for new Releases after
 all selected builds pass. Pushes and tags do not build automatically.
 Tags: `budget-v<version>`. CI uses the existing Hub `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
