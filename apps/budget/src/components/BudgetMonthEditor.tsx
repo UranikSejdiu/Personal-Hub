@@ -87,7 +87,7 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
         <Pressable onPress={close} accessible={false} className="flex-1 items-center justify-center bg-black/50 px-4"
           style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
           <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
-            className="max-h-full w-full max-w-md overflow-hidden rounded-[22px] border border-border bg-card">
+            className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high">
             <View className="flex-row items-center justify-between px-[18px] pt-2.5">
               <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">{budget ? "Edit month" : "New month"}</Text>
               <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
@@ -100,7 +100,7 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
                     <Text className="text-sm font-semibold text-foreground">{field.label}</Text>
                     <TextInput accessibilityLabel={field.label} value={field.value} onChangeText={field.change} editable={!busy}
                       keyboardType="decimal-pad" selectTextOnFocus placeholder="0.00" placeholderTextColor={colors.mutedForeground}
-                      className="min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 text-base text-foreground" />
+                      className="min-h-[44px] rounded-[8px] border border-outline focus:border-primary px-3 text-base text-foreground" />
                   </View>)}
                 <Text className="text-sm leading-5 text-muted-foreground">These values are remembered for new months until you change them. Other saved months keep their own income and savings target.</Text>
                 {!valid ? <Text accessibilityLiveRegion="polite" className="text-sm text-destructive">Enter valid, non-negative amounts with up to two decimal places.</Text> : null}
@@ -108,7 +108,7 @@ export function BudgetMonthEditor({ initialMonth, budget, onSave, onClose }: {
               {error ? <Text accessibilityLiveRegion="polite" className="text-sm text-destructive">{error.message}</Text> : null}
               {error?.retryLoad ? <Button label="Retry" onPress={() => { setLoading(true); setError(null); setLoadAttempt((attempt) => attempt + 1); }} /> : null}
               <View className="flex-row gap-2">
-                <Button className="flex-1" variant="secondary" label="Cancel" disabled={busy} onPress={close} />
+                <Button className="flex-1" variant="text" label="Cancel" disabled={busy} onPress={close} />
                 <Button className="flex-1" label="Save" disabled={loading || !valid || error?.retryLoad} busy={busy} onPress={() => { void save(); }} />
               </View>
             </ScrollView>

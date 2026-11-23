@@ -47,6 +47,13 @@ module.exports = {
           foreground: "hsl(var(--success-foreground))",
         },
         surface: "hsl(var(--surface))",
+        "surface-container": "hsl(var(--surface-container))",
+        "surface-container-high": "hsl(var(--surface-container-high))",
+        "primary-container": "hsl(var(--primary-container))",
+        "on-primary-container": "hsl(var(--on-primary-container))",
+        "secondary-container": "hsl(var(--secondary-container))",
+        "on-secondary-container": "hsl(var(--on-secondary-container))",
+        "outline": "hsl(var(--outline))",
         chart: {
           1: "hsl(var(--chart-1))",
           2: "hsl(var(--chart-2))",
@@ -68,6 +75,12 @@ module.exports = {
           DEFAULT: "#ef4444",
           foreground: "#fff",
         },
+      },
+      fontSize: {
+        "title-large": ["22px", { lineHeight: "28px" }],
+        "body-medium": ["14px", { lineHeight: "20px" }],
+        "label-large": ["14px", { lineHeight: "20px" }],
+        "label-medium": ["12px", { lineHeight: "16px" }],
       },
       fontFamily: {
           DEFAULT: ["Urbanist-Regular"],

@@ -3,6 +3,13 @@ export type ThemeName = "light" | "dark";
 /** Shared by NativeWind variables, icons, inputs, and native controls. */
 export const COLORS = {
   light: {
+    surfaceContainer: "hsl(153, 22%, 92%)",
+    surfaceContainerHigh: "hsl(153, 22%, 88%)",
+    primaryContainer: "hsl(154, 48%, 85%)",
+    onPrimaryContainer: "hsl(161, 42%, 13%)",
+    secondaryContainer: "hsl(152, 26%, 85%)",
+    onSecondaryContainer: "hsl(163, 28%, 15%)",
+    outline: "hsl(155, 10%, 42%)",
     background: "hsl(150, 25%, 97%)",
     foreground: "hsl(160, 30%, 13%)",
     card: "hsl(0, 0%, 100%)",
@@ -29,6 +36,13 @@ export const COLORS = {
     primaryForeground: "hsl(0, 0%, 100%)",
   },
   dark: {
+    surfaceContainer: "hsl(160, 17%, 16%)",
+    surfaceContainerHigh: "hsl(160, 15%, 20%)",
+    primaryContainer: "hsl(161, 33%, 25%)",
+    onPrimaryContainer: "hsl(155, 57%, 89%)",
+    secondaryContainer: "hsl(159, 20%, 28%)",
+    onSecondaryContainer: "hsl(151, 31%, 89%)",
+    outline: "hsl(154, 9%, 63%)",
     background: "hsl(160, 24%, 8%)",
     foreground: "hsl(150, 30%, 95%)",
     card: "hsl(160, 20%, 12%)",

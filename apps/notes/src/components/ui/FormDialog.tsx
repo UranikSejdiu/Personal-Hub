@@ -26,11 +26,11 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
           paddingRight: insets.right + sidePadding,
         }}>
         <Pressable onPress={event => event.stopPropagation()} accessible={false} accessibilityViewIsModal
-          className={`max-h-full w-full max-w-md overflow-hidden border border-border/60 bg-card ${placement === "bottom" ? "rounded-t-[28px]" : "rounded-[22px]"}`}
+          className={`max-h-full w-full max-w-md overflow-hidden bg-surface-container-high ${placement === "bottom" ? "rounded-t-[28px]" : "rounded-[28px]"}`}
           style={placement === "bottom" ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}>
           <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled">
             <View className="flex-row items-center justify-between gap-2 px-[18px] pt-2.5">
-              <Text accessibilityRole="header" className="min-w-0 flex-1 text-[22px] font-semibold text-foreground">{title}</Text>
+              <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{title}</Text>
               <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
             </View>
             <View className="gap-3 p-[18px]">{children}</View>

@@ -1,13 +1,9 @@
-/** MoneyPlan's bottom navigation. */
-export interface HubTabDef {
-  id: string;
-  label: string;
-  icon: string;
-}
+import { Calculator, LayoutDashboard, PiggyBank, Settings } from "../components/AppIcons";
+import type { NavigationDestination } from "../components/NavigationBar";
 
-export const BUDGET_TABS: HubTabDef[] = [
-  { id: "index", label: "Months", icon: "view-dashboard" },
-  { id: "savings", label: "Savings", icon: "piggy-bank" },
-  { id: "loans", label: "Payments", icon: "calculator" },
-  { id: "settings", label: "Settings", icon: "cog" },
+export const BUDGET_TABS: readonly NavigationDestination[] = [
+  { id: "index", label: "Months", icon: LayoutDashboard },
+  { id: "savings", label: "Savings", icon: PiggyBank },
+  { id: "loans", label: "Payments", icon: Calculator },
+  { id: "settings", label: "Settings", icon: Settings },
 ];

@@ -85,14 +85,14 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
       >
         {anchor ? (
           <View
-            className="absolute rounded-2xl border border-border/60 bg-card p-2 shadow-md"
+            className="absolute rounded-[8px] bg-surface-container-high p-2 shadow-md"
             style={{ top, left, width, maxHeight }}
             accessibilityViewIsModal
           >
             <ScrollView style={{ maxHeight: Math.max(ROW_HEIGHT, maxHeight - MENU_PADDING) }} keyboardShouldPersistTaps="handled">
             {items.map((item) => {
               const Icon = item.icon;
-              const color = item.destructive ? colors.destructive : item.selected ? colors.primary : colors.mutedForeground;
+              const color = item.destructive ? colors.destructive : item.selected ? colors.onSecondaryContainer : colors.mutedForeground;
               return (
                 <Pressable
                   key={item.key}
@@ -104,9 +104,9 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
                     if (Platform.OS !== "ios") item.onPress();
                   }}
                   className={cn(
-                    "min-h-[44px] flex-row items-center rounded-xl active:bg-muted",
+                    "min-h-[48px] flex-row items-center rounded-[6px] active:bg-secondary",
                     size === "regular" ? "gap-3 px-3 py-2.5" : "gap-2 px-2 py-1",
-                    item.selected && "bg-primary/10"
+                    item.selected && "bg-secondary-container"
                   )}
                   accessible
                   accessibilityRole="menuitem"
@@ -117,9 +117,9 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
                   <Text className={cn(
                     "min-w-0 flex-1",
                     size === "regular" ? "text-base" : "text-sm",
-                    item.destructive ? "text-destructive" : item.selected ? "font-semibold text-foreground" : "text-foreground"
+                    item.destructive ? "text-destructive" : item.selected ? "font-semibold text-on-secondary-container" : "text-foreground"
                   )} numberOfLines={1}>{item.label}</Text>
-                  {item.selected ? <Check size={size === "regular" ? 18 : 16} color={colors.primary} /> : null}
+                  {item.selected ? <Check size={size === "regular" ? 18 : 16} color={colors.onSecondaryContainer} /> : null}
                 </Pressable>
               );
             })}

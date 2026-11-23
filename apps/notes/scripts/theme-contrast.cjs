@@ -45,7 +45,7 @@ for (const theme of ["light", "dark"]) {
     const colors = getThemeColors(theme);
     for (const value of Object.values(colors)) rgb(value);
     const pairs = [];
-    for (const background of ["background", "card", "surface", "muted"]) {
+    for (const background of ["background", "card", "surface", "muted", "surfaceContainer", "surfaceContainerHigh"]) {
       for (const foreground of ["foreground", "mutedForeground", "primary", "success", "destructive"]) {
         pairs.push([`${foreground} on ${background}`, rgb(colors[foreground]), rgb(colors[background])]);
       }
@@ -56,9 +56,12 @@ for (const theme of ["light", "dark"]) {
     for (const key of ["chart1", "chart2", "chart3", "chart4", "chart5"]) {
       pairs.push([`${key} label`, rgb(colors[key]), rgb(colors.card)]);
     }
-    const primary = rgb(colors.primary);
-    const card = rgb(colors.card);
-    pairs.push(["selected tab", primary, primary.map((value, i) => value * 0.1 + card[i] * 0.9)]);
+    pairs.push(["primary container", rgb(colors.onPrimaryContainer), rgb(colors.primaryContainer)]);
+    pairs.push(["secondary container", rgb(colors.onSecondaryContainer), rgb(colors.secondaryContainer)]);
+    for (const surface of ["background", "card", "surfaceContainerHigh"]) {
+      const ratio = contrast(rgb(colors.outline), rgb(colors[surface]));
+      assert.ok(ratio >= 3, `${theme}: outline on ${surface} contrast ${ratio.toFixed(2)} is below 3`);
+    }
     for (const [label, foreground, background] of pairs) {
       const ratio = contrast(foreground, background);
       assert.ok(ratio >= 4.5, `${theme}: ${label} contrast ${ratio.toFixed(2)} is below 4.5`);

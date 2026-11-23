@@ -31,9 +31,9 @@ function TaskFormDialog({ title, busy, onClose, children }: { title: string; bus
         <Pressable onPress={onClose} accessible={false} className="flex-1 items-center justify-end bg-black/40 px-3"
           style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}>
           <Pressable onPress={(event) => event.stopPropagation()} accessible={false} accessibilityViewIsModal
-            className="max-h-full w-full max-w-md overflow-hidden rounded-[22px] border border-border bg-background">
-            <View className="flex-row items-center justify-between border-b border-border/60 bg-card px-[18px] py-2.5">
-              <Text accessibilityRole="header" className="flex-1 text-[22px] font-semibold text-foreground">{title}</Text>
+            className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high">
+            <View className="flex-row items-center justify-between px-[18px] py-2.5">
+              <Text accessibilityRole="header" className="flex-1 text-title-large font-medium text-foreground">{title}</Text>
               <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={onClose} />
             </View>
             {children}
@@ -113,8 +113,8 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
   };
 
   const labelClass = "mb-[7px] text-[13px] font-semibold text-foreground";
-  const sectionClass = "rounded-[18px] border border-border/60 bg-card p-[14px]";
-  const inputClass = "min-h-[48px] rounded-[14px] border border-border/60 bg-background px-3 py-3 text-base text-foreground";
+  const sectionClass = "gap-1";
+  const inputClass = "min-h-[48px] rounded-[8px] border border-outline px-3 py-3 text-base text-foreground focus:border-primary";
   const today = taskDateKey();
   const tomorrowDate = new Date(`${today}T12:00:00`);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
@@ -136,9 +136,9 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               <Text numberOfLines={1} className="min-w-0 flex-1 text-right text-sm font-semibold text-foreground">{dueDate ? formatTaskDate(dueDate) : "No date"}</Text><ChevronDown size={16} color={colors.mutedForeground} />
             </Pressable>
             <View className="flex-row gap-2">
-              <Button className="min-w-0 flex-1" variant={dueDate === today ? "primary" : "secondary"} label="Today" disabled={busy} accessibilityState={{ selected: dueDate === today }} onPress={() => changeDate(today)} />
-              <Button className="min-w-0 flex-1" variant={dueDate === tomorrow ? "primary" : "secondary"} label="Tomorrow" disabled={busy} accessibilityState={{ selected: dueDate === tomorrow }} onPress={() => changeDate(tomorrow)} />
-              <Button className="min-w-0 flex-1" variant={dueDate === null ? "primary" : "secondary"} label="No date" disabled={busy} accessibilityState={{ selected: dueDate === null }} onPress={() => changeDate(null)} />
+              <Button className="min-w-0 flex-1" variant={dueDate === today ? "tonal" : "secondary"} label="Today" disabled={busy} accessibilityState={{ selected: dueDate === today }} onPress={() => changeDate(today)} />
+              <Button className="min-w-0 flex-1" variant={dueDate === tomorrow ? "tonal" : "secondary"} label="Tomorrow" disabled={busy} accessibilityState={{ selected: dueDate === tomorrow }} onPress={() => changeDate(tomorrow)} />
+              <Button className="min-w-0 flex-1" variant={dueDate === null ? "tonal" : "secondary"} label="No date" disabled={busy} accessibilityState={{ selected: dueDate === null }} onPress={() => changeDate(null)} />
             </View>
             <View className="rounded-[13px] border border-border/60 bg-background px-3">
               <Pressable disabled={busy || !dueDate} onPress={() => setShowRepeat(true)} accessibilityRole="button"
@@ -173,7 +173,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               textAlignVertical="top" accessibilityLabel="Notes (optional)" className={cn(inputClass, "min-h-[80px]")} />
           </View>
         </ScrollView>
-        <View className="gap-2 border-t border-border/60 bg-card px-[18px] py-3">
+        <View className="gap-2 border-t border-border/60 px-[18px] py-3">
           {error ? <Text accessibilityRole="alert" className="text-sm text-destructive">{error.message}</Text> : null}
           {error?.openSettings && <Button variant="secondary" label="Open app settings" disabled={busy}
             onPress={() => {
@@ -182,7 +182,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
             }} />}
           <View className="flex-row items-center gap-2">
             {task && onDelete && <Pressable accessibilityRole="button" accessibilityLabel="Delete task?" disabled={busy} className="mr-auto min-h-[44px] justify-center rounded-[11px] disabled:opacity-50" onPress={onDelete}><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
-            <Button className="flex-1" variant="secondary" label="Cancel" disabled={busy} onPress={close} />
+            <Button className="flex-1" variant="text" label="Cancel" disabled={busy} onPress={close} />
             <Button className="flex-1" label="Save" busy={busy} onPress={() => void save()} /></View>
         </View>
       <ActionDialog visible={showRepeat} title="Repeat" layout="list" onClose={() => setShowRepeat(false)}

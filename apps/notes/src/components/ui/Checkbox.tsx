@@ -21,9 +21,9 @@ export function Checkbox({ checked, size = "md", displayOnly = false, children,
   const colors = useThemeColors();
   const indicator = (
     <View className={cn(
-      "shrink-0 items-center justify-center rounded-full border",
+      "shrink-0 items-center justify-center rounded-[3px] border-2",
       size === "sm" ? "h-[18px] w-[18px]" : "h-6 w-6",
-      checked ? "border-primary bg-primary" : "border-muted-foreground/40 bg-background"
+      checked ? "border-primary bg-primary" : "border-outline"
     )}>
       {checked && <Check size={size === "sm" ? 10 : 12} color={colors.primaryForeground} />}
     </View>

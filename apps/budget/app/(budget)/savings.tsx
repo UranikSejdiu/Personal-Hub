@@ -556,5 +556,5 @@ export default function SavingsScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 112 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
 });

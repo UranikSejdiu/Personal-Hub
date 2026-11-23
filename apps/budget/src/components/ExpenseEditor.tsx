@@ -54,7 +54,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
     catch { if (mounted.current) { setError(true); toast.error("Failed to update expense."); } }
     finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   };
-  const inputClass = "min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 text-base text-foreground";
+  const inputClass = "min-h-[44px] rounded-[8px] border border-outline focus:border-primary px-3 py-2.5 text-base text-foreground";
   return <>
     <FormDialog title={expense ? "Edit expense" : "Add expense"} busy={busy} onClose={close}>
       <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">Amount (€)</Text>
@@ -66,7 +66,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
           accessibilityLabel="Expense" placeholderTextColor={colors.mutedForeground} className={inputClass} />
       </View>
       {!expense && <View className="flex-row flex-wrap gap-2">
-        {(["Groceries", "Transport", "Bills", "Other"] as const).map(category => <Pressable key={category} disabled={busy} onPress={() => setCategory(category)} accessibilityRole="button" accessibilityLabel={category} className="min-h-[44px] justify-center rounded-full bg-secondary px-3"><Text className="text-xs font-medium text-primary">{category}</Text></Pressable>)}
+        {(["Groceries", "Transport", "Bills", "Other"] as const).map(category => <Pressable key={category} disabled={busy} onPress={() => setCategory(category)} accessibilityRole="button" accessibilityLabel={category} className="min-h-[44px] justify-center rounded-[8px] bg-secondary-container px-3 active:opacity-70"><Text className="text-label-medium font-medium text-on-secondary-container">{category}</Text></Pressable>)}
       </View>}
       <Checkbox checked={paid} disabled={busy} onPress={() => setPaid(value => !value)} accessibilityLabel="Paid off">
         <Text className="text-sm text-foreground">Paid off</Text>
@@ -78,7 +78,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
       {error && <Text accessibilityRole="alert" className="text-xs text-destructive">Failed to update expense.</Text>}
       <View className="flex-row flex-wrap items-center justify-end gap-2">
         {expense && onDelete && <Pressable onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Delete expense?" className="mr-auto min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
-        <Button variant="secondary" label="Cancel" disabled={busy} onPress={close} />
+        <Button variant="text" label="Cancel" disabled={busy} onPress={close} />
         {!expense && <Button variant="secondary" label={"Save & add another"} disabled={!valid || busy} onPress={() => { void save(true); }} />}
         <Button label="Save" disabled={!valid} busy={busy} onPress={() => { void save(); }} />
       </View>

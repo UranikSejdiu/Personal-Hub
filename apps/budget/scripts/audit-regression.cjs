@@ -104,6 +104,28 @@ const plain = value => JSON.parse(JSON.stringify(value));
     const savings = load(path.join(root, 'src/lib/savings.ts'));
     const repayments = load(path.join(root, 'src/lib/repaymentPlans.ts'));
     const bootstrap = load(path.join(root, 'src/lib/bootstrap.ts'));
+    const monthTotals = {
+      month: '2026-11', income: 900, loanPaid: false, ccPaid: false, totalExpenses: 803.99, paidExpenses: 703.99,
+    };
+    const withTarget = budget.computeMonthSummary(monthTotals, budget.EMPTY_LOANS, 100);
+    assert.equal(withTarget.actualRemaining.toFixed(2), '96.01', 'Reserve the savings target after deducting paid bills');
+    assert.equal(withTarget.actualOutflow, 703.99, 'A savings target does not increase Paid so far');
+    assert.equal(withTarget.remaining.toFixed(2), '-3.99', 'Planned remaining also accounts for unpaid bills');
+    assert.equal(withTarget.goalMet, true, 'Savings progress uses the balance before reserving the target');
+    assert.equal(withTarget.goalProgress, 100);
+    const allPaid = budget.computeMonthSummary({ ...monthTotals, paidExpenses: monthTotals.totalExpenses }, budget.EMPTY_LOANS, 100);
+    assert.equal(allPaid.actualRemaining.toFixed(2), allPaid.remaining.toFixed(2), 'Current and planned agree once all bills are paid');
+    const noTarget = budget.computeMonthSummary(monthTotals, budget.EMPTY_LOANS, 0);
+    assert.equal(noTarget.actualRemaining.toFixed(2), '196.01');
+    const shortfall = budget.computeMonthSummary({ ...monthTotals, income: 150, totalExpenses: 100, paidExpenses: 100 }, budget.EMPTY_LOANS, 100);
+    assert.equal(shortfall.actualRemaining, -50);
+    assert.equal(shortfall.goalProgress, 50);
+    assert.equal(shortfall.goalMet, false);
+    const exactTarget = budget.computeMonthSummary({ ...monthTotals, income: 0.30, totalExpenses: 0.10, paidExpenses: 0.10 }, budget.EMPTY_LOANS, 0.20);
+    assert.equal(exactTarget.actualRemaining, 0, 'An exactly funded target must not display a negative zero');
+    assert.equal(exactTarget.remaining, 0);
+    assert.equal(exactTarget.goalMet, true);
+    assert.equal(exactTarget.goalProgress, 100);
     await budget.saveLoans({ ...budget.EMPTY_LOANS, loan_name: 'Startup retry', loan_amount: 100, loan_payment: 10, loan_term: 10 });
     const beforeMigration = (await repayments.listRepaymentPlans()).length;
     failSqlPattern = /^INSERT INTO repayment_plans/;

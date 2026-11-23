@@ -3,7 +3,7 @@ import { Easing } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { Tabs, useRouter } from "expo-router";
 import { toast } from "sonner-native";
-import { PillNav } from "../../src/components/PillNav";
+import { NavigationBar } from "../../src/components/NavigationBar";
 import { BUDGET_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
@@ -66,7 +66,7 @@ export default function BudgetLayout() {
           const isSubScreen = !BUDGET_TABS.some((tab) => tab.id === activeTabId);
           if (isSubScreen) return null;
           return (
-            <PillNav
+            <NavigationBar
               tabs={BUDGET_TABS}
               activeTabId={activeTabId}
               onTabPress={(tabId) => {
@@ -85,8 +85,7 @@ export default function BudgetLayout() {
         <Tabs.Screen name="settings" options={{ title: "Settings" }} />
         <Tabs.Screen
           name="budget"
-          // The custom PillNav already omits this screen. `href: null` hides
-          // the route itself in SDK 58 and redirects month views to Dashboard.
+          // Month details keep Months selected in the navigation bar.
           dangerouslySingular={(_name, params) => {
             const month = params.month;
             return (typeof month === "string" ? month : month?.[0]) ?? "current";

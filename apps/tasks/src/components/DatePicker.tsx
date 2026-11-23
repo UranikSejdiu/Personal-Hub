@@ -97,7 +97,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
       >
         <Pressable
           onPress={event => event.stopPropagation()}
-          className="w-full max-w-sm rounded-[22px] border border-border/60 bg-card p-[18px] shadow-xl"
+          className="w-full max-w-sm rounded-[28px] bg-surface-container-high p-[18px] shadow-xl"
           accessible={false}
           accessibilityViewIsModal
         >

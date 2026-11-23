@@ -108,7 +108,7 @@ export default function SettingsScreen() {
   return (
     <>
       <ScrollView key={section ?? "settings"} className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-5 px-4 pt-3 pb-28">
+        <View className="w-full max-w-md self-center gap-5 px-4 pt-3 pb-6">
           <View className="flex-row items-center gap-2">
             {section && <Pressable disabled={busy} onPress={() => setSection(null)}
               className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"

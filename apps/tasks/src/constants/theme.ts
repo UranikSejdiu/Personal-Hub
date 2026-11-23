@@ -3,6 +3,13 @@ export type ThemeName = "light" | "dark";
 /** Shared by NativeWind variables, icons, inputs, and native controls. */
 export const COLORS = {
   light: {
+    surfaceContainer: "hsl(253, 32%, 94%)",
+    surfaceContainerHigh: "hsl(253, 32%, 91%)",
+    primaryContainer: "hsl(261, 85%, 91%)",
+    onPrimaryContainer: "hsl(259, 54%, 19%)",
+    secondaryContainer: "hsl(255, 53%, 88%)",
+    onSecondaryContainer: "hsl(255, 39%, 20%)",
+    outline: "hsl(252, 8%, 44%)",
     background: "hsl(250, 35%, 98%)",
     foreground: "hsl(242, 18%, 15%)",
     card: "hsl(0, 0%, 100%)",
@@ -15,7 +22,7 @@ export const COLORS = {
     accentForeground: "hsl(242, 18%, 15%)",
     destructive: "hsl(0, 72%, 43%)",
     destructiveForeground: "hsl(0, 0%, 100%)",
-    success: "hsl(142, 65%, 29%)",
+    success: "hsl(142, 65%, 26%)",
     successForeground: "hsl(0, 0%, 100%)",
     surface: "hsl(214, 50%, 96%)",
     border: "hsl(214, 35%, 84%)",
@@ -29,6 +36,13 @@ export const COLORS = {
     primaryForeground: "hsl(0, 0%, 100%)",
   },
   dark: {
+    surfaceContainer: "hsl(250, 16%, 18%)",
+    surfaceContainerHigh: "hsl(250, 16%, 22%)",
+    primaryContainer: "hsl(259, 36%, 30%)",
+    onPrimaryContainer: "hsl(264, 86%, 93%)",
+    secondaryContainer: "hsl(252, 25%, 29%)",
+    onSecondaryContainer: "hsl(257, 43%, 91%)",
+    outline: "hsl(252, 9%, 64%)",
     background: "hsl(240, 18%, 12%)",
     foreground: "hsl(214, 70%, 96%)",
     card: "hsl(240, 17%, 16%)",

@@ -21,7 +21,7 @@ type ModalState =
   | { visible: true; mode: "edit"; dhikr: Dhikr };
 
 const ROW_TRANSITION = LinearTransition.duration(180);
-const LIST_CONTENT_STYLE = { paddingBottom: 112 };
+const LIST_CONTENT_STYLE = { paddingBottom: 24 };
 const dhikrKey = (item: Dhikr) => String(item.id);
 
 function MoveUpIcon(props: AppIconProps) {
@@ -282,7 +282,7 @@ export default function DhikrListScreen() {
       <View className="flex-1 bg-background">
         <View className="w-full max-w-md flex-1 self-center px-4 pt-3">
           <View className="mb-3 min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
-            <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
+            <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
             {arranging ? (
               <View className="flex-row items-center gap-1">
                 <Pressable onPress={cancelArrange} disabled={isSaving}

@@ -724,10 +724,16 @@ export interface MonthSummaryInput {
   paidExpenses: number;
 }
 
+function remainingAfterOutflow(income: number, outflow: number): number {
+  const balance = income - outflow;
+  // Amounts below half a cent display as zero, including floating-point residue.
+  return Math.abs(balance) < 0.005 ? 0 : balance;
+}
+
 /**
- * Pure month aggregation shared by the dashboard and the onboarding tutorial, so
- * both always agree on the numbers they show. Everything it needs arrives as an
- * argument: it never touches storage.
+ * Keep the monthly savings target reserved in both remaining balances.
+ * Actual outflow records payments made so far, while savings progress uses the
+ * amount available before the target is reserved.
  */
 export function computeMonthSummary(
   input: MonthSummaryInput,
@@ -746,21 +752,23 @@ export function computeMonthSummary(
   const outflow = loanPayment + ccPayment + cc2Payment + extraPlanned + totalExpenses + goalAmount;
   const actualOutflow =
     (loanPaid ? loanPayment : 0) + (ccPaid ? ccPayment : 0) + (input.cc2Paid ? cc2Payment : 0) + extraPaid + paidExpenses;
-  const actualRemaining = income - actualOutflow;
+  const availableForSavings = income - actualOutflow;
+  const actualRemaining = remainingAfterOutflow(income, actualOutflow + goalAmount);
+  const goalMet = goalAmount > 0 && actualRemaining >= 0;
   const goalProgress =
     goalAmount > 0
-      ? Math.min(100, Math.max(0, (actualRemaining / goalAmount) * 100))
+      ? goalMet ? 100 : Math.max(0, (availableForSavings / goalAmount) * 100)
       : 0;
   return {
     month,
     income,
     outflow,
-    remaining: income - outflow,
+    remaining: remainingAfterOutflow(income, outflow),
     actualOutflow,
     actualRemaining,
     savingsGoal: goalAmount,
     goalProgress,
-    goalMet: goalAmount > 0 && actualRemaining >= goalAmount,
+    goalMet,
   };
 }
 

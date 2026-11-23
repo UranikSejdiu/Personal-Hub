@@ -113,7 +113,7 @@ export default function LoansScreen() {
       data={plans}
       keyExtractor={(item) => String(item.id)}
       keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-28"
+      contentContainerClassName="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-6"
       ListHeaderComponent={<View className="gap-3">
         <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Repayments</Text>
         <View className="flex-row flex-wrap gap-2">

@@ -34,7 +34,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
     { label: "Paid so far", value: summary.actualOutflow },
     { label: "Current remaining", value: summary.actualRemaining },
   ];
-  return <Card className={featured ? "border-0 bg-secondary p-5" : undefined}>
+  return <Card className={featured ? "border-0 bg-surface-container p-5" : undefined}>
     <View className="flex-row items-center gap-2">
       <Pressable onPress={onOpen} className="min-h-[44px] min-w-0 flex-1 justify-center active:opacity-70"
         accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>

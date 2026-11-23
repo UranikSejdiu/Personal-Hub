@@ -31,7 +31,7 @@ export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue
   const reminder = upcomingTaskReminder(task, now);
   const reminderTime = reminder?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const dateLabel = reminderTime ? `${agenda ? "" : `${date} · `}Reminder ${reminderTime}` : date;
-  return <View className={agenda ? "border-b border-border/60 py-2" : "mb-2 rounded-[17px] px-1 py-2"} style={agenda ? undefined : { backgroundColor: overdue ? colors.tiles[2] : colors.card }}>
+  return <View className={agenda ? "border-b border-border/60 py-2" : "mb-2 rounded-2xl px-1 py-2"} style={agenda ? undefined : { backgroundColor: overdue ? colors.tiles[2] : colors.card }}>
     <View className="min-h-[64px] flex-row items-center">
       <Checkbox checked={completed} disabled={busy} onPress={() => onToggle(task)} accessibilityLabel={completed ? `Reopen ${task.title}` : `Complete ${task.title}`} />
       <Pressable onPress={() => { if (!completed) onEdit(task); else setMenu(true); }} onLongPress={() => setMenu(true)} disabled={busy}

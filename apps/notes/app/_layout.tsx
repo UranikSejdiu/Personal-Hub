@@ -131,7 +131,12 @@ function BootstrapGate() {
 
   if (!dbReady) return null;
 
-  return <RootLayoutInner />;
+  // Mount the update checker with the screen that displays its launch notice.
+  return (
+    <UpdateProvider>
+      <RootLayoutInner />
+    </UpdateProvider>
+  );
 }
 
 export default function RootLayout() {
@@ -158,9 +163,7 @@ export default function RootLayout() {
       <KeyboardProvider>
         <SafeAreaProvider>
           <ThemeProvider>
-            <UpdateProvider>
-              <BootstrapGate />
-            </UpdateProvider>
+            <BootstrapGate />
           </ThemeProvider>
         </SafeAreaProvider>
       </KeyboardProvider>

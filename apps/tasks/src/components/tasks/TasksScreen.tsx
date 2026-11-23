@@ -204,7 +204,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
   };
   const header = <View>
     <View className="mb-4 flex-row items-center justify-between gap-3">
-      <Text accessibilityRole="header" className="min-w-0 flex-1 text-[28px] font-semibold tracking-[-0.8px] text-foreground">
+      <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
         {mode === "calendar" ? "Calendar" : "Tasks"}
       </Text>
       {mode === "calendar" ? (
@@ -216,7 +216,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     </View>
     {mode === "overview" && <>
       <TaskSummaryTiles counts={counts} filter={filter} onFilter={setFilter} />
-      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Find a task…" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[46px] min-w-0 flex-1 text-base text-foreground" /></View>}
+      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full bg-surface-container-high px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[46px] min-w-0 flex-1 text-base text-foreground" /></View>}
       <View className="mb-2 flex-row items-center justify-between gap-3">
         <Text accessibilityRole="header" className="min-w-0 flex-1 text-lg font-semibold tracking-[-0.4px] text-foreground">{FILTER_TITLES[filter]}</Text>
         <Pressable accessibilityRole="button" onPress={() => setFilter(filter === "active" ? "today" : "active")} className="min-h-[44px] justify-center">

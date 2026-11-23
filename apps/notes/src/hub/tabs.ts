@@ -1,11 +1,7 @@
-/** The standalone Notes app's two tabs. */
-export interface HubTabDef {
-  id: string;
-  label: string;
-  icon: string;
-}
+import { Archive, FileText } from "../components/AppIcons";
+import type { NavigationDestination } from "../components/NavigationBar";
 
-export const NOTES_TABS: HubTabDef[] = [
-  { id: "index", label: "Notes", icon: "note-text" },
-  { id: "archive", label: "Archive", icon: "archive" },
+export const NOTES_TABS: readonly NavigationDestination[] = [
+  { id: "index", label: "Notes", icon: FileText },
+  { id: "archive", label: "Archive", icon: Archive },
 ];

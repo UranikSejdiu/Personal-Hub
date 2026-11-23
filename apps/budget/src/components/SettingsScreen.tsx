@@ -82,7 +82,7 @@ export default function SettingsScreen() {
   });
 
   return <>
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-28">
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-6">
       <View className="w-full max-w-md self-center gap-5 px-4 pt-3">
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">

@@ -65,9 +65,10 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   // processing and redirect hook against the actual MoneyPlan layout.
   {
     const Tabs = Object.assign(() => null, { Screen: 'TabScreen' });
+    const opened = [];
     const h = harness('app/(budget)/_layout.tsx', {}, {
-      'expo-router': { Tabs, useRouter: () => ({}) },
-      '../../src/hub/tabs': { BUDGET_TABS: [{ id: 'index', label: 'Months' }] },
+      'expo-router': { Tabs, useRouter: () => ({ push: href => opened.push(href) }) },
+      '../../src/hub/tabs': { BUDGET_TABS: [{ id: 'index', label: 'Months' }, { id: 'savings', label: 'Savings' }] },
       budget: { loadSavingsGoal: async () => ({ goal_amount: 0 }), loadBudget: async () => null },
     });
     const tree = h.render('default');
@@ -96,6 +97,11 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       assert.equal(midway.opacity, 0.5, 'Opacity changes continuously');
       assert.deepEqual(sample(true, direction * 2), entering, 'Interrupted transitions stay within their bounds');
     }
+    const bar = tabs.props.tabBar({ state: { routes: [{ name: 'index' }, { name: 'savings' }, { name: 'budget' }], index: 2 } });
+    assert.equal(bar.type, 'NavigationBar');
+    assert.equal(bar.props.activeTabId, 'index', 'Month details keep the Months tab selected');
+    bar.props.onTabPress('savings');
+    assert.deepEqual(opened, ['/(budget)/savings']);
     const settled = sample(true, 0);
     assert.equal(settled.transform[0].translateX, 0);
     assert.equal(settled.opacity, 1, 'Active pages remain fully visible');
@@ -196,7 +202,7 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   const dialogScroll = find(confirmTree, n => n.type === 'ScrollView');
   assert.match(dialogScroll.props.className, /\bshrink\b/);
   assert.equal(find(dialogScroll, n => n.props?.children === message).props.numberOfLines, undefined);
-  const confirmButton=find(dialogScroll,n=>n.props?.accessibilityLabel==='Confirm');confirmButton.props.onPress();await settle();
+  const confirmButton=find(dialogScroll,n=>n.type==='Button'&&n.props.label==='Confirm');confirmButton.props.onPress();await settle();
   assert.ok(hasAlert(confirm,'error','Failed to save.'));assert.equal(confirm.state.isConfirming,false);
   // Savings operations announce only persisted success; invalid input stays inline.
   for(const formType of ['deposit','purchase']){

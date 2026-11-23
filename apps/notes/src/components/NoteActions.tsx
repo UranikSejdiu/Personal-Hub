@@ -25,13 +25,13 @@ export function NoteActions({ isPinned, isArchived, canDelete, disabled = false,
       {!isArchived && <Pressable
         onPress={onTogglePin}
         disabled={disabled}
-        className="h-12 w-12 items-center justify-center rounded-full bg-card p-2 active:opacity-70 disabled:opacity-50"
+        className={`h-12 w-12 items-center justify-center rounded-full p-2 active:opacity-70 disabled:opacity-50 ${isPinned ? "bg-secondary-container" : "active:bg-surface-container-high"}`}
         accessible
         accessibilityRole="button"
         accessibilityLabel={isPinned ? "Unpin" : "Pin"}
         accessibilityState={{ selected: isPinned, disabled }}
       >
-        <Pin size={20} color={isPinned ? colors.primary : colors.mutedForeground} />
+        <Pin size={20} color={isPinned ? colors.onSecondaryContainer : colors.foreground} />
       </Pressable>}
       {canDelete ? (
         <>
@@ -39,12 +39,12 @@ export function NoteActions({ isPinned, isArchived, canDelete, disabled = false,
             <Pressable
               onPress={open}
               disabled={disabled}
-              className="h-12 w-12 items-center justify-center rounded-full bg-card active:opacity-70 disabled:opacity-50"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button"
               accessibilityLabel="More note actions"
               accessibilityState={{ expanded: anchor !== null, disabled }}
             >
-              <MoreHorizontal size={20} color={colors.mutedForeground} />
+              <MoreHorizontal size={22} color={colors.foreground} />
             </Pressable>
           </View>
           <AnchoredMenu anchor={anchor} onClose={close} items={[

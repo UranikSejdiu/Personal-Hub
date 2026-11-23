@@ -1,7 +1,6 @@
 import { Text } from "../../src/components/ui/Typography";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, View, FlatList, Pressable, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Plus, PiggyBank, ChevronRight } from "../../src/components/AppIcons";
 import { getSavingsSummary } from "../../src/lib/savings";
 import { formatCurrency } from "../../src/lib/utils";
@@ -37,7 +36,6 @@ export default function DashboardScreen() {
   const [quickExpense, setQuickExpense] = useState(false);
   const [creatingMonth, setCreatingMonth] = useState<string | null>(null);
   const refreshRequest = useRef(0);
-  const insets = useSafeAreaInsets();
 
   const colors = useThemeColors();
   const thisMonth = currentMonth();
@@ -139,15 +137,14 @@ export default function DashboardScreen() {
         data={loadState === "ready" ? otherMonths : []}
         keyExtractor={(item) => item.month}
         renderItem={renderMonth}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 128 }]}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View className="gap-3">
             <View className="flex-row flex-wrap items-center justify-between gap-3">
-              <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Monthly budget</Text>
+              <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Monthly budget</Text>
               <Button
                 label="Add expense"
                 icon={Plus}
-                variant="secondary"
                 disabled={loadState !== "ready" || creatingMonth !== null}
 
                 onPress={() => { if (currentSummary) router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`); else { setQuickExpense(true); handleCreateMonth(thisMonth); } }}
@@ -186,10 +183,10 @@ export default function DashboardScreen() {
             )}
 
             {loadState === "ready" && savingsBalance !== null && (
-              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[76px] flex-row items-center gap-3 rounded-[20px] bg-secondary px-4 py-3 active:opacity-70">
-                <PiggyBank size={24} color={colors.primary} />
-                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-foreground">{formatCurrency(savingsBalance)}</Text><Text className="text-xs text-muted-foreground">Total savings</Text></View>
-                <ChevronRight size={18} color={colors.primary} />
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[76px] flex-row items-center gap-3 rounded-2xl bg-secondary-container px-4 py-3 active:opacity-70">
+                <PiggyBank size={24} color={colors.onSecondaryContainer} />
+                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-on-secondary-container">{formatCurrency(savingsBalance)}</Text><Text className="text-label-medium text-on-secondary-container">Total savings</Text></View>
+                <ChevronRight size={18} color={colors.onSecondaryContainer} />
               </Pressable>
             )}
             {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label="Next month" onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
@@ -232,5 +229,5 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 12 },
 });

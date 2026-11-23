@@ -83,14 +83,14 @@ export function DhikrModal(props: Props) {
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="max-h-full w-full max-w-sm overflow-hidden rounded-2xl bg-card"
+          className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high" accessibilityViewIsModal accessible={false}
         >
-          <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled" contentContainerClassName="p-4">
+          <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled" contentContainerClassName="p-6">
           <View className="flex-row items-center justify-between">
-            <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">
+            <Text accessibilityRole="header" className="flex-1 text-title-large font-medium text-foreground">
               {mode === "add" ? "New Dhikr" : "Edit Dhikr"}
             </Text>
-            <Pressable onPress={handleClose} disabled={saving} className="h-11 w-11 items-center justify-center rounded-full active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Cancel">
+            <Pressable onPress={handleClose} disabled={saving} className="h-12 w-12 items-center justify-center rounded-full active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Close">
               <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
@@ -112,7 +112,7 @@ export function DhikrModal(props: Props) {
                 onChangeText={setName}
                 placeholder="e.g. SubhanAllah"
                 placeholderTextColor={colors.mutedForeground}
-                className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
+                className="mt-1 rounded-[8px] border border-outline focus:border-primary px-3 py-2.5 text-base text-foreground"
               />
             </View>
 
@@ -149,9 +149,9 @@ export function DhikrModal(props: Props) {
             )}
           </View>
 
-          <View className="mt-4 flex-row items-center justify-end gap-2">
-            <Pressable onPress={handleClose} disabled={saving} className="min-h-[44px] justify-center rounded-lg px-3 py-2 active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Cancel">
-              <Text className="text-sm font-medium text-muted-foreground">
+          <View className="mt-4 flex-row flex-wrap items-center justify-end gap-2">
+            <Pressable onPress={handleClose} disabled={saving} className="min-h-[48px] justify-center rounded-full px-4 py-2 active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Cancel">
+              <Text className="text-label-large font-medium text-primary">
                 Cancel
               </Text>
             </Pressable>
@@ -160,13 +160,13 @@ export function DhikrModal(props: Props) {
                 void handleSave();
               }}
               disabled={saving}
-              className="min-h-[44px] justify-center rounded-lg bg-primary px-4 py-2 active:opacity-70"
+              className="min-h-[48px] justify-center rounded-full bg-primary px-4 py-2 active:opacity-70"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Save"
               accessibilityState={{ disabled: saving, busy: saving }}
             >
-              <Text className="text-sm font-medium text-primary-foreground">
+              <Text className="text-label-large font-medium text-primary-foreground">
                 {saving ? "Saving…" : "Save"}
               </Text>
             </Pressable>

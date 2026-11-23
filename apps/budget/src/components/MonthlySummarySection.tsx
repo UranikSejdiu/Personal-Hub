@@ -8,6 +8,7 @@ import {
   type Budget,
   type Expense,
   type Loans,
+  type MonthSummary,
 } from "../lib/budget";
 import { formatCurrency } from "../lib/utils";
 import { CREDIT_CARD_SLOTS, creditCardDetails, creditCardPaymentForMonth } from "../lib/creditCards";
@@ -18,7 +19,7 @@ interface Props {
   budget: Budget;
   expenses: Expense[];
   loans: Loans;
-  savingsGoal: number;
+  summary: MonthSummary;
   repayments: readonly RepaymentPlan[];
   paidRepayments: ReadonlySet<number>;
 }
@@ -27,12 +28,13 @@ export function MonthlySummarySection({
   budget,
   expenses,
   loans,
-  savingsGoal,
+  summary,
   repayments,
   paidRepayments,
 }: Props) {
   const colors = useThemeColors();
   const [expanded, setExpanded] = useState(false);
+  const { savingsGoal, goalProgress, goalMet, actualRemaining, remaining } = summary;
 
   const c = useMemo(() => {
     const loanPayment = loanPaymentForMonth(loans, budget.month);
@@ -42,31 +44,15 @@ export function MonthlySummarySection({
       const paid = slot === 1 ? budget.cc_paid : budget.cc2_paid;
       return { slot, card, payment, paid, actual: paid ? payment : 0 };
     });
-    const ccPayment = cards.reduce((sum, card) => sum + card.payment, 0);
     const extra = repayments.map((plan) => ({ plan, payment: repaymentForMonth(plan, budget.month), paid: paidRepayments.has(plan.id) })).filter((item) => item.payment > 0);
-    const extraPlanned = extra.reduce((sum, item) => sum + item.payment, 0);
-    const extraPaid = extra.reduce((sum, item) => sum + (item.paid ? item.payment : 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalOutflow = loanPayment + ccPayment + extraPlanned + totalExpenses + savingsGoal;
-    const remaining = (budget.income || 0) - totalOutflow;
-
     const paidLoan = budget.loan_paid ? loanPayment : 0;
-    const paidCc = cards.reduce((sum, card) => sum + card.actual, 0);
     const paidExpenses = expenses.reduce((sum, e) => sum + (e.paid ? e.amount || 0 : 0), 0);
-    const actualOutflow = paidLoan + paidCc + extraPaid + paidExpenses;
-    const actualRemaining = (budget.income || 0) - actualOutflow;
 
-    return {
-      cards, extra, extraPlanned, loanPayment, ccPayment, totalExpenses, totalOutflow, remaining,
-      paidLoan, paidCc, paidExpenses, actualOutflow, actualRemaining,
-    };
-  }, [budget, expenses, loans, savingsGoal, repayments, paidRepayments]);
+    return { cards, extra, loanPayment, totalExpenses, paidLoan, paidExpenses };
+  }, [budget, expenses, loans, repayments, paidRepayments]);
 
-  const goalProgress =
-    savingsGoal > 0 ? Math.min(100, Math.max(0, (c.actualRemaining / savingsGoal) * 100)) : 0;
-  const goalMet = savingsGoal > 0 && c.actualRemaining >= savingsGoal;
-
-  const hasData = c.loanPayment > 0 || c.ccPayment > 0 || c.extraPlanned > 0 || c.totalExpenses > 0 || savingsGoal > 0;
+  const hasData = summary.outflow > 0;
 
   return (
     <View className="gap-2.5">
@@ -75,9 +61,9 @@ export function MonthlySummarySection({
         <View className="gap-[7px]">
           {[
             { label: "Monthly Income (after tax)", value: budget.income },
-            { label: "Outgoings", value: c.totalOutflow },
-            { label: "Paid so far", value: c.actualOutflow },
-            { label: "Planned remaining", value: c.remaining },
+            { label: "Outgoings", value: summary.outflow },
+            { label: "Paid so far", value: summary.actualOutflow },
+            { label: "Planned remaining", value: remaining },
           ].map(row =>
             <View key={row.label} className="flex-row flex-wrap justify-between gap-2"><Text className="text-xs text-muted-foreground">{row.label}</Text><Text className={`text-xs font-semibold ${row.value < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(row.value)}</Text></View>)}
         </View>
@@ -89,7 +75,7 @@ export function MonthlySummarySection({
           <TableHeader className="bg-transparent px-0">
             <TableHead className="flex-1" />
             <TableHead className="w-[72] text-right">Planned</TableHead>
-            <TableHead className="w-[72] text-right">Actual</TableHead>
+            <TableHead className="w-[72] text-right">Current</TableHead>
           </TableHeader>
           <TableBody>
             {c.loanPayment > 0 && <TableRow className="border-t-0 px-0 py-1">
@@ -138,9 +124,9 @@ export function MonthlySummarySection({
 
             {savingsGoal > 0 && (
               <TableRow className="border-t-0 px-0 py-1">
-                <TableCell numberOfLines={1} className="flex-1 text-chart-4">Monthly Savings Target</TableCell>
-                <TableCell className="w-[72] text-right text-chart-4">-{formatCurrency(savingsGoal)}</TableCell>
-                <Text className="w-[72]" />
+                <TableCell numberOfLines={1} className="flex-1 text-chart-4">Savings target</TableCell>
+                <TableCell className="w-[72] text-right text-chart-4">{formatCurrency(savingsGoal)}</TableCell>
+                <TableCell className="w-[72] text-right text-chart-4">{formatCurrency(savingsGoal)}</TableCell>
               </TableRow>
             )}
 
@@ -148,22 +134,22 @@ export function MonthlySummarySection({
 
             <TableRow className="border-t-0 px-0 py-1">
               <TableCell numberOfLines={1} className="flex-1 font-medium">TOTAL MONTHLY OUTFLOW</TableCell>
-              <TableCell className="w-[72] text-right font-medium">{formatCurrency(c.totalOutflow)}</TableCell>
-              <TableCell className="w-[72] text-right font-medium">{formatCurrency(c.actualOutflow)}</TableCell>
+              <TableCell className="w-[72] text-right font-medium">{formatCurrency(summary.outflow)}</TableCell>
+              <TableCell className="w-[72] text-right font-medium">{formatCurrency(summary.actualOutflow + savingsGoal)}</TableCell>
             </TableRow>
 
             <TableRow className="border-t-0 px-0 py-1">
-              <TableCell numberOfLines={1} className={`flex-1 font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
-                REMAINDER / SAVINGS
+              <TableCell numberOfLines={1} className={`flex-1 font-semibold ${remaining >= 0 ? "text-success" : "text-destructive"}`}>
+                REMAINING
               </TableCell>
-              <TableCell className={`w-[72] text-right font-semibold ${c.remaining >= 0 ? "text-success" : "text-destructive"}`}>
-                {formatCurrency(c.remaining)}
+              <TableCell className={`w-[72] text-right font-semibold ${remaining >= 0 ? "text-success" : "text-destructive"}`}>
+                {formatCurrency(remaining)}
               </TableCell>
               <View className="w-[72] flex-row items-center justify-end gap-1">
-                <Text numberOfLines={1} className={`text-sm font-semibold ${c.actualRemaining >= 0 ? "text-success" : "text-destructive"}`}>
-                  {formatCurrency(c.actualRemaining)}
+                <Text numberOfLines={1} className={`text-sm font-semibold ${actualRemaining >= 0 ? "text-success" : "text-destructive"}`}>
+                  {formatCurrency(actualRemaining)}
                 </Text>
-                {c.actualRemaining >= 0 && <CircleCheck size={12} color={colors.success} />}
+                {actualRemaining >= 0 && <CircleCheck size={12} color={colors.success} />}
               </View>
             </TableRow>
           </TableBody>

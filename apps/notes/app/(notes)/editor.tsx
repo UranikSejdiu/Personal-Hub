@@ -632,9 +632,9 @@ export default function NotesEditorScreen() {
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
           <View className="w-full max-w-md flex-row items-center justify-between gap-3 self-center px-5 max-[360px]:px-4 pt-4 pb-5">
-            <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="h-12 w-12 items-center justify-center rounded-full bg-foreground active:opacity-70 disabled:opacity-50"
+            <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isSaving || isAddingItem }}>
-              <ArrowLeft size={22} color={colors.background} />
+              <ArrowLeft size={22} color={colors.foreground} />
             </Pressable>
             <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-2">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}

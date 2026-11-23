@@ -375,11 +375,11 @@ export default function BudgetScreen() {
   const paymentCount = expenses.length + activePayments.length;
   const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(plan => paidRepayments.has(plan.id)).length;
 
-  if (loadError || loading || !loans || !budget) {
+  if (loadError || loading || !loans || !budget || !monthSummary) {
     if (loadError) {
       return (
         <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-          <View className="w-full max-w-md self-center items-center gap-4 p-4 pb-28 pt-20">
+          <View className="w-full max-w-md self-center items-center gap-4 p-4 pb-6 pt-20">
             <Text className="text-center text-sm text-destructive">{loadError}</Text>
             <Pressable
               onPress={() => {
@@ -405,7 +405,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-28">
+        <View className="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-6">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -435,7 +435,7 @@ export default function BudgetScreen() {
   return (
     <><FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-28"
+      contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-6"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -461,8 +461,8 @@ export default function BudgetScreen() {
           <View className="gap-2 rounded-[22px] bg-secondary p-5">
             <View className="gap-1">
               <Text className="text-[11px] text-muted-foreground">Current remaining</Text>
-              <Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>
-                {formatCurrency(monthSummary?.actualRemaining ?? 0)}
+              <Text className={`text-[23px] font-semibold tracking-[-0.7px] ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                {formatCurrency(monthSummary.actualRemaining)}
               </Text>
             </View>
             <Button className="self-start" variant="secondary" icon={Pencil} label={"Income & savings target"} onPress={() => setEditingMonth(true)} />
@@ -486,7 +486,7 @@ export default function BudgetScreen() {
             </View>
           </View>}
           <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}
-            repayments={repayments} paidRepayments={paidRepayments} savingsGoal={savingsGoal} />
+            repayments={repayments} paidRepayments={paidRepayments} summary={monthSummary} />
         </View>
       }
     />

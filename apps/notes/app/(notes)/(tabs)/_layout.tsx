@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { Easing } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
-import { PillNav } from "../../../src/components/PillNav";
+import { NavigationBar } from "../../../src/components/NavigationBar";
 import { NOTES_TABS } from "../../../src/hub/tabs";
 import { useThemeColors } from "../../../src/lib/theme";
 
@@ -41,9 +41,9 @@ export default function NotesTabsLayout() {
       tabBar={({ state, emitter, navigateToTab }) => {
         const routeName = state.routes[state.index].name;
         return (
-            <PillNav
-              tabs={NOTES_TABS}
-              activeTabId={routeName}
+          <NavigationBar
+            tabs={NOTES_TABS}
+            activeTabId={routeName}
             onTabPress={(tabId) => {
               const index = state.routes.findIndex((r) => r.name === tabId);
               if (index !== -1) {

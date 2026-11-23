@@ -3,6 +3,13 @@ export type ThemeName = "light" | "dark";
 /** Neutral gray surfaces and graphite accents across both themes. */
 export const COLORS = {
   light: {
+    surfaceContainer: "hsl(0, 0%, 93%)",
+    surfaceContainerHigh: "hsl(0, 0%, 90%)",
+    primaryContainer: "hsl(0, 0%, 86%)",
+    onPrimaryContainer: "hsl(0, 0%, 13%)",
+    secondaryContainer: "hsl(0, 0%, 84%)",
+    onSecondaryContainer: "hsl(0, 0%, 14%)",
+    outline: "hsl(0, 0%, 44%)",
     background: "hsl(0, 0%, 98%)",
     foreground: "hsl(0, 0%, 13%)",
     card: "hsl(0, 0%, 94%)",
@@ -31,6 +38,13 @@ export const COLORS = {
     actionForeground: "hsl(0, 0%, 100%)",
   },
   dark: {
+    surfaceContainer: "hsl(0, 0%, 15%)",
+    surfaceContainerHigh: "hsl(0, 0%, 19%)",
+    primaryContainer: "hsl(0, 0%, 28%)",
+    onPrimaryContainer: "hsl(0, 0%, 96%)",
+    secondaryContainer: "hsl(0, 0%, 26%)",
+    onSecondaryContainer: "hsl(0, 0%, 92%)",
+    outline: "hsl(0, 0%, 63%)",
     background: "hsl(0, 0%, 9%)",
     foreground: "hsl(0, 0%, 95%)",
     card: "hsl(0, 0%, 14%)",

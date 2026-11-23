@@ -1,7 +1,6 @@
 import { Text } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, AppState, View, Pressable, ScrollView, useWindowDimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DhikrCounterTitle } from "../../src/components/DhikrCounterTitle";
 import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -20,9 +19,7 @@ export default function CounterScreen() {
   const router = useRouter();
   const haptics = useHaptics();
   const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
-  const { fontScale, width } = useWindowDimensions();
-  const counterBottomPadding = Math.max(16, insets.bottom + 8) + Math.ceil(80 * Math.max(1, fontScale)) + 24;
+  const { width } = useWindowDimensions();
   // The ordered catalog changes only on reload. Taps update a single record,
   // rather than copying and searching the entire catalog on every press.
   const [dhikrs, setDhikrs] = useState<Dhikr[]>([]);
@@ -233,7 +230,7 @@ export default function CounterScreen() {
     return <View className="flex-1 items-center justify-center gap-3 bg-background px-4">
       <Text className="text-base text-muted-foreground">Failed to load data.</Text>
       <Pressable onPress={() => { void refresh(); }} accessibilityRole="button" accessibilityLabel="Retry"
-        className="min-h-[44px] justify-center rounded-xl bg-primary px-4 py-2.5">
+        className="min-h-[44px] justify-center rounded-full bg-primary px-4 py-2.5">
         <Text className="text-sm font-semibold text-primary-foreground">Retry</Text>
       </Pressable>
     </View>;
@@ -249,14 +246,14 @@ export default function CounterScreen() {
         </Text>
         <Pressable
           onPress={handleOpenList}
-          className="mt-4 min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-4 py-2.5 active:opacity-70"
+          className="mt-4 min-h-[48px] flex-row items-center gap-2 rounded-full bg-primary-container px-4 py-2.5 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel="Add Dhikr"
-          android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
+          android_ripple={{ color: withAlpha(colors.onPrimaryContainer, 0.12) }}
         >
-          <Sparkles size={16} color={colors.primaryForeground} />
-          <Text className="text-sm font-medium text-primary-foreground">
+          <Sparkles size={18} color={colors.onPrimaryContainer} />
+          <Text className="text-label-large font-medium text-on-primary-container">
             Add Dhikr
           </Text>
         </Pressable>
@@ -276,15 +273,15 @@ export default function CounterScreen() {
       )}
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: counterBottomPadding }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
         <View className="w-full max-w-md flex-1 items-center self-center px-4 pt-3">
-          <View className="w-full flex-row items-center gap-2 rounded-2xl border border-border/60 bg-card p-1">
+          <View className="w-full flex-row items-center gap-2 rounded-2xl bg-surface-container p-1">
             <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
-              className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Previous"
@@ -302,7 +299,7 @@ export default function CounterScreen() {
             <Pressable
               onPress={handleNext}
               disabled={isLoading || resetting}
-              className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Next"
@@ -345,13 +342,13 @@ export default function CounterScreen() {
               }}
               disabled={isLoading || resetting}
               accessibilityState={{ disabled: isLoading || resetting, busy: resetting }}
-              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary px-4 py-2.5 active:opacity-70"
+              className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary-container px-4 py-2.5 active:opacity-70"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Reset"
             >
-              <RotateCcw size={16} color={colors.mutedForeground} />
-              <Text className="text-sm font-medium text-muted-foreground">Reset counts</Text>
+              <RotateCcw size={18} color={colors.onSecondaryContainer} />
+              <Text className="text-label-large font-medium text-on-secondary-container">Reset counts</Text>
             </Pressable>
           </View>
         </View>
@@ -363,9 +360,9 @@ export default function CounterScreen() {
 
       {/* Limit reached warning banner */}
       {showLimitWarning && (
-        <View className="absolute inset-x-0 z-40 items-center px-4" style={{ bottom: counterBottomPadding + 8 }}>
+        <View className="absolute inset-x-0 z-40 items-center px-4" style={{ bottom: 84 }}>
           <View
-            className="rounded-full border px-5 py-2.5"
+            className="max-w-full rounded-[8px] border px-5 py-2.5"
             style={{
               backgroundColor: colors.destructive,
               borderColor: colors.destructive,

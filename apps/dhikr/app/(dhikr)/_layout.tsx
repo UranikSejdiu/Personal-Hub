@@ -3,20 +3,29 @@ import { Easing, Image, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "../../src/components/ui/Typography";
-import { PillNav } from "../../src/components/PillNav";
+import { ListOrdered, Settings, Sparkles } from "../../src/components/AppIcons";
+import { NavigationBar, type NavigationDestination } from "../../src/components/NavigationBar";
+import { useHaptics } from "../../src/hooks/useHaptics";
 import { useThemeColors } from "../../src/lib/theme";
+
+const DHIKR_TABS: readonly NavigationDestination[] = [
+  { id: "index", label: "Counter", icon: Sparkles },
+  { id: "list", label: "Dhikrs", icon: ListOrdered },
+  { id: "settings", label: "Settings", icon: Settings },
+];
 
 export default function DhikrLayout() {
   const router = useRouter();
+  const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   return (
     <>
       <View className="bg-background" style={{ paddingTop: insets.top }}>
-        <View className="flex-row items-center gap-2.5 px-4 py-3">
-          <Image source={require("../../assets/branding/icon.png")} className="h-[36px] w-[36px] rounded-[12px]" accessible={false} />
-          <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Dhikr</Text>
+        <View className="min-h-[64px] w-full max-w-md flex-row items-center gap-3 self-center px-4 py-2">
+          <Image source={require("../../assets/branding/icon.png")} className="h-8 w-8 rounded-lg" accessible={false} />
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">Dhikr</Text>
         </View>
       </View>
       <Tabs
@@ -48,15 +57,16 @@ export default function DhikrLayout() {
           }),
         })}
         tabBar={({ state }) => (
-          <PillNav tabs={[
-            { id: "index", label: "Counter", icon: "star-four-points" },
-            { id: "list", label: "Dhikrs", icon: "format-list-numbered" },
-            { id: "settings", label: "Settings", icon: "cog" },
-          ]} activeTabId={state.routes[state.index].name} onTabPress={(id) => {
-            if (id === "index") router.navigate("/(dhikr)");
-            else if (id === "list") router.navigate("/(dhikr)/list");
-            else if (id === "settings") router.navigate("/(dhikr)/settings");
-          }} />
+          <NavigationBar
+            tabs={DHIKR_TABS}
+            activeTabId={state.routes[state.index].name}
+            onTabPress={(id) => {
+              void haptics.light();
+              if (id === "index") router.navigate("/(dhikr)");
+              else if (id === "list") router.navigate("/(dhikr)/list");
+              else if (id === "settings") router.navigate("/(dhikr)/settings");
+            }}
+          />
         )}>
         <Tabs.Screen name="index" options={{ title: "Counter" }} />
         <Tabs.Screen name="list" options={{ title: "Dhikrs" }} />
