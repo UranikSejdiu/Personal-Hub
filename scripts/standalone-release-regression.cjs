@@ -42,10 +42,16 @@ module.exports = function verifyStandaloneReleases(root) {
   }
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run bundle:check'));
   assert.ok(build.jobs.build.steps.some(step => step.run === 'npm run build:apk'));
-  const publisher = build.jobs.publish.steps.find(step => step.uses?.startsWith('softprops/action-gh-release'));
-  assert.equal(publisher.with.make_latest, 'false');
-  assert.equal(publisher.with.overwrite_files, false);
-  assert.equal(publisher.with.fail_on_unmatched_files, true);
+  assert.equal(build.jobs.publish.permissions.contents, 'write');
+  const publisher = build.jobs.publish.steps.find(step => step.run?.includes('gh release create'));
+  assert.ok(publisher.run.includes('test -s "release/$RELEASE_APK"'));
+  assert.ok(publisher.run.includes('--target "$GITHUB_SHA"'));
+  assert.ok(publisher.run.includes('--latest=false'));
+  assert.ok(publisher.run.includes('gh release view'));
+  assert.equal(publisher.env.RELEASE_APK, '${{ matrix.apk }}');
+  const artifactUploads = build.jobs.build.steps.filter(step => step.uses?.startsWith('actions/upload-artifact'));
+  assert.equal(artifactUploads.length, 2);
+  assert.ok(artifactUploads.every(step => step.with['retention-days'] === 1));
   assert.ok(raw.includes('${{ secrets.KEYSTORE_BASE64 }}'));
   assert.ok(raw.includes('${{ secrets.DHIKR_KEYSTORE_BASE64 }}'));
   for (const id of ['budget', 'notes', 'tasks']) {

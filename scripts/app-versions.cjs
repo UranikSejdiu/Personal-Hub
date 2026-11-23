@@ -31,33 +31,78 @@ function latestRelease(root, id) {
   assert.ok(Number.isSafeInteger(config.android.versionCode) && config.android.versionCode > 0);
   return { tag, version, code: config.android.versionCode };
 }
+
+function githubRepository(root) {
+  const origin = git(root, 'remote', 'get-url', 'origin').trim();
+  const match = origin.match(/(?:^https:\/\/github\.com\/|^git@github\.com:|^ssh:\/\/git@github\.com\/)([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/i);
+  assert.ok(match, 'Origin must point to a GitHub repository');
+  return match[1];
+}
+
+function githubGet(repository, token, request = fetch) {
+  assert.match(repository, /^[\w.-]+\/[\w.-]+$/);
+  return async endpoint => {
+    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'uranik-android-builds' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await request(`https://api.github.com/repos/${repository}/${endpoint}`, { headers });
+    if (response.status === 404 && !endpoint.startsWith('releases?')) return null;
+    if (!response.ok) throw new Error(`GitHub preflight failed for ${endpoint} (${response.status})`);
+    return response.json();
+  };
+}
+
+async function listReleases(get) {
+  const releases = [];
+  for (let page = 1; ; page++) {
+    const batch = await get(`releases?per_page=100&page=${page}`);
+    assert.ok(Array.isArray(batch), 'GitHub did not return a release list');
+    releases.push(...batch);
+    if (batch.length < 100) return releases;
+  }
+}
+
+function latestDownloadableRelease(id, releases) {
+  const stableTag = new RegExp(`^${id}-v((?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*))$`);
+  const apkPrefix = id[0].toUpperCase() + id.slice(1);
+  return releases.flatMap(release => {
+    const version = release.tag_name.match(stableTag)?.[1];
+    if (!version || release.draft || release.prerelease) return [];
+    const apk = `${apkPrefix}-${version}.apk`;
+    return release.assets?.some(asset => asset.name === apk && asset.state === 'uploaded' && asset.size > 0)
+      ? [{ tag: release.tag_name, version }]
+      : [];
+  }).sort((a, b) => compare(b.version, a.version))[0];
+}
 function releaseRelevant(file, id) {
   const prefix = `apps/${id}/`;
   if (!file.startsWith(prefix)) return false;
   const relative = file.slice(prefix.length);
   return !(/^scripts\//.test(relative) || /^[^/]+\.md$/i.test(relative) || relative === '.gitignore');
 }
-function changedApps(root) {
+function appChangedSince(root, id, ref, includeAllFiles = false) {
+  const files = [
+    ...git(root, 'diff', '--name-only', '-z', ref, '--', `apps/${id}`).split('\0'),
+    ...git(root, 'ls-files', '--others', '--exclude-standard', '-z', '--', `apps/${id}`).split('\0'),
+  ];
+  return files.some(file => file && (includeAllFiles || releaseRelevant(file, id)));
+}
+
+function changedApps(root, releases) {
   return APPS.filter(id => {
-    const release = latestRelease(root, id);
-    if (!release) return true; // First release uses its existing version.
-    const files = [
-      ...git(root, 'diff', '--name-only', '-z', release.tag, '--', `apps/${id}`).split('\0'),
-      ...git(root, 'ls-files', '--others', '--exclude-standard', '-z', '--', `apps/${id}`).split('\0'),
-    ];
-    return files.some(file => releaseRelevant(file, id));
+    const release = releases ? latestDownloadableRelease(id, releases) : latestRelease(root, id);
+    return !release || appChangedSince(root, id, release.tag);
   });
 }
-function selectApps(root, selection = 'changed') {
-  if (selection === 'changed') return changedApps(root);
+function selectApps(root, selection = 'changed', releases) {
+  if (selection === 'changed') return changedApps(root, releases);
   if (selection === 'all') return [...APPS];
   const ids = selection.split(',');
   assert.ok(ids.length && ids.every(id => APPS.includes(id)), 'Choose changed, all, or app names separated by commas');
   return [...new Set(ids)];
 }
-function prepareVersions(root, selection = 'changed', level = 'patch') {
+function prepareVersions(root, selection = 'changed', level = 'patch', releases) {
   assert.ok(['patch', 'minor', 'major'].includes(level), 'Choose patch, minor, or major');
-  return selectApps(root, selection).map(id => {
+  return selectApps(root, selection, releases).map(id => {
     const relativeFiles = ['package.json', 'package-lock.json', 'app.json'];
     const files = relativeFiles.map(name => {
       const file = path.join(root, 'apps', id, name), before = fs.readFileSync(file, 'utf8');
@@ -117,28 +162,37 @@ function applyVersions(plan, io = fs) {
     for (const file of staged) if (io.existsSync(file.temporary)) io.unlinkSync(file.temporary);
   }
 }
-module.exports = { APPS, latestRelease, changedApps, selectApps, prepareVersions, applyVersions };
+module.exports = { APPS, appChangedSince, changedApps, compare, githubGet, githubRepository, latestDownloadableRelease, listReleases, selectApps, prepareVersions, applyVersions };
 
-if (require.main === module) {
-  try {
-    const args = process.argv.slice(2);
-    if (args.includes('--help')) {
-      console.log('npm run version:bump -- [changed|all|tasks|budget,notes] [--bump patch|minor|major] [--dry-run] [--offline]\nDefaults: changed apps, patch increase. Fetches origin tags unless --offline. Never commits, pushes, tags, builds, or publishes.');
-    } else {
-      let selection = 'changed', level = 'patch', selected = false;
-      for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-        if (arg === '--bump') { level = args[++i]; assert.ok(level, 'Missing bump level'); }
-        else if (['--dry-run', '--offline'].includes(arg)) continue;
-        else { assert.ok(!arg.startsWith('-') && !selected, `Unknown argument: ${arg}`); selection = arg; selected = true; }
-      }
-      const root = path.resolve(__dirname, '..');
-      if (!args.includes('--offline')) git(root, 'fetch', 'origin', '--tags');
-      const plan = prepareVersions(root, selection, level);
-      if (!args.includes('--dry-run')) applyVersions(plan);
-      if (!plan.length) console.log('No app changes since the latest release tags. No versions changed.');
-      for (const app of plan) console.log(`${app.id}: ${app.from} (${app.fromCode}) → ${app.version} (${app.code}) · ${app.status}${args.includes('--dry-run') ? ' · preview only' : ''}`);
-      console.log('No commits, pushes, builds, or releases were created.');
+if (require.main === module) (async () => {
+  const args = process.argv.slice(2);
+  if (args.includes('--help')) {
+    console.log('npm run version:bump -- [changed|all|tasks|budget,notes] [--bump patch|minor|major] [--dry-run] [--offline]\nDefaults: changed apps, patch increase. Changed apps are selected against public APK releases. Offline mode uses local tags.');
+    return;
+  }
+  let selection, level = 'patch';
+  const dryRun = args.includes('--dry-run');
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--bump') {
+      level = args[++i];
+      assert.ok(['patch', 'minor', 'major'].includes(level), 'Choose --bump patch, minor, or major');
+    } else if (!['--dry-run', '--offline'].includes(arg)) {
+      assert.ok(!arg.startsWith('-') && !selection, `Unknown argument: ${arg}`);
+      selection = arg;
     }
-  } catch (error) { console.error(error.message); process.exitCode = 1; }
-}
+  }
+  selection ??= 'changed';
+  const root = path.resolve(__dirname, '..');
+  let releases;
+  if (!args.includes('--offline')) {
+    git(root, 'fetch', 'origin', '--tags');
+    if (selection === 'changed') releases = await listReleases(githubGet(githubRepository(root), process.env.GH_TOKEN));
+  }
+  const plan = prepareVersions(root, selection, level, releases);
+  if (!dryRun) applyVersions(plan);
+  if (!plan.length) console.log(`No pending app changes since the latest ${releases ? 'public APK releases' : 'version tags'}.`);
+  for (const app of plan) {
+    console.log(`${app.id}: ${app.from} (${app.fromCode}) → ${app.version} (${app.code}) · ${app.status}${dryRun ? ' · preview only' : ''}`);
+  }
+})().catch(error => { console.error(error.message); process.exitCode = 1; });

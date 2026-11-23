@@ -50,11 +50,11 @@ module.exports = async function verifyBuilds(root) {
   const single = createPlan(root, 'tasks');
   const response = data => ({ status: 200, ok: true, json: async () => data });
   const missing = { status: 404, ok: false };
-  const makeRequest = ({ release = null, sha = null, code = 0, tag = 'tasks-v0.9.0' } = {}) => async url => {
-    if (url.includes('/releases/tags/')) return release ? response(release) : missing;
+  const makeRequest = ({ release = null, sha = null, code = 0, version = '0.9.0' } = {}) => async url => {
     if (url.includes('/git/ref/tags/')) return sha ? response({ object: { type: 'commit', sha } }) : missing;
     if (url.includes('/contents/')) return response({ content: Buffer.from(JSON.stringify({ expo: { android: { versionCode: code } } })).toString('base64') });
-    return response([{ tag_name: tag }]);
+    const previous = { tag_name: `tasks-v${version}`, assets: [{ name: `Tasks-${version}.apk`, state: 'uploaded', size: 1 }] };
+    return response(release ? [release, previous] : [previous]);
   };
   await checkRemote(single, { ...options, request: makeRequest() });
   await checkRemote(single, { ...options, request: makeRequest({ sha: options.sha }) });
@@ -64,10 +64,10 @@ module.exports = async function verifyBuilds(root) {
     return makeRequest()(url);
   } });
   await assert.rejects(checkRemote(single, { ...options, ref: 'refs/heads/test', request: makeRequest() }), /main only/);
-  await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ release: {} }) }), /already released/);
+  await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ release: { tag_name: single.include[0].tag } }) }), /already released/);
   await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ sha: 'b'.repeat(40) }) }), /another commit/);
   await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ code: single.include[0].versionCode }) }), /versionCode must exceed/);
-  await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ tag: 'tasks-v9.0.0' }) }), /Version must exceed/);
+  await assert.rejects(checkRemote(single, { ...options, request: makeRequest({ version: '9.0.0' }) }), /Version must exceed/);
   await assert.rejects(checkRemote(single, { ...options, request: async () => ({ status: 403, ok: false }) }), /403/);
   // Repository preflight must work without any app node_modules installed.
   for (const source of [

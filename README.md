@@ -92,7 +92,8 @@ provides notification, exact-alarm, and manufacturer battery setup guidance.
 Run `npm run version:bump -- changed --dry-run` to preview release versions,
 then `npm run version:bump -- changed` when ready. Use `tasks`, `budget,notes`,
 or `all` instead to choose apps explicitly. Already prepared versions are reused.
-The script does not commit, push, or publish.
+Run `npm run version:check -- changed` to see the tags and APKs the workflow
+will publish from your current files.
 
 Use **Actions → Android apps → Run workflow**. Choose changed apps, all, or one.
 A default run on main publishes the prepared versions to GitHub Releases after

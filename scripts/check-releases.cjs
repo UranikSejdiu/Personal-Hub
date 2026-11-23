@@ -4,5 +4,5 @@ const path = require('node:path');
   const result = require('./standalone-release-regression.cjs')(root);
   console.log(result.name);
   await require('./android-build-regression.cjs')(root);
-  require('./app-versions-regression.cjs')();
+  await require('./app-versions-regression.cjs')();
 })().catch(error => { console.error(error); process.exitCode = 1; });

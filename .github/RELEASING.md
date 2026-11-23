@@ -27,8 +27,10 @@ signing keys, and data remain compatible.
 
 Only **Actions → Android apps → Run workflow** starts builds. There is one
 workflow for all four apps. Pushes, pull requests, and tags do not trigger it.
-Choose `changed` (the default) to build only apps with changes since their latest
-release tags. Each app is compared to its own tag, not another app's release.
+Choose `changed` (the default) to build only apps with pending changes. When
+publishing, each app is compared with its latest stable release that has its APK
+attached. A version tag left behind by a failed publish does not mark it released.
+Build-only runs compare each app to its latest version tag.
 Choose `all` to run the four app jobs in parallel, or select one app explicitly.
 App documentation and test-script changes alone do not require an app release.
 With no app changes, the workflow finishes without building or publishing.
@@ -48,15 +50,23 @@ credentials or relaxing compiler-cache header checks. Each run saves updated
 compiler entries on main, including repeat builds of the same commit. Native
 release lint, app validation, and production bundles remain required.
 
-1. Prepare versions using the commands below. Never reuse a published versionCode.
-2. Commit and push the new versions to main. No release is created by a push.
+1. Prepare and check versions using the commands below. Every Android update needs
+   a higher `versionCode`.
+2. Commit and push the prepared versions and app changes to main.
 3. Open **Android apps**, choose main, select changed, all or one app, choose `universal`,
    and leave **Publish** selected. Run the workflow when ready.
 4. Preflight rejects already released versions, non-increasing Android
-   versionCodes, and conflicting existing tags before the expensive builds.
+   versionCodes, and existing tags that point to different app files before building.
    All selected app builds must succeed before any publish job starts. Each
-   publish job creates that app's matching version tag and attaches its signed
-   APK to a separate GitHub Release. Existing release files are not overwritten.
+   publish job uses GitHub CLI to attach the signed APK before making its release
+   public, then checks that the public release has the expected APK. Existing
+   tags and published APKs are not overwritten.
+
+The publish job uses GitHub Actions' built-in token with `contents: write`.
+If GitHub denies writes from that token with HTTP 403, the repository owner can
+set the `ANDROID_RELEASE_TOKEN` Actions secret to a fine-grained token scoped to
+this repository with **Contents: Read and write**. The publish job uses that
+credential when present.
 
 ## QA before publishing
 
@@ -97,26 +107,31 @@ npm run version:bump -- tasks
 npm run version:bump -- budget,notes
 npm run version:bump -- all
 
+# Preview the publish matrix for the current files.
+npm run version:check -- changed
+npm run version:check -- tasks
+
 # Choose a larger version increase when appropriate.
 npm run version:bump -- tasks --bump minor
 ```
 
 The script synchronizes package.json, both version fields in package-lock.json,
-app.json's version, and Android versionCode. It fetches origin tags first;
-`--offline` explicitly uses only locally available tags. Changes include committed,
-staged, unstaged, and untracked app code; ignored private files are excluded.
-It compares each app with its latest stable `<app>-v<version>` tag. Those tags
-must be reserved for actual app releases. Shared repository tooling does not
-force new app versions; use `all` deliberately when all apps need an update.
+app.json's version, and Android versionCode. It fetches origin tags first.
+`changed` uses the same public APK history as the publish workflow, with local
+tags as the baseline in `--offline` mode. Changes include committed, staged,
+unstaged, and untracked app code. The bump stays above existing version tags,
+including tags left by a failed publish. Bumping a named app prepares it even
+when the version files are its only changes.
 
 Repeated preparation retains an already increased version and build number.
 A minor/major request can raise that pending version further. A first release
 without a previous app tag retains its current version. Invalid or inconsistent
 version files stop the operation before writes; failed replacements roll back.
-The script never commits, pushes, creates tags, builds, or publishes. Review its
-output, commit/push when ready, then use the manual workflow. If selecting
-`changed` for publishing, every changed app must have a prepared newer version;
-choose one app explicitly to release only that app while other work is pending.
+`version:check` uses GitHub release metadata and your local working tree to show
+the tag, Android version code, and APK name. When publishing `changed`, the
+workflow reports changed apps still waiting for a bump and publishes the ready
+ones. If every changed app is waiting, the plan fails with the bump commands in
+the run summary. Select a named app in Actions to release just that app.
 
 Release tags are derived from the built-in version. Each updater
 sees a release only after its exact APK is attached. Standalone releases use

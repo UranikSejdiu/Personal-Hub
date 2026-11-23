@@ -7,6 +7,7 @@
     "validate": "npm run check:releases && node scripts/run-app-checks.cjs",
     "check:releases": "node scripts/check-releases.cjs",
     "version:bump": "node scripts/app-versions.cjs",
+    "version:check": "node scripts/android-build-plan.cjs --check",
     "install:apps": "node scripts/run-app-checks.cjs install",
     "budget": "npm --prefix apps/budget start",
     "notes": "npm --prefix apps/notes start",

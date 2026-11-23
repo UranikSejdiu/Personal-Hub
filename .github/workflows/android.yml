@@ -187,17 +187,27 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: release
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.tag }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ matrix.title }} ${{ matrix.version }}
-          body: |
-            Install ${{ matrix.apk }}. Android package: ${{ matrix.packageId }}.
-            Each app has independent records, backups, and APK updates.
-            To transfer from Hub, import its JSON backup, verify your records and a fresh export, then uninstall Hub.
-            Build and migration instructions: https://github.com/UranikSejdiu/Personal-Hub/blob/main/.github/RELEASING.md
-          make_latest: "false"
-          overwrite_files: false
-          fail_on_unmatched_files: true
-          files: release/${{ matrix.apk }}
+      - name: Publish and verify the signed APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ANDROID_RELEASE_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ matrix.tag }}
+          RELEASE_TITLE: ${{ matrix.title }} ${{ matrix.version }}
+          RELEASE_APK: ${{ matrix.apk }}
+          ANDROID_PACKAGE: ${{ matrix.packageId }}
+        run: |
+          test -s "release/$RELEASE_APK"
+          gh release create "$RELEASE_TAG" "release/$RELEASE_APK" \
+            --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --latest=false --notes-file - <<NOTES
+          Install $RELEASE_APK. Android package: $ANDROID_PACKAGE.
+          Each app has independent records, backups, and APK updates.
+          To transfer from Hub, import its JSON backup, verify your records and a fresh export, then uninstall Hub.
+          Build and migration instructions: https://github.com/$GH_REPO/blob/main/.github/RELEASING.md
+          NOTES
+          published=$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,assets | jq --arg apk "$RELEASE_APK" \
+            '(.isDraft or .isPrerelease | not) and any(.assets[]; .name == $apk and .state == "uploaded" and .size > 0)')
+          if [[ "$published" != true ]]; then
+            echo "::error::Release $RELEASE_TAG is missing its public APK $RELEASE_APK."
+            exit 1
+          fi

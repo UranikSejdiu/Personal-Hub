@@ -1,14 +1,16 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { selectApps } = require('./app-versions.cjs');
+const { execFileSync } = require('node:child_process');
+const { APPS, appChangedSince, compare, githubGet, githubRepository, latestDownloadableRelease, listReleases, selectApps } = require('./app-versions.cjs');
 
-const APPS = ['budget', 'notes', 'tasks', 'dhikr'];
 function createPlan(root, selection = 'all', profile = 'universal', publish = false) {
-  assert.ok(['changed', 'all', ...APPS].includes(selection), 'Choose changed, all or a known app');
   assert.ok(['universal', 'arm64-test'].includes(profile), 'Unknown Android build profile');
   assert.ok(!publish || profile === 'universal', 'Published APKs must support both ARM architectures');
-  return { include: selectApps(root, selection).map(id => {
+  // Publish preflight filters against public APK releases, including when the
+  // local Git tags are ahead of what users can download.
+  const candidates = publish && selection === 'changed' ? APPS : selectApps(root, selection);
+  return { include: candidates.map(id => {
     const read = file => JSON.parse(fs.readFileSync(path.join(root, 'apps', id, file), 'utf8'));
     const pkg = read('package.json'), lock = read('package-lock.json'), config = read('app.json').expo;
     assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
@@ -27,51 +29,85 @@ function createPlan(root, selection = 'all', profile = 'universal', publish = fa
   }) };
 }
 
-async function checkRemote(plan, { repository, sha, ref, token, request = fetch }) {
+async function checkRemote(plan, { repository, sha, ref, token, root, changedOnly = false, workingTree = false, request = fetch }) {
   assert.equal(ref, 'refs/heads/main', 'Publish releases from main only');
-  assert.match(repository, /^[\w.-]+\/[\w.-]+$/);
   assert.match(sha, /^[0-9a-f]{40}$/);
-  assert.ok(token, 'GitHub token required for release preflight');
+  assert.ok(token || workingTree, 'GitHub token required for release preflight');
+  const get = githubGet(repository, token, request);
+  const releases = await listReleases(get);
+
+  const include = [];
+  const waiting = [];
   for (const app of plan.include) {
-    const get = async endpoint => {
-      const response = await request(`https://api.github.com/repos/${repository}/${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'uranik-android-builds' },
-      });
-      if (response.status === 404) return null;
-      if (!response.ok) throw new Error(`${app.id}: GitHub preflight failed (${response.status})`);
-      return response.json();
-    };
-    assert.equal(await get(`releases/tags/${app.tag}`), null, `${app.tag} is already released. Increase the app version and Android versionCode before publishing an update.`);
+    const previous = latestDownloadableRelease(app.id, releases);
+    if (changedOnly && previous && !appChangedSince(root, app.id, previous.tag)) continue;
+
+    const needsBump = `${app.title} (${app.tag}) needs a version bump. Run npm run version:bump -- ${app.id}.`;
+    const published = releases.find(release => release.tag_name === app.tag && !release.draft);
+    if (changedOnly && published) {
+      waiting.push(needsBump);
+      continue;
+    }
+    assert.ok(!published, `${app.tag} is already released. Increase the app version and Android versionCode before publishing an update.`);
     const existing = await get(`git/ref/tags/${app.tag}`);
     let target = existing?.object;
     for (let depth = 0; target?.type === 'tag' && depth < 8; depth++) {
       assert.match(target.sha, /^[0-9a-f]{40}$/);
       target = (await get(`git/tags/${target.sha}`))?.object;
     }
-    assert.ok(!existing || (target?.type === 'commit' && target.sha === sha), `${app.tag} already points to another commit; never move a distributed tag`);
+    if (existing) {
+      assert.ok(target?.type === 'commit' && /^[0-9a-f]{40}$/.test(target.sha), `Cannot resolve ${app.tag} to a commit`);
+      const appTree = commit => execFileSync('git', ['rev-parse', `${commit}:apps/${app.id}`], { cwd: root, encoding: 'utf8' }).trim();
+      const matches = workingTree ? !appChangedSince(root, app.id, target.sha, true)
+        : target.sha === sha || (root && appTree(target.sha) === appTree(sha));
+      if (changedOnly && !matches) {
+        waiting.push(needsBump);
+        continue;
+      }
+      assert.ok(matches,
+        `${app.tag} already points to another commit with different app files; prepare a newer version`);
+    }
     // versionCode must also increase, even when the semantic version changes.
-    const releases = await get('releases?per_page=100');
-    const previous = releases?.find(release => !release.draft && !release.prerelease && release.tag_name.startsWith(`${app.id}-v`));
     if (previous) {
-      const oldVersion = previous.tag_name.slice(`${app.id}-v`.length).split('.').map(Number);
-      const nextVersion = app.version.split('.').map(Number);
-      const changed = nextVersion.findIndex((part, index) => part !== oldVersion[index]);
-      assert.ok(changed >= 0 && nextVersion[changed] > oldVersion[changed], `${app.id}: Version must exceed ${previous.tag_name}`);
-      const previousConfig = await get(`contents/apps/${app.id}/app.json?ref=${encodeURIComponent(previous.tag_name)}`);
+      assert.ok(compare(app.version, previous.version) > 0, `${app.id}: Version must exceed ${previous.tag}`);
+      const previousConfig = await get(`contents/apps/${app.id}/app.json?ref=${encodeURIComponent(previous.tag)}`);
       assert.ok(previousConfig?.content, `Cannot verify previous Android versionCode for ${app.id}`);
       const old = JSON.parse(Buffer.from(previousConfig.content, 'base64').toString('utf8')).expo;
       assert.ok(app.versionCode > old.android.versionCode, `${app.id}: Android versionCode must exceed ${old.android.versionCode}`);
     }
+    include.push(app);
   }
+  return { include, waiting };
 }
 
 module.exports = { createPlan, checkRemote };
 if (require.main === module) (async () => {
   const root = path.resolve(__dirname, '..');
+  if (process.argv[2] === '--check') {
+    const selection = process.argv[3] ?? 'changed';
+    assert.ok(process.argv.length <= 4, 'Usage: npm run version:check -- [changed|all|app]');
+    const plan = await checkRemote(createPlan(root, selection, 'universal', true), {
+      root, workingTree: true, changedOnly: selection === 'changed', repository: githubRepository(root),
+      sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+      ref: 'refs/heads/main', token: process.env.GH_TOKEN,
+    });
+    for (const app of plan.include) console.log(`${app.title}: ${app.tag} · Android ${app.versionCode} · ${app.apk}`);
+    for (const message of plan.waiting) console.log(message);
+    if (!plan.include.length) console.log('No release-ready apps selected.');
+    if (!plan.include.length && plan.waiting.length) process.exitCode = 1;
+    return;
+  }
   const publish = process.env.PUBLISH_RELEASES === 'true';
-  const plan = createPlan(root, process.env.SELECTED_APPS, process.env.BUILD_PROFILE, publish);
+  const selection = process.env.SELECTED_APPS;
+  let plan = createPlan(root, selection, process.env.BUILD_PROFILE, publish);
+  if (publish) plan = await checkRemote(plan, {
+    root, changedOnly: selection === 'changed', repository: process.env.GITHUB_REPOSITORY,
+    sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, token: process.env.GITHUB_TOKEN,
+  });
+  const apps = plan.include.map(app => `- ${app.title} ${app.version} (Android ${app.versionCode})`).join('\n');
+  const waiting = (plan.waiting ?? []).map(message => `- ${message}`).join('\n');
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Android apps\n\n${publish ? 'Publish releases' : 'Build APKs only'} · ${process.env.BUILD_PROFILE}\n\n${apps || 'No release-ready apps selected.'}\n${waiting ? `\n### Waiting for a version bump\n\n${waiting}\n` : ''}`);
+  assert.ok(plan.include.length || !waiting, 'Changed apps need version bumps. See the run summary.');
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_apps=${plan.include.length > 0}\n`);
-  if (publish) await checkRemote(plan, { repository: process.env.GITHUB_REPOSITORY, sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, token: process.env.GITHUB_TOKEN });
-  fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(plan)}\n`);
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Android apps\n\n${publish ? 'Publish releases' : 'Build APKs only'} · ${process.env.BUILD_PROFILE}\n\n${plan.include.map(app => `- ${app.title} ${app.version} (Android ${app.versionCode})`).join('\n')}\n`);
+  fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include: plan.include })}\n`);
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
