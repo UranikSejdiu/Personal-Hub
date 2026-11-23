@@ -60,7 +60,6 @@ export default function BudgetScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingsGoal, setSavingsGoal] = useState(0);
-  const [expenseFilter, setExpenseFilter] = useState<"all" | "unpaid" | "paid">("all");
 
   const budgetIdRef = useRef<number | null>(null);
   const loadRequestRef = useRef(0);
@@ -373,7 +372,6 @@ export default function BudgetScreen() {
   // state moves a different record into the position the user just tapped.
   const activePayments = useMemo(() => repayments.filter(plan => repaymentForMonth(plan, month) > 0), [repayments, month]);
   const editExpense = useCallback((expense: Expense) => setExpenseEditor({ expense }), []);
-  const visibleExpenses = useMemo(() => expenses.filter(expense => expenseFilter === "all" || expense.paid === (expenseFilter === "paid")), [expenses, expenseFilter]);
   const paymentCount = expenses.length + activePayments.length;
   const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(plan => paidRepayments.has(plan.id)).length;
 
@@ -438,7 +436,7 @@ export default function BudgetScreen() {
     <><FlatList
       className="flex-1 bg-background"
       contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-28"
-      data={visibleExpenses}
+      data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
       keyboardDismissMode="on-drag"
@@ -449,7 +447,7 @@ export default function BudgetScreen() {
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
         <View className="border-x border-border/60 bg-card px-3">
-          <CustomExpenseRow expense={item} isLast={index === visibleExpenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
+          <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
         </View>
       )}
       ListHeaderComponent={
@@ -471,10 +469,7 @@ export default function BudgetScreen() {
             <View className="flex-row justify-between gap-2"><Text className="text-xs font-semibold text-foreground">{`${paidCount} of ${paymentCount} paid`}</Text><Text className="text-xs text-muted-foreground">{paymentCount - paidCount} {"Unpaid".toLowerCase()}</Text></View>
             <View className="h-1.5 overflow-hidden rounded-full bg-secondary" accessible accessibilityRole="progressbar" accessibilityLabel={"Loan & card payments"} accessibilityValue={{ min: 0, max: paymentCount || 1, now: paidCount }}><View className="h-full rounded-full bg-primary" style={{ width: `${paymentCount ? paidCount / paymentCount * 100 : 0}%` }} /></View>
           </View>
-          <View className="flex-row gap-1 rounded-[14px] bg-secondary p-1">
-            {(["all", "unpaid", "paid"] as const).map(value => <Pressable key={value} onPress={() => setExpenseFilter(value)} accessibilityRole="button" accessibilityState={{ selected: expenseFilter === value }} className={`min-h-[44px] flex-1 items-center justify-center rounded-[11px] ${expenseFilter === value ? "bg-card" : ""}`}><Text className={`text-xs ${expenseFilter === value ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{value === "all" ? "All" : value === "paid" ? "Paid" : "Unpaid"}</Text></Pressable>)}
-          </View>
-          <CustomExpensesHeader expenses={visibleExpenses} onAdd={() => { setExpenseEditor({}); }} />
+          <CustomExpensesHeader expenses={expenses} onAdd={() => { setExpenseEditor({}); }} />
         </View>
       }
       ListFooterComponent={

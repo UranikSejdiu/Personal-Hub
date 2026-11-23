@@ -73,9 +73,9 @@ and all four apps. Use `npm run budget`, `npm run notes`, `npm run tasks`, or
 ## QA before updates
 
 MoneyPlan's regression suite checks that expense and loan/card payment rows
-keep their positions when marked paid or unpaid, update only the selected ID,
-and retain the correct order under explicit paid/unpaid filters. These checks
-run in `npm run validate` and the existing Android release workflow.
+stay visible and keep their positions when marked paid or unpaid. Only the
+selected record is updated. These checks run in `npm run validate` and the
+Android release workflow.
 The workflow runs validation, dependency audits, production bundle checks, and
 signed APK builds. Publication waits for every selected app to pass.
 

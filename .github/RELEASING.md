@@ -81,8 +81,8 @@ It does not build debug previews or run an emulator.
 Use disposable records for these additional checks on the release candidate:
 
 - MoneyPlan: mark several expenses and loan/card payments paid and unpaid.
-  Rows must stay in place in All; only the selected record may change. Check
-  paid/unpaid filters, totals, month switching, and force-stop/relaunch.
+  Rows must stay visible and in place. Only the selected record may change.
+  Check totals, month switching, and force-stop/relaunch.
 - My Notes: create and reopen text and checklist notes; edit, search, pin,
   archive/unarchive, reorder checklist items, and verify attachments survive.
 - Tasks: create and edit tasks, test completion/undo and repeats,

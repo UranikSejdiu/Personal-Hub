@@ -279,11 +279,10 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       assert.deepEqual(paymentWrites.at(-1),{id,month:'2026-11',paid:expectedPlans.has(id)});
       assert.deepEqual([...h.state.paidRepayments],[...expectedPlans],'Other loan/card paid flags remain unchanged');
     }
-    for (const filter of ['Paid','Unpaid']) {
-      find(h.render('default'),n=>n.type==='Pressable'&&n.props.children?.props?.children===filter).props.onPress();
-      const expected = h.state.expenses.filter(expense=>expense.paid===(filter==='Paid')).map(expense=>expense.id);
-      assert.deepEqual(list().props.data.map(expense=>expense.id),expected,'Explicit payment filters preserve record order');
-    }
+    assert.deepEqual(
+      find(list().props.ListHeaderComponent, n => n.type === 'CustomExpensesHeader').props.expenses.map(expense => expense.id),
+      [1, 2, 3], 'The expense header receives both paid and unpaid rows',
+    );
   }
   {
     const seeded={...sample,id:9,is_recurring:true};
@@ -368,5 +367,5 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const [kind,message]={ 'up-to-date':['success','You\'re up to date'],'no-releases':['info','No installable release is available yet'],error:['error','Failed to check for updates'],update:['success','New version 1.1.0 is available.']}[status];
     assert.ok(hasAlert(h,kind,message));
   }
-  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 1-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across toggles and filters, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
+  console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 1-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across payment toggles, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});
