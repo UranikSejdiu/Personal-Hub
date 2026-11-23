@@ -161,7 +161,7 @@ jobs:
           name: ${{ matrix.title }}-gradle-profile
           path: apps/${{ matrix.id }}/android/build/reports/profile/*.html
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 1
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -169,7 +169,7 @@ jobs:
           path: apps/${{ matrix.id }}/build/${{ matrix.apk }}
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
+          retention-days: 1
 
   publish:
     name: Publish ${{ matrix.title }}

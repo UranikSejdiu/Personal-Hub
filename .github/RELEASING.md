@@ -39,6 +39,9 @@ Choose `universal` for both supported ARM architectures, or `arm64-test` for a
 faster APK for a modern ARM64 phone such as the S26 Ultra. ARM64 test files are
 named `<App>-<version>-arm64-test.apk` and cannot be published as app updates.
 
+Actions keeps APK artifacts and Gradle profiles for one day. Signed APKs
+attached to GitHub Releases stay available for downloads and in-app updates.
+
 Gradle and compiler caches are separate for each app. CMake compiler launchers
 cover native dependency projects as well as the app, without caching signing
 credentials or relaxing compiler-cache header checks. Each run saves updated
