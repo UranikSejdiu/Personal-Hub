@@ -61,7 +61,7 @@ module.exports = async function verifyRelease(root) {
     '../../src/components/ui/AnchoredMenu': { AnchoredMenu: 'AnchoredMenu', useAnchoredMenu: () => ({ triggerRef: { current: null }, anchor: null, open() {}, close() {} }) },
     '../../src/components/AppIcons': new Proxy({}, { get: (_, key) => key }),
     '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' }, '../../src/components/UpdateCard': { UpdateCard: 'UpdateCard' },
-    '../../src/lib/i18n': { useI18n: () => ({ t: key => key }) },
+
     '../../src/lib/theme': { useTheme: () => ({ theme: 'light', setTheme() {} }), useThemeColors: () => ({}) },
     '../../src/lib/utils': { withAlpha: color => color },
     '../../src/hooks/useHaptics': { getHapticsEnabled: async () => true },
@@ -70,23 +70,23 @@ module.exports = async function verifyRelease(root) {
   const settle = async () => { await flush(); screen.render(); };
   const node = (type, key, value) => screen.nodes(n => (n.type === type || n.type?.name === type) && n.props[key] === value)[0];
   screen.render(); await settle();
-  node('SettingsRow', 'label', 'settingsBackupRestore').props.onPress(); screen.render();
-  node('Button', 'label', 'importData').props.onPress(); await settle();
+  node('SettingsRow', 'label', 'Backup & restore').props.onPress(); screen.render();
+  node('Button', 'label', 'Import counts').props.onPress(); await settle();
   const dialog = title => node('ConfirmDialog', 'title', title);
-  assert.equal(dialog('importData').props.visible, true);
-  await dialog('importData').props.onConfirm(); screen.render();
-  assert.equal(dialog('importData').props.visible, true, 'Failed imports retain the chosen file for retry');
+  assert.equal(dialog('Import counts').props.visible, true);
+  await dialog('Import counts').props.onConfirm(); screen.render();
+  assert.equal(dialog('Import counts').props.visible, true, 'Failed imports retain the chosen file for retry');
   failed = false;
-  await dialog('importData').props.onConfirm(); screen.render();
-  assert.equal(dialog('importData').props.visible, false);
+  await dialog('Import counts').props.onConfirm(); screen.render();
+  assert.equal(dialog('Import counts').props.visible, false);
   assert.equal(imports, 2);
-  node('Button', 'label', 'restoreSafetyBackup').props.onPress(); screen.render();
+  node('Button', 'label', 'Restore previous data').props.onPress(); screen.render();
   failed = true;
-  await dialog('restoreSafetyBackup').props.onConfirm(); screen.render();
-  assert.equal(dialog('restoreSafetyBackup').props.visible, true);
+  await dialog('Restore previous data').props.onConfirm(); screen.render();
+  assert.equal(dialog('Restore previous data').props.visible, true);
   failed = false;
-  await dialog('restoreSafetyBackup').props.onConfirm(); screen.render();
-  assert.equal(dialog('restoreSafetyBackup').props.visible, false);
+  await dialog('Restore previous data').props.onConfirm(); screen.render();
+  assert.equal(dialog('Restore previous data').props.visible, false);
   assert.equal(restores, 2);
   assert.equal(errors.length, 2);
   screen.dispose();

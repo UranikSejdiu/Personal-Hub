@@ -34,7 +34,7 @@ function counterFixture() {
     useCallback(fn,deps) { return hooks.useMemo(()=>fn,deps); },
   };
   const haptics = Object.fromEntries(['light','success','warning'].map(kind=>[kind,async()=>feedback.push(kind)]));
-  const t = key => key;
+
   const native = { currentState:'active', addEventListener: (_event,callback) => {
     listeners.add(callback); return {remove:()=>listeners.delete(callback)};
   }};
@@ -49,7 +49,7 @@ function counterFixture() {
     '../../src/components/ConfirmDialog':{ConfirmDialog:'ConfirmDialog'},
     '../../src/components/AppIcons':new Proxy({}, {get:(_target,key)=>key}),
     '../../src/components/Fireworks':{__esModule:true,default:'Fireworks'},
-    '../../src/lib/i18n':{useI18n:()=>({t})},
+
     '../../src/hooks/useHaptics':{useHaptics:()=>haptics},
     '../../src/lib/theme':{useThemeColors:()=>({})},
     '../../src/lib/utils':{withAlpha:x=>x},
@@ -140,7 +140,7 @@ function counterFixture() {
 async function main() {
   const f=counterFixture();
   f.render();await flush();f.render();f.resetVisits();
-  for(let i=0;i<15;i++) f.button('tapToCount').onPress();
+  for(let i=0;i<15;i++) f.button('Tap to count').onPress();
   f.render();assert.equal(f.count(),'10');
   await f.drain();f.render();
   assert.equal(f.persisted.get(1).total_count,10);
@@ -153,46 +153,46 @@ async function main() {
 
   // Midnight while the counter remains visible must allow the new day's taps.
   f.setDay('2026-10-11');
-  f.button('tapToCount').onPress();await f.drain();f.render();
+  f.button('Tap to count').onPress();await f.drain();f.render();
   assert.equal(f.count(),'11');assert.equal(f.persisted.get(1).daily_count,1);
   f.state('background');f.render();
   assert.equal(f.fireworks(),0);assert.equal(f.timers.size,0);
   const reads=f.reads,writes=f.writes;
-  f.button('tapToCount').onPress();await f.drain();
+  f.button('Tap to count').onPress();await f.drain();
   assert.equal(f.reads,reads);assert.equal(f.writes,writes,'Background screens cannot schedule taps');
   f.state('active');await flush();f.render();
   assert.equal(f.reads,reads+1);assert.equal(f.count(),'11');
 
   const reset=f.holdReset();
-  f.button('resetLabel').onPress();f.render();
+  f.button('Reset').onPress();f.render();
   assert.equal(f.dialog().visible,true);
   assert.equal(f.count(),'11','Opening reset does not change counts');
   f.dialog().onClose();f.render();
   assert.equal(f.count(),'11','Cancelling reset preserves counts');
-  f.button('resetLabel').onPress();f.render();
+  f.button('Reset').onPress();f.render();
   f.failReset();await f.dialog().onConfirm();f.render();
   assert.equal(f.dialog().visible,true,'A failed reset remains available to retry');
   assert.equal(f.count(),'11');
-  assert.equal(f.errors.at(-1),'errorResettingDhikr');
+  assert.equal(f.errors.at(-1),'Failed to reset dhikr.');
   const resetting=f.dialog().onConfirm();
   await flush();f.render();
-  assert(f.button('tapToCount').disabled);
-  f.button('tapToCount').onPress();
+  assert(f.button('Tap to count').disabled);
+  f.button('Tap to count').onPress();
   reset.resolve();await resetting;f.render();
   assert.equal(f.count(),'0');
   assert.equal(f.dialog().visible,false);
   f.fail();
-  f.button('tapToCount').onPress();f.button('tapToCount').onPress();
+  f.button('Tap to count').onPress();f.button('Tap to count').onPress();
   await f.drain();f.render();
   assert.equal(f.count(),'1');assert.equal(f.persisted.get(1).total_count,1);
-  assert.equal(f.errors.at(-1),'errorSavingData');
-  f.reject();f.button('tapToCount').onPress();await f.drain();f.render();
+  assert.equal(f.errors.at(-1),'Failed to save data.');
+  f.reject();f.button('Tap to count').onPress();await f.drain();f.render();
   assert.equal(f.count(),'1','A rejected write reverses exactly one optimistic increment');
 
   // A queued tap retains its calendar day, even when another tap follows after midnight.
   const paused=f.holdWrites();
-  f.fail();f.button('tapToCount').onPress();
-  f.setDay('2026-10-12');f.button('tapToCount').onPress();
+  f.fail();f.button('Tap to count').onPress();
+  f.setDay('2026-10-12');f.button('Tap to count').onPress();
   paused.resolve();await f.drain();f.render();
   assert.equal(f.count(),'2');assert.equal(f.persisted.get(1).daily_count,1);
 
@@ -203,22 +203,22 @@ async function main() {
   assert.equal(f.count(),'2');
   f.focus();await flush();f.render();
   assert.equal(f.count(),'2');
-  f.button('nextDhikr').onPress();f.render();assert.equal(f.count(),'0');
-  f.button('tapToCount').onPress();await f.drain();f.render();assert.equal(f.count(),'1');
-  f.button('previousDhikr').onPress();f.render();assert.equal(f.count(),'2');
+  f.button('Next').onPress();f.render();assert.equal(f.count(),'0');
+  f.button('Tap to count').onPress();await f.drain();f.render();assert.equal(f.count(),'1');
+  f.button('Previous').onPress();f.render();assert.equal(f.count(),'2');
   // A confirmation always targets the named record, even if selection changes.
-  f.button('resetLabel').onPress();f.render();
-  f.button('nextDhikr').onPress();f.render();
+  f.button('Reset').onPress();f.render();
+  f.button('Next').onPress();f.render();
   await f.dialog().onConfirm();f.render();
   assert.equal(f.count(),'1');assert.equal(f.persisted.get(1).total_count,0);
   assert.equal(f.persisted.get(2).total_count,1);
   f.persisted.get(2).total_count=Number.MAX_SAFE_INTEGER;
   f.blur();f.focus();await flush();f.render();
   const maximumWrites=f.writes;
-  f.button('tapToCount').onPress();await f.drain();f.render();
-  assert.equal(f.count(),Number.MAX_SAFE_INTEGER.toLocaleString());
+  f.button('Tap to count').onPress();await f.drain();f.render();
+  assert.equal(f.count(),Number.MAX_SAFE_INTEGER.toLocaleString("en"));
   assert.equal(f.writes,maximumWrites,'Maximum counts must not enqueue an unsafe increment');
-  assert.equal(f.errors.at(-1),'countMaximumReached');
+  assert.equal(f.errors.at(-1),'Maximum count reached. Edit or reset this counter to continue.');
   assert(f.countProps().adjustsFontSizeToFit,'Large counts shrink within the tap target');
   assert.equal(f.countProps().numberOfLines,1);
   f.blur();

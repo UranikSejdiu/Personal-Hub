@@ -12,7 +12,6 @@ import DraggableFlatList, {
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, X } from "../../src/components/AppIcons";
 import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
 import {
   getNote,
   getChecklistItems,
@@ -58,7 +57,6 @@ function serialize(title: string, pinned: boolean, items: ChecklistEntry[]): str
 }
 
 export default function ChecklistEditorScreen() {
-  const { t } = useI18n();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
@@ -151,12 +149,12 @@ export default function ChecklistEditorScreen() {
         if (cancelled) return;
         setLoading(false);
         setAsyncLoadFailed(true);
-        toast.error(t("errorLoadingData"));
+        toast.error("Failed to load data.");
       });
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, router, t, initializeAttachments]);
+  }, [loadTarget, router, initializeAttachments]);
 
   const activeItems = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checkedItems = useMemo(() => items.filter((item) => item.checked), [items]);
@@ -296,15 +294,15 @@ export default function ChecklistEditorScreen() {
       snapshotRef.current = serialize(savedTitle, savedPinned, savedItems);
       allowRemoval();
 
-      toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
+      toast.success(archived === undefined ? "Saved successfully" : archived ? "Note archived" : "Note restored to Notes");
       router.back();
     } catch {
-      toast.error(t(archived === undefined ? "saveFailed" : "notesArchiveFailed"));
+      toast.error(archived === undefined ? "Failed to save." : "Could not save and move the note. Please try again.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [allowRemoval, isArchived, loading, loadFailed, noteId, router, t, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, router, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -316,15 +314,15 @@ export default function ChecklistEditorScreen() {
       await restoreNote(noteId);
       allowRemoval();
 
-      toast.success(t("notesUnarchived"));
+      toast.success("Note restored to Notes");
       router.back();
     } catch {
-      toast.error(t("notesRestoreFailed"));
+      toast.error("Could not restore the note. Please try again.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router]);
 
   const handleDelete = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -342,12 +340,12 @@ export default function ChecklistEditorScreen() {
       allowRemoval();
       router.back();
     } catch {
-      toast.error(t("deleteFailed"));
+      toast.error("Failed to delete.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [allowRemoval, noteId, router, t]);
+  }, [allowRemoval, noteId, router]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
@@ -379,7 +377,7 @@ export default function ChecklistEditorScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
+        <Text className="text-sm text-muted-foreground">Loading…</Text>
       </View>
     );
   }
@@ -387,14 +385,14 @@ export default function ChecklistEditorScreen() {
   if (loadFailed) {
     return (
       <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
-        <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
+        <Text className="text-sm text-muted-foreground">Failed to load data.</Text>
         <Pressable
           onPress={() => router.back()}
           className="min-h-[44px] justify-center rounded-lg bg-primary px-4 max-[360px]:px-3 py-2 active:opacity-70"
           accessibilityRole="button"
-          accessibilityLabel={t("cancel")}
+          accessibilityLabel="Cancel"
         >
-          <Text className="text-sm font-medium text-primary-foreground">{t("cancel")}</Text>
+          <Text className="text-sm font-medium text-primary-foreground">Cancel</Text>
         </Pressable>
       </View>
     );
@@ -408,11 +406,11 @@ export default function ChecklistEditorScreen() {
         className="min-h-[44px] flex-row items-center gap-2 px-2 active:bg-muted"
         accessible
         accessibilityRole="button"
-        accessibilityLabel={t("notesAddItem")}
+        accessibilityLabel="Add item"
         accessibilityState={{ disabled: isBusy }}
       >
         <Plus size={16} color={colors.mutedForeground} />
-        <Text className="text-sm text-muted-foreground">{t("notesAddItem")}</Text>
+        <Text className="text-sm text-muted-foreground">Add item</Text>
       </Pressable>}
 
       {checkedItems.length > 0 ? (
@@ -425,8 +423,8 @@ export default function ChecklistEditorScreen() {
             accessibilityState={{ expanded: checkedExpanded }}
             accessibilityLabel={
               checkedItems.length === 1
-                ? t("notesCheckedItems", { count: checkedItems.length })
-                : t("notesCheckedItemsPlural", { count: checkedItems.length })
+                ? `${checkedItems.length} checked item`
+                : `${checkedItems.length} checked items`
             }
           >
             {checkedExpanded ? (
@@ -436,8 +434,8 @@ export default function ChecklistEditorScreen() {
             )}
             <Text className="text-sm text-muted-foreground">
               {checkedItems.length === 1
-                ? t("notesCheckedItems", { count: checkedItems.length })
-                : t("notesCheckedItemsPlural", { count: checkedItems.length })}
+                ? `${checkedItems.length} checked item`
+                : `${checkedItems.length} checked items`}
             </Text>
           </Pressable>
 
@@ -450,10 +448,10 @@ export default function ChecklistEditorScreen() {
                     onPress={() => handleToggle(item.key)}
                     disabled={isBusy}
                     className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
-                    accessibilityLabel={item.text || t("notesItemPlaceholder")}
+                    accessibilityLabel={item.text || "List item"}
                   />
                   <Text className="flex-1 py-2 text-base text-muted-foreground line-through">
-                    {item.text || t("notesItemPlaceholder")}
+                    {item.text || "List item"}
                   </Text>
                   <Pressable
                     onPress={() => handleRemove(item.key)}
@@ -461,7 +459,7 @@ export default function ChecklistEditorScreen() {
                     className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
                     accessible
                     accessibilityRole="button"
-                    accessibilityLabel={t("notesItemDelete")}
+                    accessibilityLabel="Delete item"
                     accessibilityState={{ disabled: isBusy }}
                   >
                     <X size={18} color={colors.mutedForeground} />
@@ -471,7 +469,7 @@ export default function ChecklistEditorScreen() {
             : null}
         </View>
       ) : null}
-      <Text className="mt-2 px-2 text-xs text-muted-foreground">{t("notesChecklistProgress", { completed: checkedItems.length, total: items.length })}</Text>
+      <Text className="mt-2 px-2 text-xs text-muted-foreground">{`${checkedItems.length} of ${items.length} completed`}</Text>
     </View>
   );
 
@@ -481,16 +479,16 @@ export default function ChecklistEditorScreen() {
         <View className="flex-1 flex-col bg-background">
           <View className="w-full max-w-md flex-row items-center justify-between gap-3 self-center px-5 max-[360px]:px-4 pt-4 pb-5">
             <Pressable onPress={handleBack} disabled={isBusy} className="h-12 w-12 items-center justify-center rounded-full bg-foreground active:opacity-70 disabled:opacity-50"
-              accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: isBusy }}>
+              accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isBusy }}>
               <ArrowLeft size={22} color={colors.background} />
             </Pressable>
-            <View className="flex-row flex-wrap justify-end gap-2">
+            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-2">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isBusy}
-                onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
+                saving={isSaving} onSave={handleSave} onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
             </View>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
 
           <DraggableFlatList
             className="w-full max-w-md self-center"
@@ -513,21 +511,12 @@ export default function ChecklistEditorScreen() {
                   titleRef.current = value;
                   setTitle(value);
                 }}
-                placeholder={t("notesUntitled")}
+                accessibilityLabel="Title"
+                placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
                 className="mb-3 w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[32px] leading-[39px] font-semibold text-foreground"
                 multiline
               />
-              <View className="mx-5 max-[360px]:mx-4 mb-5 mt-3 flex-row flex-wrap items-center justify-between gap-3">
-                <View className="rounded-full bg-primary/10 px-4 py-2">
-                  <Text className="text-xs font-semibold text-primary">{t(isArchived ? "notesArchivedStatus" : "notesChecklistStatus")}</Text>
-                </View>
-                {!isArchived && <Pressable onPress={handleSave} disabled={isBusy}
-                  className="min-h-[48px] items-center justify-center rounded-full bg-primary px-5 py-2 disabled:opacity-50"
-                  accessibilityRole="button" accessibilityLabel={t("save")} accessibilityState={{ disabled: isBusy, busy: isSaving }}>
-                  <Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-primary-foreground">{t(isSaving ? "saving" : "save")}</Text>
-                </Pressable>}
-              </View>
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isBusy} />
               <View className="mx-5 max-[360px]:mx-4 h-2" />
             </View>}
@@ -539,10 +528,10 @@ export default function ChecklistEditorScreen() {
               <AttachmentToolbarButton disabled={isBusy} busy={attachmentState.busy}
                 onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
               <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}
-                accessibilityRole="button" accessibilityLabel={t("notesDone")} accessibilityHint={t("notesDoneHint")}
+                accessibilityRole="button" accessibilityLabel="Done" accessibilityHint="Dismiss the keyboard and finish formatting. Use Save to save your note."
                 className="min-h-[44px] flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
                 <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primary-foreground">{t("notesDone")}</Text>
+                <Text className="text-sm font-semibold text-primary-foreground">Done</Text>
               </Pressable>
             </View>
           </KeyboardStickyView>}
@@ -551,12 +540,12 @@ export default function ChecklistEditorScreen() {
 
       <ConfirmDialog
         visible={confirmState !== null}
-        title={confirmState?.kind === "delete" ? t("notesDelete") : t("discardChangesTitle")}
-        message={confirmState?.kind === "delete" ? t("notesDeleteConfirm") : t("notesUnsavedChanges")}
+        title={confirmState?.kind === "delete" ? "Delete note" : "Discard changes?"}
+        message={confirmState?.kind === "delete" ? "Delete this note?" : "You have unsaved changes. Leave anyway?"}
         confirmLabel={
-          confirmState?.kind === "delete" ? t("delete") : confirmState?.kind === "discard" ? t("discard") : t("confirm")
+          confirmState?.kind === "delete" ? "Delete" : confirmState?.kind === "discard" ? "Discard changes" : "Confirm"
         }
-        cancelLabel={t("cancel")}
+        cancelLabel="Cancel"
         destructive={confirmState?.kind === "delete"}
         onClose={() => {
           pendingRemoveActionRef.current = null;

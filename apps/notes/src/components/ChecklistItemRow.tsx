@@ -5,7 +5,6 @@ import { GripVertical, X } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
-import { useI18n } from "../lib/i18n";
 
 /** A checklist item in the editor's local, reorderable form. */
 export interface ChecklistEntry {
@@ -40,7 +39,6 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
   registerInput,
 }: ChecklistItemRowProps) {
   const colors = useThemeColors();
-  const { t } = useI18n();
   const inputRef = useRef<TextInputType>(null);
 
   useEffect(() => {
@@ -53,11 +51,11 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
     return (
       <View className={cn("min-h-[64px] flex-row items-start gap-3 px-4 py-2", grouped && "mx-5 border-b border-border/60")}
         accessible accessibilityRole="checkbox"
-        accessibilityLabel={item.text || t("notesItemPlaceholder")}
+        accessibilityLabel={item.text || "List item"}
         accessibilityState={{ checked: item.checked, disabled: true }}>
         <View className="pt-0.5"><Checkbox displayOnly checked={item.checked} /></View>
         <Text selectable className={cn("min-w-0 flex-1 text-sm", item.checked ? "text-muted-foreground line-through" : "text-foreground")}>
-          {item.text || t("notesItemPlaceholder")}
+          {item.text || "List item"}
         </Text>
       </View>
     );
@@ -72,7 +70,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
         accessible
         accessibilityRole="button"
-        accessibilityLabel={t("reorderHandle")}
+        accessibilityLabel="Drag to reorder"
         accessibilityState={{ disabled: disabled && !isActive }}
       >
         <GripVertical size={18} color={colors.mutedForeground} />
@@ -82,7 +80,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         onPress={() => onToggle(item.key)}
         disabled={disabled}
         className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
-        accessibilityLabel={item.text || t("notesItemPlaceholder")}
+        accessibilityLabel={item.text || "List item"}
       />
 
       <TextInput
@@ -90,7 +88,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         value={item.text}
         editable={!disabled}
         onChangeText={(text) => onChangeText(item.key, text)}
-        placeholder={t("notesItemPlaceholder")}
+        placeholder="List item"
         placeholderTextColor={colors.mutedForeground}
         multiline
         scrollEnabled={false}
@@ -103,7 +101,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
         accessible
         accessibilityRole="button"
-        accessibilityLabel={t("notesItemDelete")}
+        accessibilityLabel="Delete item"
         accessibilityState={{ disabled }}
       >
         <X size={18} color={colors.mutedForeground} />

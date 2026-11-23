@@ -4,7 +4,6 @@ import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, wi
 import { FileText, ListOrdered } from "./AppIcons";
 import { Text } from "./ui/Typography";
 import { useThemeColors } from "../lib/theme";
-import { useI18n, type TKey } from "../lib/i18n";
 import type { NoteKind } from "../types/notes";
 
 interface NoteTypeChooserProps {
@@ -15,11 +14,11 @@ interface NoteTypeChooserProps {
 
 const OPTIONS: {
   kind: NoteKind;
-  labelKey: TKey;
-  hintKey: TKey;
+  label: string;
+  hint: string;
 }[] = [
-  { kind: "checklist", labelKey: "notesNewChecklist", hintKey: "notesNewChecklistHint" },
-  { kind: "text", labelKey: "notesNewText", hintKey: "notesNewTextHint" },
+  { kind: "checklist", label: "Checklist", hint: "Track items with checkboxes" },
+  { kind: "text", label: "Text note", hint: "Write in rich text" },
 ];
 
 function NoteTypeOption({ option, visible, index, onSelect }: {
@@ -28,7 +27,6 @@ function NoteTypeOption({ option, visible, index, onSelect }: {
   index: number;
   onSelect: (kind: NoteKind) => void;
 }) {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const progress = useSharedValue(0);
 
@@ -53,16 +51,15 @@ function NoteTypeOption({ option, visible, index, onSelect }: {
 
   return <Animated.View style={animatedStyle} className="max-w-full">
     <Pressable onPress={() => onSelect(option.kind)} disabled={!visible}
-      accessibilityRole="button" accessibilityLabel={t(option.labelKey)} accessibilityHint={t(option.hintKey)}
+      accessibilityRole="button" accessibilityLabel={option.label} accessibilityHint={option.hint}
       className="min-h-[48px] max-w-full flex-row items-center gap-3 rounded-full border border-border/60 bg-card px-5 py-3 shadow-md active:opacity-70">
       <Icon size={20} color={colors.primary} />
-      <Text className="shrink text-sm font-semibold text-foreground">{t(option.labelKey)}</Text>
+      <Text className="shrink text-sm font-semibold text-foreground">{option.label}</Text>
     </Pressable>
   </Animated.View>;
 }
 
 export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserProps) {
-  const { t } = useI18n();
 
   useEffect(() => {
     if (!visible) return;
@@ -73,7 +70,7 @@ export function NoteTypeChooser({ visible, onClose, onSelect }: NoteTypeChooserP
     return () => subscription.remove();
   }, [visible, onClose]);
 
-  return <View onAccessibilityEscape={onClose} accessibilityLabel={t("notesNew")}
+  return <View onAccessibilityEscape={onClose} accessibilityLabel="New Note"
     pointerEvents={visible ? "box-none" : "none"}
     accessibilityElementsHidden={!visible} importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
     className="mb-4 max-w-full self-end items-end gap-3">

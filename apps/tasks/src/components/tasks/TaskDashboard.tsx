@@ -1,19 +1,12 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { Text } from "../ui/Typography";
-import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Search, RotateCcw } from "../AppIcons";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, RotateCcw } from "../AppIcons";
 import { IconButton } from "../ui/Button";
 import type { TaskFilter, TaskOverview } from "../../lib/tasks";
 import { localTaskDate } from "../../lib/taskCalendar";
 import { isTaskDate } from "../../lib/taskDates";
 import { useTaskDesign } from "./design";
-
-export function TaskHeading({ title, subtitle, onAction, calendar = false }: { title: string; subtitle: string; onAction: () => void; calendar?: boolean }) {
-  return <View className="mb-5 flex-row items-center justify-between gap-3">
-    <View className="min-w-0 flex-1"><Text className="mb-1 text-xs text-muted-foreground">{subtitle}</Text><Text accessibilityRole="header" className="text-[28px] font-semibold tracking-[-0.8px] text-foreground">{title}</Text></View>
-    <IconButton icon={calendar ? Bell : Search} accessibilityLabel={calendar ? "Open reminder settings" : "Search tasks"} onPress={onAction} />
-  </View>;
-}
 
 const TILES = [{ id: "today", label: "Today", icon: CalendarDays }, { id: "upcoming", label: "Upcoming", icon: CalendarDays }, { id: "overdue", label: "Overdue", icon: RotateCcw }, { id: "completed", label: "Completed", icon: Check }] as const;
 export const TaskSummaryTiles = memo(function TaskSummaryTiles({ counts, filter, onFilter }: { counts: TaskOverview; filter: TaskFilter; onFilter: (filter: TaskFilter) => void }) {
@@ -52,6 +45,9 @@ export function TaskAddButton({ onPress, accessibilityLabel = "Add a task", disa
     className="h-[44px] w-[44px] items-center justify-center rounded-[14px] bg-primary active:opacity-70 disabled:opacity-50"><Plus size={20} color={colors.primaryForeground} /></Pressable>;
 }
 
-export function AgendaHeading({ title, count, onAdd, disabled = false }: { title: string; count: number; onAdd: () => void; disabled?: boolean }) {
-  return <View className="mb-3 flex-row items-center justify-between gap-2"><View className="min-w-0 flex-1"><Text className="text-xl font-semibold tracking-[-0.4px] text-foreground">{title}</Text><Text className="mt-1 text-xs text-muted-foreground">{count} on your plan</Text></View><TaskAddButton accessibilityLabel="Add task for selected day" onPress={onAdd} disabled={disabled} /></View>;
+export function AgendaHeading({ title, onAdd, disabled = false }: { title: string; onAdd: () => void; disabled?: boolean }) {
+  return <View className="mb-3 flex-row items-center justify-between gap-2">
+    <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold tracking-[-0.4px] text-foreground">{title}</Text>
+    <TaskAddButton accessibilityLabel="Add task for selected day" onPress={onAdd} disabled={disabled} />
+  </View>;
 }

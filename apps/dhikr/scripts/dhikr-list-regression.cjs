@@ -43,7 +43,7 @@ function fixture(root) {
     useCallback(fn, deps) { return hooks.useMemo(() => fn, deps); },
   };
   const element = (type, props) => ({ type, props });
-  const t = key => key;
+
   const mocks = {
     '../../src/components/ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
     react: hooks,
@@ -68,7 +68,7 @@ function fixture(root) {
     },
     '../../src/components/DhikrModal': { DhikrModal: 'DhikrModal' },
     '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
-    '../../src/lib/i18n': { useI18n: () => ({ t }) },
+
     '../../src/lib/theme': { useThemeColors: () => ({}) },
     '../../src/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
     '../../src/hooks/useHaptics': { useHaptics: () => ({ light: async () => {}, warning: async () => {} }) },
@@ -124,7 +124,7 @@ function fixture(root) {
     rowText(id) {
       const item = list().data.find(value => value.id === id);
       const row = list().renderItem({ item, index: list().data.indexOf(item) });
-      return find(row.type(row.props), node => node.type === 'Text' && node.props.children === 'dhikrToday');
+      return find(row.type(row.props), node => node.type === 'Text' && node.props.children === 'Today');
     },
     dialog: () => find(tree, node => node.type === 'ConfirmDialog').props,
     deleteFromMenu(id) {
@@ -153,41 +153,41 @@ module.exports = async function verifyDhikrList(root) {
   assert.deepEqual(screen.order(), [1, 2, 3]);
   assert(screen.rowText(1), 'Today’s count stays visible for dhikrs without a daily limit');
 
-  screen.button('dhikrArrange').onPress(); screen.render();
+  screen.button('Arrange').onPress(); screen.render();
   screen.move(2, -1); screen.render();
   assert.deepEqual(screen.order(), [2, 1, 3]);
   assert.equal(screen.writes.length, 0, 'Preview moves must not write');
   screen.move(3, -1); screen.move(3, -1); screen.render();
   assert.deepEqual(screen.order(), [3, 2, 1], 'Rapid taps must use the latest draft order');
-  screen.button('cancel').onPress(); screen.render();
+  screen.button('Cancel').onPress(); screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3], 'Cancel must restore the persisted order');
   assert.equal(screen.writes.length, 0);
 
-  screen.button('dhikrArrange').onPress(); screen.render();
+  screen.button('Arrange').onPress(); screen.render();
   screen.move(2, -1); screen.render();
-  const done = screen.button('dhikrArrangeDone').onPress(); screen.render();
+  const done = screen.button('Done').onPress(); screen.render();
   assert.deepEqual(screen.writes.map(write => write.order), [[2, 1, 3]]);
   screen.move(2, 1);
-  screen.button('cancel').onPress();
-  screen.button('saving').onPress();
+  screen.button('Cancel').onPress();
+  screen.button('Saving…').onPress();
   assert.equal(screen.writes.length, 1, 'Saving must lock additional moves and duplicate writes');
   screen.writes[0].finish();
   await done; screen.render();
   assert.deepEqual(screen.order(), [2, 1, 3]);
 
-  screen.button('dhikrArrange').onPress(); screen.render();
+  screen.button('Arrange').onPress(); screen.render();
   screen.move(1, -1); screen.render();
-  const failed = screen.button('dhikrArrangeDone').onPress(); screen.render();
+  const failed = screen.button('Done').onPress(); screen.render();
   screen.writes[1].finish(new Error('SQLite write failed'));
   await failed; screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3], 'A failed save keeps its draft visible');
-  assert.deepEqual(screen.errors, ['errorReordering']);
-  const retry = screen.button('dhikrArrangeDone').onPress();
+  assert.deepEqual(screen.errors, ['Failed to reorder.']);
+  const retry = screen.button('Done').onPress();
   screen.writes[2].finish();
   await retry; screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3]);
-  screen.button('dhikrArrange').onPress(); screen.render();
-  await screen.button('dhikrArrangeDone').onPress(); screen.render();
+  screen.button('Arrange').onPress(); screen.render();
+  await screen.button('Done').onPress(); screen.render();
   assert.equal(screen.writes.length, 3, 'Done without changes must not write');
 
   let finishRead;

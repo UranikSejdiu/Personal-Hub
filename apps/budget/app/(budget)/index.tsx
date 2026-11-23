@@ -8,7 +8,7 @@ import { formatCurrency } from "../../src/lib/utils";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 
-import { useI18n, monthLabelShort } from "../../src/lib/i18n";
+import { monthLabel } from "../../src/lib/monthLabel";
 import { useThemeColors } from "../../src/lib/theme";
 import {
   addMonths,
@@ -30,7 +30,6 @@ import { Card } from "../../src/components/ui/Card";
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { t, lang } = useI18n();
   const [summaries, setSummaries] = useState<MonthSummary[]>([]);
   const [savingsBalance, setSavingsBalance] = useState<number | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -58,9 +57,9 @@ export default function DashboardScreen() {
     } catch {
       if (request !== refreshRequest.current) return;
       setLoadState("error");
-      toast.error(t("errorLoadingData"));
+      toast.error("Failed to load data.");
     }
-  }, [t]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -108,13 +107,13 @@ export default function DashboardScreen() {
         }
         await deleteBudget(month, tx);
       });
-      toast.success(t("monthDeleted"));
+      toast.success("Budget deleted");
       await refresh();
 
     } catch {
-      toast.error(t("errorDeletingBudget"));
+      toast.error("Failed to delete budget.");
     }
-  }, [monthToDelete, refresh, t]);
+  }, [monthToDelete, refresh]);
 
   const handleCreateMonth = useCallback((month: string) => {
     if (summaries.some((item) => item.month === month)) openBudgetMonth(month);
@@ -143,30 +142,27 @@ export default function DashboardScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 128 }]}
         ListHeaderComponent={
           <View className="gap-3">
-            <View>
-              <View className="flex-row flex-wrap items-center justify-between gap-3">
-                <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("dashboardTitle")}</Text>
-                <Button
-                  label={t("addRow")}
-                  icon={Plus}
-                  variant="secondary"
-                  disabled={loadState !== "ready" || creatingMonth !== null}
+            <View className="flex-row flex-wrap items-center justify-between gap-3">
+              <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Monthly budget</Text>
+              <Button
+                label="Add expense"
+                icon={Plus}
+                variant="secondary"
+                disabled={loadState !== "ready" || creatingMonth !== null}
 
-                  onPress={() => { if (currentSummary) router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`); else { setQuickExpense(true); handleCreateMonth(thisMonth); } }}
-                />
-              </View>
-              <Text className="mt-1 text-xs leading-[18px] text-muted-foreground">{t("dashboardSubtitle")}</Text>
+                onPress={() => { if (currentSummary) router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`); else { setQuickExpense(true); handleCreateMonth(thisMonth); } }}
+              />
             </View>
 
             {loadState === "loading" ? (
               <View className="flex-row items-center justify-center gap-3 py-10" accessibilityLiveRegion="polite">
                 <ActivityIndicator color={colors.primary} />
-                <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
+                <Text className="text-sm text-muted-foreground">Loading…</Text>
               </View>
             ) : loadState === "error" ? (
               <Card className="gap-3">
-                <Text className="text-sm text-foreground">{t("errorLoadingData")}</Text>
-                <Button label={t("retry")} onPress={() => { void refresh(); }} />
+                <Text className="text-sm text-foreground">Failed to load data.</Text>
+                <Button label="Retry" onPress={() => { void refresh(); }} />
               </Card>
             ) : currentSummary ? (
               <BudgetMonthCard
@@ -177,12 +173,9 @@ export default function DashboardScreen() {
               />
             ) : (
               <Card className="gap-3">
-                <Text className="text-lg font-semibold text-foreground">{t("dashboardNoCurrentMonth")}</Text>
-                <Text className="text-xs leading-[18px] text-muted-foreground">
-                  {t("dashboardNoCurrentMonthHint", { month: monthLabelShort(lang, thisMonth) })}
-                </Text>
+                <Text className="text-lg font-semibold text-foreground">{monthLabel(thisMonth, "short")}</Text>
                 <Button
-                  label={t("dashboardCreateCurrentMonth")}
+                  label={"Create budget"}
                   icon={Plus}
                   disabled={creatingMonth !== null}
 
@@ -192,17 +185,16 @@ export default function DashboardScreen() {
               </Card>
             )}
 
-            {loadState === "ready" && savingsBalance !== null && <View className="gap-2 pt-2">
-              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("navSavings")}</Text>
-              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={t("navSavings")} className="min-h-[76px] flex-row items-center gap-3 rounded-[20px] bg-secondary px-4 py-3 active:opacity-70">
+            {loadState === "ready" && savingsBalance !== null && (
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[76px] flex-row items-center gap-3 rounded-[20px] bg-secondary px-4 py-3 active:opacity-70">
                 <PiggyBank size={24} color={colors.primary} />
-                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-foreground">{formatCurrency(savingsBalance)}</Text><Text className="text-xs text-muted-foreground">{t("savingsTotal")}</Text></View>
+                <View className="flex-1 gap-1"><Text className="text-sm font-semibold text-foreground">{formatCurrency(savingsBalance)}</Text><Text className="text-xs text-muted-foreground">Total savings</Text></View>
                 <ChevronRight size={18} color={colors.primary} />
               </Pressable>
-            </View>}
-            {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label={t("dashboardNextMonth")} onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
+            )}
+            {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label="Next month" onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
             {loadState === "ready" && otherMonths.length > 0 && (
-              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("dashboardOtherMonths")}</Text>
+              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Previous months</Text>
             )}
           </View>
         }
@@ -215,21 +207,21 @@ export default function DashboardScreen() {
           if (created) {
             await refresh();
 
-            toast.success(t("newBudgetCreated", { month: monthLabelShort(lang, month) }));
+            toast.success(`Budget created for ${monthLabel(month, "short")}`);
           }
           if (quickExpense) { setQuickExpense(false); router.push(`/(budget)/budget?month=${month}&addExpense=1`); }
           else openBudgetMonth(month);
         }} /> : null}
       <ConfirmDialog
         visible={monthToDelete !== null}
-        title={t("deleteConfirmTitle")}
+        title="Delete"
         message={
           monthToDelete
-            ? t("deleteMonthConfirm", { month: monthLabelShort(lang, monthToDelete) })
+            ? `Delete budget for ${monthLabel(monthToDelete, "short")}?`
             : ""
         }
-        confirmLabel={t("delete")}
-        cancelLabel={t("cancel")}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
         destructive
         onClose={() => setMonthToDelete(null)}
         onConfirm={confirmDelete}

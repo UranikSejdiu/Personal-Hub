@@ -4,7 +4,6 @@ import { useCallback, useRef, useState, type ComponentRef, type ComponentType } 
 import { Modal, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
-import { useI18n } from "../../lib/i18n";
 import { useThemeColors, useThemeVariables } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
@@ -51,7 +50,6 @@ export function useAnchoredMenu() {
 }
 
 export function AnchoredMenu({ anchor, onClose, items, size = "compact", align = "end" }: AnchoredMenuProps) {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
@@ -77,7 +75,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
         style={themeVariables}
         onPress={onClose}
         accessibilityRole="button"
-        accessibilityLabel={t("cancel")}
+        accessibilityLabel="Cancel"
       >
         {anchor ? (
           <View

@@ -4,7 +4,6 @@ import { View, Pressable } from "react-native";
 import { Pin } from "./AppIcons";
 import { Checkbox } from "./ui/Checkbox";
 import { useThemeColors } from "../lib/theme";
-import { useI18n } from "../lib/i18n";
 import { getPreviewSegments } from "../lib/noteContent";
 import { formatNoteDate } from "../lib/noteDate";
 import type { Note } from "../types/notes";
@@ -14,16 +13,13 @@ const MAX_VISIBLE_CHECKLIST_ITEMS = 3;
 export const NoteCard = React.memo(function NoteCard({
   note,
   onPress,
-  untitledLabel,
   layout = "grid",
 }: {
   note: Note;
   onPress: (note: Note) => void;
-  untitledLabel: string;
   layout?: "grid" | "list";
 }) {
   const colors = useThemeColors();
-  const { t } = useI18n();
 
   const previewLines = React.useMemo(() => {
     if (!note.content) return [];
@@ -38,27 +34,28 @@ export const NoteCard = React.memo(function NoteCard({
   const hiddenCount = (note.checklistPreview?.active ?? activeItems.length) - visibleItems.length;
   const totalCount = note.checklistPreview?.total ?? checklistItems.length;
 
+  const title = note.title || "Untitled";
   return (
     <Pressable
       onPress={() => onPress(note)}
       className={`relative mb-2.5 rounded-[12px] bg-card px-4 py-[18px] active:opacity-70 ${layout === "grid" ? "min-h-[140px]" : "min-h-[112px]"}`}
       accessible
       accessibilityRole="button"
-      accessibilityLabel={note.title || untitledLabel}
+      accessibilityLabel={title}
     >
       <View className="flex-row items-start justify-between gap-2">
         <Text
           numberOfLines={2}
           className="flex-1 text-[17px] leading-[23px] font-semibold text-foreground"
         >
-          {note.title || untitledLabel}
+          {title}
         </Text>
         {note.is_pinned ? (
           <View
             className="mt-0.5 shrink-0"
             accessible
             accessibilityRole="image"
-            accessibilityLabel={t("notesPinned")}
+            accessibilityLabel="Pinned"
           >
             <Pin size={14} color={colors.primary} />
           </View>
@@ -83,14 +80,14 @@ export const NoteCard = React.memo(function NoteCard({
           ))}
           {hiddenCount > 0 ? (
             <Text className="text-xs leading-[18px] text-muted-foreground">
-              {t("notesMoreItems", { count: hiddenCount })}
+              {`+${hiddenCount} more`}
             </Text>
           ) : null}
           <View className="mt-2 h-1 overflow-hidden rounded-full bg-secondary" accessible={false}>
             <View className="h-full rounded-full bg-primary" style={{ width: `${totalCount > 0 ? Math.min(100, checkedCount / totalCount * 100) : 0}%` }} />
           </View>
           <Text className="mt-1 text-[11px] leading-4 text-muted-foreground">
-            {t("notesChecklistProgress", { completed: checkedCount, total: totalCount })}
+            {`${checkedCount} of ${totalCount} completed`}
           </Text>
         </View>
       ) : previewLines.length > 0 ? (

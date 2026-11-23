@@ -3,7 +3,6 @@ import { useState, useCallback } from "react";
 import { View } from "react-native";
 import { cn } from "../lib/utils";
 import { useThemeColors } from "../lib/theme";
-import { useI18n } from "../lib/i18n";
 import { parseNumberInput } from "../lib/numberInput";
 
 interface NumberInputProps {
@@ -41,7 +40,6 @@ export function NumberInput({
   const [isFocused, setIsFocused] = useState(false);
   const [invalid, setInvalid] = useState(false);
   const colors = useThemeColors();
-  const { t } = useI18n();
 
   const displayText = isFocused || invalid ? text : value === 0 ? "" : String(value);
 
@@ -102,7 +100,7 @@ export function NumberInput({
         <Text className="text-sm text-muted-foreground">{suffix}</Text>
       )}
       </View>
-      {invalid ? <Text accessibilityRole="alert" className="mt-1 text-xs text-destructive">{t("numberInputInvalid")}</Text> : null}
+      {invalid ? <Text accessibilityRole="alert" className="mt-1 text-xs text-destructive">Invalid number. The last valid value is kept. Use 1,200.50 or 1.200,50 for grouped amounts.</Text> : null}
     </View>
   );
 }

@@ -10,7 +10,6 @@ import { useFonts } from "expo-font";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
 import { ThemeProvider, useTheme, useThemeVariables } from "../src/lib/theme";
-import { I18nProvider, useI18n } from "../src/lib/i18n";
 import { initializeAppData } from "../src/lib/bootstrap";
 import { ConfirmDialog } from "../src/components/ConfirmDialog";
 import { UpdateProvider } from "../src/lib/UpdateContext";
@@ -22,7 +21,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 function RootLayoutInner() {
   const { resolvedTheme } = useTheme();
   const themeVariables = useThemeVariables();
-  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
@@ -57,10 +55,10 @@ function RootLayoutInner() {
       <AppAlerts />
       <ConfirmDialog
         visible={showExitDialog}
-        title={t("exitTitle")}
-        message={t("exitMessage")}
-        confirmLabel={t("exitApp")}
-        cancelLabel={t("cancel")}
+        title="Exit app?"
+        message="Are you sure you want to leave the app?"
+        confirmLabel="Exit"
+        cancelLabel="Cancel"
         destructive
         onClose={() => setShowExitDialog(false)}
         onConfirm={() => BackHandler.exitApp()}
@@ -71,7 +69,6 @@ function RootLayoutInner() {
 
 function BootstrapGate() {
   const themeVariables = useThemeVariables();
-  const { t } = useI18n();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -116,15 +113,15 @@ function BootstrapGate() {
         className="flex-1 items-center justify-center bg-background px-6"
         style={themeVariables}
       >
-        <Text className="text-base font-semibold text-foreground">{t("dbInitFailed")}</Text>
+        <Text className="text-base font-semibold text-foreground">Failed to initialize database.</Text>
         <Text className="mt-2 text-center text-sm text-muted-foreground">{dbError}</Text>
         <Pressable
           onPress={retryDb}
           className="mt-4 rounded-lg bg-primary px-5 py-2.5"
           accessibilityRole="button"
-          accessibilityLabel={t("retry")}
+          accessibilityLabel="Retry"
         >
-          <Text className="text-sm font-semibold text-primary-foreground">{t("retry")}</Text>
+          <Text className="text-sm font-semibold text-primary-foreground">Retry</Text>
         </Pressable>
       </View>
     );
@@ -159,11 +156,9 @@ export default function RootLayout() {
       <KeyboardProvider>
         <SafeAreaProvider>
           <ThemeProvider>
-            <I18nProvider>
-              <UpdateProvider>
-                <BootstrapGate />
-              </UpdateProvider>
-            </I18nProvider>
+            <UpdateProvider>
+              <BootstrapGate />
+            </UpdateProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </KeyboardProvider>

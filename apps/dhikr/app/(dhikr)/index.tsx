@@ -6,7 +6,6 @@ import { DhikrCounterTitle } from "../../src/components/DhikrCounterTitle";
 import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { useThemeColors } from "../../src/lib/theme";
 import { withAlpha } from "../../src/lib/utils";
@@ -19,7 +18,6 @@ import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 
 export default function CounterScreen() {
   const router = useRouter();
-  const { t } = useI18n();
   const haptics = useHaptics();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -73,7 +71,7 @@ export default function CounterScreen() {
     } catch {
       if (focusedRef.current && sequence === loadSequenceRef.current) {
         setLoadFailed(true);
-        toast.error(t("errorLoadingData"));
+        toast.error("Failed to load data.");
       }
     } finally {
       if (focusedRef.current && sequence === loadSequenceRef.current) {
@@ -81,7 +79,7 @@ export default function CounterScreen() {
         setIsLoading(false);
       }
     }
-  }, [t]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
@@ -145,7 +143,7 @@ export default function CounterScreen() {
     // No midnight polling timer: reset lazily on the first tap or app resume.
     const dhikr = stored.last_reset_date < day ? { ...stored, daily_count: 0, last_reset_date: day } : stored;
     if (dhikr.total_count >= Number.MAX_SAFE_INTEGER || dhikr.daily_count >= Number.MAX_SAFE_INTEGER) {
-      toast.error(t("countMaximumReached"));
+      toast.error("Maximum count reached. Edit or reset this counter to continue.");
       return;
     }
     const limit = dhikr.daily_limit;
@@ -159,7 +157,7 @@ export default function CounterScreen() {
     }));
     if (willHitLimit) {
       void haptics.success();
-      toast.success(t("goalComplete"));
+      toast.success("Daily Goal Complete!");
       setShowFireworks(true);
     } else {
       void haptics.light();
@@ -185,11 +183,11 @@ export default function CounterScreen() {
         rollback();
         if (focusedRef.current) {
           stopFireworks();
-          toast.error(t("errorSavingData"));
+          toast.error("Failed to save data.");
         }
       }
     });
-  }, [haptics, showWarning, stopFireworks, t, updateRecord]);
+  }, [haptics, showWarning, stopFireworks, updateRecord]);
 
   const handleReset = useCallback(async () => {
     const row = resetTarget && recordsRef.current.get(resetTarget.id);
@@ -206,12 +204,12 @@ export default function CounterScreen() {
       });
       setResetTarget(null);
     } catch {
-      if (focusedRef.current) toast.error(t("errorResettingDhikr"));
+      if (focusedRef.current) toast.error("Failed to reset dhikr.");
     } finally {
       resettingRef.current = false;
       setResetting(false);
     }
-  }, [clearFeedback, resetTarget, t, updateRecord]);
+  }, [clearFeedback, resetTarget, updateRecord]);
 
   const cycle = useCallback((dir: 1 | -1) => {
     if (dhikrs.length === 0) return;
@@ -228,15 +226,15 @@ export default function CounterScreen() {
 
   if (isLoading && !activeDhikr) {
     return <View className="flex-1 items-center justify-center bg-background">
-      <ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
+      <ActivityIndicator color={colors.primary} accessibilityLabel="Loading…" />
     </View>;
   }
   if (loadFailed) {
     return <View className="flex-1 items-center justify-center gap-3 bg-background px-4">
-      <Text className="text-base text-muted-foreground">{t("errorLoadingData")}</Text>
-      <Pressable onPress={() => { void refresh(); }} accessibilityRole="button" accessibilityLabel={t("retry")}
+      <Text className="text-base text-muted-foreground">Failed to load data.</Text>
+      <Pressable onPress={() => { void refresh(); }} accessibilityRole="button" accessibilityLabel="Retry"
         className="min-h-[44px] justify-center rounded-xl bg-primary px-4 py-2.5">
-        <Text className="text-sm font-semibold text-primary-foreground">{t("retry")}</Text>
+        <Text className="text-sm font-semibold text-primary-foreground">Retry</Text>
       </Pressable>
     </View>;
   }
@@ -247,22 +245,19 @@ export default function CounterScreen() {
       <View className="flex-1 items-center justify-center bg-background px-8">
         <Star size={48} color={colors.mutedForeground} />
         <Text className="mt-4 text-lg font-semibold text-foreground">
-          {t("noDhikrYet")}
-        </Text>
-        <Text className="mt-2 text-center text-sm text-muted-foreground">
-          {t("addFirstDhikr")}
+          No dhikr yet
         </Text>
         <Pressable
           onPress={handleOpenList}
           className="mt-4 min-h-[44px] flex-row items-center gap-2 rounded-lg bg-primary px-4 py-2.5 active:opacity-70"
           accessible
           accessibilityRole="button"
-          accessibilityLabel={t("addDhikrBtn")}
+          accessibilityLabel="Add Dhikr"
           android_ripple={{ color: withAlpha(colors.primaryForeground, 0.188) }}
         >
           <Sparkles size={16} color={colors.primaryForeground} />
           <Text className="text-sm font-medium text-primary-foreground">
-            {t("addDhikrBtn")}
+            Add Dhikr
           </Text>
         </Pressable>
       </View>
@@ -292,17 +287,17 @@ export default function CounterScreen() {
               className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("previousDhikr")}
+              accessibilityLabel="Previous"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
               <ChevronLeft size={20} color={colors.primary} />
             </Pressable>
             <Pressable onPress={handleOpenList} disabled={resetting}
               className="min-h-[44px] min-w-0 flex-1 items-center justify-center py-1 active:opacity-70"
-              accessibilityRole="button" accessibilityLabel={`${t("chooseDhikr")}: ${activeDhikr.name}`}
+              accessibilityRole="button" accessibilityLabel={`Choose a dhikr: ${activeDhikr.name}`}
               accessibilityState={{ disabled: resetting }}>
               <DhikrCounterTitle name={activeDhikr.name} />
-              <Text className="mt-0.5 text-xs text-muted-foreground">{t("dhikrPosition", { current: activeIndex + 1, count: dhikrs.length })}</Text>
+              <Text className="mt-0.5 text-xs text-muted-foreground">{`${activeIndex + 1} of ${dhikrs.length}`}</Text>
             </Pressable>
             <Pressable
               onPress={handleNext}
@@ -310,7 +305,7 @@ export default function CounterScreen() {
               className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("nextDhikr")}
+              accessibilityLabel="Next"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
               <ChevronRight size={20} color={colors.primary} />
@@ -326,8 +321,8 @@ export default function CounterScreen() {
             className="min-h-[240px] w-full flex-1 items-center justify-center py-6 active:opacity-70"
             accessible
             accessibilityRole="button"
-            accessibilityLabel={t("tapToCount")}
-            accessibilityValue={{ text: `${t("totalCountTitle")}: ${activeDhikr.total_count.toLocaleString()}` }}
+            accessibilityLabel="Tap to count"
+            accessibilityValue={{ text: `Total recitations: ${activeDhikr.total_count.toLocaleString("en")}` }}
           >
             <Text
               testID="dhikr-total-count"
@@ -339,11 +334,11 @@ export default function CounterScreen() {
               }`}
               style={{ fontSize: Math.min(132, width * 0.34), letterSpacing: -2 }}
             >
-              {activeDhikr.total_count.toLocaleString()}
+              {activeDhikr.total_count.toLocaleString("en")}
             </Text>
           </Pressable>
           <View className="items-center gap-3">
-            {limitReached && <Text className="text-center text-sm font-medium text-success">{t("goalComplete")}</Text>}
+            {limitReached && <Text className="text-center text-sm font-medium text-success">Daily Goal Complete!</Text>}
             <Pressable
               onPress={() => {
                 if (interactiveRef.current && !resettingRef.current) setResetTarget({ id: activeDhikr.id, name: activeDhikr.name });
@@ -353,17 +348,17 @@ export default function CounterScreen() {
               className="min-h-[44px] flex-row items-center gap-2 rounded-full bg-secondary px-4 py-2.5 active:opacity-70"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("resetLabel")}
+              accessibilityLabel="Reset"
             >
               <RotateCcw size={16} color={colors.mutedForeground} />
-              <Text className="text-sm font-medium text-muted-foreground">{t("resetCounts")}</Text>
+              <Text className="text-sm font-medium text-muted-foreground">Reset counts</Text>
             </Pressable>
           </View>
         </View>
       </ScrollView>
-      <ConfirmDialog visible={resetTarget !== null} title={t("resetCountsTitle")}
-        message={t("resetCountsBody", { name: resetTarget?.name ?? "" })}
-        confirmLabel={t("resetLabel")} destructive
+      <ConfirmDialog visible={resetTarget !== null} title="Reset counts?"
+        message={`Reset today’s count and the total count for "${resetTarget?.name ?? ""}" to zero? This cannot be undone.`}
+        confirmLabel="Reset" destructive
         onClose={() => { if (!resettingRef.current) setResetTarget(null); }} onConfirm={handleReset} />
 
       {/* Limit reached warning banner */}
@@ -377,7 +372,7 @@ export default function CounterScreen() {
             }}
           >
             <Text className="text-sm font-medium text-destructive-foreground">
-              {t("limitReached")}
+              Daily limit reached
             </Text>
           </View>
         </View>

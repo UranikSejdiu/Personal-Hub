@@ -59,7 +59,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-28">
       <View className="w-full max-w-md self-center gap-5 px-4 pt-3">
-        <View className="mb-1"><Text className="mb-1 text-xs text-muted-foreground">SETTINGS</Text><Text accessibilityRole="header" className="text-[28px] font-semibold tracking-[-0.8px] text-foreground">Make it yours.</Text></View>
+        <Text accessibilityRole="header" className="text-[28px] font-semibold tracking-[-0.8px] text-foreground">Settings</Text>
         <ReminderSetup />
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
@@ -80,14 +80,10 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
             })}
           </View>
         </View>
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
-          <Text className="text-sm text-muted-foreground">Manage notification permissions and other device options in system settings.</Text>
-          <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
-            if (locked.current) return;
-            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
-          }} />
-        </View>
+        <Button label="Manage app permissions" variant="secondary" disabled={busy} onPress={() => {
+          if (locked.current) return;
+          void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
+        }} />
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Import replaces current tasks and saves a recovery copy.</Text>

@@ -7,10 +7,9 @@ import { toast } from "sonner-native";
 import { Text } from "../../src/components/ui/Typography";
 import { Button } from "../../src/components/ui/Button";
 import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
-import { ChevronLeft, ChevronRight, CircleHelp, Download, type AppIconProps } from "../../src/components/AppIcons";
+import { ChevronLeft, ChevronRight, Settings, CircleHelp, Download, type AppIconProps } from "../../src/components/AppIcons";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { UpdateCard } from "../../src/components/UpdateCard";
-import { useI18n } from "../../src/lib/i18n";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { withAlpha } from "../../src/lib/utils";
 import { getHapticsEnabled, setHapticsEnabled } from "../../src/hooks/useHaptics";
@@ -18,14 +17,15 @@ import { exportBackup, exportBackupToDirectory, readBackupFile, parseBackup, imp
 
 type SettingsSection = "backup" | "about" | null;
 
-function SettingsRow({ icon: Icon, label, onPress }: {
+function SettingsRow({ icon: Icon, label, onPress, disabled = false }: {
   icon: ComponentType<AppIconProps>;
   label: string;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const colors = useThemeColors();
   return (
-    <Pressable onPress={onPress}
+    <Pressable onPress={onPress} disabled={disabled} accessibilityState={{ disabled }}
       className="min-h-[56px] flex-row items-center gap-3 rounded-lg px-1 py-3"
       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
       accessible accessibilityRole="button" accessibilityLabel={label}>
@@ -37,7 +37,6 @@ function SettingsRow({ icon: Icon, label, onPress }: {
 }
 
 export default function SettingsScreen() {
-  const { t } = useI18n();
   const { theme, setTheme } = useTheme();
   const colors = useThemeColors();
   const [haptics, setHaptics] = useState(true);
@@ -61,22 +60,22 @@ export default function SettingsScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     void getHapticsEnabled().then(value => { if (active) setHaptics(value); })
-      .catch(() => toast.error(t("errorLoadingData")));
+      .catch(() => toast.error("Failed to load data."));
     setSafetyAvailable(hasSafetyBackup());
     return () => { active = false; };
-  }, [t]));
+  }, []));
 
-  const run = async (action: () => Promise<unknown>, success: "exportSuccess" | "backupSaved" | "importSuccess"): Promise<boolean> => {
+  const run = async (action: () => Promise<unknown>, success: string): Promise<boolean> => {
     if (busyRef.current) return false;
     busyRef.current = true;
     setBusy(true);
     try {
       const result = await action();
       setSafetyAvailable(hasSafetyBackup());
-      if (result !== null) toast.success(t(success));
+      if (result !== null) toast.success(success);
       return result !== null;
     } catch (error) {
-      toast.error(t("operationFailed", { reason: error instanceof Error ? error.message : String(error) }));
+      toast.error(`Could not complete the operation: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     } finally {
       setSafetyAvailable(hasSafetyBackup());
@@ -96,7 +95,7 @@ export default function SettingsScreen() {
       const rows = parseBackup(json);
       setPendingImport({ json, count: rows.length });
     } catch (error) {
-      toast.error(t("operationFailed", { reason: error instanceof Error ? error.message : String(error) }));
+      toast.error(`Could not complete the operation: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -111,97 +110,80 @@ export default function SettingsScreen() {
             {section && <Pressable disabled={busy} onPress={() => setSection(null)}
               className="h-11 w-11 items-center justify-center rounded-xl active:bg-muted"
               android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-              accessible accessibilityRole="button" accessibilityLabel={t("settingsBack")}
+              accessible accessibilityRole="button" accessibilityLabel="Back to Settings"
               accessibilityState={{ disabled: busy }}>
               <ChevronLeft size={24} color={colors.foreground} />
             </Pressable>}
             <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-semibold text-foreground">
-              {t(section === "backup" ? "settingsBackupRestore" : section === "about" ? "settingsAboutUpdates" : "settingsTitle")}
+              {section === "backup" ? "Backup & restore" : section === "about" ? "About & updates" : "Settings"}
             </Text>
           </View>
           {!section && <>
             <View className="gap-2">
-              <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsAppearance")}</Text>
+              <Text accessibilityRole="header" className="px-1 text-sm font-semibold text-foreground">Appearance</Text>
               <View className="rounded-2xl border border-border/60 bg-card p-3">
-                <Text className="mb-2 text-sm font-medium text-foreground">{t("themeLabel")}</Text>
-                <View className="flex-row rounded-xl bg-muted/60 p-1" accessibilityRole="radiogroup">
+                <View className="flex-row rounded-xl bg-muted/60 p-1" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
                   {(["light", "dark"] as const).map(value => (
                     <Pressable key={value} onPress={() => setTheme(value)}
                       className={`min-h-[44px] flex-1 items-center justify-center rounded-lg ${theme === value ? "bg-card" : ""}`}
                       android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
                       accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
-                      accessibilityLabel={t(value === "light" ? "themeLight" : "themeDark")}>
+                      accessibilityLabel={value === "light" ? "Light" : "Dark"}>
                       <Text className={`text-sm font-medium ${theme === value ? "text-foreground" : "text-muted-foreground"}`}>
-                        {t(value === "light" ? "themeLight" : "themeDark")}
+                        {value === "light" ? "Light" : "Dark"}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
               </View>
             </View>
-            <View className="gap-2">
-              <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsPreferences")}</Text>
-              <View className="min-h-[56px] flex-row items-center justify-between rounded-2xl border border-border/60 bg-card px-3 py-2">
-                <Text className="flex-1 text-[15px] font-medium text-foreground">{t("hapticsLabel")}</Text>
-                <Switch value={haptics} disabled={busy} accessibilityLabel={t("hapticsLabel")}
-                  accessibilityState={{ disabled: busy }}
-                  trackColor={{ false: colors.muted, true: colors.primary }}
-                  thumbColor={theme === "dark" ? colors.foreground : colors.card}
-                  onValueChange={value => {
-                    if (busyRef.current) return;
-                    busyRef.current = true;
-                    setBusy(true);
-                    void setHapticsEnabled(value).then(() => setHaptics(value))
-                      .catch(() => toast.error(t("saveFailed"))).finally(() => {
-                        busyRef.current = false;
-                        setBusy(false);
-                      });
-                  }} />
-              </View>
+            <View className="min-h-[56px] flex-row items-center justify-between rounded-2xl border border-border/60 bg-card px-3 py-2">
+              <Text className="flex-1 text-[15px] font-medium text-foreground">Vibration feedback</Text>
+              <Switch value={haptics} disabled={busy} accessibilityLabel="Vibration feedback"
+                accessibilityState={{ disabled: busy }}
+                trackColor={{ false: colors.muted, true: colors.primary }}
+                thumbColor={theme === "dark" ? colors.foreground : colors.card}
+                onValueChange={value => {
+                  if (busyRef.current) return;
+                  busyRef.current = true;
+                  setBusy(true);
+                  void setHapticsEnabled(value).then(() => setHaptics(value))
+                    .catch(() => toast.error("Failed to save.")).finally(() => {
+                      busyRef.current = false;
+                      setBusy(false);
+                    });
+                }} />
             </View>
-            <View className="gap-2">
-              <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsData")}</Text>
-              <View className="rounded-2xl border border-border/60 bg-card px-3">
-                <SettingsRow icon={Download} label={t("settingsBackupRestore")} onPress={() => setSection("backup")} />
-              </View>
-            </View>
-            <View className="gap-3 rounded-2xl border border-border/60 bg-card p-4">
-              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
-              <Text className="text-sm text-muted-foreground">Open system settings to review permissions and other device options for Dhikr.</Text>
-              <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
+            <View className="rounded-2xl border border-border/60 bg-card px-3">
+              <SettingsRow icon={Download} label="Backup & restore" onPress={() => setSection("backup")} />
+              <SettingsRow icon={Settings} label="Manage app permissions" disabled={busy} onPress={() => {
                 if (busyRef.current) return;
                 void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr."));
               }} />
-            </View>
-            <View className="gap-2">
-              <Text className="px-1 text-xs font-semibold text-muted-foreground">{t("settingsHelp")}</Text>
-              <View className="rounded-2xl border border-border/60 bg-card px-3">
-                <SettingsRow icon={CircleHelp} label={t("settingsAboutUpdates")} onPress={() => setSection("about")} />
-              </View>
+              <SettingsRow icon={CircleHelp} label="About & updates" onPress={() => setSection("about")} />
             </View>
           </>}
           {section === "backup" && <View className="gap-3">
-            <Text className="text-sm leading-6 text-muted-foreground">{t("backupHelp")}</Text>
             <View className="gap-3 rounded-2xl border border-border/60 bg-card p-3">
               <View ref={triggerRef} collapsable={false}>
                 <Button icon={Download} disabled={busy} accessibilityState={{ expanded: anchor !== null }}
                   onPress={() => {
                     if (busyRef.current) return;
                     if (Platform.OS === "android") openExportMenu();
-                    else void run(exportBackup, "exportSuccess");
-                  }} label={t("exportData")} />
+                    else void run(exportBackup, "Data exported successfully");
+                  }} label="Export backup" />
               </View>
-              <Button variant="secondary" disabled={busy} onPress={() => { void pickImport(); }} label={t("importData")} />
-              {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => setRestoring(true)} label={t("restoreSafetyBackup")} />}
+              <Button variant="secondary" disabled={busy} onPress={() => { void pickImport(); }} label="Import counts" />
+              {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => setRestoring(true)} label="Restore previous data" />}
             </View>
           </View>}
           {section === "about" && <>
             <UpdateCard />
             <View className="items-center gap-1 pt-2">
-              <Text className="text-xs text-muted-foreground">{t("version")}: {Application.nativeApplicationVersion ?? require("../../package.json").version}</Text>
-              <Pressable accessibilityRole="link" accessibilityLabel={t("flaticonAttribution")} className="min-h-[44px] justify-center rounded-lg px-3 active:opacity-70"
-                onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error(t("linkOpenFailed"))); }}>
-                <Text className="text-xs text-muted-foreground underline">{t("flaticonAttribution")}</Text>
+              <Text className="text-xs text-muted-foreground">Version: {Application.nativeApplicationVersion ?? require("../../package.json").version}</Text>
+              <Pressable accessibilityRole="link" accessibilityLabel="UIcons by Flaticon" className="min-h-[44px] justify-center rounded-lg px-3 active:opacity-70"
+                onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error("Unable to open the link.")); }}>
+                <Text className="text-xs text-muted-foreground underline">UIcons by Flaticon</Text>
               </Pressable>
             </View>
           </>}
@@ -209,22 +191,22 @@ export default function SettingsScreen() {
       </ScrollView>
       <AnchoredMenu anchor={anchor} onClose={closeExportMenu} size="regular" align="start"
         items={[
-          { key: "folder", label: t("saveBackupToFolder"), icon: Download,
-            onPress: () => { void run(exportBackupToDirectory, "backupSaved"); } },
-          { key: "share", label: t("shareBackup"),
-            onPress: () => { void run(exportBackup, "exportSuccess"); } },
+          { key: "folder", label: "Save to folder", icon: Download,
+            onPress: () => { void run(exportBackupToDirectory, "Backup saved to the selected folder"); } },
+          { key: "share", label: "Share backup",
+            onPress: () => { void run(exportBackup, "Data exported successfully"); } },
         ]} />
-      <ConfirmDialog visible={pendingImport !== null} title={t("importData")}
-        message={t("importDhikrConfirm", { count: pendingImport?.count ?? 0 })} destructive
-        confirmLabel={t("importData")} onClose={() => setPendingImport(null)}
+      <ConfirmDialog visible={pendingImport !== null} title="Import counts"
+        message={`Import ${pendingImport?.count ?? 0} dhikrs? This replaces your current counts. A recovery copy of your current data will be saved first.`} destructive
+        confirmLabel="Import counts" onClose={() => setPendingImport(null)}
         onConfirm={async () => {
           if (!pendingImport) return;
-          if (await run(() => importBackup(pendingImport.json), "importSuccess")) setPendingImport(null);
+          if (await run(() => importBackup(pendingImport.json), "Data imported successfully")) setPendingImport(null);
         }} />
-      <ConfirmDialog visible={restoring} title={t("restoreSafetyBackup")}
-        message={t("restoreConfirm")} destructive onClose={() => setRestoring(false)}
+      <ConfirmDialog visible={restoring} title="Restore previous data"
+        message="Replace your current counts with the recovery copy from before your last import?" destructive onClose={() => setRestoring(false)}
         onConfirm={async () => {
-          if (await run(restoreSafetyBackup, "importSuccess")) setRestoring(false);
+          if (await run(restoreSafetyBackup, "Data imported successfully")) setRestoring(false);
         }} />
     </>
   );

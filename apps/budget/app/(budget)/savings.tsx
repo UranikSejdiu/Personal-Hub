@@ -1,10 +1,9 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { View, Pressable, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
 import { Pencil, ArrowDownLeft, ArrowUpRight, Archive, ChevronDown, Lock } from "../../src/components/AppIcons";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import {
   listAutoDeposits,
@@ -58,7 +57,6 @@ interface ConfirmAction {
 }
 
 export default function SavingsScreen() {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const [goalAmount, setGoalAmount] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
@@ -86,8 +84,6 @@ export default function SavingsScreen() {
   const saveInFlightRef = useRef(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
-  const tRef = useRef(t);
-  useEffect(() => { tRef.current = t; }, [t]);
 
   const loadData = useCallback(async () => {
     const request = ++loadSequence.current;
@@ -118,7 +114,7 @@ export default function SavingsScreen() {
         id: `tx:${tx.id}`,
         kind: "tx" as const,
         type: tx.type,
-        description: tx.description || tRef.current("transaction"),
+        description: tx.description || "Transaction",
         amount: tx.amount,
         date: tx.date,
         rawTx: tx,
@@ -129,7 +125,7 @@ export default function SavingsScreen() {
     } catch {
       if (focused.current && request === loadSequence.current) {
         setLoadState("failed");
-        toast.error(tRef.current("errorLoadingData"));
+        toast.error("Failed to load data.");
       }
     }
   }, []);
@@ -218,7 +214,7 @@ export default function SavingsScreen() {
           (e.rawTx !== undefined && !isClosingMarkerDescription(e.rawTx.description))
       );
       if (!hasActivity) {
-        toast.info(t("savingsNoEntries"));
+        toast.info("No entries yet.");
         return;
       }
       // A net of exactly 0 is still closable: it writes a carry-forward marker
@@ -227,26 +223,22 @@ export default function SavingsScreen() {
         try {
           const net = await previewClosingBalance(year);
           const nextYear = year + 1;
-          const desc = t("closingBalance", { year });
+          const desc = `Closing balance ${year}`;
           setConfirmAction({
-            title: t("closeYearLabel"),
-            message: t("closeYearConfirm", {
-              year,
-              amount: formatCurrency(Math.abs(net)),
-              nextYear,
-            }),
-            confirmLabel: t("closeYearLabel"),
+            title: "Close year",
+            message: `Close ${year}? Net savings: ${formatCurrency(Math.abs(net))}. A carry-forward entry will be created in ${nextYear}.`,
+            confirmLabel: "Close year",
             onConfirm: () => {
               return (async () => {
                 try {
                   const result = await closeYear(year, desc);
                   if (result.blockedYear !== undefined) {
-                    toast.warning(t("closeYearBlocked", { year: result.blockedYear }));
+                    toast.warning(`Close ${result.blockedYear} first — it still has open activity.`);
                     setConfirmAction(null);
                     return;
                   }
                   if (!result.created) {
-                    toast.info(t("closeYearNothing", { year }));
+                    toast.info(`Nothing to close for ${year}.`);
                     setConfirmAction(null);
                     return;
                   }
@@ -254,20 +246,20 @@ export default function SavingsScreen() {
                   setSelectedYear(nextYear);
                   setConfirmAction(null);
 
-                  toast.success(t("yearClosed"));
+                  toast.success("Year closed");
                 } catch {
-                  toast.error(t("errorAddingSavings"));
+                  toast.error("Failed to add entry.");
                   setConfirmAction(null);
                 }
               })();
             },
           });
         } catch {
-          toast.error(t("errorLoadingData"));
+          toast.error("Failed to load data.");
         }
       })();
     },
-    [entries, t, loadData]
+    [entries, loadData]
   );
 
   const handleSave = useCallback(async () => {
@@ -275,11 +267,11 @@ export default function SavingsScreen() {
     const amountText = formAmount.trim();
     const parsed = parseNumberInput(amountText, 2);
     if (parsed === null || parsed <= 0) {
-      setModalError(t("savingsErrorAmount"));
+      setModalError("Please enter an amount greater than zero.");
       return;
     }
     if (!formDate) {
-      setModalError(t("savingsErrorDate"));
+      setModalError("Please select a date.");
       return;
     }
     saveInFlightRef.current = true;
@@ -303,23 +295,23 @@ export default function SavingsScreen() {
         await updateTransaction(editingId, update);
       }
       setShowModal(false);
-      toast.success(t(editingKind === "auto" || editingId !== null ? "savingsEntryUpdated" : formType === "deposit" ? "depositAdded" : "withdrawalAdded"));
+      toast.success(editingKind === "auto" || editingId !== null ? "Entry updated" : formType === "deposit" ? "Deposit added" : "Withdrawal added");
       await loadData();
 
     } catch {
-      toast.error(editingId === null ? t("errorAddingSavings") : t("errorUpdatingSavings"));
+      toast.error(editingId === null ? "Failed to add entry." : "Failed to update entry.");
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
     }
-  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, t, loadData]);
+  }, [formType, formDesc, formAmount, formDate, editingId, editingKind, editingMonth, loadData]);
 
   const requestDelete = useCallback(() => {
     if (editingId === null && editingKind !== "auto") return;
     setConfirmAction({
-      title: t("deleteConfirmTitle"),
-      message: t("deleteSavingsEntryConfirm"),
-      confirmLabel: t("delete"),
+      title: "Delete",
+      message: "Delete this entry?",
+      confirmLabel: "Delete",
       destructive: true,
       onConfirm: () => {
         return (async () => {
@@ -331,23 +323,23 @@ export default function SavingsScreen() {
               await deleteTransaction(editingId);
             }
             setShowModal(false);
-            toast.success(t("savingsEntryDeleted"));
+            toast.success("Entry deleted");
             await loadData();
             setConfirmAction(null);
           } catch {
-            toast.error(t("errorDeletingSavings"));
+            toast.error("Failed to delete entry.");
             setConfirmAction(null);
           }
         })();
       },
     });
-  }, [editingId, editingKind, editingMonth, t, loadData]);
+  }, [editingId, editingKind, editingMonth, loadData]);
 
   const renderEntry = useCallback(
     ({ item: entry, index }: ListRenderItemInfo<SavingsEntry>) => {
       const isAuto = entry.kind === "auto";
       const isDeposit = entry.type === "deposit";
-      const badgeLabel = isAuto ? t("savingsAutoBadge") : isDeposit ? t("savingsTypeDeposit") : t("savingsTypePurchase");
+      const badgeLabel = isAuto ? "Auto" : isDeposit ? "Deposit" : "Withdraw";
       const amountColor = isDeposit ? "text-success" : "text-destructive";
       const sign = isDeposit ? "+" : "-";
       const isLast = index === filteredEntries.length - 1;
@@ -357,52 +349,45 @@ export default function SavingsScreen() {
       return <View className="border-x border-border/60 bg-card px-3">
         <View className={`min-h-[68px] flex-row items-center gap-2.5 py-2.5 ${isLast ? "" : "border-b border-border/60"}`}>
           <View className={`h-[39px] w-[39px] items-center justify-center rounded-[11px] ${isDeposit ? "bg-success/10" : "bg-secondary"}`}><Icon size={18} color={isDeposit ? colors.success : colors.mutedForeground} /></View>
-          <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel={t("savingsEditEntry")}>
+          <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel="Edit Entry">
             <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
             <Text className="text-xs text-muted-foreground">{entry.date} · {badgeLabel}</Text>
             <Text className={`text-sm font-semibold ${amountColor}`}>{sign}{formatCurrency(entry.amount)}</Text>
           </Pressable>
-          {locked ? <View className="h-11 w-11 items-center justify-center" accessible accessibilityRole="image" accessibilityLabel={t("savingsProtected")}><Lock size={18} color={colors.mutedForeground} /></View> : <IconButton icon={Pencil} accessibilityLabel={t("savingsEditEntry")} onPress={() => handleTapEntry(entry)} />}
+          {locked ? <View className="h-11 w-11 items-center justify-center" accessible accessibilityRole="image" accessibilityLabel="Protected opening balance"><Lock size={18} color={colors.mutedForeground} /></View> : <IconButton icon={Pencil} accessibilityLabel="Edit Entry" onPress={() => handleTapEntry(entry)} />}
         </View>
       </View>;
     },
-    [filteredEntries.length, t, handleTapEntry, colors.mutedForeground, colors.success]
+    [filteredEntries.length, handleTapEntry, colors.mutedForeground, colors.success]
   );
 
   const listHeader = useMemo(
     () => (
     <View className="gap-3">
-      <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <View className="gap-1"><Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text><Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsSubtitle")}</Text></View>
-
-      </View>
+      <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Savings</Text>
       <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
       <View className="flex-row gap-2">
-        <Button className="flex-1" icon={ArrowDownLeft} label={t("savingsTypeDeposit")} onPress={() => openCreateModal("deposit")} />
-        <Button className="flex-1" variant="secondary" icon={ArrowUpRight} label={t("savingsTypePurchase")} onPress={() => openCreateModal("purchase")} />
+        <Button className="flex-1" icon={ArrowDownLeft} label="Deposit" onPress={() => openCreateModal("deposit")} />
+        <Button className="flex-1" variant="secondary" icon={ArrowUpRight} label="Withdraw" onPress={() => openCreateModal("purchase")} />
       </View>
-      {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="secondary" icon={Archive} label={t("savingsClosePrior")} onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
+      {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="secondary" icon={Archive} label="Close prior year" onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
       <View className="gap-[7px]">
-        <Text className="text-[13px] font-semibold text-foreground">{t("savingsYear")}</Text>
+        <Text className="text-[13px] font-semibold text-foreground">Year</Text>
         <View ref={yearMenuRef} collapsable={false}>
-          <Pressable onPress={openYearMenu} accessibilityRole="button" accessibilityLabel={t("savingsYear")} accessibilityState={{ expanded: yearMenuAnchor !== null }} className="min-h-[44px] flex-row items-center justify-between rounded-[11px] border border-border/60 bg-card px-3 py-2.5">
-            <Text className="text-sm text-foreground">{selectedYear === "all" ? t("savingsAllYears") : selectedYear}</Text><ChevronDown size={16} color={colors.mutedForeground} />
+          <Pressable onPress={openYearMenu} accessibilityRole="button" accessibilityLabel="Year" accessibilityState={{ expanded: yearMenuAnchor !== null }} className="min-h-[44px] flex-row items-center justify-between rounded-[11px] border border-border/60 bg-card px-3 py-2.5">
+            <Text className="text-sm text-foreground">{selectedYear === "all" ? "All years" : selectedYear}</Text><ChevronDown size={16} color={colors.mutedForeground} />
           </Pressable>
         </View>
       </View>
-      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{t("activityLabel")}</Text>
+      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Savings activity</Text>
       <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-2">
         {filteredEntries.length === 0 && (
-          <View className="items-center gap-1 py-6">
-            <Text className="text-sm text-muted-foreground">{t("savingsNoEntries")}</Text>
-            <Text className="text-xs text-muted-foreground">{t("savingsNoEntriesHint")}</Text>
-          </View>
+          <Text className="py-6 text-center text-sm text-muted-foreground">No entries yet.</Text>
         )}
       </View>
     </View>
     ),
     [
-      t,
       colors,
       goalAmount,
       summary.balance,
@@ -421,33 +406,33 @@ export default function SavingsScreen() {
       <View className="h-2 rounded-b-[14px] border-x border-b border-border/60 bg-card" />
       <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-1.5">
         <View className="flex-row justify-between">
-          <Text className="text-sm text-muted-foreground">{t("totalSaved")}</Text>
+          <Text className="text-sm text-muted-foreground">Total Saved</Text>
           <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
         </View>
         <View className="flex-row justify-between">
-          <Text className="text-sm text-muted-foreground">{t("totalSpent")}</Text>
+          <Text className="text-sm text-muted-foreground">Total Spent</Text>
           <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
         </View>
         <View className="h-px bg-border my-1" />
         <View className="flex-row justify-between">
-          <Text className="text-sm font-semibold text-foreground">{t("savingsBalanceLabel")}</Text>
+          <Text className="text-sm font-semibold text-foreground">Balance</Text>
           <Text className={`text-sm font-semibold ${summary.balance < 0 ? "text-destructive" : "text-success"}`}>{formatCurrency(summary.balance)}</Text>
         </View>
       </View>
     </View>
     ),
-    [t, summary.totalSaved, summary.totalSpent, summary.balance]
+    [summary.totalSaved, summary.totalSpent, summary.balance]
   );
 
   return (
     <View className="flex-1 bg-background">
       {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 p-4">
-        <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{t("tabSavings")}</Text>
+        <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">Savings</Text>
         <View className="items-center gap-3 rounded-xl border border-border bg-card px-4 py-8">
-          {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} />
-            <Text className="text-sm text-muted-foreground">{t("loading")}</Text></>
-            : <><Text accessibilityRole="alert" className="text-sm text-destructive">{t("errorLoadingData")}</Text>
-              <Button label={t("retry")} onPress={() => void loadData()} /></>}
+          {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel="Loading…" />
+            <Text className="text-sm text-muted-foreground">Loading…</Text></>
+            : <><Text accessibilityRole="alert" className="text-sm text-destructive">Failed to load data.</Text>
+              <Button label="Retry" onPress={() => void loadData()} /></>}
         </View>
       </View> : <FlatList
         className="w-full max-w-md self-center"
@@ -462,24 +447,24 @@ export default function SavingsScreen() {
       />}
 
       <AnchoredMenu anchor={yearMenuAnchor} onClose={closeYearMenu} align="start" size="regular" items={[
-        { key: "all", label: t("savingsAllYears"), selected: selectedYear === "all", onPress: () => setSelectedYear("all") },
+        { key: "all", label: "All years", selected: selectedYear === "all", onPress: () => setSelectedYear("all") },
         ...availableYears.map(year => ({ key: String(year), label: String(year), selected: selectedYear === year, onPress: () => setSelectedYear(year) })),
       ]} />
-      {closeYearOpen && <FormDialog title={t("savingsClosePrior")} onClose={() => setCloseYearOpen(false)}>
-        <Text className="text-[13px] font-semibold text-foreground">{t("savingsYear")}</Text>
+      {closeYearOpen && <FormDialog title="Close prior year" onClose={() => setCloseYearOpen(false)}>
+        <Text className="text-[13px] font-semibold text-foreground">Year</Text>
         <View ref={closingMenuRef} collapsable={false}><Button variant="secondary" icon={ChevronDown} label={String(closingYear ?? "")} onPress={openClosingMenu} /></View>
-        <Text className="text-xs leading-[18px] text-muted-foreground">{t("savingsCloseHelp")}</Text>
-        <View className="flex-row justify-end gap-2"><Button variant="secondary" label={t("cancel")} onPress={() => setCloseYearOpen(false)} /><Button label={t("closeYearLabel")} disabled={closingYear === null} onPress={() => { setCloseYearOpen(false); if (closingYear !== null) handleCloseYear(closingYear); }} /></View>
+        <Text className="text-xs leading-[18px] text-muted-foreground">Carry the closing balance into an opening balance for the next year. Opening balance entries are protected.</Text>
+        <View className="flex-row justify-end gap-2"><Button variant="secondary" label="Cancel" onPress={() => setCloseYearOpen(false)} /><Button label="Close year" disabled={closingYear === null} onPress={() => { setCloseYearOpen(false); if (closingYear !== null) handleCloseYear(closingYear); }} /></View>
         <AnchoredMenu anchor={closingMenuAnchor} onClose={closeClosingMenu} align="start" size="regular" items={availableYears.filter(year => year < currentYear).map(year => ({ key: String(year), label: String(year), selected: closingYear === year, onPress: () => setClosingYear(year) }))} />
       </FormDialog>}
       <FormDialog visible={showModal} busy={saving} onClose={() => setShowModal(false)} title={editingKind === "auto"
-        ? t("savingsAutoEditTitle") : editingId === null ? t("savingsNewEntry") : t("savingsEditEntry")}>
+        ? "Edit Auto Deposit" : editingId === null ? "Add entry" : "Edit Entry"}>
           <View pointerEvents={saving ? "none" : "auto"} className="gap-3">
             {modalError ? <Text className="mt-2 text-sm text-destructive">{modalError}</Text> : null}
             <View className="mt-3 gap-3">
               {editingKind !== "auto" && (
                 <View>
-                  <Text className="text-[13px] font-semibold text-foreground">{t("savingsEntryType")}</Text>
+                  <Text className="text-[13px] font-semibold text-foreground">Type</Text>
                   <View className="mt-1 flex-row gap-2">
                     {(["deposit", "purchase"] as const).map((typeOption) => {
                       const Icon = typeOption === "deposit" ? ArrowDownLeft : ArrowUpRight;
@@ -492,7 +477,7 @@ export default function SavingsScreen() {
                         >
                           <Icon size={16} color={typeOption === "deposit" ? colors.success : colors.destructive} />
                           <Text className={typeOption === "deposit" ? "text-success" : "text-destructive"}>
-                            {typeOption === "deposit" ? t("savingsTypeDeposit") : t("savingsTypePurchase")}
+                            {typeOption === "deposit" ? "Deposit" : "Withdraw"}
                           </Text>
                         </Pressable>
                       );
@@ -501,7 +486,7 @@ export default function SavingsScreen() {
                 </View>
               )}
               <View>
-                <Text className="text-[13px] font-semibold text-foreground">{t("savingsAmountLabel")}</Text>
+                <Text className="text-[13px] font-semibold text-foreground">Amount (€)</Text>
                 <TextInput
                   value={formAmount}
                   onChangeText={setFormAmount}
@@ -513,33 +498,33 @@ export default function SavingsScreen() {
               </View>
               <View>
                 <Text className="text-[13px] font-semibold text-foreground">
-                  {editingKind === "auto" ? t("savingsAutoDescriptionLabel") : t("savingsDescriptionLabel")}
+                  {editingKind === "auto" ? "Description (optional)" : "Description (optional)"}
                 </Text>
                 <TextInput
                   value={formDesc}
                   onChangeText={setFormDesc}
-                  placeholder={t("savingsDescriptionLabel")}
+                  placeholder="Description (optional)"
                   className="mt-[7px] min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 text-base text-foreground"
                   placeholderTextColor={colors.mutedForeground}
                 />
               </View>
               {editingKind !== "auto" && (
                 <View>
-                  <Text className="text-[13px] font-semibold text-foreground">{t("savingsDateLabel")}</Text>
+                  <Text className="text-[13px] font-semibold text-foreground">Date</Text>
                   <Pressable onPress={() => setDatePickerVisible(true)} className="mt-[7px] min-h-[44px] justify-center rounded-[11px] border border-border/60 bg-card px-3 py-2.5">
-                    <Text className="text-sm text-foreground">{formDate || t("savingsDateLabel")}</Text>
+                    <Text className="text-sm text-foreground">{formDate || "Date"}</Text>
                   </Pressable>
                 </View>
               )}
             </View>
             <View className="mt-4 flex-row items-center justify-end gap-2">
               {(editingId !== null || editingKind === "auto") && (
-                <Pressable onPress={() => { requestDelete(); }} className="mr-auto min-h-[44px] justify-center" accessibilityRole="button" accessibilityLabel={t("delete")}>
-                  <Text className="text-sm font-medium text-destructive">{t("delete")}</Text>
+                <Pressable onPress={() => { requestDelete(); }} className="mr-auto min-h-[44px] justify-center" accessibilityRole="button" accessibilityLabel="Delete">
+                  <Text className="text-sm font-medium text-destructive">Delete</Text>
                 </Pressable>
               )}
-              <Button variant="secondary" label={t("cancel")} disabled={saving} onPress={() => setShowModal(false)} />
-              <Button label={t("save")} busy={saving} onPress={() => { void handleSave(); }} />
+              <Button variant="secondary" label="Cancel" disabled={saving} onPress={() => setShowModal(false)} />
+              <Button label="Save" busy={saving} onPress={() => { void handleSave(); }} />
             </View>
           </View>
       </FormDialog>
@@ -557,10 +542,10 @@ export default function SavingsScreen() {
 
       <ConfirmDialog
         visible={confirmAction !== null}
-        title={confirmAction?.title ?? t("deleteConfirmTitle")}
+        title={confirmAction?.title ?? "Delete"}
         message={confirmAction?.message ?? ""}
-        confirmLabel={confirmAction?.confirmLabel ?? t("confirm")}
-        cancelLabel={t("cancel")}
+        confirmLabel={confirmAction?.confirmLabel ?? "Confirm"}
+        cancelLabel="Cancel"
         destructive={confirmAction?.destructive ?? true}
         onClose={() => setConfirmAction(null)}
         onConfirm={() => confirmAction?.onConfirm()}

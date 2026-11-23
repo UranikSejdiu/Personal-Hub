@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner-native";
 import { Pressable, View, type TextInputInstance } from "react-native";
 import type { Expense, ExpenseDraft } from "../lib/budget";
-import { useI18n } from "../lib/i18n";
 import { parseNumberInput } from "../lib/numberInput";
 import { useThemeColors } from "../lib/theme";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -14,7 +13,6 @@ import { Text, TextInput } from "./ui/Typography";
 export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
   expense?: Expense; onSave: (fields: ExpenseDraft, id?: number, keepOpen?: boolean) => Promise<void>; onClose: () => void; onDelete?: () => void;
 }) {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const [category, setCategory] = useState(expense?.category ?? "");
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
@@ -53,38 +51,38 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
         focusAfterSave.current = true;
       }
     }
-    catch { if (mounted.current) { setError(true); toast.error(t("errorUpdatingExpense")); } }
+    catch { if (mounted.current) { setError(true); toast.error("Failed to update expense."); } }
     finally { busyRef.current = false; if (mounted.current) setBusy(false); }
   };
   const inputClass = "min-h-[44px] rounded-[11px] border border-border/60 bg-card px-3 py-2.5 text-base text-foreground";
   return <>
-    <FormDialog title={t(expense ? "expenseEdit" : "addRow")} busy={busy} onClose={close}>
-      <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">{t("expenseAmount")} (€)</Text>
+    <FormDialog title={expense ? "Edit expense" : "Add expense"} busy={busy} onClose={close}>
+      <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">Amount (€)</Text>
         <TextInput ref={amountInput} value={amount} onChangeText={setAmount} editable={!busy} keyboardType="decimal-pad" selectTextOnFocus autoFocus={!expense}
-          accessibilityLabel={t("expenseAmount")} placeholder="0.00" placeholderTextColor={colors.mutedForeground} className={inputClass} />
+          accessibilityLabel="Amount" placeholder="0.00" placeholderTextColor={colors.mutedForeground} className={inputClass} />
       </View>
-      <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">{t("expenseName")}</Text>
+      <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">Expense</Text>
         <TextInput value={category} onChangeText={setCategory} editable={!busy} maxLength={100}
-          accessibilityLabel={t("expenseName")} placeholderTextColor={colors.mutedForeground} className={inputClass} />
+          accessibilityLabel="Expense" placeholderTextColor={colors.mutedForeground} className={inputClass} />
       </View>
       {!expense && <View className="flex-row flex-wrap gap-2">
-        {(["suggestionGroceries", "suggestionTransport", "suggestionBills", "suggestionOther"] as const).map(key => <Pressable key={key} disabled={busy} onPress={() => setCategory(t(key))} accessibilityRole="button" accessibilityLabel={t(key)} className="min-h-[44px] justify-center rounded-full bg-secondary px-3"><Text className="text-xs font-medium text-primary">{t(key)}</Text></Pressable>)}
+        {(["Groceries", "Transport", "Bills", "Other"] as const).map(category => <Pressable key={category} disabled={busy} onPress={() => setCategory(category)} accessibilityRole="button" accessibilityLabel={category} className="min-h-[44px] justify-center rounded-full bg-secondary px-3"><Text className="text-xs font-medium text-primary">{category}</Text></Pressable>)}
       </View>}
-      <Checkbox checked={paid} disabled={busy} onPress={() => setPaid(value => !value)} accessibilityLabel={t("paid")}>
-        <Text className="text-sm text-foreground">{t("paid")}</Text>
+      <Checkbox checked={paid} disabled={busy} onPress={() => setPaid(value => !value)} accessibilityLabel="Paid off">
+        <Text className="text-sm text-foreground">Paid off</Text>
       </Checkbox>
-      <Checkbox checked={recurring} disabled={busy} onPress={() => setRecurring(value => !value)} accessibilityLabel={t("expenseRecurring")}>
-        <Text className="text-sm text-foreground">{t("expenseRecurring")}</Text>
+      <Checkbox checked={recurring} disabled={busy} onPress={() => setRecurring(value => !value)} accessibilityLabel="Recurring">
+        <Text className="text-sm text-foreground">Recurring</Text>
       </Checkbox>
-      {!valid && <Text className="text-xs text-muted-foreground">{t("expenseInvalid")}</Text>}
-      {error && <Text accessibilityRole="alert" className="text-xs text-destructive">{t("errorUpdatingExpense")}</Text>}
+      {!valid && <Text className="text-xs text-muted-foreground">Enter an expense name and a valid, non-negative amount.</Text>}
+      {error && <Text accessibilityRole="alert" className="text-xs text-destructive">Failed to update expense.</Text>}
       <View className="flex-row flex-wrap items-center justify-end gap-2">
-        {expense && onDelete && <Pressable onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel={t("expenseDeleteTitle")} className="mr-auto min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">{t("delete")}</Text></Pressable>}
-        <Button variant="secondary" label={t("cancel")} disabled={busy} onPress={close} />
-        {!expense && <Button variant="secondary" label={t("saveAndAddAnother")} disabled={!valid || busy} onPress={() => { void save(true); }} />}
-        <Button label={t("save")} disabled={!valid} busy={busy} onPress={() => { void save(); }} />
+        {expense && onDelete && <Pressable onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Delete expense?" className="mr-auto min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
+        <Button variant="secondary" label="Cancel" disabled={busy} onPress={close} />
+        {!expense && <Button variant="secondary" label={"Save & add another"} disabled={!valid || busy} onPress={() => { void save(true); }} />}
+        <Button label="Save" disabled={!valid} busy={busy} onPress={() => { void save(); }} />
       </View>
     </FormDialog>
-    <ConfirmDialog visible={discard} title={t("discardChangesTitle")} message={t("expenseDiscard")} confirmLabel={t("discard")} cancelLabel={t("keepEditing")} onClose={() => setDiscard(false)} onConfirm={onClose} />
+    <ConfirmDialog visible={discard} title="Discard changes?" message="Your changes to this expense have not been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onClose={() => setDiscard(false)} onConfirm={onClose} />
   </>;
 }

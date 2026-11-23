@@ -12,14 +12,12 @@ import { BackupPasswordDialog } from "./BackupPasswordDialog";
 import { decryptBackup, isEncryptedBackup } from "../lib/backupCrypto";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { Check } from "./AppIcons";
-import { useI18n } from "../lib/i18n";
 import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
   const colors = useThemeColors();
-  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [safety, setSafety] = useState(false);
@@ -86,7 +84,7 @@ export default function SettingsScreen() {
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-28">
       <View className="w-full max-w-md self-center gap-5 px-4 pt-3">
-        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">{t("navSettings")}</Text>
+        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Appearance</Text>
           <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row gap-1 rounded-[18px] bg-secondary p-1">
@@ -105,14 +103,10 @@ export default function SettingsScreen() {
             })}
           </View>
         </View>
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
-          <Text className="text-sm text-muted-foreground">Open system settings to review app permissions and other device options.</Text>
-          <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
-            if (locked.current) return;
-            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select MoneyPlan."));
-          }} />
-        </View>
+        <Button label="Manage app permissions" variant="secondary" disabled={busy} onPress={() => {
+          if (locked.current) return;
+          void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select MoneyPlan."));
+        }} />
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Backups are password-protected. Import replaces current data after confirmation.</Text>
@@ -133,7 +127,7 @@ export default function SettingsScreen() {
               <Text className="text-xs text-muted-foreground">Creator of MoneyPlan</Text>
             </View>
           </View>
-          <Text className="text-sm text-muted-foreground">Plan your month. Track payments. Save.</Text>
+
           <Button variant="secondary" label="GitHub · UranikSejdiu ↗" accessibilityRole="link" onPress={() => { void Linking.openURL("https://github.com/UranikSejdiu").catch(() => toast.error("Could not open GitHub.")); }} />
         </View>
       </View>

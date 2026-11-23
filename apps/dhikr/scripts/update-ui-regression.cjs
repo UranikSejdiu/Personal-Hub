@@ -41,13 +41,13 @@ function fixture(root, file, name, mocks, clock) {
       }
     },
   };
-  const t = key => key;
+
   const base = {
     react: hooks,
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     'expo-router': { useFocusEffect: fn => hooks.useEffect(fn, [fn]) },
-    './i18n': { useI18n: () => ({ t }) },
-    '../lib/i18n': { useI18n: () => ({ t }) },
+
+
     '../lib/theme': { useThemeColors: () => ({ primary: '#fff', primaryForeground: '#000', foreground: '#fff' }) },
     './ui/Typography': { Text: 'Text' },
     './AppIcons': new Proxy({}, { get: (_, key) => key }),
@@ -179,26 +179,26 @@ module.exports = async function verifyUpdateUi(root) {
   }, clock);
   card.render();
   const button = label => card.nodes(node => node.props.accessibilityLabel === label)[0];
-  assert.ok(button('checkForUpdates'), 'A known update must not hide Check for updates');
-  assert.ok(card.nodes(node => node.props.children === 'updateCachedWarning').length);
-  button('checkForUpdates').props.onPress();
+  assert.ok(button('Check for updates'), 'A known update must not hide Check for updates');
+  assert.ok(card.nodes(node => node.props.children === 'Could not check now. Showing the update found during the last successful check.').length);
+  button('Check for updates').props.onPress();
   await flush();
-  assert.equal(errors.at(-1), 'updateCheckFailed');
-  const install = button('downloadAndInstall');
+  assert.equal(errors.at(-1), 'Failed to check for updates');
+  const install = button('Download & Install');
   install.props.onPress(); install.props.onPress();
   assert.equal(downloadCalls, 1);
   card.render();
-  assert.equal(button('checkForUpdates').props.disabled, true);
+  assert.equal(button('Check for updates').props.disabled, true);
   downloadGate.resolve({ exists: true });
   await flush();
   card.render();
   assert.equal(installCalls, 1);
-  assert.ok(button('installNow'));
+  assert.ok(button('Install now'));
   context = { ...context, latest: { ...latest, versionName: '1.2.0' } };
   card.render(); card.render();
-  assert.equal(button('installNow'), undefined, 'A newly detected version must not install the old pending APK');
+  assert.equal(button('Install now'), undefined, 'A newly detected version must not install the old pending APK');
   downloadGate = deferred();
-  button('downloadAndInstall').props.onPress();
+  button('Download & Install').props.onPress();
   card.dispose();
   downloadGate.resolve({ exists: true });
   await flush();

@@ -2,14 +2,12 @@ import { useCallback, useRef, useState } from "react";
 import { AppState, Platform, Switch, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../lib/i18n";
 import { getReminderAccess, openReminderSettings, type ReminderAccess } from "../../lib/reminderAccess";
 import { requestTaskReminderPermission, syncTaskReminders, taskReminderNotificationsEnabled } from "../../lib/taskReminders";
 import { useThemeColors } from "../../lib/theme";
 import { Text } from "../ui/Typography";
 
 export function ReminderSetup() {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const [status, setStatus] = useState<{ access: ReminderAccess | null; notifications: boolean | null } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,12 +37,12 @@ export function ReminderSetup() {
     operation.current = true;
     setBusy(true);
     try {
-      if (kind === "notifications" && enabled && await requestTaskReminderPermission(t("tasksReminderChannel")) === "granted" && await taskReminderNotificationsEnabled()) {
+      if (kind === "notifications" && enabled && await requestTaskReminderPermission("Task reminders") === "granted" && await taskReminderNotificationsEnabled()) {
         await refresh();
-        await syncTaskReminders(t("tasksReminderChannel"));
+        await syncTaskReminders("Task reminders");
       } else await openReminderSettings(kind);
     } catch {
-      if (focused.current) toast.error(t("tasksReminderSettingsFailed"));
+      if (focused.current) toast.error("Couldn’t update reminder settings.");
     } finally {
       await refresh();
       operation.current = false;
@@ -52,22 +50,22 @@ export function ReminderSetup() {
     }
   };
   const options = [
-    { kind: "notifications", label: t("tasksReminderNotifications"), enabled: status.notifications === true, available: status.notifications !== null },
-    { kind: "alarms", label: t("tasksReminderExactAlarms"), enabled: status.access?.exactAlarms ?? false, available: status.access !== null && Number(Platform.Version) >= 31 },
-    { kind: "battery", label: t("tasksReminderBattery"), enabled: status.access?.batteryUnrestricted ?? false, available: status.access !== null },
+    { kind: "notifications", label: "Notifications", enabled: status.notifications === true, available: status.notifications !== null },
+    { kind: "alarms", label: "On-time reminders", enabled: status.access?.exactAlarms ?? false, available: status.access !== null && Number(Platform.Version) >= 31 },
+    { kind: "battery", label: "Unrestricted battery", enabled: status.access?.batteryUnrestricted ?? false, available: status.access !== null },
   ] as const;
   return <View className="gap-2 rounded-xl border border-border bg-card p-3">
-    <Text accessibilityRole="header" className="text-sm font-semibold text-foreground">{t("tasksReminderSetup")}</Text>
+    <Text accessibilityRole="header" className="text-sm font-semibold text-foreground">Reminder delivery</Text>
     <View>
       {options.map((option, index) => <View key={option.kind} className={`min-h-[52px] flex-row items-center justify-between gap-3 ${index < options.length - 1 ? "border-b border-border/60" : ""}`}>
         <Text className="flex-1 text-sm text-foreground">{option.label}</Text>
         <Switch value={option.enabled} disabled={busy || !option.available} hitSlop={9}
           onValueChange={enabled => { void change(option.kind, enabled); }}
-          accessibilityLabel={option.label} accessibilityHint={t("tasksReminderSystemSettings")}
+          accessibilityLabel={option.label} accessibilityHint="Changes may open Android settings."
           accessibilityState={{ checked: option.enabled, disabled: busy || !option.available, busy }}
           trackColor={{ false: colors.input, true: colors.primary }} thumbColor={option.enabled ? colors.primaryForeground : colors.mutedForeground} />
       </View>)}
     </View>
-    <Text className="text-xs text-muted-foreground">{t(status.notifications === null || !status.access ? "tasksReminderSetupUnavailable" : "tasksReminderSystemSettings")}</Text>
+    <Text className="text-xs text-muted-foreground">{status.notifications === null || !status.access ? "Reminder settings need a native build." : "Changes may open Android settings."}</Text>
   </View>;
 }

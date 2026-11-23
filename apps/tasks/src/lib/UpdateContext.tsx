@@ -12,7 +12,6 @@ import { toast } from "sonner-native";
 import { AppState, Platform } from "react-native";
 import * as updater from "./updater";
 import type { UpdateInfo, CheckResult } from "./updater";
-import { useI18n } from "./i18n";
 
 interface UpdateContextValue {
   hasUpdate: boolean;
@@ -26,8 +25,6 @@ interface UpdateContextValue {
 const UpdateContext = createContext<UpdateContextValue | null>(null);
 
 export function UpdateProvider({ children }: { children: ReactNode }) {
-  const { t } = useI18n();
-  const tRef = useRef(t);
   const [result, setResult] = useState<CheckResult | null>(null);
   const latest = result?.status === "update" ? result.latest : result?.status === "error" ? result.cachedLatest ?? null : null;
   const hasUpdate = latest !== null;
@@ -37,9 +34,6 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const notifiedVersionRef = useRef<string | null>(null);
   const inflightRef = useRef<Promise<CheckResult> | null>(null);
 
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
 
   const runCheck = useCallback(async (): Promise<CheckResult> => {
     if (inflightRef.current) return inflightRef.current;
@@ -54,7 +48,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           if (notifiedVersionRef.current !== result.latest.versionName) {
             notifiedVersionRef.current = result.latest.versionName;
             toast.success(
-              tRef.current("updateAvailableToast", { version: result.latest.versionName })
+              `New version ${result.latest.versionName} is available.`
             );
           }
         }

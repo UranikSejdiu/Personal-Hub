@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";
 import { X } from "./AppIcons";
 import { useThemeVariables } from "../lib/theme";
-import { useI18n } from "../lib/i18n";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -32,7 +31,6 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
-  const { t } = useI18n();
   const [isConfirming, setIsConfirming] = useState(false);
   const confirmingRef = useRef(false);
 
@@ -40,8 +38,8 @@ export function ConfirmDialog({
     if (!confirmingRef.current) onClose();
   };
 
-  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
-  const resolvedCancelLabel = cancelLabel ?? t("cancel");
+  const resolvedConfirmLabel = confirmLabel ?? "Confirm";
+  const resolvedCancelLabel = cancelLabel ?? "Cancel";
 
   const handleConfirm = async () => {
     if (confirmingRef.current) return;
@@ -51,7 +49,7 @@ export function ConfirmDialog({
 
       await onConfirm();
     } catch {
-      toast.error(t("saveFailed"));
+      toast.error("Failed to save.");
     } finally {
       confirmingRef.current = false;
       setIsConfirming(false);
@@ -82,7 +80,7 @@ export function ConfirmDialog({
               {title}
             </Text>
             <IconButton icon={X} className="ml-2" onPress={handleClose} disabled={isConfirming}
-              accessibilityState={{ disabled: isConfirming }} accessibilityLabel={t("cancel")} />
+              accessibilityState={{ disabled: isConfirming }} accessibilityLabel="Cancel" />
           </View>
 
           <ScrollView className="mt-2 grow-0" contentContainerClassName="py-1">

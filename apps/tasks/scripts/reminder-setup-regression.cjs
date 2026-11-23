@@ -20,14 +20,14 @@ module.exports = async function verifyReminderSetup(root) {
       useRef(initialValue) { const i=cursor++; return slots[i]??={current:initialValue}; },
       useCallback(fn,deps) { const i=cursor++; if(!slots[i]||!same(slots[i].deps,deps)) slots[i]={deps,value:fn}; return slots[i].value; },
     };
-    const t = key=>key;
+
     const mocks = {
       react,
       'react/jsx-runtime': {jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},
       'react-native': { View:'View',Switch:'Switch',Platform:{OS:'android',Version:env.version},AppState:{addEventListener:(_name,fn)=>{listener=fn;return {remove(){listener=null;}};}} },
       'expo-router': {useFocusEffect:fn=>{focus=fn;}},
       'sonner-native': {toast:{error:message=>errors.push(message)}},
-      '../../lib/i18n': {useI18n:()=>({t})},
+
       '../../lib/theme': {useThemeColors:()=>({})},
       '../ui/Typography': {Text:'Text'},
       '../../lib/reminderAccess': {
@@ -57,7 +57,7 @@ module.exports = async function verifyReminderSetup(root) {
     };
     render();return view;
   }
-  const notifications='tasksReminderNotifications',alarms='tasksReminderExactAlarms',battery='tasksReminderBattery';
+  const notifications='Notifications',alarms='On-time reminders',battery='Unrestricted battery';
   {
     const h=fixture();await h.settle();
     assert.equal(h.nodes('Switch').length,3);
@@ -90,7 +90,7 @@ module.exports = async function verifyReminderSetup(root) {
   }
   {
     const h=fixture();await h.settle();h.failPermission(true);h.change(notifications,true);await h.settle();
-    assert.deepEqual(h.errors,['tasksReminderSettingsFailed']);assert.ok(h.nodes('Switch').every(n=>!n.props.disabled));
+    assert.deepEqual(h.errors,['Couldn’t update reminder settings.']);assert.ok(h.nodes('Switch').every(n=>!n.props.disabled));
     h.failPermission(false);h.change(notifications,true);await h.settle();assert.equal(h.switch(notifications).value,true,'A failed request can be retried');h.dispose();
   }
   {

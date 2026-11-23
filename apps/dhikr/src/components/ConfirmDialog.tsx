@@ -7,7 +7,6 @@ import { toast } from "sonner-native";
 import { X } from "./AppIcons";
 import { useHaptics } from "../hooks/useHaptics";
 import { useThemeColors, useThemeVariables } from "../lib/theme";
-import { useI18n } from "../lib/i18n";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -34,7 +33,6 @@ export function ConfirmDialog({
   const colors = useThemeColors();
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
-  const { t } = useI18n();
   const [isConfirming, setIsConfirming] = useState(false);
   const confirmingRef = useRef(false);
 
@@ -42,8 +40,8 @@ export function ConfirmDialog({
     if (!confirmingRef.current) onClose();
   };
 
-  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
-  const resolvedCancelLabel = cancelLabel ?? t("cancel");
+  const resolvedConfirmLabel = confirmLabel ?? "Confirm";
+  const resolvedCancelLabel = cancelLabel ?? "Cancel";
 
   const handleConfirm = async () => {
     if (confirmingRef.current) return;
@@ -53,7 +51,7 @@ export function ConfirmDialog({
       void (destructive ? haptics.warning() : haptics.light());
       await onConfirm();
     } catch {
-      toast.error(t("saveFailed"));
+      toast.error("Failed to save.");
     } finally {
       confirmingRef.current = false;
       setIsConfirming(false);
@@ -90,7 +88,7 @@ export function ConfirmDialog({
               className="ml-2 h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("cancel")}
+              accessibilityLabel="Cancel"
             >
               <X size={16} color={colors.mutedForeground} />
             </Pressable>

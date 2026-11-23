@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Pressable, Platform } from "react-native";
 import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
 import { toast } from "sonner-native";
-import { useI18n } from "../lib/i18n";
 import { useThemeColors } from "../lib/theme";
 import { useUpdate } from "../lib/UpdateContext";
 import { downloadApk, installApk, openInstallSettings } from "../lib/updater";
@@ -12,7 +11,6 @@ import type { File } from "expo-file-system";
 type UpdateState = "idle" | "downloading" | "ready";
 
 export function UpdateCard() {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const { hasUpdate, latest, currentVersion, checking, result, refresh } = useUpdate();
   const [state, setState] = useState<UpdateState>("idle");
@@ -43,13 +41,13 @@ export function UpdateCard() {
     if (installInFlightRef.current) return;
     const result = await refresh();
     if (result.status === "up-to-date") {
-      toast.success(t("updateUpToDate"));
+      toast.success("You're up to date");
     } else if (result.status === "no-releases") {
-      toast.info(t("updateNoReleases"));
+      toast.info("No installable release is available yet");
     } else if (result.status === "error") {
-      toast.error(t("updateCheckFailed"));
+      toast.error("Failed to check for updates");
     }
-  }, [refresh, t]);
+  }, [refresh]);
 
   const handleManualInstall = useCallback(async () => {
     const apk = pendingApkRef.current;
@@ -64,7 +62,7 @@ export function UpdateCard() {
       await installApk(apk);
       if (!mountedRef.current) return;
       setInstallFailed(false);
-      toast.success(t("updateInstallerOpened"));
+      toast.success("Update installer opened");
     } catch {
       if (!mountedRef.current) return;
       if (!apk.exists) {
@@ -72,11 +70,11 @@ export function UpdateCard() {
         setState("idle");
       }
       setInstallFailed(true);
-      toast.error(t("updateInstallFailed"));
+      toast.error("Could not open the update installer.");
     } finally {
       installInFlightRef.current = false;
     }
-  }, [latest, t]);
+  }, [latest]);
 
   const handleInstall = useCallback(async () => {
     if (!latest || installInFlightRef.current) return;
@@ -98,24 +96,24 @@ export function UpdateCard() {
         // Keep the APK around so the user can retry from the "ready" state if
         // they cancel the system installer dialog.
         setState("ready");
-        toast.success(t("updateInstallerOpened"));
+        toast.success("Update installer opened");
       } catch {
         if (!mountedRef.current) return;
         setInstallFailed(true);
         setState(apk.exists ? "ready" : "idle");
         if (!apk.exists) pendingApkRef.current = null;
-        toast.error(t("updateInstallFailed"));
+        toast.error("Could not open the update installer.");
       }
     } catch (error) {
       if (!mountedRef.current) return;
       const msg = error instanceof Error ? error.message : String(error);
-      toast.error(msg || t("updateCheckFailed"));
+      toast.error(msg || "Failed to check for updates");
       setState("idle");
     } finally {
       installInFlightRef.current = false;
       if (mountedRef.current) setDownloadProgress(null);
     }
-  }, [latest, t]);
+  }, [latest]);
 
   if (Platform.OS !== "android") return null;
 
@@ -123,27 +121,27 @@ export function UpdateCard() {
     <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-3">
       <View className="flex-row items-center gap-2">
         <Rocket size={16} color={colors.primary} />
-        <Text className="text-sm font-semibold text-foreground">{t("updatesTitle")}</Text>
+        <Text className="text-sm font-semibold text-foreground">Updates</Text>
       </View>
 
       {result?.status === "error" ? (
         <Text accessibilityRole="alert" className="text-xs text-muted-foreground">
-          {t(result.cachedLatest ? "updateCachedWarning" : "updateCheckFailed")}
+          {result.cachedLatest ? "Could not check now. Showing the update found during the last successful check." : "Failed to check for updates"}
         </Text>
       ) : result?.status === "up-to-date" ? (
-        <Text className="text-xs text-muted-foreground">{t("updateUpToDate")}</Text>
+        <Text className="text-xs text-muted-foreground">You&apos;re up to date</Text>
       ) : result?.status === "no-releases" ? (
-        <Text className="text-xs text-muted-foreground">{t("updateNoReleases")}</Text>
+        <Text className="text-xs text-muted-foreground">No installable release is available yet</Text>
       ) : null}
       {result?.checkedAt ? (
         <Text className="text-xs text-muted-foreground">
-          {t("updateLastChecked", { time: new Date(result.checkedAt).toLocaleString() })}
+          {`Last successful check: ${new Date(result.checkedAt).toLocaleString("en")}`}
         </Text>
       ) : null}
 
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center gap-2">
-          <Text className="text-xs text-muted-foreground">{t("currentVersion")}</Text>
+          <Text className="text-xs text-muted-foreground">Current version</Text>
           <View className="rounded-full bg-muted/60 px-2 py-0.5">
             <Text className="text-[11px] font-semibold text-foreground">v{currentVersion}</Text>
           </View>
@@ -151,7 +149,7 @@ export function UpdateCard() {
         {hasUpdate && latest ? (
           <View className="rounded-full bg-primary/15 px-2 py-0.5">
             <Text className="text-[11px] font-semibold text-primary">
-              {t("updateAvailable")} v{latest.versionName}
+              Update available v{latest.versionName}
             </Text>
           </View>
         ) : null}
@@ -160,12 +158,12 @@ export function UpdateCard() {
       {hasUpdate && latest ? (
         <View className="gap-3">
           <Text className="text-xs text-muted-foreground">
-            {t("newVersionReady", { version: latest.versionName })}
+            {`New version ${latest.versionName} is ready to install.`}
           </Text>
           {latest.body ? (
             <View className="rounded-lg border border-border bg-muted/40 p-3">
               <Text className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {t("changelog")}
+                Changelog
               </Text>
               <Text className="text-xs text-muted-foreground">{latest.body}</Text>
             </View>
@@ -180,7 +178,7 @@ export function UpdateCard() {
                 />
               </View>
               <Text className="text-center text-[11px] text-muted-foreground">
-                {t("downloadingUpdate", { percent: downloadProgress })}
+                {`Downloading... ${downloadProgress}%`}
               </Text>
             </View>
           ) : null}
@@ -190,10 +188,10 @@ export function UpdateCard() {
               onPress={() => void handleInstall()}
               className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
               accessibilityRole="button"
-              accessibilityLabel={t("downloadAndInstall")}
+              accessibilityLabel={"Download & Install"}
             >
               <Download size={14} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">{t("downloadAndInstall")}</Text>
+              <Text className="text-sm font-medium text-primary-foreground">{"Download & Install"}</Text>
             </Pressable>
           )}
 
@@ -202,17 +200,17 @@ export function UpdateCard() {
               onPress={() => void handleManualInstall()}
               className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
               accessibilityRole="button"
-              accessibilityLabel={t("installNow")}
+              accessibilityLabel="Install now"
             >
               <Download size={14} color={colors.primaryForeground} />
-              <Text className="text-sm font-medium text-primary-foreground">{t("installNow")}</Text>
+              <Text className="text-sm font-medium text-primary-foreground">Install now</Text>
             </Pressable>
           )}
 
           {installFailed && (
             <View className="gap-2">
               <Text className="text-center text-[11px] text-muted-foreground">
-                {t("updateInstallSettingsHint")}
+                If Android blocked the installer, check the install permission for this app.
               </Text>
               <Pressable
                 onPress={() => {
@@ -220,9 +218,9 @@ export function UpdateCard() {
                 }}
                 className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
                 accessibilityRole="button"
-                accessibilityLabel={t("updateAllowInstalls")}
+                accessibilityLabel="Open install settings"
               >
-                <Text className="text-sm font-medium text-foreground">{t("updateAllowInstalls")}</Text>
+                <Text className="text-sm font-medium text-foreground">Open install settings</Text>
               </Pressable>
             </View>
           )}
@@ -232,10 +230,10 @@ export function UpdateCard() {
               onPress={() => void handleInstall()}
               className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
               accessibilityRole="button"
-              accessibilityLabel={t("updateDownloadAgain")}
+              accessibilityLabel="Download again"
             >
               <Download size={14} color={colors.foreground} />
-              <Text className="text-sm font-medium text-foreground">{t("updateDownloadAgain")}</Text>
+              <Text className="text-sm font-medium text-foreground">Download again</Text>
             </Pressable>
           )}
 
@@ -246,7 +244,7 @@ export function UpdateCard() {
           disabled={checking || state === "downloading"}
           className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-primary/10 p-3 disabled:opacity-50"
           accessibilityRole="button"
-          accessibilityLabel={t("checkForUpdates")}
+          accessibilityLabel="Check for updates"
         >
           {checking ? (
             <Loader2 size={14} color={colors.primary} className="animate-spin" />
@@ -254,7 +252,7 @@ export function UpdateCard() {
             <RefreshCw size={14} color={colors.primary} />
           )}
           <Text className="text-sm font-medium text-primary">
-            {checking ? t("checkingForUpdates") : t("checkForUpdates")}
+            {checking ? "Checking for updates..." : "Check for updates"}
           </Text>
         </Pressable>
     </View>

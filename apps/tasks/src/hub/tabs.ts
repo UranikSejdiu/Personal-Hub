@@ -1,31 +1,29 @@
-import type { TKey } from "../lib/i18n";
-
 /**
  * Tab bar definitions per module, shared by the real layouts and the onboarding
  * tutorial so the tour can never show a tab bar the app does not have.
  */
 export interface HubTabDef {
   id: string;
-  labelKey: TKey;
+  label: string;
   icon: string;
 }
 
 export const BUDGET_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "navDashboard", icon: "view-dashboard" },
-  { id: "savings", labelKey: "navSavings", icon: "piggy-bank" },
-  { id: "loans", labelKey: "navLoans", icon: "calculator" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
+  { id: "index", label: "Dashboard", icon: "view-dashboard" },
+  { id: "savings", label: "Savings", icon: "piggy-bank" },
+  { id: "loans", label: "Loans & cards", icon: "calculator" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export const NOTES_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "navNotes", icon: "note-text" },
-  { id: "archive", labelKey: "notesArchiveTitle", icon: "archive" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
+  { id: "index", label: "Notes", icon: "note-text" },
+  { id: "archive", label: "Archive", icon: "archive" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export const TASKS_TABS: HubTabDef[] = [
-  { id: "index", labelKey: "tutorialTasks", icon: "check-square" },
-  { id: "settings", labelKey: "navSettings", icon: "cog" },
+  { id: "index", label: "Tasks", icon: "check-square" },
+  { id: "settings", label: "Settings", icon: "cog" },
 ];
 
 export function hubTabs(appId: string): HubTabDef[] {

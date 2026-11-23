@@ -6,7 +6,6 @@ import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } 
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n, type TKey } from "../lib/i18n";
 import {
   loadNotesPage,
   type Note,
@@ -31,39 +30,17 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 180 },
 });
 
-const FILTERS: { kind: NoteKind | undefined; labelKey: TKey }[] = [
-  { kind: undefined, labelKey: "notesAll" },
-  { kind: "text", labelKey: "notesFilterText" },
-  { kind: "checklist", labelKey: "notesFilterChecklist" },
+const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
+  { kind: undefined, label: "All notes" },
+  { kind: "text", label: "Notes" },
+  { kind: "checklist", label: "Checklists" },
 ];
 
-function splitIntoColumns(items: Note[], count: number): Note[][] {
-  const cols: Note[][] = Array.from({ length: count }, () => []);
-  for (const item of items) {
-    let target = 0;
-    for (let i = 1; i < cols.length; i++) {
-      if (cols[i].length < cols[target].length) target = i;
-    }
-    cols[target].push(item);
-  }
-  return cols;
-}
-
-function zipColumnsToRows(cols: Note[][]): (Note | null)[][] {
-  const maxLen = Math.max(0, ...cols.map((c) => c.length));
-  const rows: (Note | null)[][] = [];
-  for (let i = 0; i < maxLen; i++) {
-    rows.push(cols.map((c) => c[i] ?? null));
-  }
-  return rows;
-}
-
 type NotesListRow =
-  | { type: "section"; key: string; labelKey: TKey; spacedTop?: boolean }
+  | { type: "section"; key: string; label: string; spacedTop?: boolean }
   | { type: "notes"; key: string; notes: (Note | null)[] };
 
 export default function NotesListScreen({ archived = false }: { archived?: boolean }) {
-  const { t } = useI18n();
   const router = useRouter();
   const colors = useThemeColors();
   const [notes, setNotes] = useState<Note[]>([]);
@@ -125,7 +102,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           pagingRef.current = { offset: 0, hasMore: false, loading: true };
         }
         setLoadFailed(true);
-        toast.error(t("errorLoadingData"));
+        toast.error("Failed to load data.");
       } finally {
         if (seq === searchSeqRef.current) {
           pagingRef.current.loading = false;
@@ -133,7 +110,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         }
       }
     },
-    [archived, t]
+    [archived]
   );
 
   const debouncedSearch = useCallback(
@@ -243,55 +220,41 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
     [router, archived]
   );
 
-  const pinnedNotes = useMemo(
-    () => notes.filter((n) => n.is_pinned),
-    [notes]
-  );
-  const otherNotes = useMemo(
-    () => archived ? notes : notes.filter((n) => !n.is_pinned),
-    [notes, archived]
-  );
-
-  const columns = viewMode === "grid" ? 2 : 1;
-  const pinnedCols = useMemo(() => splitIntoColumns(pinnedNotes, columns), [pinnedNotes, columns]);
-  const otherCols = useMemo(() => splitIntoColumns(otherNotes, columns), [otherNotes, columns]);
-
-  const hasPinned = !archived && pinnedNotes.length > 0;
-
   const listData = useMemo<NotesListRow[]>(() => {
-    if (notes.length === 0) return [];
     const data: NotesListRow[] = [];
-    const pushRows = (cols: Note[][], prefix: string) => {
-      for (const row of zipColumnsToRows(cols)) {
-        data.push({
-          type: "notes",
-          key: `${prefix}-${row.map((n, i) => (n ? n.id : `e${i}`)).join("_")}`,
-          notes: row,
-        });
+    const columns = viewMode === "grid" ? 2 : 1;
+    const appendRows = (group: Note[]) => {
+      for (let i = 0; i < group.length; i += columns) {
+        const first = group[i];
+        const row = columns === 1 ? [first] : [first, group[i + 1] ?? null];
+        data.push({ type: "notes", key: String(first.id), notes: row });
       }
     };
-    if (hasPinned) {
-      data.push({ type: "section", key: "section-pinned", labelKey: "notesPinnedSection" });
-      pushRows(pinnedCols, "pinned");
-      data.push({ type: "section", key: "section-others", labelKey: "notesAll", spacedTop: true });
-      pushRows(otherCols, "other");
+    const pinned = archived ? [] : notes.filter(note => note.is_pinned);
+    if (pinned.length) {
+      data.push({ type: "section", key: "section-pinned", label: "Pinned" });
+      appendRows(pinned);
+      if (pinned.length < notes.length) {
+        data.push({ type: "section", key: "section-others", label: "Unpinned", spacedTop: true });
+        appendRows(notes.filter(note => !note.is_pinned));
+      }
     } else {
-      data.push({ type: "section", key: "section-all", labelKey: archived ? "notesArchivedList" : "notesAll" });
-      pushRows(otherCols, "other");
+      appendRows(notes);
     }
     return data;
-  }, [archived, notes.length, hasPinned, pinnedCols, otherCols]);
+  }, [archived, notes, viewMode]);
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<NotesListRow>) => {
       if (item.type === "section") {
         return (
           <Text
+            accessibilityRole="header"
             className={`mb-3 text-[11px] font-semibold uppercase tracking-[1.6px] text-muted-foreground ${
               item.spacedTop ? "mt-3" : ""
             }`}
           >
-            {t(item.labelKey)}
+            {item.label}
           </Text>
         );
       }
@@ -302,7 +265,6 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               <View key={note.id} className="flex-1">
                 <NoteCard
                   note={note}
-                  untitledLabel={t("notesUntitled")}
                   layout={viewMode}
                   onPress={handleNotePress}
                 />
@@ -314,7 +276,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         </View>
       );
     },
-    [t, handleNotePress, viewMode]
+    [handleNotePress, viewMode]
   );
 
   const listEmpty = useMemo(
@@ -322,16 +284,11 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       <View className="items-center gap-3 py-20">
         {archived ? <Archive size={40} color={colors.mutedForeground} /> : <FileText size={40} color={colors.mutedForeground} />}
         <Text className="text-sm text-muted-foreground">
-          {searchQuery || kindFilter ? t("notesNoResults") : t(archived ? "notesArchiveEmpty" : "notesEmpty")}
+          {searchQuery || kindFilter ? "No notes found" : (archived ? "No archived notes" : "No notes yet")}
         </Text>
-        {!searchQuery && !kindFilter && (
-          <Text className="text-sm text-muted-foreground">
-            {t(archived ? "notesArchiveEmptyHint" : "notesEmptyHint")}
-          </Text>
-        )}
       </View>
     ),
-    [archived, colors.mutedForeground, searchQuery, kindFilter, t]
+    [archived, colors.mutedForeground, searchQuery, kindFilter]
   );
 
   return (
@@ -339,7 +296,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       <View className="w-full max-w-md self-center gap-4 px-5 max-[360px]:px-4 pt-4 pb-2">
         <View className="flex-row items-center justify-between gap-3">
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold tracking-[-0.6px] text-foreground">
-            {t(archived ? "notesArchiveTitle" : "notesTitle")}
+            {archived ? "Archive" : "My Notes"}
           </Text>
           <Pressable onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
@@ -349,7 +306,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           </Pressable>
           <Pressable onPress={() => { router.push("/(notes)/settings"); }}
             className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
-            accessibilityRole="button" accessibilityLabel={t("navSettings")}>
+            accessibilityRole="button" accessibilityLabel="Settings">
             <Settings size={25} color={colors.mutedForeground} />
           </Pressable>
         </View>
@@ -363,8 +320,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               searchRef.current = v;
               debouncedSearch(v);
             }}
-            placeholder={t(archived ? "notesArchiveSearchPlaceholder" : "notesSearchPlaceholder")}
-            accessibilityLabel={t(archived ? "notesArchiveSearchPlaceholder" : "notesSearchPlaceholder")}
+            placeholder={archived ? "Search archived notes..." : "Search notes..."}
+            accessibilityLabel={archived ? "Search archived notes..." : "Search notes..."}
             placeholderTextColor={colors.mutedForeground}
             className="min-h-[48px] min-w-0 flex-1 text-base text-foreground"
           />
@@ -374,7 +331,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("clear")}
+              accessibilityLabel="Clear"
             >
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
@@ -383,9 +340,9 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         <View className="flex-row flex-wrap gap-2 pb-2">
           {FILTERS.map(option => (
             <Pressable key={option.kind ?? "all"} onPress={() => handleFilter(option.kind)}
-              accessibilityRole="button" accessibilityLabel={t(option.labelKey)} accessibilityState={{ selected: kindFilter === option.kind }}
+              accessibilityRole="button" accessibilityLabel={option.label} accessibilityState={{ selected: kindFilter === option.kind }}
               className={`min-h-[48px] items-center justify-center rounded-full px-4 py-2 ${kindFilter === option.kind ? "bg-foreground" : "bg-card"}`}>
-              <Text className={`text-sm ${kindFilter === option.kind ? "font-semibold text-background" : "text-muted-foreground"}`}>{t(option.labelKey)}</Text>
+              <Text className={`text-sm ${kindFilter === option.kind ? "font-semibold text-background" : "text-muted-foreground"}`}>{option.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -396,15 +353,15 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         data={listData}
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
-        ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel={t("loading")} /> : loadFailed ? (
-          <Pressable onPress={() => { void load(searchRef.current, sortRef.current); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel={t("retry")}>
-            <Text className="text-foreground">{t("retry")}</Text>
+        ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel="Loading…" /> : loadFailed ? (
+          <Pressable onPress={() => { void load(searchRef.current, sortRef.current); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel="Retry">
+            <Text className="text-foreground">Retry</Text>
           </Pressable>
         ) : listEmpty}
         onEndReached={() => { if (!loadFailed) void load(searchRef.current, sortRef.current, true); }}
         onEndReachedThreshold={0.5}
-        ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel={t("loading")} /> : notes.length > 0 && loadFailed ? (
-          <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel={t("retry")}><Text className="text-foreground">{t("retry")}</Text></Pressable>
+        ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel="Loading…" /> : notes.length > 0 && loadFailed ? (
+          <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel="Retry"><Text className="text-foreground">Retry</Text></Pressable>
         ) : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(180, insets.bottom + 164) }]}
@@ -430,7 +387,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         />
         <Pressable onPress={handleNew} className="h-16 w-16 self-end items-center justify-center rounded-full shadow-lg active:opacity-80"
           style={{ backgroundColor: colors.action }} accessibilityRole="button"
-          accessibilityState={{ expanded: chooserVisible }} accessibilityLabel={t(chooserVisible ? "cancel" : "notesNew")}>
+          accessibilityState={{ expanded: chooserVisible }} accessibilityLabel={chooserVisible ? "Cancel" : "New Note"}>
           <Animated.View style={creationIconStyle}>
             <Plus size={28} color={colors.actionForeground} />
           </Animated.View>

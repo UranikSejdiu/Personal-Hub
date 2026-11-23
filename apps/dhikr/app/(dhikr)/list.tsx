@@ -8,7 +8,6 @@ import { Card } from "../../src/components/ui/Card";
 import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
 import { useHaptics } from "../../src/hooks/useHaptics";
 import { loadDhikrs, deleteDhikr, reorderDhikrs, flushDhikrWrites, type Dhikr } from "../../src/lib/dhikr";
 import { setSelectedDhikrId, clearSelectedDhikrIdIfMissing } from "../../src/lib/dhikrSelection";
@@ -36,13 +35,12 @@ function applyOrder(items: Dhikr[], order: number[]): Dhikr[] {
   );
 }
 
-const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging, saving, t, onMove, onEdit, onDelete, onSelect }: {
+const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging, saving, onMove, onEdit, onDelete, onSelect }: {
   item: Dhikr;
   index: number;
   count: number;
   arranging: boolean;
   saving: boolean;
-  t: ReturnType<typeof useI18n>["t"];
   onMove: (id: number, direction: -1 | 1) => void;
   onEdit: (dhikr: Dhikr) => void;
   onDelete: (dhikr: Dhikr) => void;
@@ -67,16 +65,16 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
           className="min-h-[56px] min-w-0 flex-1 justify-center gap-1.5 rounded-lg py-1 active:opacity-70"
           accessible
           accessibilityRole="button"
-          accessibilityLabel={t("openDhikrNamed", { name: item.name })}
+          accessibilityLabel={`Open ${item.name}`}
           accessibilityState={{ disabled: arranging || saving }}
         >
           <Text className="text-[15px] font-semibold text-foreground">{item.name}</Text>
           <View className="flex-row flex-wrap items-center justify-between gap-2">
-            <Text className="text-xs text-muted-foreground">{t("total")}: {item.total_count.toLocaleString()}</Text>
+            <Text className="text-xs text-muted-foreground">Total: {item.total_count.toLocaleString("en")}</Text>
             <View className="max-w-full flex-row flex-wrap items-center gap-1">
-              <Text className="text-xs text-muted-foreground">{t("dhikrToday")}</Text>
+              <Text className="text-xs text-muted-foreground">Today</Text>
               <Text className={goalComplete ? "shrink text-xs font-semibold text-success" : "shrink text-xs font-semibold text-primary"}>
-                {item.daily_count.toLocaleString()}{hasGoal ? ` / ${dailyLimit.toLocaleString()}` : ""}
+                {item.daily_count.toLocaleString("en")}{hasGoal ? ` / ${dailyLimit.toLocaleString("en")}` : ""}
               </Text>
             </View>
           </View>
@@ -85,25 +83,25 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
           <View className="flex-row rounded-xl bg-muted/40">
             <IconButton icon={MoveUpIcon} onPress={() => onMove(item.id, -1)}
               disabled={saving || index === 0}
-              accessibilityLabel={t("dhikrMoveUp", { name: item.name })} />
+              accessibilityLabel={`Move ${item.name} up`} />
             <IconButton icon={ChevronDown} onPress={() => onMove(item.id, 1)}
               disabled={saving || index === count - 1}
-              accessibilityLabel={t("dhikrMoveDown", { name: item.name })} />
+              accessibilityLabel={`Move ${item.name} down`} />
           </View>
         ) : (
           <View ref={triggerRef} collapsable={false}>
             <IconButton icon={MoreHorizontal} onPress={() => { void haptics.light(); open(); }} disabled={saving}
               selected={anchor !== null}
-              accessibilityLabel={t("dhikrActionsFor", { name: item.name })}
+              accessibilityLabel={`Actions for ${item.name}`}
               accessibilityState={{ expanded: anchor !== null }} />
           </View>
         )}
       </View>
       </View>
       <AnchoredMenu anchor={anchor} onClose={close} items={[
-        { key: "edit", label: t("editDhikr"), icon: Pencil,
+        { key: "edit", label: "Edit Dhikr", icon: Pencil,
           onPress: () => { void haptics.light(); onEdit(item); } },
-        { key: "delete", label: t("delete"), icon: Trash2, destructive: true,
+        { key: "delete", label: "Delete", icon: Trash2, destructive: true,
           onPress: () => { void haptics.warning(); onDelete(item); } },
       ]} />
     </View>
@@ -111,7 +109,6 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
 });
 
 export default function DhikrListScreen() {
-  const { t } = useI18n();
   const haptics = useHaptics();
   const colors = useThemeColors();
   const router = useRouter();
@@ -152,12 +149,12 @@ export default function DhikrListScreen() {
     } catch {
       if (focusedRef.current && sequence === loadSequenceRef.current) {
         setLoadFailed(true);
-        toast.error(t("errorLoadingData"));
+        toast.error("Failed to load data.");
       }
     } finally {
       if (focusedRef.current && sequence === loadSequenceRef.current) setIsLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
@@ -219,7 +216,7 @@ export default function DhikrListScreen() {
         setDraftOrder(null);
       } catch {
         // Keep the visible draft for retry while the list remains focused.
-        toast.error(t("errorReordering"));
+        toast.error("Failed to reorder.");
       } finally {
         operationRef.current = draftOrderRef.current ? "arranging" : "idle";
         setIsSaving(false);
@@ -228,20 +225,20 @@ export default function DhikrListScreen() {
     pendingSaveRef.current = save;
     await save;
     if (pendingSaveRef.current === save) pendingSaveRef.current = null;
-  }, [cancelArrange, dhikrs, t]);
+  }, [cancelArrange, dhikrs]);
 
   const handleSelect = useCallback(async (dhikr: Dhikr) => {
     if (operationRef.current !== "idle") return;
     try {
       await setSelectedDhikrId(dhikr.id);
     } catch {
-      toast.error(t("errorSavingData"));
+      toast.error("Failed to save data.");
       return;
     }
     if (operationRef.current !== "idle" || !focusedRef.current) return;
     void haptics.light();
     router.push("/(dhikr)");
-  }, [haptics, router, t]);
+  }, [haptics, router]);
 
   const handleAdd = useCallback(() => {
     if (operationRef.current !== "idle") return;
@@ -268,52 +265,47 @@ export default function DhikrListScreen() {
       try {
         await clearSelectedDhikrIdIfMissing(remaining.map((item) => item.id));
       } catch {
-        toast.error(t("errorSavingData"));
+        toast.error("Failed to save data.");
       }
     } catch {
-      toast.error(t("errorDeletingDhikr"));
+      toast.error("Failed to delete dhikr.");
     }
-  }, [dhikrToDelete, dhikrs, t]);
+  }, [dhikrToDelete, dhikrs]);
 
   const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Dhikr>) => (
     <DhikrListRow item={item} index={index} count={displayedDhikrs.length} arranging={arranging} saving={isSaving}
-      t={t} onMove={moveDhikr} onEdit={handleEdit} onDelete={handleDelete} onSelect={handleSelect} />
-  ), [arranging, displayedDhikrs.length, handleDelete, handleEdit, handleSelect, isSaving, moveDhikr, t]);
+      onMove={moveDhikr} onEdit={handleEdit} onDelete={handleDelete} onSelect={handleSelect} />
+  ), [arranging, displayedDhikrs.length, handleDelete, handleEdit, handleSelect, isSaving, moveDhikr]);
 
   return (
     <>
       <View className="flex-1 bg-background">
         <View className="w-full max-w-md flex-1 self-center px-4 pt-3">
-          <View className="mb-3 gap-1">
-            <View className="min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
-              <Text className="text-xl font-semibold text-foreground">{t(arranging ? "dhikrArrangeTitle" : "myDhikrs")}</Text>
-              {arranging ? (
-                <View className="flex-row items-center gap-1">
-                  <Pressable onPress={cancelArrange} disabled={isSaving}
-                    className="min-h-[44px] items-center justify-center rounded-lg px-3 active:bg-muted"
-                    accessible accessibilityRole="button" accessibilityLabel={t("cancel")}
-                    accessibilityState={{ disabled: isSaving }}>
-                    <Text className="text-sm font-medium text-muted-foreground">{t("cancel")}</Text>
+          <View className="mb-3 min-h-[44px] flex-row flex-wrap items-center justify-between gap-2">
+            <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
+            {arranging ? (
+              <View className="flex-row items-center gap-1">
+                <Pressable onPress={cancelArrange} disabled={isSaving}
+                  className="min-h-[44px] items-center justify-center rounded-lg px-3 active:bg-muted"
+                  accessible accessibilityRole="button" accessibilityLabel="Cancel"
+                  accessibilityState={{ disabled: isSaving }}>
+                  <Text className="text-sm font-medium text-muted-foreground">Cancel</Text>
+                </Pressable>
+                <Button label={isSaving ? "Saving…" : "Done"} onPress={finishArrange} busy={isSaving} className="px-4 py-2" />
+              </View>
+            ) : (
+              <View className="flex-row items-center gap-1">
+                {dhikrs.length > 1 && (
+                  <Pressable onPress={beginArrange} disabled={isSaving || isLoading || loadFailed}
+                    className="min-h-[44px] items-center justify-center rounded-lg px-2 active:bg-muted"
+                    accessible accessibilityRole="button" accessibilityLabel="Arrange"
+                    accessibilityState={{ disabled: isSaving || isLoading || loadFailed }}>
+                    <Text className="text-sm font-semibold text-primary">Arrange</Text>
                   </Pressable>
-                  <Button label={t(isSaving ? "saving" : "dhikrArrangeDone")} onPress={finishArrange} busy={isSaving} className="px-4 py-2" />
-                </View>
-              ) : (
-                <View className="flex-row items-center gap-1">
-                  {dhikrs.length > 1 && (
-                    <Pressable onPress={beginArrange} disabled={isSaving || isLoading || loadFailed}
-                      className="min-h-[44px] items-center justify-center rounded-lg px-2 active:bg-muted"
-                      accessible accessibilityRole="button" accessibilityLabel={t("dhikrArrange")}
-                      accessibilityState={{ disabled: isSaving || isLoading || loadFailed }}>
-                      <Text className="text-sm font-semibold text-primary">{t("dhikrArrange")}</Text>
-                    </Pressable>
-                  )}
-                  <Button label={t("addDhikrBtn")} onPress={handleAdd} disabled={isSaving || isLoading} className="px-3 py-2" />
-                </View>
-              )}
-            </View>
-            <View className="py-1">
-              <Text className="text-sm text-muted-foreground">{t(arranging ? "dhikrArrangeHint" : "dhikrListTouchHint")}</Text>
-            </View>
+                )}
+                <Button label="Add Dhikr" onPress={handleAdd} disabled={isSaving || isLoading} className="px-3 py-2" />
+              </View>
+            )}
           </View>
           <Animated.FlatList
             data={displayedDhikrs}
@@ -328,16 +320,15 @@ export default function DhikrListScreen() {
             contentContainerStyle={LIST_CONTENT_STYLE}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={isLoading ? (
-              <View className="items-center py-12"><ActivityIndicator color={colors.primary} accessibilityLabel={t("loading")} /></View>
+              <View className="items-center py-12"><ActivityIndicator color={colors.primary} accessibilityLabel="Loading…" /></View>
             ) : loadFailed ? (
               <Card className="items-center gap-3 py-8">
-                <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
-                <Button label={t("retry")} onPress={refresh} variant="secondary" />
+                <Text className="text-sm text-muted-foreground">Failed to load data.</Text>
+                <Button label="Retry" onPress={refresh} variant="secondary" />
               </Card>
             ) : (
               <Card className="items-center gap-3 py-8">
-                <Text className="text-base font-semibold text-foreground">{t("noDhikrsAdded")}</Text>
-                <Text className="text-center text-sm text-muted-foreground">{t("addFirstDhikr")}</Text>
+                <Text className="text-base font-semibold text-foreground">No dhikrs added yet</Text>
               </Card>
             )}
           />
@@ -345,9 +336,9 @@ export default function DhikrListScreen() {
       </View>
       <ConfirmDialog
         visible={dhikrToDelete !== null}
-        title={t("deleteConfirmTitle")}
-        message={t("deleteConfirmBody", { name: dhikrToDelete?.name ?? "" })}
-        confirmLabel={t("delete")}
+        title="Delete"
+        message={`Delete "${dhikrToDelete?.name ?? ""}"? All counts will be lost.`}
+        confirmLabel="Delete"
         destructive
         onClose={() => setDhikrToDelete(null)}
         onConfirm={confirmDelete}

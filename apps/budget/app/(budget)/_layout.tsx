@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Easing } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { Tabs, useRouter } from "expo-router";
@@ -6,21 +6,15 @@ import { toast } from "sonner-native";
 import { PillNav } from "../../src/components/PillNav";
 import { BUDGET_TABS } from "../../src/hub/tabs";
 import { HubHeader } from "../../src/components/HubHeader";
-import { useI18n } from "../../src/lib/i18n";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import { ensureMonthlyAutoDeposit } from "../../src/lib/savings";
 import { useThemeColors } from "../../src/lib/theme";
 
 export default function BudgetLayout() {
   const router = useRouter();
-  const { t } = useI18n();
   const reducedMotion = useReducedMotion();
   const colors = useThemeColors();
 
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
 
   useEffect(() => {
     void Promise.all([loadSavingsGoal(), loadBudget(currentMonth())])
@@ -31,7 +25,7 @@ export default function BudgetLayout() {
         }
       })
       .catch(() => {
-        toast.error(tRef.current("errorLoadingData"));
+        toast.error("Failed to load data.");
       });
   }, []);
 
@@ -73,7 +67,7 @@ export default function BudgetLayout() {
           if (isSubScreen) return null;
           return (
             <PillNav
-              tabs={BUDGET_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
+              tabs={BUDGET_TABS}
               activeTabId={activeTabId}
               onTabPress={(tabId) => {
                 const index = state.routes.findIndex((r) => r.name === tabId);
@@ -85,10 +79,10 @@ export default function BudgetLayout() {
           );
         }}
       >
-        <Tabs.Screen name="index" options={{ title: t("navDashboard") }} />
-        <Tabs.Screen name="savings" options={{ title: t("navSavings") }} />
-        <Tabs.Screen name="loans" options={{ title: t("navLoans") }} />
-        <Tabs.Screen name="settings" options={{ title: t("navSettings") }} />
+        <Tabs.Screen name="index" options={{ title: "Months" }} />
+        <Tabs.Screen name="savings" options={{ title: "Savings" }} />
+        <Tabs.Screen name="loans" options={{ title: "Payments" }} />
+        <Tabs.Screen name="settings" options={{ title: "Settings" }} />
         <Tabs.Screen
           name="budget"
           // The custom PillNav already omits this screen. `href: null` hides

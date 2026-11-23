@@ -21,7 +21,6 @@ import type {
 } from "react-native-enriched-html";
 import { useRouter, useLocalSearchParams, usePreventRemove } from "expo-router";
 import { toast } from "sonner-native";
-import { useI18n } from "../../src/lib/i18n";
 import {
   getNote,
   createNote,
@@ -59,7 +58,7 @@ type StyleStateKey = "bold" | "italic" | "strikeThrough" | "unorderedList" | "or
 
 type FormatButton = {
   type: "bold" | "italic" | "strikethrough" | "bullet" | "numbered" | "checklist";
-  labelKey: "notesBold" | "notesItalic" | "notesStrikethrough" | "notesBulletList" | "notesNumberedList" | "notesChecklist";
+  label: string;
   stateKey: StyleStateKey;
   toggle: (editor: EnrichedTextInputInstance) => void;
 };
@@ -73,37 +72,37 @@ const TEXT_SHORTCUTS: TextShortcut[] = [
 const FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "bold",
-    labelKey: "notesBold",
+    label: "Bold",
     stateKey: "bold",
     toggle: (editor) => editor.toggleBold(),
   },
   {
     type: "italic",
-    labelKey: "notesItalic",
+    label: "Italic",
     stateKey: "italic",
     toggle: (editor) => editor.toggleItalic(),
   },
   {
     type: "strikethrough",
-    labelKey: "notesStrikethrough",
+    label: "Strikethrough",
     stateKey: "strikeThrough",
     toggle: (editor) => editor.toggleStrikeThrough(),
   },
   {
     type: "bullet",
-    labelKey: "notesBulletList",
+    label: "Bullet list",
     stateKey: "unorderedList",
     toggle: (editor) => editor.toggleUnorderedList(),
   },
   {
     type: "numbered",
-    labelKey: "notesNumberedList",
+    label: "Numbered list",
     stateKey: "orderedList",
     toggle: (editor) => editor.toggleOrderedList(),
   },
   {
     type: "checklist",
-    labelKey: "notesChecklist",
+    label: "Checklist",
     stateKey: "checkboxList",
     toggle: (editor) => editor.toggleCheckboxList(false),
   },
@@ -129,7 +128,6 @@ function isSameFormatState(a: OnChangeStateEvent, b: OnChangeStateEvent): boolea
 }
 
 export default function NotesEditorScreen() {
-  const { t } = useI18n();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
@@ -259,13 +257,13 @@ export default function NotesEditorScreen() {
         if (cancelled) return;
         setLoading(false);
         setAsyncLoadFailed(true);
-        toast.error(t("errorLoadingData"));
+        toast.error("Failed to load data.");
       });
 
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, router, t, initializeAttachments]);
+  }, [loadTarget, router, initializeAttachments]);
 
   // Capture the editor's normalized HTML once it is ready so change checks
   // compare against the real serialized form, not the pre-parse default.
@@ -387,12 +385,12 @@ export default function NotesEditorScreen() {
       // Keep the newly inserted line (and the Add item row) visible.
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     } catch {
-      toast.error(t("notesAddItemFailed"));
+      toast.error("Could not add item");
     } finally {
       mutationInFlightRef.current = false;
       setIsAddingItem(false);
     }
-  }, [isArchived, isAddingItem, t]);
+  }, [isArchived, isAddingItem]);
 
   const showAddItem = !isArchived && styleState?.checkboxList.isActive === true && !isSaving;
 
@@ -490,15 +488,15 @@ export default function NotesEditorScreen() {
       checkedStatesRef.current = parseCheckedStates(content);
       allowRemoval();
 
-      toast.success(t(archived === undefined ? "savedSuccess" : archived ? "notesArchived" : "notesUnarchived"));
+      toast.success(archived === undefined ? "Saved successfully" : archived ? "Note archived" : "Note restored to Notes");
       router.back();
     } catch {
-      toast.error(t(archived === undefined ? "saveFailed" : "notesArchiveFailed"));
+      toast.error(archived === undefined ? "Failed to save." : "Could not save and move the note. Please try again.");
     } finally {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [allowRemoval, isArchived, isAddingItem, loading, loadFailed, noteId, router, t, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
+  }, [allowRemoval, isArchived, isAddingItem, loading, loadFailed, noteId, router, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -510,15 +508,15 @@ export default function NotesEditorScreen() {
       await restoreNote(noteId);
       allowRemoval();
 
-      toast.success(t("notesUnarchived"));
+      toast.success("Note restored to Notes");
       router.back();
     } catch {
-      toast.error(t("notesRestoreFailed"));
+      toast.error("Could not restore the note. Please try again.");
     } finally {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router, t]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, persistNote, router]);
 
   const handleDelete = useCallback(() => {
     if (mutationInFlightRef.current || isAddingItem) return;
@@ -536,12 +534,12 @@ export default function NotesEditorScreen() {
       allowRemoval();
       router.back();
     } catch {
-      toast.error(t("deleteFailed"));
+      toast.error("Failed to delete.");
     } finally {
       mutationInFlightRef.current = false;
       setIsSaving(false);
     }
-  }, [allowRemoval, isAddingItem, noteId, router, t]);
+  }, [allowRemoval, isAddingItem, noteId, router]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || mutationInFlightRef.current || isAddingItem) return;
@@ -576,7 +574,7 @@ export default function NotesEditorScreen() {
                   active ? "bg-primary/15" : blocked ? "opacity-40" : ""
                 }`}
                 accessibilityRole="button"
-                accessibilityLabel={t(button.labelKey)}
+                accessibilityLabel={button.label}
                 accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
               >
                 <FormattingIcon name={button.type}
@@ -595,10 +593,10 @@ export default function NotesEditorScreen() {
         editorRef.current?.blur();
         Keyboard.dismiss();
       }} disabled={isSaving || isAddingItem}
-        accessibilityRole="button" accessibilityLabel={t("notesDone")} accessibilityHint={t("notesDoneHint")}
+        accessibilityRole="button" accessibilityLabel="Done" accessibilityHint="Dismiss the keyboard and finish formatting. Use Save to save your note."
         className="min-h-[44px] shrink-0 flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3 active:opacity-80 disabled:opacity-50">
         <FormattingIcon name="done" size={20} color={colors.primaryForeground} />
-        <Text className="text-sm font-semibold text-primary-foreground">{t("notesDone")}</Text>
+        <Text className="text-sm font-semibold text-primary-foreground">Done</Text>
       </Pressable>
       </View>
     </View>
@@ -607,7 +605,7 @@ export default function NotesEditorScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <Text className="text-sm text-muted-foreground">{t("loading")}</Text>
+        <Text className="text-sm text-muted-foreground">Loading…</Text>
       </View>
     );
   }
@@ -615,14 +613,14 @@ export default function NotesEditorScreen() {
   if (loadFailed) {
     return (
       <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
-        <Text className="text-sm text-muted-foreground">{t("errorLoadingData")}</Text>
+        <Text className="text-sm text-muted-foreground">Failed to load data.</Text>
         <Pressable
           onPress={() => router.back()}
           className="rounded-lg bg-primary px-4 max-[360px]:px-3 py-2"
           accessibilityRole="button"
-          accessibilityLabel={t("cancel")}
+          accessibilityLabel="Cancel"
         >
-          <Text className="text-sm font-medium text-primary-foreground">{t("cancel")}</Text>
+          <Text className="text-sm font-medium text-primary-foreground">Cancel</Text>
         </Pressable>
       </View>
     );
@@ -635,16 +633,16 @@ export default function NotesEditorScreen() {
           {/* Fixed header */}
           <View className="w-full max-w-md flex-row items-center justify-between gap-3 self-center px-5 max-[360px]:px-4 pt-4 pb-5">
             <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="h-12 w-12 items-center justify-center rounded-full bg-foreground active:opacity-70 disabled:opacity-50"
-              accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: isSaving || isAddingItem }}>
+              accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isSaving || isAddingItem }}>
               <ArrowLeft size={22} color={colors.background} />
             </Pressable>
-            <View className="flex-row flex-wrap justify-end gap-2">
+            <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-2">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
-                onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
+                saving={isSaving} onSave={handleSave} onTogglePin={handleTogglePin} onDelete={handleDelete} onToggleArchive={handleToggleArchive} />
             </View>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">{t("notesArchivedReadOnly")}</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
 
           {/* Fill the available writing area and keep growing for longer notes. */}
           <KeyboardAwareScrollView
@@ -665,22 +663,13 @@ export default function NotesEditorScreen() {
                   titleRef.current = value;
                   setTitle(value);
                 }}
-                placeholder={t("notesTitlePlaceholder")}
+                accessibilityLabel="Title"
+                placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
                 className="w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[32px] leading-[39px] font-semibold text-foreground"
                 multiline
               />
 
-              <View className="mx-5 max-[360px]:mx-4 mb-5 mt-3 flex-row flex-wrap items-center justify-between gap-3">
-                <View className="rounded-full bg-primary/10 px-4 py-2">
-                  <Text className="text-xs font-semibold text-primary">{t(isArchived ? "notesArchivedStatus" : "notesTextStatus")}</Text>
-                </View>
-                {!isArchived && <Pressable onPress={handleSave} disabled={isSaving || isAddingItem}
-                  className="min-h-[48px] items-center justify-center rounded-full bg-primary px-5 py-2 disabled:opacity-50"
-                  accessibilityRole="button" accessibilityLabel={t("save")} accessibilityState={{ disabled: isSaving || isAddingItem, busy: isSaving }}>
-                  <Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-primary-foreground">{t(isSaving ? "saving" : "save")}</Text>
-                </Pressable>}
-              </View>
 
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isSaving || isAddingItem} />
               <View className="mx-5 max-[360px]:mx-4 mt-1">
@@ -692,7 +681,7 @@ export default function NotesEditorScreen() {
                   ref={editorRef}
                   editable={!isSaving}
                   defaultValue={initialHtml}
-                  placeholder={t("notesContentPlaceholder")}
+                  placeholder="Start writing…"
                   placeholderTextColor={colors.mutedForeground}
                   selectionColor={colors.primary}
                   cursorColor={colors.primary}
@@ -721,12 +710,12 @@ export default function NotesEditorScreen() {
                   className="min-h-[44px] flex-row items-center gap-2 px-4 max-[360px]:px-3"
                   android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
                   accessibilityRole="button"
-                  accessibilityLabel={t("notesAddItem")}
+                  accessibilityLabel="Add item"
                   accessibilityState={{ disabled: isAddingItem }}
                 >
                   <Plus size={16} color={colors.mutedForeground} />
                   <Text className="text-sm text-muted-foreground">
-                    {t("notesAddItem")}
+                    Add item
                   </Text>
                 </Pressable>
               ) : null}
@@ -735,7 +724,7 @@ export default function NotesEditorScreen() {
                 className="flex-grow"
                 accessible
                 accessibilityRole="button"
-                accessibilityLabel={t("notesContinueWriting")}
+                accessibilityLabel="Continue writing"
               /> : <View className="flex-grow" />}
             </View>
           </KeyboardAwareScrollView>
@@ -755,26 +744,26 @@ export default function NotesEditorScreen() {
         visible={confirmState !== null}
         title={
           confirmState?.kind === "delete"
-            ? t("notesDelete")
+            ? "Delete note"
             : confirmState?.kind === "discard"
-              ? t("discardChangesTitle")
+              ? "Discard changes?"
               : ""
         }
         message={
           confirmState?.kind === "delete"
-            ? t("notesDeleteConfirm")
+            ? "Delete this note?"
             : confirmState?.kind === "discard"
-              ? t("notesUnsavedChanges")
+              ? "You have unsaved changes. Leave anyway?"
               : ""
         }
         confirmLabel={
           confirmState?.kind === "delete"
-            ? t("delete")
+            ? "Delete"
             : confirmState?.kind === "discard"
-              ? t("discard")
-              : t("confirm")
+              ? "Discard changes"
+              : "Confirm"
         }
-        cancelLabel={t("cancel")}
+        cancelLabel="Cancel"
         destructive={confirmState?.kind === "delete"}
         onClose={() => {
           pendingRemoveActionRef.current = null;

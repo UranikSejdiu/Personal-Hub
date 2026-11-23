@@ -2,7 +2,7 @@ import { Text } from "./ui/Typography";
 import { memo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
-import { useI18n, monthLabelFull } from "../lib/i18n";
+import { monthLabel } from "../lib/monthLabel";
 import { useThemeColors } from "../lib/theme";
 import { formatCurrency, cn } from "../lib/utils";
 import { Button, IconButton } from "./ui/Button";
@@ -21,70 +21,69 @@ interface BudgetMonthCardProps {
 
 export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, onDelete,
   expanded, onToggleExpand, variant = "compact" }: BudgetMonthCardProps) {
-  const { t, lang } = useI18n();
   const colors = useThemeColors();
-  const monthLabel = monthLabelFull(lang, summary.month);
+  const monthName = monthLabel(summary.month);
   const featured = variant === "featured";
   const [menuOpen, setMenuOpen] = useState(false);
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
   const handleToggle = onToggleExpand ?? (() => setInternalExpanded(value => !value));
   const details = [
-    { label: t("incomeColon"), value: summary.income },
-    { label: t("dashboardPlannedOutflow"), value: summary.outflow },
-    { label: t("dashboardPaidOutflow"), value: summary.actualOutflow },
-    { label: t("dashboardActualRemaining"), value: summary.actualRemaining },
+    { label: "Income:", value: summary.income },
+    { label: "Outgoings", value: summary.outflow },
+    { label: "Paid so far", value: summary.actualOutflow },
+    { label: "Current remaining", value: summary.actualRemaining },
   ];
   return <Card className={featured ? "border-0 bg-secondary p-5" : undefined}>
     <View className="flex-row items-center gap-2">
       <Pressable onPress={onOpen} className="min-h-[44px] min-w-0 flex-1 justify-center active:opacity-70"
-        accessible accessibilityRole="button" accessibilityLabel={t("dashboardOpenMonth", { month: monthLabel })}>
-        {featured && <Text className="mb-1 text-[10px] font-semibold uppercase tracking-[0.8px] text-primary">{t("dashboardCurrentMonth")}</Text>}
-        <Text className={cn("font-semibold text-foreground", featured ? "text-[17px]" : "text-sm")}>{monthLabel}</Text>
+        accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>
+        {featured && <Text className="mb-1 text-[10px] font-semibold uppercase tracking-[0.8px] text-primary">Current month</Text>}
+        <Text className={cn("font-semibold text-foreground", featured ? "text-[17px]" : "text-sm")}>{monthName}</Text>
         {!featured && <>
-          <Text className="mt-[3px] text-[11px] text-muted-foreground">{t("dashboardPlannedRemaining")}</Text>
+          <Text className="mt-[3px] text-[11px] text-muted-foreground">Planned remaining</Text>
           <Text className={cn("mt-[3px] text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
         </>}
       </Pressable>
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
         onPress={() => { handleToggle(); }}
-        accessibilityLabel={isExpanded ? t("collapse") : t("expand")} accessibilityState={{ expanded: isExpanded }} />
+        accessibilityLabel={isExpanded ? "Collapse" : "Expand"} accessibilityState={{ expanded: isExpanded }} />
       <View>
         <IconButton icon={MoreHorizontal} selected={menuOpen} onPress={() => { setMenuOpen(true); }}
-          accessibilityLabel={t("dashboardMonthOptions", { month: monthLabel })} accessibilityState={{ expanded: menuOpen }} />
+          accessibilityLabel={`Options for ${monthName}`} accessibilityState={{ expanded: menuOpen }} />
       </View>
     </View>
     {featured && <>
       <Pressable onPress={onOpen} className="min-h-[44px] pb-[11px] pt-3 active:opacity-70"
-        accessible accessibilityRole="button" accessibilityLabel={t("dashboardOpenMonth", { month: monthLabel })}>
-        <Text className="text-xs text-muted-foreground">{t("dashboardPlannedRemaining")}</Text>
+        accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>
+        <Text className="text-xs text-muted-foreground">Planned remaining</Text>
         <Text className={cn("mt-1 text-[40px] font-semibold tracking-[-1.4px]", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
       </Pressable>
       <View className="flex-row flex-wrap gap-4 rounded-[14px] bg-background/60 p-3">
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("dashboardActualRemaining")}</Text><Text className={cn("text-[18px] font-semibold", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text></View>
-        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">{t("unpaid")}</Text><Text className="text-[18px] font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text></View>
+        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Current remaining</Text><Text className={cn("text-[18px] font-semibold", summary.actualRemaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.actualRemaining)}</Text></View>
+        <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Unpaid</Text><Text className="text-[18px] font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text></View>
       </View>
     </>}
     {(featured || isExpanded) && summary.savingsGoal > 0 && <View className="mt-3 gap-[7px]">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <Text className="text-[11px] text-muted-foreground">{t("dashboardSavingsTarget", { amount: formatCurrency(summary.savingsGoal) })}</Text>
-        <View className="flex-row items-center gap-1"><CircleCheck size={13} color={summary.goalMet ? colors.success : colors.mutedForeground} /><Text className={cn("text-[11px]", summary.goalMet ? "text-success" : "text-muted-foreground")}>{t(summary.goalMet ? "dashboardTargetMet" : "dashboardTargetProgress")}</Text></View>
+        <Text className="text-[11px] text-muted-foreground">{`Savings target · ${formatCurrency(summary.savingsGoal)}`}</Text>
+        <View className="flex-row items-center gap-1"><CircleCheck size={13} color={summary.goalMet ? colors.success : colors.mutedForeground} /><Text className={cn("text-[11px]", summary.goalMet ? "text-success" : "text-muted-foreground")}>{summary.goalMet ? "Target met" : "In progress"}</Text></View>
       </View>
       <View className="h-[5px] overflow-hidden rounded-full bg-success/10" accessible accessibilityRole="progressbar"
-        accessibilityLabel={t("dashboardSavingsProgress")} accessibilityValue={{ min: 0, max: 100, now: summary.goalProgress }}>
+        accessibilityLabel="Monthly savings target" accessibilityValue={{ min: 0, max: 100, now: summary.goalProgress }}>
         <View className="h-full rounded-full bg-success" style={{ width: `${summary.goalProgress}%` }} />
       </View>
     </View>}
-    {featured && <Button className="mt-4" label={t("dashboardOpenBudget")} onPress={onOpen} />}
+    {featured && <Button className="mt-4" label="Open budget" onPress={onOpen} />}
     {isExpanded && <View className="mt-3 gap-[7px] border-t border-border/60 pt-2.5">
       {details.map(detail => <View key={detail.label} className="flex-row flex-wrap justify-between gap-3">
         <Text className="shrink text-xs text-muted-foreground">{detail.label}</Text>
         <Text className={cn("text-xs font-semibold", detail.value < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(detail.value)}</Text>
       </View>)}
     </View>}
-    <ActionDialog visible={menuOpen} title={monthLabel} onClose={() => setMenuOpen(false)} actions={[
-      { key: "open", label: t("dashboardOpenBudget"), primary: true, onPress: onOpen },
-      { key: "delete", label: t("delete"),  onPress: () => { onDelete(); } },
+    <ActionDialog visible={menuOpen} title={monthName} onClose={() => setMenuOpen(false)} actions={[
+      { key: "open", label: "Open budget", primary: true, onPress: onOpen },
+      { key: "delete", label: "Delete",  onPress: () => { onDelete(); } },
     ]} />
   </Card>;
 });

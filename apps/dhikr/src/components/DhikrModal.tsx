@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from "react";
 import { View, Pressable, Modal, ScrollView } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { X } from "./AppIcons";
-import { useI18n } from "../lib/i18n";
 import { useThemeColors, useThemeVariables } from "../lib/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NumberInput } from "./NumberInput";
@@ -23,7 +22,6 @@ type Props = BaseProps & (
 
 export function DhikrModal(props: Props) {
   const { mode, dhikr, onClose, onSave, haptics } = props;
-  const { t } = useI18n();
   const colors = useThemeColors();
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
@@ -38,15 +36,15 @@ export function DhikrModal(props: Props) {
   const handleSave = useCallback(async () => {
     if (savingRef.current) return;
     if (!name.trim()) {
-      setError(t("errorNoName"));
+      setError("Please enter a name");
       return;
     }
     if (!Number.isSafeInteger(limit) || limit < 0) {
-      setError(t("errorLimitPositive"));
+      setError("Limit must be a positive number");
       return;
     }
     if (mode === "edit" && (!Number.isSafeInteger(totalCount) || totalCount < 0)) {
-      setError(t("errorTotalCount"));
+      setError("Total count must be a whole number of 0 or more");
       return;
     }
     const lim = limit > 0 ? limit : null;
@@ -68,12 +66,12 @@ export function DhikrModal(props: Props) {
         await onSave({ ...dhikr, name: name.trim(), daily_limit: lim, total_count: totalCount });
       }
     } catch {
-      setError(t("errorSavingData"));
+      setError("Failed to save data.");
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
-  }, [mode, name, limit, totalCount, dhikr, onSave, haptics, t]);
+  }, [mode, name, limit, totalCount, dhikr, onSave, haptics]);
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
@@ -90,9 +88,9 @@ export function DhikrModal(props: Props) {
           <ScrollView className="grow-0" keyboardShouldPersistTaps="handled" contentContainerClassName="p-4">
           <View className="flex-row items-center justify-between">
             <Text accessibilityRole="header" className="flex-1 text-lg font-semibold text-foreground">
-              {mode === "add" ? t("newDhikr") : t("editDhikr")}
+              {mode === "add" ? "New Dhikr" : "Edit Dhikr"}
             </Text>
-            <Pressable onPress={handleClose} disabled={saving} className="h-11 w-11 items-center justify-center rounded-full active:bg-muted" accessible accessibilityRole="button" accessibilityLabel={t("cancel")}>
+            <Pressable onPress={handleClose} disabled={saving} className="h-11 w-11 items-center justify-center rounded-full active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Cancel">
               <X size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
@@ -104,15 +102,15 @@ export function DhikrModal(props: Props) {
           <View className="mt-3 gap-3">
             <View>
               <Text className="ml-1 text-sm font-medium text-muted-foreground">
-                {t("nameLabel")}
+                Name
               </Text>
               <TextInput
                 editable={!saving}
-                accessibilityLabel={t("nameLabel")}
+                accessibilityLabel="Name"
                 autoFocus
                 value={name}
                 onChangeText={setName}
-                placeholder={t("namePlaceholder")}
+                placeholder="e.g. SubhanAllah"
                 placeholderTextColor={colors.mutedForeground}
                 className="mt-1 rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground"
               />
@@ -120,7 +118,7 @@ export function DhikrModal(props: Props) {
 
             <View>
               <Text className="ml-1 text-sm font-medium text-muted-foreground">
-                {t("limitLabel")}
+                Daily limit (optional)
               </Text>
               <NumberInput
                 value={limit}
@@ -128,15 +126,15 @@ export function DhikrModal(props: Props) {
                 min={0}
                 max={Number.MAX_SAFE_INTEGER}
                 disabled={saving}
-                accessibilityLabel={t("limitLabel")}
-                placeholder={t("limitPlaceholder")}
+                accessibilityLabel="Daily limit (optional)"
+                placeholder="e.g. 100"
               />
-              <Text className="mt-1.5 text-xs text-muted-foreground">{t("dailyLimitHelp")}</Text>
+              <Text className="mt-1.5 text-xs text-muted-foreground">Use 0 to count without a daily limit.</Text>
             </View>
             {mode === "edit" && (
               <View>
                 <Text className="ml-1 text-sm font-medium text-muted-foreground">
-                  {t("totalCountLabel")}
+                  Total count
                 </Text>
                 <NumberInput
                   value={totalCount}
@@ -144,7 +142,7 @@ export function DhikrModal(props: Props) {
                   min={0}
                   max={Number.MAX_SAFE_INTEGER}
                   disabled={saving}
-                  accessibilityLabel={t("totalCountLabel")}
+                  accessibilityLabel="Total count"
                   placeholder="0"
                 />
               </View>
@@ -152,9 +150,9 @@ export function DhikrModal(props: Props) {
           </View>
 
           <View className="mt-4 flex-row items-center justify-end gap-2">
-            <Pressable onPress={handleClose} disabled={saving} className="min-h-[44px] justify-center rounded-lg px-3 py-2 active:bg-muted" accessible accessibilityRole="button" accessibilityLabel={t("cancel")}>
+            <Pressable onPress={handleClose} disabled={saving} className="min-h-[44px] justify-center rounded-lg px-3 py-2 active:bg-muted" accessible accessibilityRole="button" accessibilityLabel="Cancel">
               <Text className="text-sm font-medium text-muted-foreground">
-                {t("cancel")}
+                Cancel
               </Text>
             </Pressable>
             <Pressable
@@ -165,11 +163,11 @@ export function DhikrModal(props: Props) {
               className="min-h-[44px] justify-center rounded-lg bg-primary px-4 py-2 active:opacity-70"
               accessible
               accessibilityRole="button"
-              accessibilityLabel={t("save")}
+              accessibilityLabel="Save"
               accessibilityState={{ disabled: saving, busy: saving }}
             >
               <Text className="text-sm font-medium text-primary-foreground">
-                {t(saving ? "saving" : "saveBtn")}
+                {saving ? "Saving…" : "Save"}
               </Text>
             </Pressable>
           </View>

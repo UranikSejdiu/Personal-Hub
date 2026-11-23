@@ -19,7 +19,7 @@ module.exports = async function verifyScreen(root, load) {
   };
   const router = { setParams: values => { params = { ...params, ...values }; }, navigate() {} };
   let activeRouter = router;
-  const t = key => key;
+
   const app = { currentState: 'active', addEventListener: (_name, callback) => { appListener = callback; return { remove: () => { appListener = null; } }; } };
   const task = id => ({ id, title: `Task ${id}`, notes: '', list_id: null, due_date: '2026-10-31', repeat: 'none', reminder_time: null, completed_at: null, priority: 0 });
   const counts = { today: 2, upcoming: 0, overdue: 0, completed: 0, open: 2 };
@@ -30,7 +30,7 @@ module.exports = async function verifyScreen(root, load) {
     'sonner-native': { toast: { success() {}, error() {} } },
     '../ui/Typography': { Text: 'Text', TextInput: 'TextInput' }, '../ui/Button': { Button: 'Button', IconButton: 'IconButton' },
     '../ui/FormDialog': { FormDialog: 'FormDialog' }, '../ui/ActionDialog': { ActionDialog: 'ActionDialog' }, '../ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
-    '../AppIcons': { List: 'List', Search: 'Search', X: 'X' }, '../../lib/i18n': { useI18n: () => ({ t }) },
+    '../AppIcons': { Bell: 'Bell', Search: 'Search', X: 'X' },
     '../../lib/taskCalendar': load(path.join(root, 'src/lib/taskCalendar.ts')), '../../lib/taskDates': load(path.join(root, 'src/lib/taskDates.ts')),
     '../../lib/taskEvents': { subscribeTaskChanges: callback => { changeListener = callback; return () => { changeListener = null; }; } },
     '../../lib/tasks': {
@@ -39,7 +39,7 @@ module.exports = async function verifyScreen(root, load) {
       completeTask() {}, deleteTask() {}, reopenTask() {}, saveTask() {}, TaskUndoError: class extends Error {},
     },
     './TaskCard': { TaskCard: 'TaskCard' }, './TaskEditor': { TaskEditor: 'TaskEditor' }, './design': { useTaskDesign: () => ({}) },
-    './TaskDashboard': Object.fromEntries(['AgendaHeading', 'TaskAddButton', 'TaskCalendar', 'TaskHeading', 'TaskSummaryTiles'].map(key => [key, key])),
+    './TaskDashboard': Object.fromEntries(['AgendaHeading', 'TaskAddButton', 'TaskCalendar', 'TaskSummaryTiles'].map(key => [key, key])),
   };
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync(path.join(root, 'src/components/tasks/TasksScreen.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;

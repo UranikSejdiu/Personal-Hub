@@ -1,7 +1,7 @@
 import { Text } from "./ui/Typography";
 import { View } from "react-native";
 import { CreditCard, Landmark, Pencil, Trash2 } from "./AppIcons";
-import { monthLabelFull, useI18n } from "../lib/i18n";
+import { monthLabel } from "../lib/monthLabel";
 import { useThemeColors } from "../lib/theme";
 import { formatCurrency } from "../lib/utils";
 import type { RepaymentKind } from "../lib/repaymentPlans";
@@ -24,21 +24,20 @@ interface Props {
 }
 
 export function RepaymentPlanCard({ info, onEdit, onDelete }: Props) {
-  const { t, lang } = useI18n();
   const colors = useThemeColors();
   const Icon = info.kind === "loan" ? Landmark : CreditCard;
   const progress = info.term > 0 ? Math.min(100, Math.round((info.monthsPaid / info.term) * 100)) : 0;
   return <View className="rounded-[14px] border border-border/60 bg-card p-3">
     <View className="flex-row items-center gap-2">
       <View className="h-[39px] w-[39px] items-center justify-center rounded-[11px] bg-secondary"><Icon size={19} color={colors.primary} /></View>
-      <View className="min-w-0 flex-1 gap-1"><Text className="text-sm font-semibold text-foreground" numberOfLines={2}>{info.name}</Text><Text className="text-xs text-muted-foreground">{t(info.kind === "loan" ? "loanSection" : "ccSection")} · {formatCurrency(info.payment)} {t("perMonth")}</Text></View>
-      {onEdit ? <IconButton icon={Pencil} onPress={onEdit} accessibilityLabel={t("paymentPlanEdit", { name: info.name })} /> : onDelete ? <IconButton icon={Trash2} onPress={onDelete} accessibilityLabel={t("delete")} /> : null}
+      <View className="min-w-0 flex-1 gap-1"><Text className="text-sm font-semibold text-foreground" numberOfLines={2}>{info.name}</Text><Text className="text-xs text-muted-foreground">{info.kind === "loan" ? "Loan" : "Credit Card"} · {formatCurrency(info.payment)} / month</Text></View>
+      {onEdit ? <IconButton icon={Pencil} onPress={onEdit} accessibilityLabel={`Edit ${info.name}`} /> : onDelete ? <IconButton icon={Trash2} onPress={onDelete} accessibilityLabel="Delete" /> : null}
     </View>
     {info.term > 0 ? <>
       <View className="mt-3 h-[7px] overflow-hidden rounded-full bg-secondary"><View className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} /></View>
-      <Text className="mt-2 text-xs text-muted-foreground">{t("loanPaidOfTotal", { paid: info.monthsPaid, total: info.term })} · {t("paymentsRemaining", { count: Math.max(0, info.term - info.monthsPaid) })}</Text>
-    </> : <Text className="mt-2 text-xs text-muted-foreground">{t("paymentsRecorded", { count: info.monthsPaid })}</Text>}
-    {(info.startMonth || info.endMonth) && <Text className="mt-1 text-xs text-muted-foreground">{t("planFirstMonth")}: {info.startMonth ? monthLabelFull(lang, info.startMonth) : "…"} · {info.endMonth ? `${t("planLastMonth")}: ${monthLabelFull(lang, info.endMonth)}` : t("noEndMonth")}</Text>}
+      <Text className="mt-2 text-xs text-muted-foreground">{`${info.monthsPaid} of ${info.term} paid`} · {`${Math.max(0, info.term - info.monthsPaid)} payments remaining`}</Text>
+    </> : <Text className="mt-2 text-xs text-muted-foreground">{`${info.monthsPaid} payments recorded`}</Text>}
+    {(info.startMonth || info.endMonth) && <Text className="mt-1 text-xs text-muted-foreground">First month: {info.startMonth ? monthLabel(info.startMonth) : "…"} · {info.endMonth ? `Last: ${monthLabel(info.endMonth)}` : "No end month"}</Text>}
 
   </View>;
 }

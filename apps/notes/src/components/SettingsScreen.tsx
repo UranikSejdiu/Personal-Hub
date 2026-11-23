@@ -11,13 +11,11 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { PreferenceChoices } from "./PreferenceChoices";
-import { useI18n } from "../lib/i18n";
 import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 
 export default function SettingsScreen(_props: { activeAppId?: string }) {
   const { theme, setTheme } = useTheme();
-  const { t } = useI18n();
   const router = useRouter();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -66,24 +64,20 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
         <View className="flex-row items-center gap-4 pb-2">
           <Pressable disabled={busy} onPress={() => { if (!locked.current) { if (router.canGoBack()) router.back(); else router.replace("/(notes)"); } }}
             className="h-12 w-12 items-center justify-center rounded-full bg-card disabled:opacity-50"
-            accessibilityRole="button" accessibilityLabel={t("navNotes")} accessibilityState={{ disabled: busy }}>
+            accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: busy }}>
             <ArrowLeft size={22} color={colors.foreground} />
           </Pressable>
-          <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold text-foreground">{t("navSettings")}</Text>
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-[30px] font-semibold text-foreground">Settings</Text>
         </View>
         <View className="gap-4 rounded-[24px] border border-border/40 bg-card p-5">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
           <PreferenceChoices label="Appearance" value={theme} options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
             disabled={busy} onChange={setTheme} />
         </View>
-        <View className="gap-4 rounded-[24px] border border-border/40 bg-card p-5">
-          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">App permissions</Text>
-          <Text className="text-sm text-muted-foreground">Review or turn off camera, microphone, and other permissions in the app settings on your phone.</Text>
-          <Button label="Open app settings" variant="secondary" disabled={busy} onPress={() => {
-            if (locked.current) return;
-            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
-          }} />
-        </View>
+        <Button label="Manage app permissions" variant="secondary" disabled={busy} onPress={() => {
+          if (locked.current) return;
+          void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
+        }} />
         <View className="gap-4 rounded-[22px] bg-card p-5">
           <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
           <Text className="text-sm text-muted-foreground">Import replaces current data. A recovery copy is saved first.</Text>
@@ -103,7 +97,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
               <Text className="text-xs text-muted-foreground">Creator of {identity.title}</Text>
             </View>
           </View>
-          <Text className="text-sm text-muted-foreground">Capture thoughts. Make lists. Keep everything together.</Text>
+
           <Button variant="secondary" label="GitHub · UranikSejdiu ↗" accessibilityRole="link" disabled={busy}
             onPress={() => { void Linking.openURL("https://github.com/UranikSejdiu").catch(() => toast.error("Could not open GitHub.")); }} />
         </View>

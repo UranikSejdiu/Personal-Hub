@@ -40,7 +40,7 @@ function harness(file, overrides = {}, modules = {}) {
     if (id === 'expo-router') return { useFocusEffect() {}, useRouter:()=>router, useLocalSearchParams:()=>({month:'2026-11'}) };
     if (id.includes('safe-area')) return { useSafeAreaInsets:()=>({top:24,bottom:16,left:0,right:0}) };
     if (id === 'react-native-reanimated') return { __esModule:true, default:{createAnimatedComponent:c=>'Animated'+c}, FadeInDown:chain, FadeInUp:chain, FadeOutUp:chain, ReduceMotion:{System:'system'}, useReducedMotion:()=>false };
-    if (id.endsWith('/i18n')) return {useI18n:()=>({t:key=>key,lang:'en'}),monthLabelShort:()=> 'Nov',monthLabelFull:()=> 'November 2026'};
+    if (id.endsWith('/monthLabel')) return { monthLabel: (_key, width) => width === 'short' ? 'Nov 2026' : 'November 2026' };
     if (id.endsWith('/theme')) return {useTheme:()=>({theme:'light',resolvedTheme:'light',setTheme(){}}),useThemeColors:()=>colors,useThemeVariables:()=>({})};
     if (id.endsWith('/utils')) return {formatCurrency:n=>'€'+n,cn:(...args)=>args.filter(Boolean).join(' '),withAlpha:color=>color};
     if (id.endsWith('/numberInput')) return {parseNumberInput:text=>text.trim() ? Number(text) : null};
@@ -67,7 +67,7 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const Tabs = Object.assign(() => null, { Screen: 'TabScreen' });
     const h = harness('app/(budget)/_layout.tsx', {}, {
       'expo-router': { Tabs, useRouter: () => ({}) },
-      '../../src/hub/tabs': { BUDGET_TABS: [{ id: 'index', labelKey: 'navDashboard' }] },
+      '../../src/hub/tabs': { BUDGET_TABS: [{ id: 'index', label: 'Months' }] },
       budget: { loadSavingsGoal: async () => ({ goal_amount: 0 }), loadBudget: async () => null },
     });
     const tree = h.render('default');
@@ -183,41 +183,41 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     assert.equal(nodes(tree).filter(n=>n.type==='AppAlerts').length,visible?1:0);
   }
   const confirm=harness('src/components/ConfirmDialog.tsx');const confirmTree=confirm.render('ConfirmDialog',{visible:true,title:'Delete',message:'Test',onClose(){},onConfirm:async()=>{throw Error('write failed');}});
-  const confirmButton=find(confirmTree,n=>n.props?.accessibilityLabel==='confirm');confirmButton.props.onPress();await settle();
-  assert.ok(hasAlert(confirm,'error','saveFailed'));assert.equal(confirm.state.isConfirming,false);
+  const confirmButton=find(confirmTree,n=>n.props?.accessibilityLabel==='Confirm');confirmButton.props.onPress();await settle();
+  assert.ok(hasAlert(confirm,'error','Failed to save.'));assert.equal(confirm.state.isConfirming,false);
   // Savings operations announce only persisted success; invalid input stays inline.
   for(const formType of ['deposit','purchase']){
     const h=harness('app/(budget)/savings.tsx',{showModal:true,formType,formAmount:'12.50',formDate:'2026-11-01'},{savings:{addTransaction:async()=>{}}});
-    await click(h.render('default'),'save');assert.ok(hasAlert(h,'success',formType==='deposit'?'depositAdded':'withdrawalAdded'));assert.equal(h.state.showModal,false);
+    await click(h.render('default'),'Save');assert.ok(hasAlert(h,'success',formType==='deposit'?'Deposit added':'Withdrawal added'));assert.equal(h.state.showModal,false);
   }
   const failed=harness('app/(budget)/savings.tsx',{showModal:true,formAmount:'12.50',formDate:'2026-11-01'},{savings:{addTransaction:async()=>{throw Error('disk full');}}});
-  await click(failed.render('default'),'save');assert.ok(hasAlert(failed,'error','errorAddingSavings'));assert.equal(failed.state.showModal,true);assert.ok(!failed.events.some(e=>e.kind==='success'));
-  const invalid=harness('app/(budget)/savings.tsx',{showModal:true,formAmount:'0',formDate:'2026-11-01'});await click(invalid.render('default'),'save');assert.equal(invalid.state.modalError,'savingsErrorAmount');assert.equal(invalid.events.length,0);
+  await click(failed.render('default'),'Save');assert.ok(hasAlert(failed,'error','Failed to add entry.'));assert.equal(failed.state.showModal,true);assert.ok(!failed.events.some(e=>e.kind==='success'));
+  const invalid=harness('app/(budget)/savings.tsx',{showModal:true,formAmount:'0',formDate:'2026-11-01'});await click(invalid.render('default'),'Save');assert.equal(invalid.state.modalError,'Please enter an amount greater than zero.');assert.equal(invalid.events.length,0);
   for(const kind of ['tx','auto'])for(const fail of [false,true]){
     const operation=async()=>{if(fail)throw Error('disk full');};
     const h=harness('app/(budget)/savings.tsx',{showModal:true,editingId:1,editingKind:kind,editingMonth:'2026-11',formAmount:'25',formDate:'2026-11-01'},{savings:{updateTransaction:operation,updateAutoDeposit:operation,deleteTransaction:operation,deleteAutoDeposit:operation}});
-    const tree=h.render('default');await click(tree,'save');assert.ok(hasAlert(h,fail?'error':'success',fail?'errorUpdatingSavings':'savingsEntryUpdated'));
-    h.events.length=0;find(tree,n=>n.props?.accessibilityLabel==='delete').props.onPress();await h.state.confirmAction.onConfirm();
-    assert.ok(hasAlert(h,fail?'error':'success',fail?'errorDeletingSavings':'savingsEntryDeleted'));
+    const tree=h.render('default');await click(tree,'Save');assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to update entry.':'Entry updated'));
+    h.events.length=0;find(tree,n=>n.props?.accessibilityLabel==='Delete').props.onPress();await h.state.confirmAction.onConfirm();
+    assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to delete entry.':'Entry deleted'));
   }
   for(const result of [{created:true},{created:false},{blockedYear:2024},null]){
     const entry={id:'tx-1',kind:'tx',type:'deposit',date:'2025-11-01',description:'Savings',amount:25,rawTx:{id:1,description:'Savings'}};
     const h=harness('app/(budget)/savings.tsx',{entries:[entry],closeYearOpen:true,closingYear:2025},{savings:{previewClosingBalance:async()=>25,closeYear:async()=>{if(!result)throw Error('disk full');return result;}}});
-    await click(h.render('default'),'closeYearLabel');assert.ok(h.state.confirmAction);await h.state.confirmAction.onConfirm();
-    assert.ok(hasAlert(h,!result?'error':result.blockedYear?'warning':result.created?'success':'info',!result?'errorAddingSavings':result.blockedYear?'closeYearBlocked':result.created?'yearClosed':'closeYearNothing'));
+    await click(h.render('default'),'Close year');assert.ok(h.state.confirmAction);await h.state.confirmAction.onConfirm();
+    assert.ok(hasAlert(h,!result?'error':result.blockedYear?'warning':result.created?'success':'info',!result?'Failed to add entry.':result.blockedYear?'Close 2024 first — it still has open activity.':result.created?'Year closed':'Nothing to close for 2025.'));
   }
   for(const fail of [false,true]){
     const h=harness('app/(budget)/loans.tsx',{draft:{name:'Loan',kind:'loan',amount:100,payment:10,term:10,startMonth:'2026-11'}},{repayments:{saveRepaymentPlan:async()=>{if(fail)throw Error('disk full');return {id:1};}}});
-    await click(h.render('default'),'save');assert.ok(hasAlert(h,fail?'error':'success',fail?'paymentPlanSaveFailed':'repaymentSaved'));if(fail)assert.ok(h.state.draft);else assert.equal(h.state.draft,null);
+    await click(h.render('default'),'Save');assert.ok(hasAlert(h,fail?'error':'success',fail?'Could not save the payment plan.':'Payment plan saved'));if(fail)assert.ok(h.state.draft);else assert.equal(h.state.draft,null);
   }
   {
     let saves=0;
     const h=harness('app/(budget)/loans.tsx',{draft:{name:'Loan',kind:'loan',amount:100,payment:10,term:10,startMonth:'2026-11'},invalidFields:new Set(['amount'])},{repayments:{saveRepaymentPlan:async()=>{saves++;}}});
     const tree=h.render('default');
-    assert.equal(find(tree,n=>n.props?.label==='save').props.disabled,true,'Visible invalid numeric input disables saving');
-    await click(tree,'save');
+    assert.equal(find(tree,n=>n.props?.label==='Save').props.disabled,true,'Visible invalid numeric input disables saving');
+    await click(tree,'Save');
     assert.equal(saves,0,'A stale valid value cannot be saved behind invalid input');
-    assert.ok(hasAlert(h,'error','paymentPlanInvalid'));
+    assert.ok(hasAlert(h,'error','Enter a name and a valid payment schedule.'));
   }
   {
     const changes=[],validity=[];
@@ -231,7 +231,7 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const budget={id:1,month:'2026-11',income:2400,savings_goal:300};
     const h=harness('app/(budget)/budget.tsx',{budget,loans:{},loading:false,expenseEditor:{}},{budget:{saveExpenseDraft:async(_id,fields)=>{if(fail)throw Error('disk full');return{id:1,budget_id:1,...fields};}}});
     const editor=find(h.render('default'),n=>n.type==='ExpenseEditor');const save=editor.props.onSave({category:'Groceries',amount:25,paid:false,is_recurring:false});
-    if(fail){await assert.rejects(save);assert.equal(h.events.length,0);}else{await save;assert.ok(hasAlert(h,'success','expenseAdded'));}
+    if(fail){await assert.rejects(save);assert.equal(h.events.length,0);}else{await save;assert.ok(hasAlert(h,'success','Expense added'));}
   }
   // Expense paid/recurring toggles and month edits use actual persisted outcomes.
   const sample={id:1,budget_id:1,category:'Groceries',amount:25,paid:false,is_recurring:false};
@@ -266,9 +266,9 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       assert.deepEqual(paymentWrites.at(-1),{id,month:'2026-11',paid:expectedPlans.has(id)});
       assert.deepEqual([...h.state.paidRepayments],[...expectedPlans],'Other loan/card paid flags remain unchanged');
     }
-    for (const filter of ['paid','unpaid']) {
+    for (const filter of ['Paid','Unpaid']) {
       find(h.render('default'),n=>n.type==='Pressable'&&n.props.children?.props?.children===filter).props.onPress();
-      const expected = h.state.expenses.filter(expense=>expense.paid===(filter==='paid')).map(expense=>expense.id);
+      const expected = h.state.expenses.filter(expense=>expense.paid===(filter==='Paid')).map(expense=>expense.id);
       assert.deepEqual(list().props.data.map(expense=>expense.id),expected,'Explicit payment filters preserve record order');
     }
   }
@@ -280,42 +280,42 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     assert.deepEqual(h.state.expenses.map(e=>e.id),[9,10],'Creating a month from detail keeps seeded recurring expenses visible');
   }
   {
-    const h=harness('app/(budget)/budget.tsx',{budget:{id:1,month:'2026-10'},loans:{},loading:false,loadError:'errorLoadingData'});
+    const h=harness('app/(budget)/budget.tsx',{budget:{id:1,month:'2026-10'},loans:{},loading:false,loadError:'Failed to load data.'});
     const tree=h.render('default');
-    assert.ok(nodes(tree).some(n=>n.props?.children==='retry'),'A failed reload offers Retry even when old budget state exists');
+    assert.ok(nodes(tree).some(n=>n.props?.children==='Retry'),'A failed reload offers Retry even when old budget state exists');
     assert.ok(!nodes(tree).some(n=>n.type==='FlatList'),'A failed month reload must not show stale editable data');
   }
   for(const fail of [false,true]){
     const budget={id:1,month:'2026-11',income:2400,savings_goal:300};
     const h=harness('app/(budget)/budget.tsx',{budget,loans:{},loading:false,expenses:[sample],editingMonth:true},{budget:{updateExpense:async()=>{if(fail)throw Error('disk full');},setExpenseRecurring:async()=>{if(fail)throw Error('disk full');},saveMonthPreferences:async()=>{if(fail)throw Error('disk full');},loadLoans:async()=>({}),loadBudget:async()=>budget,loadSavingsGoal:async()=>({goal_amount:300}),listExpenses:async()=>[sample]},repayments:{listRepaymentPlans:async()=>[],paidRepaymentIds:async()=>new Set()}});
     const tree=h.render('default'),list=find(tree,n=>n.type==='FlatList'),row=find(list.props.renderItem({item:sample,index:0}),n=>n.type==='CustomExpenseRow');
-    await row.props.onUpdate(1,{paid:true});assert.ok(hasAlert(h,fail?'error':'success',fail?'errorUpdatingExpense':'paymentMarkedPaid'));assert.equal(h.state.expenses[0].paid,!fail);
-    await row.props.onToggleRecurring(sample,true);assert.ok(hasAlert(h,fail?'error':'success',fail?'errorUpdatingExpense':'recurringEnabled'));
+    await row.props.onUpdate(1,{paid:true});assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to update expense.':'Marked paid'));assert.equal(h.state.expenses[0].paid,!fail);
+    await row.props.onToggleRecurring(sample,true);assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to update expense.':'Repeats monthly'));
     const editor=find(tree,n=>n.type==='BudgetMonthEditor');
-    if(fail)await assert.rejects(editor.props.onSave('2026-11',2400,300));else{await editor.props.onSave('2026-11',2400,300);assert.ok(hasAlert(h,'success','monthSaved'));}
+    if(fail)await assert.rejects(editor.props.onSave('2026-11',2400,300));else{await editor.props.onSave('2026-11',2400,300);assert.ok(hasAlert(h,'success','Budget saved'));}
   }
   for(const fail of [false,true]){
     const h=harness('app/(budget)/loans.tsx',{deletingId:1},{repayments:{removeRepaymentPlan:async()=>{if(fail)throw Error('disk full');}}});
-    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='paymentPlanDeleteTitle').props.onConfirm();
-    assert.ok(hasAlert(h,fail?'error':'success',fail?'paymentPlanDeleteFailed':'repaymentDeleted'));
+    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='Delete payment plan?').props.onConfirm();
+    assert.ok(hasAlert(h,fail?'error':'success',fail?'Could not delete the payment plan.':'Payment plan deleted'));
   }
   for(const fail of [false,true]){
     const budget={id:1,month:'2026-11',income:2400,savings_goal:300};
     const h=harness('app/(budget)/budget.tsx',{budget,budgetIdRef:1,loans:{},loading:false,expenses:[sample],expenseToDelete:sample},{budget:{removeExpenseWithUndo:async()=>{if(fail)throw Error('disk full');return {expense:sample,month:'2026-11',templates:[]};},restoreDeletedExpense:async()=>sample}});
-    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='expenseDeleteTitle').props.onConfirm();
-    if(fail){assert.ok(hasAlert(h,'error','errorRemovingExpense'));assert.equal(h.state.expenses.length,1);}
-    else{const undo=h.events.find(e=>e.message==='expenseDeleted');assert.ok(undo);assert.equal(undo.options.duration,10000);assert.equal(h.state.expenses.length,0);undo.options.action.onClick();await settle();assert.ok(hasAlert(h,'success','expenseRestored'));assert.equal(h.state.expenses[0].id,1);}
+    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='Delete expense?').props.onConfirm();
+    if(fail){assert.ok(hasAlert(h,'error','Failed to remove expense.'));assert.equal(h.state.expenses.length,1);}
+    else{const undo=h.events.find(e=>e.message==='Expense deleted');assert.ok(undo);assert.equal(undo.options.duration,10000);assert.equal(h.state.expenses.length,0);undo.options.action.onClick();await settle();assert.ok(hasAlert(h,'success','Expense restored'));assert.equal(h.state.expenses[0].id,1);}
   }
   for(const fail of [false,true]){
     const plan={id:1,name:'Loan',kind:'loan',payment:25};
     const h=harness('app/(budget)/budget.tsx',{budget:{id:1,month:'2026-11'},loans:{},loading:false,repayments:[plan]},{repayments:{repaymentForMonth:()=>25,setRepaymentPaid:async()=>{if(fail)throw Error('disk full');return plan;}}});
     find(h.render('default'),n=>n.type==='RepaymentPaymentSection').props.onToggle();await settle();
-    assert.ok(hasAlert(h,fail?'error':'success',fail?'errorUpdatingLoan':'paymentMarkedPaid'));
+    assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to update loan.':'Marked paid'));
   }
   for(const fail of [false,true]){
     const h=harness('app/(budget)/index.tsx',{monthToDelete:'2026-11'}, {'../../src/lib/db':{withTransaction:async fn=>fn({})},budget:{loadBudget:async()=>({id:1}),deleteBudget:async()=>{if(fail)throw Error('disk full');},loadLoans:async()=>({}),listMonthSummaries:async()=>[]},savings:{getSavingsSummary:async()=>({balance:0})}});
-    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='deleteConfirmTitle').props.onConfirm();
-    assert.ok(hasAlert(h,fail?'error':'success',fail?'errorDeletingBudget':'monthDeleted'));
+    await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='Delete').props.onConfirm();
+    assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to delete budget.':'Budget deleted'));
   }
   for(const outcome of ['success','cancel','error']){
     const h=harness('src/components/SettingsScreen.tsx',{passwordAction:'folder'}, {'../lib/backup':{hasSafetyBackup:()=>false,exportBackupToDirectory:async password=>{assert.equal(password,'private backup password');if(outcome==='error')throw Error('No space left');return outcome==='cancel'?null:'backup.json';}}});
@@ -351,8 +351,8 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   for(const status of ['up-to-date','no-releases','error','update']){
     const h=harness('src/components/UpdateCard.tsx',{}, {'../lib/UpdateContext':{useUpdate:()=>({hasUpdate:false,latest:null,currentVersion:'1.0.0',checking:false,result:null,refresh:async()=>({status,latest:{versionName:'1.1.0'}})})}});
-    find(h.render('UpdateCard'),n=>n.props?.accessibilityLabel==='checkForUpdates').props.onPress();await settle();
-    const [kind,message]={ 'up-to-date':['success','updateUpToDate'],'no-releases':['info','updateNoReleases'],error:['error','updateCheckFailed'],update:['success','updateAvailableToast']}[status];
+    find(h.render('UpdateCard'),n=>n.props?.accessibilityLabel==='Check for updates').props.onPress();await settle();
+    const [kind,message]={ 'up-to-date':['success','You\'re up to date'],'no-releases':['info','No installable release is available yet'],error:['error','Failed to check for updates'],update:['success','New version 1.1.0 is available.']}[status];
     assert.ok(hasAlert(h,kind,message));
   }
   console.log(`Alert and navigation checks passed: SDK tab redirects, existing/new month navigation, ${modalCount} native modal hosts, safe top placement, 1-second timing, accessibility, dialog errors, savings add/edit/delete/year-close, expense saves/paid/recurring, fixed expense and loan/card positions across toggles and filters, budget edits, repayment save/delete, backup save/cancel/failure/import, and update-check outcomes.`);

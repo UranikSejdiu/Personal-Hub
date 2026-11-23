@@ -24,7 +24,7 @@ module.exports = async function verifyEditor(root, load) {
       'react-native-keyboard-controller': { KeyboardAvoidingView: 'KeyboardAvoidingView' },
       'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
       '../ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
-      '../../lib/i18n': { useI18n: () => ({ t: key => key }) },
+
       '../../lib/theme': { useThemeColors: () => ({}), useThemeVariables: () => ({}) },
       '../../lib/taskDates': dates,
       '../../lib/taskReminders': { taskReminderDate: reminders.taskReminderDate, requestTaskReminderPermission: permission },
@@ -61,58 +61,58 @@ module.exports = async function verifyEditor(root, load) {
   const task = { id: 7, title: 'Existing', notes: 'Keep notes', list_id: 9, priority: 2, due_date: '2020-01-31', repeat: 'monthly', reminder_time: '08:30', completed_at: null };
   const saved = []; let closed = 0;
   const view = editor({ task, onSave: async (...args) => saved.push(args), onClose: () => closed++ });
-  view.input('tasksTitle').onChangeText('Renamed'); view.render();
-  view.button('save').onPress(); await new Promise(setImmediate); view.render();
+  view.input('Task name').onChangeText('Renamed'); view.render();
+  view.button('Save').onPress(); await new Promise(setImmediate); view.render();
   assert.equal(saved.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(saved[0])), [{ title: 'Renamed', notes: task.notes, due_date: task.due_date, repeat: 'monthly', reminder_time: '08:30' }, 7], 'Editing a legacy task keeps notes and repeat without exposing lists or priority');
-  assert.equal(view.nodes(node => /^tasksPriority/.test(node.props.accessibilityLabel ?? '')).length, 0, 'Priority controls are removed from legacy task editing');
-  assert.equal(view.nodes(node => node.props.accessibilityLabel === 'tasksList').length, 0, 'Legacy task editing has no list chooser');
+  assert.equal(view.nodes(node => /priority/i.test(node.props.accessibilityLabel ?? '')).length, 0, 'Priority controls are removed from legacy task editing');
+  assert.equal(view.nodes(node => node.props.accessibilityLabel === 'List').length, 0, 'Legacy task editing has no list chooser');
   view.close(); view.render();
   assert.equal(view.confirm().visible, true, 'Editing a task requires discard confirmation');
   assert.equal(closed, 0); view.confirm().onConfirm(); assert.equal(closed, 1);
 
   const fresh = editor({ initialDate: '2020-01-31', onSave: async input => saved.push(input), onClose() {} });
-  fresh.input('tasksTitle').onChangeText('New'); fresh.render();
+  fresh.input('Task name').onChangeText('New'); fresh.render();
   await fresh.nodes(node => node.type === 'Switch')[0].props.onValueChange(true);
-  await new Promise(setImmediate); fresh.render(); fresh.button('save').onPress(); fresh.render();
-  assert.ok(fresh.error().includes('tasksReminderPast'), 'New reminders cannot silently save in the past');
-  fresh.button('tasksNoDate').onPress(); fresh.render(); fresh.button('save').onPress(); await new Promise(setImmediate);
+  await new Promise(setImmediate); fresh.render(); fresh.button('Save').onPress(); fresh.render();
+  assert.ok(fresh.error().includes('Choose a future date and time for the reminder.'), 'New reminders cannot silently save in the past');
+  fresh.button('No date').onPress(); fresh.render(); fresh.button('Save').onPress(); await new Promise(setImmediate);
   assert.equal(saved.at(-1).due_date, null); assert.equal(saved.at(-1).reminder_time, null); assert.equal(saved.at(-1).repeat, 'none');
 
   // Date/repeat controls must save without list or priority inputs.
   const inputs=[];
   const managed=editor({initialDate:'2099-05-04',onSave:async input=>inputs.push(input),onClose(){}});
-  managed.input('tasksTitle').onChangeText('Managed task');managed.input('tasksNotes').onChangeText('Keep these notes');managed.render();
-  managed.field('tasksRepeat').onPress();managed.render();managed.picker().actions.find(action=>action.key==='weekly').onPress();managed.render();
+  managed.input('Task name').onChangeText('Managed task');managed.input('Notes (optional)').onChangeText('Keep these notes');managed.render();
+  managed.field('Repeat').onPress();managed.render();managed.picker().actions.find(action=>action.key==='weekly').onPress();managed.render();
   managed.nodes(node=>node.type==='Switch')[0].props.onValueChange(true);await new Promise(setImmediate);managed.render();
-  managed.input('tasksReminderTime').onChangeText('14:35');managed.render();managed.button('save').onPress();await new Promise(setImmediate);managed.render();
+  managed.input('Time (24-hour)').onChangeText('14:35');managed.render();managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
   assert.deepEqual(JSON.parse(JSON.stringify(inputs.at(-1))),{title:'Managed task',notes:'Keep these notes',due_date:'2099-05-04',repeat:'weekly',reminder_time:'14:35'});
-  managed.button('tasksNoDate').onPress();managed.render();
-  assert.equal(managed.field('tasksRepeat').disabled,true);assert.equal(managed.nodes(node=>node.type==='Switch')[0].props.disabled,true);
-  managed.button('save').onPress();await new Promise(setImmediate);managed.render();
+  managed.button('No date').onPress();managed.render();
+  assert.equal(managed.field('Repeat').disabled,true);assert.equal(managed.nodes(node=>node.type==='Switch')[0].props.disabled,true);
+  managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
   assert.equal(inputs.at(-1).repeat,'none');assert.equal(inputs.at(-1).reminder_time,null);assert.equal(Object.hasOwn(inputs.at(-1),'list_id'),false);assert.equal(Object.hasOwn(inputs.at(-1),'priority'),false);
-  managed.button('tasksTomorrow').onPress();managed.render();
-  assert.equal(managed.button('tasksTomorrow').accessibilityState.selected,true);assert.equal(managed.field('tasksRepeat').disabled,false);
-  managed.button('tasksToday').onPress();managed.render();managed.button('save').onPress();await new Promise(setImmediate);
+  managed.button('Tomorrow').onPress();managed.render();
+  assert.equal(managed.button('Tomorrow').accessibilityState.selected,true);assert.equal(managed.field('Repeat').disabled,false);
+  managed.button('Today').onPress();managed.render();managed.button('Save').onPress();await new Promise(setImmediate);
   assert.equal(inputs.at(-1).due_date,dates.taskDateKey(),'Today uses a local calendar date');
 
   let resolveSave, saves = 0;
   const gate = new Promise(resolve => { resolveSave = resolve; });
   const locked = editor({ task, onSave: async () => { saves++; await gate; }, onClose: () => closed++ });
-  locked.button('save').onPress(); locked.button('save').onPress(); locked.close(); locked.render();
-  assert.equal(saves, 1); assert.equal(closed, 1); assert.equal(locked.button('cancel').disabled, true);
+  locked.button('Save').onPress(); locked.button('Save').onPress(); locked.close(); locked.render();
+  assert.equal(saves, 1); assert.equal(closed, 1); assert.equal(locked.button('Cancel').disabled, true);
   resolveSave(); await new Promise(setImmediate);
 
   const denied = editor({ initialDate: '2099-01-01', onSave() {}, onClose() {} }, async () => 'denied');
   denied.nodes(node => node.type === 'Switch')[0].props.onValueChange(true); await new Promise(setImmediate); denied.render();
   assert.equal(denied.nodes(node => node.type === 'Switch')[0].props.value, false);
-  assert.ok(denied.error().includes('tasksReminderDenied'));
-  denied.button('tasksOpenAppSettings').onPress(); await new Promise(setImmediate);
+  assert.ok(denied.error().includes('Notifications are disabled. Enable them in your device settings to use reminders.'));
+  denied.button('Open app settings').onPress(); await new Promise(setImmediate);
   assert.equal(settingsOpened, 1, 'Denied reminders provide a route to app settings');
   settingsFailure = true;
-  denied.button('tasksOpenAppSettings').onPress(); await new Promise(setImmediate); denied.render();
-  assert.ok(denied.error().includes('tasksReminderSettingsFailed'), 'Failure to open settings remains visible');
-  assert.equal(denied.button('tasksOpenAppSettings').disabled, false, 'Settings can be retried after a failure');
+  denied.button('Open app settings').onPress(); await new Promise(setImmediate); denied.render();
+  assert.ok(denied.error().includes('Couldn’t update reminder settings.'), 'Failure to open settings remains visible');
+  assert.equal(denied.button('Open app settings').disabled, false, 'Settings can be retried after a failure');
   assert.equal(denied.nodes(node => node.type === 'Switch')[0].props.value, false, 'Opening settings never assumes permission was granted');
   console.log('Passed Tasks editor: list/priority removal, date shortcuts, repeat/reminder resets, notes and existing schedules, discard protection, denied permissions, and double-save locking.');
 };

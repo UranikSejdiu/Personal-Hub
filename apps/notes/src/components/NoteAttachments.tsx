@@ -85,7 +85,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       await recorder.stop();
       const uri = recorder.uri;
       if (uri) {
-        if (keep) append(await readAttachment(uri, `Voice ${new Date().toLocaleString().replace(/[/\\:]/g, "-")}.m4a`, "audio/mp4"));
+        if (keep) append(await readAttachment(uri, `Voice ${new Date().toLocaleString("en").replace(/[/\\:]/g, "-")}.m4a`, "audio/mp4"));
         try { new File(uri).delete(); } catch { /* Cache cleanup is best effort. */ }
       }
     } catch (error) { report(error); }

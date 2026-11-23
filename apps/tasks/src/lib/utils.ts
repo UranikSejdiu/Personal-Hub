@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Constructing an Intl formatter is expensive; reuse one for every call.
-const currencyFormatter = new Intl.NumberFormat(undefined, {
+const currencyFormatter = new Intl.NumberFormat("en", {
   style: "currency",
   currency: "EUR",
 });

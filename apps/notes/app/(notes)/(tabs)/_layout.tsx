@@ -3,11 +3,9 @@ import { Easing } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { PillNav } from "../../../src/components/PillNav";
 import { NOTES_TABS } from "../../../src/hub/tabs";
-import { useI18n } from "../../../src/lib/i18n";
 import { useThemeColors } from "../../../src/lib/theme";
 
 export default function NotesTabsLayout() {
-  const { t } = useI18n();
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
 
@@ -44,7 +42,7 @@ export default function NotesTabsLayout() {
         const routeName = state.routes[state.index].name;
         return (
             <PillNav
-              tabs={NOTES_TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) }))}
+              tabs={NOTES_TABS}
               activeTabId={routeName}
             onTabPress={(tabId) => {
               const index = state.routes.findIndex((r) => r.name === tabId);
@@ -58,8 +56,8 @@ export default function NotesTabsLayout() {
         );
       }}
     >
-      <Tabs.Screen name="index" options={{ title: t("navNotes") }} />
-      <Tabs.Screen name="archive" options={{ title: t("notesArchiveTitle") }} />
+      <Tabs.Screen name="index" options={{ title: "Notes" }} />
+      <Tabs.Screen name="archive" options={{ title: "Archive" }} />
     </Tabs>
   );
 }

@@ -33,7 +33,7 @@ module.exports = async function verifyModal(root) {
     './AppIcons': { X: 'X' },
     './AppAlerts': { AppAlerts: 'AppAlerts' },
     './NumberInput': { NumberInput: 'NumberInput' },
-    '../lib/i18n': { useI18n: () => ({ t: key => key }) },
+
     '../lib/theme': { useThemeColors: () => ({}), useThemeVariables: () => ({}) },
     '../lib/dhikr': { addDhikr: deferWrite, updateDhikr: deferWrite },
   };
@@ -59,25 +59,25 @@ module.exports = async function verifyModal(root) {
     visit(tree); return found;
   };
   const button = label => nodes(node => node.type === 'Pressable' && node.props.accessibilityLabel === label)[0];
-  const limit = () => nodes(node => node.type === 'NumberInput' && node.props.accessibilityLabel === 'limitLabel')[0];
+  const limit = () => nodes(node => node.type === 'NumberInput' && node.props.accessibilityLabel === 'Daily limit (optional)')[0];
   render();
   limit().onChange(Infinity); render();
-  await button('save').onPress(); render();
+  await button('Save').onPress(); render();
   assert.equal(writes.length, 0, 'Non-finite limits cannot be saved');
   limit().onChange(33); render();
-  const save = button('save').onPress;
+  const save = button('Save').onPress;
   save(); save(); render();
   assert.equal(writes.length, 1, 'Double taps cannot create duplicate saves');
   assert.equal(limit().disabled, true);
   assert.equal(nodes(node => node.type === 'TextInput')[0].editable, false);
-  tree.props.onRequestClose(); button('cancel').onPress();
+  tree.props.onRequestClose(); button('Cancel').onPress();
   assert.equal(closed, 0, 'Dismissal is blocked while the write is pending');
   writes[0].reject(new Error('Disk failed'));
   await new Promise(resolve => setImmediate(resolve)); render();
-  assert.equal(nodes(node => node.props.accessibilityRole === 'alert')[0].children, 'errorSavingData');
+  assert.equal(nodes(node => node.props.accessibilityRole === 'alert')[0].children, 'Failed to save data.');
   assert.equal(limit().disabled, false);
   assert.equal(saved.length, 0);
-  button('save').onPress(); render();
+  button('Save').onPress(); render();
   writes[1].resolve(); await new Promise(resolve => setImmediate(resolve)); render();
   assert.equal(saved.length, 1);
   assert.equal(saved[0].total_count, 1250, 'Unedited lifetime counts survive saving');
