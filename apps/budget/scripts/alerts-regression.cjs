@@ -283,6 +283,9 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       find(list().props.ListHeaderComponent, n => n.type === 'CustomExpensesHeader').props.expenses.map(expense => expense.id),
       [1, 2, 3], 'The expense header receives both paid and unpaid rows',
     );
+    const header = nodes(list().props.ListHeaderComponent);
+    assert.equal(header.filter(node => node.props?.children === 'Current remaining').length, 1);
+    assert.equal(header.some(node => node.props?.children === 'Planned remaining'), false);
   }
   {
     const seeded={...sample,id:9,is_recurring:true};

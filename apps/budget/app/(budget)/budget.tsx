@@ -459,9 +459,11 @@ export default function BudgetScreen() {
           </View>
           <Text accessibilityRole="header" className="text-2xl max-[360px]:text-[21px] font-semibold tracking-[-0.4px] text-foreground">{monthLabel(month)}</Text>
           <View className="gap-2 rounded-[22px] bg-secondary p-5">
-            <View className="flex-row flex-wrap gap-4 rounded-[14px] p-0">
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Planned remaining</Text><Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.remaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.remaining ?? 0)}</Text></View>
-              <View className="min-w-[112px] flex-1 gap-1"><Text className="text-[11px] text-muted-foreground">Current remaining</Text><Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(monthSummary?.actualRemaining ?? 0)}</Text></View>
+            <View className="gap-1">
+              <Text className="text-[11px] text-muted-foreground">Current remaining</Text>
+              <Text className={`text-[23px] font-semibold tracking-[-0.7px] ${(monthSummary?.actualRemaining ?? 0) < 0 ? "text-destructive" : "text-foreground"}`}>
+                {formatCurrency(monthSummary?.actualRemaining ?? 0)}
+              </Text>
             </View>
             <Button className="self-start" variant="secondary" icon={Pencil} label={"Income & savings target"} onPress={() => setEditingMonth(true)} />
           </View>

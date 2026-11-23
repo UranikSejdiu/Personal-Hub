@@ -1,6 +1,7 @@
 package com.uranik.reminders
 
 import android.app.AlarmManager
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
@@ -15,9 +16,12 @@ class ReminderAccessModule : Module() {
       val context = requireNotNull(appContext.reactContext)
       val alarms = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
       val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+      val backgroundRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true
       mapOf(
         "exactAlarms" to (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()),
-        "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(context.packageName)
+        "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(context.packageName),
+        "backgroundRestricted" to backgroundRestricted
       )
     }
   }

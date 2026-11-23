@@ -71,9 +71,33 @@ export async function taskReminderNotificationsEnabled(): Promise<boolean | null
   return isReminderChannelEnabled(api);
 }
 
+export type TaskReminderIssue = "notifications" | "channel" | "battery" | "alarms";
+
+export async function getTaskReminderIssue(): Promise<TaskReminderIssue | null> {
+  if (Platform.OS !== "android") return null;
+  const api = await getApi();
+  if (!api) return null;
+  if (!allowed(api, await api.getPermissionsAsync())) return "notifications";
+  if (!await isReminderChannelEnabled(api)) return "channel";
+  const access = getReminderAccess();
+  if (access?.backgroundRestricted) return "battery";
+  if (Number(Platform.Version) >= 31 && access?.exactAlarms === false) return "alarms";
+  return null;
+}
+
+export async function openTaskReminderIssueSettings(issue: TaskReminderIssue): Promise<void> {
+  if (issue === "channel") await openTaskReminderChannelSettings("Task reminders");
+  else await openReminderSettings(issue);
+}
+
 export function taskReminderDate(task: Pick<Task, "due_date" | "reminder_time">): Date | null {
   if (!task.due_date || !task.reminder_time) return null;
   return new Date(`${task.due_date}T${task.reminder_time}:00`);
+}
+
+export function upcomingTaskReminder(task: Task, now: number): Date | null {
+  const date = task.completed_at === null ? taskReminderDate(task) : null;
+  return date && date.getTime() > now ? date : null;
 }
 
 /** Reconcile from SQLite after taking the queue, so rapid edits cannot schedule stale reminders. */
@@ -112,9 +136,10 @@ async function reconcileTaskReminders(channelName: string): Promise<void> {
   // retained inexact alarms when the user grants precise delivery access.
   const exactAlarms = getReminderAccess()?.exactAlarms ?? false;
   const legacyVibration = Platform.OS === "android" && !hasAndroidChannels();
+  const now = Date.now();
   const reminders = allowed(api, permission) ? tasks.flatMap((task) => {
-    const date = taskReminderDate(task);
-    return !task.completed_at && date && date.getTime() > Date.now() ? [{ task, date }] : [];
+    const date = upcomingTaskReminder(task, now);
+    return date ? [{ task, date }] : [];
   }).sort((a, b) => a.date.getTime() - b.date.getTime() || a.task.id - b.task.id).slice(0, Platform.OS === "ios" ? 50 : undefined) : [];
   const wanted = new Map(reminders.map(({ task, date }) => [
     `${PREFIX}${task.id}`, { task, date, signature: JSON.stringify(

@@ -9,6 +9,7 @@ import { Bell, Search, X } from "../AppIcons";
 import { calendarDays, localTaskDate, moveCalendarDate } from "../../lib/taskCalendar";
 import { isTaskDate, taskDateKey } from "../../lib/taskDates";
 import { subscribeTaskChanges } from "../../lib/taskEvents";
+import { getTaskReminderIssue, upcomingTaskReminder, type TaskReminderIssue } from "../../lib/taskReminders";
 import { completeTask, deleteTask, loadTask, loadTaskDayCounts, loadTaskOverview, loadTasksPage, reopenTask, saveTask, TaskUndoError, type TaskFilter, type TaskOverview, type TaskPageOptions } from "../../lib/tasks";
 import type { Task, TaskInput } from "../../types/tasks";
 import { TaskCard } from "./TaskCard";
@@ -62,6 +63,8 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     setEditorState(value);
   }, []);
   const [reminder, setReminder] = useState<Task | null>(null);
+  const [reminderIssue, setReminderIssue] = useState<TaskReminderIssue | null>(null);
+  const [reminderNow, setReminderNow] = useState(Date.now);
   const reminderId = useRef<number | null>(null);
   const [deletion, setDeletion] = useState<Task | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,6 +112,16 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
   useEffect(() => { refreshRef.current = refresh; if (focused.current) void refresh(); }, [refresh]);
   useFocusEffect(useCallback(() => {
     focused.current = true; setBusy(writing.current); void refreshRef.current();
+    let deliveryRequest = 0;
+    const refreshDelivery = () => {
+      if (AppState.currentState != null && AppState.currentState !== "active") return;
+      const request = ++deliveryRequest;
+      setReminderNow(Date.now());
+      void getTaskReminderIssue().catch(() => null).then(issue => {
+        if (request === deliveryRequest) setReminderIssue(issue);
+      });
+    };
+    refreshDelivery();
     const unsubscribe = subscribeTaskChanges(() => { if (!writing.current) void refreshRef.current(); });
     let midnight: ReturnType<typeof setTimeout> | undefined;
     const stop = () => { clearTimeout(midnight); midnight = undefined; };
@@ -117,9 +130,9 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
       const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       midnight = setTimeout(() => { void refreshRef.current(); schedule(); }, next.getTime() - now.getTime());
     };
-    const listener = AppState.addEventListener("change", state => { if (state === "active") { void refreshRef.current(); schedule(); } else { ++sequence.current; stop(); } });
+    const listener = AppState.addEventListener("change", state => { if (state === "active") { void refreshRef.current(); refreshDelivery(); schedule(); } else { ++sequence.current; ++deliveryRequest; stop(); } });
     schedule();
-    return () => { focused.current = false; ++sequence.current; unsubscribe(); listener.remove(); stop(); setEditor(null); setDeletion(null); };
+    return () => { focused.current = false; ++sequence.current; ++deliveryRequest; unsubscribe(); listener.remove(); stop(); setEditor(null); setDeletion(null); };
   }, [setEditor]));
 
   useEffect(() => {
@@ -138,6 +151,16 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     return () => { active = false; };
   }, [taskId, router]);
   useEffect(() => { if (reminder) listRef.current?.scrollToOffset({ offset: 0, animated: true }); }, [reminder]);
+  useEffect(() => {
+    let next = reminder ? upcomingTaskReminder(reminder, reminderNow)?.getTime() ?? Infinity : Infinity;
+    for (const task of tasks) {
+      next = Math.min(next, upcomingTaskReminder(task, reminderNow)?.getTime() ?? Infinity);
+    }
+    if (!Number.isFinite(next)) return;
+    // One timer for the list, so a reminder stops looking upcoming once its time passes.
+    const timer = setTimeout(() => setReminderNow(Date.now()), Math.max(1, Math.min(next - Date.now(), 2_147_483_647)));
+    return () => clearTimeout(timer);
+  }, [tasks, reminder, reminderNow]);
 
   const perform = useCallback(async (operation: () => Promise<void>, committed?: () => void) => {
     if (writing.current) return;
@@ -173,8 +196,8 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     finally { if (focused.current && request === sequence.current) { page.current.loading = false; setPaging(false); } }
   }, [query]);
   const visible = useMemo(() => failed ? [] : tasks.filter(task => task.id !== reminder?.id), [failed, tasks, reminder]);
-  const renderTask = useCallback(({ item }: ListRenderItemInfo<Task>) => <TaskCard task={item} today={today} busy={busy || loading} agenda={mode === "calendar"} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />,
-    [today, busy, loading, mode, toggleTask, editTask, askDelete]);
+  const renderTask = useCallback(({ item }: ListRenderItemInfo<Task>) => <TaskCard task={item} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} agenda={mode === "calendar"} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />,
+    [today, reminderNow, reminderIssue, busy, loading, mode, toggleTask, editTask, askDelete]);
   const move = (direction: number) => {
     const next = moveCalendarDate(week ? selectedDate : month, direction, week);
     setMonth(`${next.slice(0, 7)}-01`); setSelectedDate(next);
@@ -206,7 +229,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
       <AgendaHeading title={localTaskDate(selectedDate).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "short" })} onAdd={() => setEditor({})} disabled={busy} />
       <Pressable accessibilityRole="button" accessibilityState={{ selected: showDone }} onPress={() => setShowDone(value => !value)} className="mb-2 min-h-[44px] justify-center"><Text className="text-xs text-muted-foreground">{showDone ? "Hide" : "Show"} completed tasks</Text></Pressable>
     </>}
-    {reminder && <View className="mb-3 rounded-2xl border border-primary p-2"><View className="flex-row items-center justify-between"><Text className="text-xs font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
+    {reminder && <View className="mb-3 rounded-2xl border border-primary p-2"><View className="flex-row items-center justify-between"><Text className="text-xs font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
   </View>;
   const empty = loading ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading tasks" className="my-8" />
     : failed ? <View className="items-center gap-3 py-8"><Text className="text-sm text-destructive">Could not load your tasks.</Text><Button label="Retry" onPress={() => void refresh()} /></View>

@@ -20,6 +20,7 @@ const channels = new Map();
 const settingsIntents = [];
 let notificationPermission = { granted: true };
 let exactAlarms = true;
+let backgroundRestricted = false;
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(p => p.uri || p).join('/'); }
   get name() { return this.uri.split('/').at(-1); }
@@ -55,7 +56,7 @@ const native = {
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared = uri; } },
   'expo-application': { nativeApplicationVersion: '1.0.0', applicationId: 'com.uranik.tasks' },
   'react-native': { Platform: { OS: 'android', Version: 37 } },
-  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms, batteryUnrestricted: false }) } : {} },
+  'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms, batteryUnrestricted: false, backgroundRestricted }) } : {} },
   'expo-intent-launcher': { startActivityAsync: async (action, options) => settingsIntents.push({ action, options }) },
   'expo-notifications': {
     AndroidImportance: { NONE: 0, DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
@@ -189,12 +190,19 @@ const plain = value => JSON.parse(JSON.stringify(value));
     const channel = channels.get('task-reminders');
     channel.importance = 0;
     assert.equal(await reminders.requestTaskReminderPermission('Task reminders'), 'denied', 'A blocked channel is not a granted reminder');
+    assert.equal(await reminders.getTaskReminderIssue(), 'channel');
     assert.equal(channel.importance, 0, 'Recreating a channel must not override its user settings');
     channel.importance = 3;
     notificationPermission = { granted: true, status: 'denied' };
     assert.equal(await reminders.taskReminderNotificationsEnabled(), false, 'Android can report app notifications off even when the runtime grant is present');
+    assert.equal(await reminders.getTaskReminderIssue(), 'notifications');
     notificationPermission = { granted: true };
+    assert.equal(await reminders.getTaskReminderIssue(), null, 'Ordinary battery optimization is not a delivery issue');
+    backgroundRestricted = true;
+    assert.equal(await reminders.getTaskReminderIssue(), 'battery');
+    backgroundRestricted = false;
     exactAlarms = false;
+    assert.equal(await reminders.getTaskReminderIssue(), 'alarms');
     await reminders.syncTaskReminders('Task reminders');
     assert.equal(scheduled.size, 1, 'A reminder is still scheduled without exact-alarm access');
     assert.equal(JSON.parse([...scheduled.values()][0].content.data.signature)[2], false);

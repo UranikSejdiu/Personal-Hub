@@ -3,7 +3,7 @@ import * as Application from "expo-application";
 import * as IntentLauncher from "expo-intent-launcher";
 import { Linking, Platform } from "react-native";
 
-export type ReminderAccess = { exactAlarms: boolean; batteryUnrestricted: boolean };
+export type ReminderAccess = { exactAlarms: boolean; batteryUnrestricted: boolean; backgroundRestricted?: boolean };
 
 export function getReminderAccess(): ReminderAccess | null {
   if (Platform.OS !== "android" || isRunningInExpoGo()) return null;

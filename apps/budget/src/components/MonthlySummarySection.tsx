@@ -73,7 +73,12 @@ export function MonthlySummarySection({
       <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Month summary</Text>
       <View className="rounded-[14px] border border-border/60 bg-card p-3">
         <View className="gap-[7px]">
-          {[{ label: "Monthly Income (after tax)", value: budget.income }, { label: "Outgoings", value: c.totalOutflow }, { label: "Paid so far", value: c.actualOutflow }, { label: "Current remaining", value: c.actualRemaining }].map(row =>
+          {[
+            { label: "Monthly Income (after tax)", value: budget.income },
+            { label: "Outgoings", value: c.totalOutflow },
+            { label: "Paid so far", value: c.actualOutflow },
+            { label: "Planned remaining", value: c.remaining },
+          ].map(row =>
             <View key={row.label} className="flex-row flex-wrap justify-between gap-2"><Text className="text-xs text-muted-foreground">{row.label}</Text><Text className={`text-xs font-semibold ${row.value < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(row.value)}</Text></View>)}
         </View>
         {hasData && <Pressable onPress={() => setExpanded(value => !value)} accessibilityRole="button" accessibilityLabel="Detailed breakdown" accessibilityState={{ expanded }} className="mt-2 min-h-[44px] flex-row items-center justify-between gap-2">

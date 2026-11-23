@@ -1,7 +1,7 @@
 import { Text } from "./Typography";
 import { AppAlerts } from "../AppAlerts";
 import { useCallback, useRef, useState, type ComponentRef, type ComponentType } from "react";
-import { Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useThemeColors, useThemeVariables } from "../../lib/theme";
@@ -50,6 +50,7 @@ export function useAnchoredMenu() {
 }
 
 export function AnchoredMenu({ anchor, onClose, items, size = "compact", align = "end" }: AnchoredMenuProps) {
+  const pendingAction = useRef<(() => void) | null>(null);
   const colors = useThemeColors();
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
@@ -70,7 +71,11 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
       : Math.max(topLimit, Math.min(below, bottomLimit - height));
 
   return (
-    <Modal visible={anchor !== null} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={anchor !== null} transparent animationType="fade" onRequestClose={onClose} onDismiss={() => {
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      action?.();
+    }}>
       <Pressable
         className="flex-1 bg-black/30"
         style={variables}
@@ -93,8 +98,10 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
                   key={item.key}
                   onPress={(event) => {
                     event.stopPropagation();
+                    // iOS must dismiss this modal before presenting a confirmation.
+                    if (Platform.OS === "ios") pendingAction.current = item.onPress;
                     onClose();
-                    item.onPress();
+                    if (Platform.OS !== "ios") item.onPress();
                   }}
                   className={cn(
                     "min-h-[44px] flex-row items-center rounded-xl active:bg-muted",

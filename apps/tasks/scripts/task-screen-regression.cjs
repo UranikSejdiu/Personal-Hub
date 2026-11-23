@@ -23,6 +23,7 @@ module.exports = async function verifyScreen(root, load) {
   const app = { currentState: 'active', addEventListener: (_name, callback) => { appListener = callback; return { remove: () => { appListener = null; } }; } };
   const task = id => ({ id, title: `Task ${id}`, notes: '', list_id: null, due_date: '2026-10-31', repeat: 'none', reminder_time: null, completed_at: null, priority: 0 });
   const counts = { today: 2, upcoming: 0, overdue: 0, completed: 0, open: 2 };
+  let reminderIssue = 'notifications';
   const mocks = {
     react: hooks, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     'react-native': { ActivityIndicator: 'ActivityIndicator', AppState: app, FlatList: 'FlatList', Pressable: 'Pressable', View: 'View' },
@@ -33,6 +34,10 @@ module.exports = async function verifyScreen(root, load) {
     '../AppIcons': { Bell: 'Bell', Search: 'Search', X: 'X' },
     '../../lib/taskCalendar': load(path.join(root, 'src/lib/taskCalendar.ts')), '../../lib/taskDates': load(path.join(root, 'src/lib/taskDates.ts')),
     '../../lib/taskEvents': { subscribeTaskChanges: callback => { changeListener = callback; return () => { changeListener = null; }; } },
+    '../../lib/taskReminders': {
+      ...load(path.join(root, 'src/lib/taskReminders.ts')),
+      getTaskReminderIssue: async () => reminderIssue,
+    },
     '../../lib/tasks': {
       loadTasksPage: options => new Promise(resolve => requests.push({ options, resolve })), loadTaskOverview: async () => counts,
       loadTaskDayCounts: async () => ({}), loadTask: async id => task(id),
@@ -56,6 +61,7 @@ module.exports = async function verifyScreen(root, load) {
   nodes('TaskCalendar')[0].props.onSelect('2026-11-05'); render(); await flush();
   assert.equal(requests.length, 2); assert.equal(requests[1].options.date, '2026-11-05');
   requests[1].resolve({ tasks: [task(2)], nextOffset: 1, hasMore: true }); await flush(); render();
+  assert.equal(nodes('FlatList')[0].props.renderItem({ item: task(2) }).props.reminderIssue, 'notifications');
   requests[0].resolve({ tasks: [task(1)], nextOffset: 1, hasMore: true }); await flush(); render();
   assert.equal(nodes('FlatList')[0].props.data[0].id, 2, 'An old calendar response cannot overwrite the selected day');
   nodes('AgendaHeading')[0].props.onAdd(); render();
@@ -64,9 +70,11 @@ module.exports = async function verifyScreen(root, load) {
   app.currentState = 'background'; appListener('background');
   nodes('FlatList')[0].props.onEndReached(); changeListener(); await flush();
   assert.equal(requests.length, 2, 'Background screens do not query or page');
+  reminderIssue = null;
   app.currentState = 'active'; appListener('active'); await flush();
   assert.equal(requests.length, 3, 'Resuming refreshes from persisted data');
   requests[2].resolve({ tasks: [task(3)], nextOffset: 1, hasMore: false }); await flush(); render();
+  assert.equal(nodes('FlatList')[0].props.renderItem({ item: task(3) }).props.reminderIssue, null, 'Returning from settings refreshes the card issue');
   params = { taskId: '99' }; render(); await flush(); render();
   assert.equal(nodes('TaskCard')[0].props.task.id, 99, 'A reminder opens its exact task outside the current date');
   assert.equal(params.taskId, undefined);
