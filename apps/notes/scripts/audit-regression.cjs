@@ -154,6 +154,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   await backup.importBackup(json);
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), original.tables, 'Repeated migration replaces a snapshot without duplication');
   const uri = await backup.exportBackup();
+  assert.equal(files.get(shared), JSON.stringify(JSON.parse(files.get(shared))), 'Export writes compact validated JSON');
   assert.equal(uri, shared);
   assert.equal(JSON.parse(files.get(shared)).meta.format, identity.backupFormat);
   assert.deepEqual(plain(backup.parseBackup(files.get(shared)).envelope.tables), plain(backup.parseBackup(JSON.stringify(original)).envelope.tables));
@@ -219,7 +220,19 @@ const plain = value => JSON.parse(JSON.stringify(value));
   }
   if (identity.id === 'notes') {
     await require('./dependency-regression.cjs')(root);
-    await require('./migration-regression.cjs')(root);
+    const converter = load(path.join(root, 'src/lib/noteContent.ts'));
+    const literalBackup = structuredClone(fixture);
+    const literal = literalBackup.tables.notes[0];
+    literal.content = '["milk","bread"]';
+    await backup.importBackup(JSON.stringify(literalBackup));
+    const noteApi = load(path.join(root, 'src/lib/notes.ts'));
+    const opened = await noteApi.getNote(literal.id);
+    const html = converter.contentToEditorHtml(opened.content);
+    await noteApi.updateNote(opened.id, { title: 'New title', content: html });
+    assert.equal(converter.contentToMarkdown((await noteApi.getNote(opened.id)).content), literal.content);
+    assert.equal(converter.contentToMarkdown('[{"type":"paragraph","text":"Keep me"}]'), 'Keep me');
+    await backup.importBackup(JSON.stringify(original));
+    await require('./migration-regression.cjs')(root, load);
     await require('./media-runtime-regression.cjs')(root);
       await require('./attachment-permissions-regression.cjs')(root);
     const notes = load(path.join(root, 'src/lib/notes.ts'));

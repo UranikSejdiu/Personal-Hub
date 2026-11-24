@@ -2,7 +2,6 @@ import * as db from "./db";
 import { type NoteColor } from "../constants/theme";
 import { type Note, type NoteItem, type NoteKind } from "../types/notes";
 import { contentToMarkdown } from "./noteContent";
-import { isLexicalJson } from "./lexicalPreview";
 import { parseAttachments, serializeAttachments } from "./attachmentData";
 
 export type { Note, NoteItem, NoteKind };
@@ -126,7 +125,6 @@ async function attachChecklistItems(notes: Note[], preview = false): Promise<Not
 interface ListPageOptions { limit: number; offset: number }
 
 export async function loadNotes(sort: NoteSort = "updated", page?: ListPageOptions, archived = false, kind?: NoteKind): Promise<Note[]> {
-  await ensurePlainTextBackfill();
   const rows = await db.query<Record<string, unknown>>(
     `SELECT ${LIST_COLUMNS} FROM notes WHERE is_archived = ? AND (? IS NULL OR kind = ?) ORDER BY ${orderBy(sort)}${page ? " LIMIT ? OFFSET ?" : ""}`,
     page ? [archived ? 1 : 0, kind ?? null, kind ?? null, page.limit, page.offset] : [archived ? 1 : 0, kind ?? null, kind ?? null]
@@ -134,65 +132,7 @@ export async function loadNotes(sort: NoteSort = "updated", page?: ListPageOptio
   return attachChecklistItems(rows.map(toNote), Boolean(page));
 }
 
-let backfillPromise: Promise<void> | null = null;
-let needsPollutedRepair = false;
-
-/**
- * Invalidate the cached backfill so imported notes with an empty `plain_text`
- * are reindexed. Call after a restore replaces the notes table.
- */
-export function resetPlainTextBackfill(): void {
-  backfillPromise = null;
-  // A restored backup can still carry legacy rows whose plain_text is raw
-  // Lexical JSON; that data never went through the schema migration.
-  needsPollutedRepair = true;
-}
-
-async function ensurePlainTextBackfill(): Promise<void> {
-  if (backfillPromise) return backfillPromise;
-  backfillPromise = (async () => {
-    try {
-      // Pass 1: backfill rows with empty plain_text
-      const rows = await db.query<Record<string, unknown>>(
-        "SELECT id, content FROM notes WHERE plain_text = '' AND content != ''"
-      );
-      for (const row of rows) {
-        const plain = getPlainTextFromContent(String(row.content));
-        await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
-          plain,
-          Number(row.id),
-        ]);
-      }
-      // Pass 2 (only after a restore): repair rows where plain_text was
-      // polluted by Lexical JSON. Local databases are repaired once by the
-      // schema migration, so this scan is not repeated on every launch.
-      if (needsPollutedRepair) {
-        const polluted = await db.query<Record<string, unknown>>(
-          "SELECT id, content, plain_text FROM notes WHERE plain_text != '' AND plain_text LIKE '%\"root\"%' AND plain_text LIKE '%\"children\"%'"
-        );
-        for (const row of polluted) {
-          const content = String(row.content);
-          if (!isLexicalJson(content)) continue;
-          const plain = getPlainTextFromContent(content);
-          await db.execute("UPDATE notes SET plain_text = ? WHERE id = ?", [
-            plain,
-            Number(row.id),
-          ]);
-        }
-        needsPollutedRepair = false;
-      }
-    } catch (error) {
-      // Best-effort: a failed backfill write must never fail the read. Rows are
-      // still returned as-is and the backfill is retried on the next read.
-      backfillPromise = null;
-      console.warn("[notes] plain_text backfill failed", error);
-    }
-  })();
-  return backfillPromise;
-}
-
 export async function searchNotes(query: string, sort: NoteSort = "updated", page?: ListPageOptions, archived = false, kind?: NoteKind): Promise<Note[]> {
-  await ensurePlainTextBackfill();
   const normalized = query.trim().toLowerCase();
   if (!normalized) return loadNotes(sort, page, archived, kind);
 

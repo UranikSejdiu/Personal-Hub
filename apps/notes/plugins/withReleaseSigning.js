@@ -16,8 +16,12 @@ if (notesPropertiesFile.exists()) {
 }
 def notesSigned = notesKeystore.exists() && notesProperties['STORE_PASSWORD'] &&
         notesProperties['KEY_ALIAS'] && notesProperties['KEY_PASSWORD']
-if ((System.getenv('CI') == 'true' || gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) && !notesSigned) {
-    throw new GradleException('Notes CI builds require credentials/release-keystore.jks and keystore.properties')
+// Check the resolved graph so lint and other analysis can run without a release key.
+gradle.taskGraph.whenReady { graph ->
+    def packagesRelease = graph.hasTask(':app:packageRelease') || graph.hasTask(':app:signReleaseBundle')
+    if (packagesRelease && !notesSigned) {
+        throw new GradleException('Release packaging requires credentials/release-keystore.jks and keystore.properties')
+    }
 }
 if (notesSigned) {
     android.signingConfigs.create('notesRelease') {

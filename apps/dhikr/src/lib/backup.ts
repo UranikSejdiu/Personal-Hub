@@ -24,8 +24,21 @@ function isDate(value: unknown): value is string {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+function exceedsUtf8Limit(text: string): boolean {
+  let bytes = 0;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    if (code < 0x80) bytes++;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length && text.charCodeAt(index + 1) >= 0xdc00 && text.charCodeAt(index + 1) <= 0xdfff) { bytes += 4; index++; }
+    else bytes += 3;
+    if (bytes > MAX_BYTES) return true;
+  }
+  return false;
+}
+
 export function parseBackup(json: string): Dhikr[] {
-  if (json.length > MAX_BYTES) throw new Error("Backup is too large.");
+  if (json.length > MAX_BYTES || exceedsUtf8Limit(json)) throw new Error("Backup is too large.");
   const value: unknown = JSON.parse(json);
   if (!isObject(value) || !isObject(value.meta) || !isObject(value.tables)) {
     throw new Error("Invalid backup format.");
@@ -52,28 +65,42 @@ export function parseBackup(json: string): Dhikr[] {
   });
 }
 
-async function envelope() {
+async function backupJson(): Promise<string> {
   await flushDhikrWrites();
-  return {
+  const json = JSON.stringify({
     meta: { format: FORMAT, version: 1, exportedAt: new Date().toISOString() },
     tables: { dhikrs: await db.query<Dhikr>("SELECT * FROM dhikrs ORDER BY sort_order, id") },
-  };
+  });
+  parseBackup(json);
+  return json;
 }
 
 export async function readBackupFile(uri: string): Promise<string> {
   const file = new File(uri);
-  if (!file.exists || file.size > MAX_BYTES) throw new Error("Backup is missing or too large.");
-  return file.text();
+  try {
+    if (!file.exists || file.size > MAX_BYTES) throw new Error("Backup is missing or too large.");
+    return await file.text();
+  } finally {
+    if (file.uri.startsWith(Paths.cache.uri.replace(/\/$/, "") + "/")) {
+      try { file.delete(); } catch { /* The picker may still hold the copy. */ }
+    }
+  }
 }
 
 export async function exportBackupToFile(): Promise<string | null> {
-  return saveBackupFile("dhikr-backup", async () => JSON.stringify(await envelope(), null, 2), exportBackup);
+  return saveBackupFile("dhikr-backup", backupJson, exportBackup);
 }
 
 export async function exportBackup(): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) throw new Error("File sharing is unavailable.");
   const file = new File(Paths.cache, `dhikr-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  file.write(JSON.stringify(await envelope(), null, 2));
+  file.write(await backupJson());
+  try {
+    const exports = Paths.cache.list().filter((entry): entry is File =>
+      entry instanceof File && entry.name.startsWith("dhikr-backup-") && entry.name.endsWith(".json"));
+    exports.sort((a, b) => b.name.localeCompare(a.name));
+    for (const stale of exports.slice(3)) stale.delete();
+  } catch { /* Cache pruning is best effort. */ }
   await Sharing.shareAsync(file.uri, { mimeType: "application/json", UTI: "public.json" });
 }
 
@@ -97,7 +124,7 @@ async function replaceRows(rows: Dhikr[]): Promise<void> {
 export async function importBackup(json: string): Promise<void> {
   const rows = parseBackup(json);
   const temp = new File(Paths.document, `${SAFETY_NAME}.tmp`);
-  temp.write(JSON.stringify(await envelope(), null, 2));
+  temp.write(await backupJson());
   temp.move(new File(Paths.document, SAFETY_NAME), { overwrite: true });
   await replaceRows(rows);
 }

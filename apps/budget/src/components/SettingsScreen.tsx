@@ -11,7 +11,7 @@ import { BackupPasswordDialog } from "./BackupPasswordDialog";
 import { decryptBackup, isEncryptedBackup } from "../lib/backupCrypto";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { ChevronRight, Settings } from "./AppIcons";
-import { buildBackupEnvelope, exportBackupToFile, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
+import { exportBackupToFile, importBackup, previewBackup, readBackupFile } from "../lib/backup";
 import identity from "../appIdentity.json";
 
 export default function SettingsScreen() {
@@ -19,15 +19,10 @@ export default function SettingsScreen() {
   const colors = useThemeColors();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
-  const [safety, setSafety] = useState(false);
   const [pending, setPending] = useState<{ json: string; summary: string } | null>(null);
-  const [recover, setRecover] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [encryptedFile, setEncryptedFile] = useState<string | null>(null);
-  useFocusEffect(useCallback(() => {
-    setSafety(hasSafetyBackup());
-  }, []));
   useFocusEffect(useCallback(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => locked.current);
     return () => listener.remove();
@@ -42,7 +37,7 @@ export default function SettingsScreen() {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
       toast.error(failureMessage);
-    } finally { setSafety(hasSafetyBackup()); locked.current = false; setBusy(false); }
+    } finally { locked.current = false; setBusy(false); }
   };
   const pick = () => run(async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
@@ -66,9 +61,9 @@ export default function SettingsScreen() {
   const confirmImport = () => run(async () => {
     if (!pending) return;
     const result = await importBackup(pending.json);
-    if (result.preferences?.theme && result.preferencesRestored) setTheme(result.preferences.theme);
-    setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
     setPending(null);
+    setReceipt(pending.summary);
+    if (result.preferences?.theme && result.preferencesRestored) setTheme(result.preferences.theme);
     if (result.preferencesRestored) toast.success("Backup imported");
     else toast.warning("Data imported. Check appearance settings.");
   });
@@ -98,12 +93,8 @@ export default function SettingsScreen() {
             <Button className="min-w-[104px] flex-1" label="Export" disabled={busy} onPress={() => void run(exportBackupToFile, "Backup saved", "Could not save backup.")} />
             <Button className="min-w-[104px] flex-1" label="Import" variant="secondary" disabled={busy} onPress={() => void pick()} />
           </View>
-          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}.</Text>}
-          {actionError && !pending && !recover && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
-          {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => {
-            setActionError(null);
-            setRecover(true);
-          }} />}
+          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Imported records: {receipt}.</Text>}
+          {actionError && !pending && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
         </View>
         <Pressable disabled={busy} accessibilityState={{ disabled: busy }}
           className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-60"
@@ -127,13 +118,6 @@ export default function SettingsScreen() {
     </ScrollView>
     {encryptedFile && <BackupPasswordDialog onSubmit={submitPassword}
       onClose={() => { if (!locked.current) setEncryptedFile(null); }} />}
-    <ConfirmDialog visible={pending !== null} title={`Import ${identity.title} data?`} message={`${pending?.summary ?? ""}\nThis replaces the current records in ${identity.title}. A recovery copy is saved first. Your Hub data is untouched.`} error={actionError} confirmLabel="Import" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setPending(null); }} onConfirm={confirmImport} />
-    <ConfirmDialog visible={recover} title="Restore previous data?" message="Replace current records with the copy saved before the last import. Export your current data first if you want to keep both." error={actionError} confirmLabel="Restore" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setRecover(false); }} onConfirm={() => run(async () => {
-      const result = await restoreSafetyBackup();
-      if (result.preferencesRestored && result.preferences?.theme) setTheme(result.preferences.theme);
-      setRecover(false); setReceipt(previewBackup(JSON.stringify(await buildBackupEnvelope())));
-      if (result.preferencesRestored) toast.success("Data restored");
-      else toast.warning("Data restored. Check appearance settings.");
-    })} />
+    <ConfirmDialog visible={pending !== null} title={`Import ${identity.title} data?`} message={`${pending?.summary ?? ""}\nThis replaces the current records in ${identity.title}.`} error={actionError} confirmLabel="Import" cancelLabel="Cancel" destructive onClose={() => { if (!locked.current) setPending(null); }} onConfirm={confirmImport} />
   </>;
 }

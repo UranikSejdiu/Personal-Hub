@@ -64,18 +64,20 @@ export function parseInlineMarkdown(line: string): PreviewSegment[] {
   return segments.length > 0 ? segments : [{ text: line }];
 }
 
+function parseArrayContent(content: string): unknown[] | undefined {
+  if (!content.startsWith("[")) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function contentToMarkdown(content: string): string {
   if (!content) return "";
-  if (content[0] === "[") {
-    try {
-      const parsed = JSON.parse(content) as unknown;
-      if (Array.isArray(parsed)) {
-        return blocksToMarkdown(parsed as BlockLegacy[]);
-      }
-    } catch {
-      // not JSON array
-    }
-  }
+  const blocks = parseArrayContent(content);
+  if (blocks) return blocks.length > 0 && blocks.every(isLegacyBlock) ? blocksToMarkdown(blocks) : content;
   if (isLexicalJson(content)) {
     return extractLexicalLines(content).join("\n");
   }
@@ -87,6 +89,11 @@ export function contentToMarkdown(content: string): string {
 
 export function contentToEditorHtml(content: string): string {
   if (!content) return "<p></p>";
+  const blocks = parseArrayContent(content);
+  if (blocks) {
+    if (blocks.length > 0 && blocks.every(isLegacyBlock)) return markdownToHtml(blocksToMarkdown(blocks));
+    return "<p>" + escapeHtml(content).replace(/\n/g, "<br>") + "</p>";
+  }
   if (/<[a-z][\s\S]*>/i.test(content)) return normalizeHtmlForEditor(content);
   return markdownToHtml(contentToMarkdown(content));
 }
@@ -458,6 +465,19 @@ interface BlockLegacy {
   type?: string;
   text?: string;
   checked?: boolean;
+}
+
+function isLegacyBlock(value: unknown): value is BlockLegacy {
+  if (typeof value !== "object" || value === null || !("text" in value) || typeof value.text !== "string") return false;
+  return (!("type" in value) || typeof value.type === "string") &&
+    (!("checked" in value) || typeof value.checked === "boolean");
+}
+
+export function repairedSearchText(content: string, plain: string): string {
+  if (!plain.trim() || (plain.includes('"root"') && plain.includes('"children"') && isLexicalJson(content))) {
+    return contentToMarkdown(content);
+  }
+  return plain;
 }
 
 function blocksToMarkdown(blocks: BlockLegacy[]): string {

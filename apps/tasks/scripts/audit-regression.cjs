@@ -144,6 +144,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   await backup.importBackup(json);
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), original.tables, 'Repeated migration replaces a snapshot without duplication');
   const uri = await backup.exportBackup();
+  assert.equal(files.get(shared), JSON.stringify(JSON.parse(files.get(shared))), 'Export writes compact validated JSON');
   assert.equal(uri, shared);
   assert.equal(JSON.parse(files.get(shared)).meta.format, identity.backupFormat);
   assert.deepEqual(plain(backup.parseBackup(files.get(shared)).envelope.tables), plain(backup.parseBackup(JSON.stringify(original)).envelope.tables));

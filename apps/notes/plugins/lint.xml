@@ -1,0 +1,6 @@
+<lint>
+  <!-- Background audio is disabled and AudioControlsService is absent from the merged manifest. -->
+  <issue id="NotificationPermission">
+    <ignore regexp="expo\.modules\.audio\.service\.AudioControlsService" />
+  </issue>
+</lint>

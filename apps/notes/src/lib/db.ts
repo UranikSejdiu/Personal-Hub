@@ -1,3 +1,4 @@
+import { repairedSearchText } from "./noteContent";
 import * as SQLite from "expo-sqlite";
 import { DB_NAME } from "../constants/config";
 type BindValue = string | number | null | Uint8Array;
@@ -83,6 +84,24 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
           await connection.execAsync("CREATE TRIGGER notes_fts_au AFTER UPDATE OF title, plain_text ON notes BEGIN INSERT INTO notes_fts(notes_fts, rowid, title, plain_text) VALUES ('delete', old.id, old.title, old.plain_text); INSERT INTO notes_fts(rowid, title, plain_text) VALUES (new.id, new.title, new.plain_text); END;");
         }
         await connection.execAsync("PRAGMA user_version = 3");
+      });
+      await connection.withTransactionAsync(async () => {
+        const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+        if ((version?.user_version ?? 0) >= 4) return;
+        let lastId = 0;
+        for (;;) {
+          const rows = await connection.getAllAsync<{ id: number; content: string; plain_text: string }>(
+            `SELECT id, content, plain_text FROM notes WHERE id > ? AND content != '' AND
+             (trim(plain_text, char(9,10,13,32)) = '' OR (plain_text LIKE '%"root"%' AND plain_text LIKE '%"children"%'))
+             ORDER BY id LIMIT 64`, lastId);
+          if (!rows.length) break;
+          for (const row of rows) {
+            const plain = repairedSearchText(row.content, row.plain_text);
+            if (plain !== row.plain_text) await connection.runAsync("UPDATE notes SET plain_text = ? WHERE id = ?", plain, row.id);
+          }
+          lastId = rows[rows.length - 1].id;
+        }
+        await connection.execAsync("PRAGMA user_version = 4");
       });
       notesFtsEnabled = Boolean(await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'"));
       db = connection;

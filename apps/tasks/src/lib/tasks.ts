@@ -111,10 +111,11 @@ export async function completeTask(id: number): Promise<void> {
     if (!task || task.completed_at) return;
     const now = new Date();
     const timestamp = now.toISOString().slice(0, 19).replace("T", " ");
-    await tx.execute("UPDATE tasks SET completed_at = ?, updated_at = ? WHERE id = ?", [timestamp, timestamp, id]);
-    if (task.repeat !== "none" && task.due_date) {
-      const day = task.repeat_day ?? Number(task.due_date.slice(8));
-      const due = nextTaskDate(task.due_date, task.repeat, day, taskDateKey(now));
+    const due = task.repeat !== "none" && task.due_date
+      ? nextTaskDate(task.due_date, task.repeat, task.repeat_day ?? Number(task.due_date.slice(8)), taskDateKey(now))
+      : null;
+    await tx.execute("UPDATE tasks SET completed_at = ?, updated_at = ?, successor_due_date = ? WHERE id = ?", [timestamp, timestamp, due, id]);
+    if (due) {
       await tx.execute("INSERT INTO tasks (title, notes, list_id, due_date, priority, repeat, reminder_time, repeat_day, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [task.title, task.notes, task.list_id, due, task.priority, task.repeat, task.reminder_time, task.repeat_day, id]);
     }
@@ -131,14 +132,19 @@ export async function reopenTask(id: number): Promise<void> {
     const child = await tx.get<Task>("SELECT * FROM tasks WHERE parent_id = ?", [id]);
     if (child) {
       // Never erase a later occurrence that the user has edited or completed.
+      // Older backups have only a UTC timestamp. New completions store the scheduled date.
+      const expectedDue = task.successor_due_date ?? (task.repeat !== "none" && task.due_date
+        ? nextTaskDate(task.due_date, task.repeat, task.repeat_day ?? Number(task.due_date.slice(8)),
+          taskDateKey(new Date(`${task.completed_at.replace(" ", "T")}Z`)))
+        : null);
       const unchanged = !child.completed_at && child.title === task.title && child.notes === task.notes &&
         child.list_id === task.list_id && child.priority === task.priority && child.repeat === task.repeat &&
         child.reminder_time === task.reminder_time && child.repeat_day === task.repeat_day &&
-        task.repeat !== "none" && task.due_date !== null && child.due_date === nextTaskDate(task.due_date, task.repeat, task.repeat_day ?? Number(task.due_date.slice(8)), taskDateKey(new Date(`${task.completed_at.replace(" ", "T")}Z`)));
+        expectedDue !== null && child.due_date === expectedDue;
       if (!unchanged) throw new TaskUndoError("A later occurrence has changed");
       await tx.execute("DELETE FROM tasks WHERE id = ?", [child.id]);
     }
-    await tx.execute("UPDATE tasks SET completed_at = NULL, updated_at = datetime('now') WHERE id = ?", [id]);
+    await tx.execute("UPDATE tasks SET completed_at = NULL, successor_due_date = NULL, updated_at = datetime('now') WHERE id = ?", [id]);
   });
   notifyTaskChanges();
 }

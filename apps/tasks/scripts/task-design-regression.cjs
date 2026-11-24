@@ -73,6 +73,25 @@ module.exports = async function verifyDesign(root, db, tasks, backup, load) {
     assert.throws(() => backup.parseBackup(JSON.stringify(malformedList)), 'Legacy list references remain validated');
     await backup.importBackup(JSON.stringify(exported));
     assert.deepEqual(JSON.parse(JSON.stringify((await backup.buildBackupEnvelope()).tables)), JSON.parse(JSON.stringify(exported.tables)), 'New UI changes round-trip through the existing backup format');
+    const dates = load(path.join(root, 'src/lib/taskDates.ts'));
+    assert.equal(dates.nextTaskDate('1000-01-01', 'daily', 1, '2026-11-24'), '2026-11-25');
+    assert.equal(dates.nextTaskDate('2026-03-21', 'weekly', 21, '2026-03-29'), '2026-04-04');
+    const travel = await tasks.saveTask({ ...base, title: 'Travel', repeat: 'daily', due_date: '2026-11-23' });
+    await tasks.completeTask(travel);
+    const successor = await db.get('SELECT * FROM tasks WHERE parent_id = ?', [travel]);
+    assert.equal((await tasks.loadTask(travel)).successor_due_date, successor.due_date);
+    // An imported completion from a different local day must use its saved successor date.
+    await db.execute('UPDATE tasks SET completed_at = ?, successor_due_date = ? WHERE id = ?', ['2026-11-23 23:30:00', '2026-11-25', travel]);
+    await db.execute('UPDATE tasks SET due_date = ? WHERE id = ?', ['2026-11-25', successor.id]);
+    const savedZone = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      await tasks.reopenTask(travel);
+      assert.equal((await tasks.loadTask(travel)).completed_at, null);
+    } finally {
+      if (savedZone === undefined) delete process.env.TZ;
+      else process.env.TZ = savedZone;
+    }
     const leap = calendar.calendarDays('2028-02-01', '2028-02-29', false);
     assert.equal(leap.length % 7, 0); assert.ok(leap.includes('2028-02-29'));
     assert.equal(calendar.localTaskDate(leap[0]).getDay(), 1, 'Calendar starts on Monday');

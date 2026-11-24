@@ -33,6 +33,17 @@ export function formatTaskDate(value: string): string {
 /** Keep the original schedule; skip missed occurrences after a late completion. */
 export function nextTaskDate(due: string, repeat: Exclude<TaskRepeat, "none">, anchorDay: number, today = taskDateKey()): string {
   if (!isTaskDate(due) || !isTaskDate(today) || !Number.isInteger(anchorDay) || anchorDay < 1 || anchorDay > 31) throw new Error("Invalid task schedule");
+  if (repeat === "daily" || repeat === "weekly") {
+    const step = repeat === "daily" ? 1 : 7;
+    const dayMs = 86_400_000;
+    // UTC ordinals represent calendar dates independently of daylight-saving changes.
+    const start = Date.parse(due + "T00:00:00Z");
+    const elapsed = (Date.parse(today + "T00:00:00Z") - start) / dayMs;
+    const jumps = Math.max(1, Math.floor(elapsed / step) + 1);
+    const next = new Date(start + jumps * step * dayMs);
+    if (next.getUTCFullYear() > 9999) throw new Error("Task schedule exceeds supported dates");
+    return next.toISOString().slice(0, 10);
+  }
   const date = new Date(`${due}T12:00:00`);
   do {
     if (repeat === "monthly") {
@@ -41,14 +52,12 @@ export function nextTaskDate(due: string, repeat: Exclude<TaskRepeat, "none">, a
       date.setDate(1);
       date.setMonth(month);
       date.setDate(Math.min(anchorDay, new Date(year, month + 1, 0).getDate()));
-    } else if (repeat === "yearly") {
+    } else {
       const year = date.getFullYear() + 1;
       const month = date.getMonth();
       date.setDate(1);
       date.setFullYear(year);
       date.setDate(Math.min(anchorDay, new Date(year, month + 1, 0).getDate()));
-    } else {
-      date.setDate(date.getDate() + (repeat === "daily" ? 1 : 7));
     }
     if (date.getFullYear() > 9999) throw new Error("Task schedule exceeds supported dates");
   } while (taskDateKey(date) <= today);

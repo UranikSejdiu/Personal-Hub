@@ -16,6 +16,7 @@ export interface Task extends TaskInput {
   id: number;
   completed_at: string | null;
   repeat_day: number | null;
+  successor_due_date?: string | null;
   parent_id: number | null;
   created_at: string;
   updated_at: string;

@@ -94,7 +94,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
       const eligibleDays = days.filter(isTaskDate);
       const [result, overview, calendarCounts, target] = await Promise.all([
         loadTasksPage({ ...query, today: actualToday }),
-        loadTaskOverview(actualToday),
+        mode === "overview" ? loadTaskOverview(actualToday) : EMPTY_COUNTS,
         mode === "calendar" ? loadTaskDayCounts(eligibleDays[0], eligibleDays[eligibleDays.length - 1]) : Promise.resolve({}),
         targetId === null ? Promise.resolve(undefined) : loadTask(targetId),
       ]);

@@ -30,6 +30,12 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         for (const sql of INDEXES) await connection.execAsync(sql);
         await connection.execAsync("PRAGMA user_version = 1");
       });
+      await connection.withTransactionAsync(async () => {
+        const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+        if ((version?.user_version ?? 0) >= 2) return;
+        await connection.execAsync("ALTER TABLE tasks ADD COLUMN successor_due_date TEXT");
+        await connection.execAsync("PRAGMA user_version = 2");
+      });
       notesFtsEnabled = Boolean(await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'"));
       db = connection;
       return connection;

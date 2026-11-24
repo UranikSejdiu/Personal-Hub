@@ -11,7 +11,7 @@ import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { UpdateCard } from "../../src/components/UpdateCard";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
 import { getHapticsEnabled, setHapticsEnabled } from "../../src/hooks/useHaptics";
-import { exportBackupToFile, readBackupFile, parseBackup, importBackup, hasSafetyBackup, restoreSafetyBackup } from "../../src/lib/backup";
+import { exportBackupToFile, readBackupFile, parseBackup, importBackup } from "../../src/lib/backup";
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
@@ -19,16 +19,13 @@ export default function SettingsScreen() {
   const [haptics, setHaptics] = useState(true);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [safetyAvailable, setSafetyAvailable] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ json: string; count: number } | null>(null);
-  const [restoring, setRestoring] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     void getHapticsEnabled().then(value => { if (active) setHaptics(value); })
       .catch(() => toast.error("Failed to load data."));
-    setSafetyAvailable(hasSafetyBackup());
     return () => { active = false; };
   }, []));
 
@@ -39,14 +36,12 @@ export default function SettingsScreen() {
     setActionError(null);
     try {
       const result = await action();
-      setSafetyAvailable(hasSafetyBackup());
       if (result !== null) toast.success(success);
       return result !== null;
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
       return false;
     } finally {
-      setSafetyAvailable(hasSafetyBackup());
       busyRef.current = false;
       setBusy(false);
     }
@@ -118,11 +113,7 @@ export default function SettingsScreen() {
               <Button className="min-w-[104px] flex-1" label="Import" variant="secondary" disabled={busy}
                 onPress={() => { void pickImport(); }} />
             </View>
-            {actionError && !pendingImport && !restoring && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
-            {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => {
-              setActionError(null);
-              setRestoring(true);
-            }} label="Restore previous data" />}
+            {actionError && !pendingImport && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
           </View>
           <Pressable disabled={busy} accessibilityState={{ disabled: busy }}
             className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-60"
@@ -152,17 +143,12 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
       <ConfirmDialog visible={pendingImport !== null} title="Import counts"
-        message={`Import ${pendingImport?.count ?? 0} dhikrs? This replaces your current counts. A recovery copy of your current data will be saved first.`} destructive
+        message={`Import ${pendingImport?.count ?? 0} dhikrs? This replaces your current counts.`} destructive
         error={actionError}
         confirmLabel="Import counts" onClose={() => setPendingImport(null)}
         onConfirm={async () => {
           if (!pendingImport) return;
           if (await run(() => importBackup(pendingImport.json), "Data imported successfully")) setPendingImport(null);
-        }} />
-      <ConfirmDialog visible={restoring} title="Restore previous data"
-        message="Replace your current counts with the recovery copy from before your last import?" error={actionError} destructive onClose={() => setRestoring(false)}
-        onConfirm={async () => {
-          if (await run(restoreSafetyBackup, "Data imported successfully")) setRestoring(false);
         }} />
     </>
   );

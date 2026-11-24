@@ -10,6 +10,8 @@ function withUnusedPermissions(config) {
     const manifest = cfg.modResults.manifest;
     const permissions = manifest["uses-permission"];
     if (Array.isArray(permissions)) {
+      const legacyWrite = permissions.find(permission => permission.$?.["android:name"] === "android.permission.WRITE_EXTERNAL_STORAGE");
+      if (legacyWrite) legacyWrite.$["android:maxSdkVersion"] = "28";
       manifest["uses-permission"] = permissions.filter(
         (permission) =>
           !UNUSED_PERMISSIONS.includes(permission.$?.["android:name"])

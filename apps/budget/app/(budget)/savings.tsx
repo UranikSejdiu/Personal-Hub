@@ -6,9 +6,10 @@ import { useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { loadSavingsGoal, loadBudget, currentMonth } from "../../src/lib/budget";
 import {
-  listAutoDeposits,
+  listSavingsPage,
+  listSavingsYears,
+  type SavingsEntry,
   deleteAutoDeposit,
-  listTransactions,
   addTransaction,
   deleteTransaction,
   updateTransaction,
@@ -37,17 +38,6 @@ function todayDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-interface SavingsEntry {
-  id: string;
-  kind: "auto" | "tx";
-  type: SavingsEntryType;
-  description: string;
-  amount: number;
-  date: string;
-  rawMonth?: string;
-  rawTx?: SavingsTransaction;
-}
-
 interface ConfirmAction {
   title: string;
   message: string;
@@ -63,6 +53,8 @@ export default function SavingsScreen() {
   const loadSequence = useRef(0);
   const focused = useRef(false);
   const [entries, setEntries] = useState<SavingsEntry[]>([]);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const page = useRef({ offset: 0, hasMore: false, loading: false });
   const [summary, setSummary] = useState<SavingsSummary>({ balance: 0, totalSaved: 0, totalSpent: 0 });
   const [selectedYear, setSelectedYear] = useState<number | "all">("all");
 
@@ -90,10 +82,10 @@ export default function SavingsScreen() {
     if (!focused.current) return;
     setLoadState("loading");
     try {
-      const [sg, ads, txs, sum, monthlyBudget] = await Promise.all([
+      const [sg, firstPage, years, sum, monthlyBudget] = await Promise.all([
         loadSavingsGoal(),
-        listAutoDeposits(),
-        listTransactions(),
+        listSavingsPage(selectedYear, 0),
+        listSavingsYears(),
         getSavingsSummary(),
         loadBudget(currentMonth()),
       ]);
@@ -101,26 +93,9 @@ export default function SavingsScreen() {
       setGoalAmount(monthlyBudget?.savings_goal ?? sg.goal_amount);
       setSummary(sum);
 
-      const autoEntries: SavingsEntry[] = ads.map((ad) => ({
-        id: `auto:${ad.month}`,
-        kind: "auto" as const,
-        type: "deposit" as const,
-        description: ad.description || ad.month,
-        amount: ad.amount,
-        date: ad.month,
-        rawMonth: ad.month,
-      }));
-      const txEntries: SavingsEntry[] = txs.map((tx) => ({
-        id: `tx:${tx.id}`,
-        kind: "tx" as const,
-        type: tx.type,
-        description: tx.description || "Transaction",
-        amount: tx.amount,
-        date: tx.date,
-        rawTx: tx,
-      }));
-      const merged = [...autoEntries, ...txEntries].sort((a, b) => b.date.localeCompare(a.date));
-      setEntries(merged);
+      page.current = { offset: firstPage.entries.length, hasMore: firstPage.hasMore, loading: false };
+      setEntries(firstPage.entries);
+      setAvailableYears(years.length ? years : [new Date().getFullYear()]);
       setLoadState("ready");
     } catch {
       if (focused.current && request === loadSequence.current) {
@@ -128,7 +103,25 @@ export default function SavingsScreen() {
         toast.error("Failed to load data.");
       }
     }
-  }, []);
+  }, [selectedYear]);
+
+  const loadMore = useCallback(async () => {
+    const cursor = page.current;
+    if (!focused.current || loadState !== "ready" || cursor.loading || !cursor.hasMore) return;
+    const request = loadSequence.current;
+    cursor.loading = true;
+    try {
+      const next = await listSavingsPage(selectedYear, cursor.offset);
+      if (!focused.current || request !== loadSequence.current) return;
+      setEntries(previous => [...previous, ...next.entries]);
+      cursor.offset += next.entries.length;
+      cursor.hasMore = next.hasMore;
+    } catch {
+      if (focused.current && request === loadSequence.current) toast.error("Failed to load more entries.");
+    } finally {
+      cursor.loading = false;
+    }
+  }, [loadState, selectedYear]);
 
   useFocusEffect(
     useCallback(() => {
@@ -139,21 +132,6 @@ export default function SavingsScreen() {
   );
 
   const currentYear = new Date().getFullYear();
-  const availableYears = useMemo(() => {
-    const set = new Set<number>();
-    for (const e of entries) {
-      const y = Number(e.date.slice(0, 4));
-      if (Number.isFinite(y)) set.add(y);
-    }
-    if (set.size === 0) return [currentYear];
-    return Array.from(set).sort((a, b) => b - a);
-  }, [entries, currentYear]);
-
-  const filteredEntries = useMemo(() => {
-    if (selectedYear === "all") return entries;
-    return entries.filter((e) => Number(e.date.slice(0, 4)) === selectedYear);
-  }, [entries, selectedYear]);
-
   const openCreateModal = useCallback((type: SavingsEntryType = "deposit") => {
     setEditingId(null);
     setEditingMonth(null);
@@ -207,16 +185,6 @@ export default function SavingsScreen() {
 
   const handleCloseYear = useCallback(
     (year: number) => {
-      const yearEntries = entries.filter((e) => Number(e.date.slice(0, 4)) === year);
-      const hasActivity = yearEntries.some(
-        (e) =>
-          e.kind === "auto" ||
-          (e.rawTx !== undefined && !isClosingMarkerDescription(e.rawTx.description))
-      );
-      if (!hasActivity) {
-        toast.info("No entries yet.");
-        return;
-      }
       // A net of exactly 0 is still closable: it writes a carry-forward marker
       // so the year is marked done and later years are not blocked.
       void (async () => {
@@ -226,7 +194,7 @@ export default function SavingsScreen() {
           const desc = `Closing balance ${year}`;
           setConfirmAction({
             title: "Close year",
-            message: `Close ${year}? Net savings: ${formatCurrency(Math.abs(net))}. A carry-forward entry will be created in ${nextYear}.`,
+            message: `Close ${year}? Net savings: ${formatCurrency(net)}. A carry-forward entry will be created in ${nextYear}.`,
             confirmLabel: "Close year",
             onConfirm: () => {
               return (async () => {
@@ -259,7 +227,7 @@ export default function SavingsScreen() {
         }
       })();
     },
-    [entries, loadData]
+    [loadData]
   );
 
   const handleSave = useCallback(async () => {
@@ -342,7 +310,7 @@ export default function SavingsScreen() {
       const badgeLabel = isAuto ? "Auto" : isDeposit ? "Deposit" : "Withdraw";
       const amountColor = isDeposit ? "text-success" : "text-destructive";
       const sign = isDeposit ? "+" : "-";
-      const isLast = index === filteredEntries.length - 1;
+      const isLast = index === entries.length - 1;
 
       const locked = entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description);
       const Icon = isDeposit ? ArrowDownLeft : ArrowUpRight;
@@ -358,7 +326,7 @@ export default function SavingsScreen() {
         </View>
       </View>;
     },
-    [filteredEntries.length, handleTapEntry, colors.mutedForeground, colors.success]
+    [entries.length, handleTapEntry, colors.mutedForeground, colors.success]
   );
 
   const listHeader = useMemo(
@@ -385,7 +353,7 @@ export default function SavingsScreen() {
           </Pressable>
         </View>
       </View>
-      {filteredEntries.length === 0 ? (
+      {entries.length === 0 ? (
         <View className="rounded-[24px] border border-border bg-surface px-4 py-6">
           <Text className="text-center text-sm text-muted-foreground">No entries yet.</Text>
         </View>
@@ -398,7 +366,7 @@ export default function SavingsScreen() {
       colors,
       goalAmount,
       summary,
-      filteredEntries.length,
+      entries.length,
       availableYears,
       selectedYear,
       currentYear,
@@ -422,11 +390,13 @@ export default function SavingsScreen() {
       </View> : <FlatList
         className="w-full max-w-md self-center"
         style={styles.list}
-        data={filteredEntries}
+        data={entries}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.4}
         keyExtractor={(entry) => entry.id}
         renderItem={renderEntry}
         ListHeaderComponent={listHeader}
-        ListFooterComponent={filteredEntries.length > 0 ? <View className="h-2 rounded-b-[24px] border-x border-b border-border bg-surface" /> : undefined}
+        ListFooterComponent={entries.length > 0 ? <View className="h-2 rounded-b-[24px] border-x border-b border-border bg-surface" /> : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />}

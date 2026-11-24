@@ -20,7 +20,7 @@ if (process.platform !== 'win32') fs.chmodSync(path.join(native, 'gradlew'), 0o7
 const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT ||
   (process.platform === 'win32' && path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk'));
 if (!fs.existsSync(path.join(native, 'local.properties')) && sdk && fs.existsSync(sdk)) {
-  fs.writeFileSync(path.join(native, 'local.properties'), `sdk.dir=${sdk.replaceAll('\\', '/')}\n`);
+  fs.writeFileSync(path.join(native, 'local.properties'), `sdk.dir=${sdk.replaceAll('\\', '/').replace(':', '\\:')}\n`);
 }
 if (!fs.existsSync(path.join(root, 'credentials/release-keystore.jks'))) {
   throw new Error('Release APKs require credentials/release-keystore.jks and credentials/keystore.properties. Restore the existing Hub signing key; never distribute a debug-signed first release.');

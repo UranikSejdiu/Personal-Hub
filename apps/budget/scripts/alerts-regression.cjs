@@ -221,8 +221,8 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   for(const result of [{created:true},{created:false},{blockedYear:2024},null]){
     const entry={id:'tx-1',kind:'tx',type:'deposit',date:'2025-11-01',description:'Savings',amount:25,rawTx:{id:1,description:'Savings'}};
-    const h=harness('app/(budget)/savings.tsx',{entries:[entry],closeYearOpen:true,closingYear:2025},{savings:{previewClosingBalance:async()=>25,closeYear:async()=>{if(!result)throw Error('disk full');return result;}}});
-    await click(h.render('default'),'Close year');assert.ok(h.state.confirmAction);await h.state.confirmAction.onConfirm();
+    const h=harness('app/(budget)/savings.tsx',{entries:[entry],closeYearOpen:true,closingYear:2025},{savings:{previewClosingBalance:async()=>-25,closeYear:async()=>{if(!result)throw Error('disk full');return result;}}});
+    await click(h.render('default'),'Close year');assert.match(h.state.confirmAction.message,/€-25/);await h.state.confirmAction.onConfirm();
     assert.ok(hasAlert(h,!result?'error':result.blockedYear?'warning':result.created?'success':'info',!result?'Failed to add entry.':result.blockedYear?'Close 2024 first — it still has open activity.':result.created?'Year closed':'Nothing to close for 2025.'));
   }
   for(const fail of [false,true]){
@@ -346,7 +346,6 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   for (const outcome of ['success', 'cancel', 'error']) {
     const h = harness('src/components/SettingsScreen.tsx', {}, { '../lib/backup': {
-      hasSafetyBackup: () => false,
       exportBackupToFile: async (...args) => {
         assert.equal(args.length, 0);
         if (outcome === 'error') throw Error('No space left');
@@ -370,12 +369,12 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
   }
   {
     let imported=0;
-    const h=harness('src/components/SettingsScreen.tsx',{encryptedFile:'protected'}, {'../lib/backup':{hasSafetyBackup:()=>false,previewBackup:()=> 'Verified',importBackup:async()=>{imported++;}},'../lib/backupCrypto':{decryptBackup:async()=>'{"meta":{}}'}});
+    const h=harness('src/components/SettingsScreen.tsx',{encryptedFile:'protected'}, {'../lib/backup':{previewBackup:()=> 'Verified',importBackup:async()=>{imported++;}},'../lib/backupCrypto':{decryptBackup:async()=>'{"meta":{}}'}});
     await find(h.render('default'),n=>n.type==='BackupPasswordDialog').props.onSubmit('private backup password');
     assert.ok(h.state.pending,'Unlocked data still requires import confirmation'); assert.equal(imported,0); assert.equal(h.state.encryptedFile,null);
   }
   for(const restored of [true,false]){
-    const h=harness('src/components/SettingsScreen.tsx',{pending:{json:'{}',summary:'Backup'}},{'../lib/backup':{hasSafetyBackup:()=>false,importBackup:async()=>({preferencesRestored:restored}),buildBackupEnvelope:async()=>({}),previewBackup:()=> 'Verified'}});
+    const h=harness('src/components/SettingsScreen.tsx',{pending:{json:'{}',summary:'Backup'}},{'../lib/backup':{importBackup:async()=>({preferencesRestored:restored}),buildBackupEnvelope:async()=>{throw Error('receipt read failed');},previewBackup:()=> 'Verified'}});
     await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='Import MoneyPlan data?').props.onConfirm();
     assert.ok(hasAlert(h,restored?'success':'warning',restored?'Backup imported':'Data imported. Check appearance settings.'));assert.equal(h.state.pending,null);
   }

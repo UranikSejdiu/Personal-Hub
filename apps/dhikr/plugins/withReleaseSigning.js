@@ -16,8 +16,12 @@ if (dhikrPropertiesFile.exists()) {
 }
 def dhikrSigned = dhikrKeystore.exists() && dhikrProperties['STORE_PASSWORD'] &&
         dhikrProperties['KEY_ALIAS'] && dhikrProperties['KEY_PASSWORD']
-if (System.getenv('CI') == 'true' && !dhikrSigned) {
-    throw new GradleException('Dhikr CI builds require credentials/release-keystore.jks and keystore.properties')
+// Check the resolved graph so lint and other analysis can run without a release key.
+gradle.taskGraph.whenReady { graph ->
+    def packagesRelease = graph.hasTask(':app:packageRelease') || graph.hasTask(':app:signReleaseBundle')
+    if (packagesRelease && !dhikrSigned && System.getenv('CI') == 'true') {
+        throw new GradleException('Release packaging requires credentials/release-keystore.jks and keystore.properties')
+    }
 }
 if (dhikrSigned) {
     android.signingConfigs.create('dhikrRelease') {

@@ -1,6 +1,6 @@
 {
   "name": "budget",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "main": "expo-router/entry",
   "dependencies": {
     "@noble/ciphers": "2.4.0",
@@ -73,7 +73,9 @@
   "expo": {
     "autolinking": {
       "android": {
-        "buildFromSource": ["expo-intent-launcher"]
+        "buildFromSource": [
+          "expo-intent-launcher"
+        ]
       }
     }
   },

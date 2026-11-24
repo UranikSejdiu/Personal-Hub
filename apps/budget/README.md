@@ -30,7 +30,7 @@ it does not merge later edits or sync with Hub.
 
 Check all records and tap Export to save a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
-packages. Restore previous data returns to the pre-import snapshot.
+packages.
 
 Export saves a plain JSON file. MoneyPlan asks for the original password when
 you import an older encrypted backup. The internal recovery snapshot stays

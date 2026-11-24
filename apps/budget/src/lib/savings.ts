@@ -5,18 +5,23 @@ export type SavingsEntryType = "deposit" | "purchase";
 
 const CLOSING_MARKER = "[system:closing]";
 
-export interface AutoDeposit {
-  month: string;
-  amount: number;
-  description: string;
-}
-
 export interface SavingsTransaction {
   id: number;
   type: SavingsEntryType;
   description: string;
   amount: number;
   date: string;
+}
+
+export interface SavingsEntry {
+  id: string;
+  kind: "auto" | "tx";
+  type: SavingsEntryType;
+  description: string;
+  amount: number;
+  date: string;
+  rawMonth?: string;
+  rawTx?: SavingsTransaction;
 }
 
 export interface SavingsSummary {
@@ -82,17 +87,6 @@ export async function syncMonthlyAutoDeposit(goalAmount: number, tx: db.DbExecut
   await refreshClosingBalances(tx);
 }
 
-export async function listAutoDeposits(): Promise<AutoDeposit[]> {
-  const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM savings_auto_deposits ORDER BY month DESC"
-  );
-  return rows.map((row) => ({
-    month: String(row.month),
-    amount: Number(row.amount) || 0,
-    description: String(row.description ?? ""),
-  }));
-}
-
 export async function deleteAutoDeposit(month: string): Promise<void> {
   await db.withTransaction(async (tx) => {
     await tx.execute("DELETE FROM savings_auto_deposits WHERE month = ?", [month]);
@@ -145,11 +139,33 @@ function toTransaction(row: Record<string, unknown>): SavingsTransaction {
   };
 }
 
-export async function listTransactions(): Promise<SavingsTransaction[]> {
+export async function listSavingsYears(): Promise<number[]> {
+  const rows = await db.query<{ year: string }>(
+    `SELECT substr(month, 1, 4) AS year FROM savings_auto_deposits
+     UNION SELECT substr(date, 1, 4) FROM savings_transactions ORDER BY year DESC`);
+  return rows.map(row => Number(row.year));
+}
+
+export async function listSavingsPage(year: number | "all", offset: number, limit = 40) {
+  // Both branches can use their date indexes, including for old month-only dates.
+  const range = year === "all" ? [] : [String(year) + "-01", String(year) + "-12-31"];
   const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM savings_transactions ORDER BY date DESC, id DESC"
-  );
-  return rows.map(toTransaction);
+    `SELECT 'auto' AS kind, 0 AS id, 'deposit' AS type, description, amount, month AS date
+     FROM savings_auto_deposits ${range.length ? "WHERE month BETWEEN ? AND ?" : ""}
+     UNION ALL SELECT 'tx', id, type, description, amount, date FROM savings_transactions
+     ${range.length ? "WHERE date BETWEEN ? AND ?" : ""}
+     ORDER BY date DESC, kind ASC, id DESC LIMIT ? OFFSET ?`,
+    [...range, ...range, limit + 1, offset]);
+  const entries = rows.slice(0, limit).map((row): SavingsEntry => {
+    if (row.kind === "auto") {
+      const month = String(row.date);
+      return { id: "auto:" + month, kind: "auto", type: "deposit", date: month,
+        amount: Number(row.amount), description: String(row.description || month), rawMonth: month };
+    }
+    const tx = toTransaction(row);
+    return { ...tx, id: "tx:" + tx.id, kind: "tx", description: tx.description || "Transaction", rawTx: tx };
+  });
+  return { entries, hasMore: rows.length > limit };
 }
 
 /** Descriptions reserved for system carry-forward rows. */

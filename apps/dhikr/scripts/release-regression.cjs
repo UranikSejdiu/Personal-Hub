@@ -45,13 +45,12 @@ module.exports = async function verifyRelease(root) {
   await unavailable.setSelectedDhikrId(4);
   assert.equal(await unavailable.getSelectedDhikrId(), 4, 'Storage failure must not make the counter open the wrong record');
 
-  let failed = true, imports = 0, restores = 0, systemSettingsOpened = 0;
+  let failed = true, imports = 0, systemSettingsOpened = 0;
   const errors = [];
   const mockedBackup = {
     hasSafetyBackup: () => true,
     readBackupFile: async () => 'selected-backup', parseBackup: () => [{ id: 1 }],
     importBackup: async () => { imports++; if (failed) throw new Error('Write failed'); },
-    restoreSafetyBackup: async () => { restores++; if (failed) throw new Error('Write failed'); },
   };
   const screen = fixture(root, 'app/(dhikr)/settings.tsx', 'default', {
     'react-native': new Proxy({
@@ -86,15 +85,7 @@ module.exports = async function verifyRelease(root) {
   assert.equal(dialog('Import counts').props.visible, false);
   assert.equal(dialog('Import counts').props.error, null);
   assert.equal(imports, 2);
-  node('Button', 'label', 'Restore previous data').props.onPress(); screen.render();
-  failed = true;
-  await dialog('Restore previous data').props.onConfirm(); screen.render();
-  assert.equal(dialog('Restore previous data').props.visible, true);
-  assert.equal(dialog('Restore previous data').props.error, 'Write failed');
-  failed = false;
-  await dialog('Restore previous data').props.onConfirm(); screen.render();
-  assert.equal(dialog('Restore previous data').props.visible, false);
-  assert.equal(restores, 2);
+  assert.equal(node('Button', 'label', 'Restore previous data'), undefined);
   assert.equal(errors.length, 0, 'Backup errors stay in the scrollable confirmation');
   screen.dispose();
   console.log('Passed: selection write ordering, stale reads, one shared read, unavailable storage, malformed IDs, and backup failure retry.');

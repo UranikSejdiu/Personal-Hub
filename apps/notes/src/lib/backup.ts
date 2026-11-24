@@ -6,7 +6,7 @@ import identity from "../appIdentity.json";
 import { getAppVersion } from "../constants/config";
 import { validateEnvelope, type BackupEnvelope } from "./notesBackupValidation";
 import { saveBackupFile } from "./saveBackupFile";
-import { resetPlainTextBackfill } from "./notes";
+import { repairedSearchText } from "./noteContent";
 import { applyBackupPreferences, readBackupPreferences, validateBackupPreferences, type BackupPreferences } from "./backupPreferences";
 
 type Row = Record<string, unknown>;
@@ -73,7 +73,7 @@ export function parseBackup(json: string): { envelope: BackupEnvelope; sequences
   return { envelope: checked.data, sequences, preferences: validateBackupPreferences(raw.preferences) };
 }
 
-async function snapshot(tx: db.DbExecutor): Promise<Envelope> {
+async function snapshot(tx: db.DbExecutor) {
   const tables: Envelope["tables"] = {};
   for (const [key, table] of TABLES) {
     const rows = await tx.query<Row>(`SELECT * FROM ${table}`);
@@ -85,22 +85,29 @@ async function snapshot(tx: db.DbExecutor): Promise<Envelope> {
   }
   const preferences = await readBackupPreferences();
   const envelope = { meta: { format: identity.backupFormat, version: 2, appVersion: getAppVersion(), exportedAt: new Date().toISOString(), platform: Platform.OS }, tables, sequences, preferences };
-  parseBackup(JSON.stringify(envelope)); // Never report a successful export that cannot be imported.
-  return envelope;
+  const json = JSON.stringify(envelope);
+  parseBackup(json);
+  return { envelope, json };
 }
 
-export function buildBackupEnvelope(): Promise<Envelope> { return db.withTransaction(snapshot); }
+export async function buildBackupEnvelope(): Promise<Envelope> {
+  return (await db.withTransaction(snapshot)).envelope;
+}
+
+async function backupJson(): Promise<string> {
+  return (await db.withTransaction(snapshot)).json;
+}
 
 export function hasSafetyBackup(): boolean { return new File(Paths.document, SAFETY).exists; }
 
 export async function exportBackupToFile(): Promise<string | null> {
-  return saveBackupFile(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2), exportBackup);
+  return saveBackupFile(`${identity.id}-backup`, backupJson, exportBackup);
 }
 
 export async function exportBackup(): Promise<string> {
-  const envelope = await buildBackupEnvelope();
+  const json = await backupJson();
   const file = new File(Paths.cache, `${identity.id}-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  file.write(JSON.stringify(envelope, null, 2));
+  file.write(json);
   try {
     const exports = Paths.cache.list().filter((entry): entry is File => entry instanceof File && entry.name.startsWith(`${identity.id}-backup-`) && entry.name.endsWith(".json")).sort((a, b) => b.name.localeCompare(a.name));
     for (const stale of exports.slice(3)) stale.delete();
@@ -112,9 +119,10 @@ export async function exportBackup(): Promise<string> {
 
 export async function readBackupFile(uri: string): Promise<string> {
   const file = new File(uri);
-  if (!file.exists || (file.size !== null && file.size > MAX_BYTES)) throw new Error("Backup is missing or exceeds 50 MB");
-  try { return await file.text(); }
-  finally {
+  try {
+    if (!file.exists || (file.size !== null && file.size > MAX_BYTES)) throw new Error("Backup is missing or exceeds 50 MB");
+    return await file.text();
+  } finally {
     if (file.uri.startsWith(`${Paths.cache.uri.replace(/\/$/, "")}/`)) {
       try { file.delete(); } catch { /* A provider may keep the picker copy locked. */ }
     }
@@ -137,7 +145,7 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
     await db.withTransaction(async tx => {
       if (!recovery) {
         const temp = new File(Paths.document, `${SAFETY}.tmp`);
-        temp.write(JSON.stringify(await snapshot(tx), null, 2));
+        temp.write((await snapshot(tx)).json);
         temp.move(new File(Paths.document, SAFETY), { overwrite: true });
       }
       // Children are removed first. The original Hub database is never opened.
@@ -148,6 +156,9 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
         const columns = new Set((await tx.query<{ name: string }>(`PRAGMA table_info(${table})`)).map(column => column.name));
         for (const source of rows) {
           const row = { ...source };
+          if (table === "notes" && typeof row.content === "string" && row.content) {
+            row.plain_text = repairedSearchText(row.content, String(row.plain_text ?? ""));
+          }
           const entries = Object.entries(row).filter(([column, value]) => columns.has(column) && value !== undefined);
           if (!entries.length) throw new Error(`Empty ${table} row`);
           await tx.execute(`INSERT INTO ${table} (${entries.map(([column]) => `"${column}"`).join(", ")}) VALUES (${entries.map(() => "?").join(", ")})`, entries.map(([, value]) => value));
@@ -161,7 +172,6 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
       // Validate the records actually written before committing the replacement.
       await snapshot(tx);
     });
-    resetPlainTextBackfill();
     return { preferencesRestored: await applyBackupPreferences(preferences, true), preferences };
   } finally { importing = false; }
 }

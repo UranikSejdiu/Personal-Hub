@@ -142,12 +142,12 @@ frame time and battery savings must be measured on a release build on a phone.
 
 1. Use a JSON backup exported from Personal Hub before the backup separation
    (backup versions 1–5), or export one from the older hub app before updating.
-2. Install Dhikr and open Settings → Backup & restore → Import counts.
+2. Install Dhikr and open Settings → Backup & restore → Import.
 3. Choose the hub backup and confirm the Dhikr record count.
 
 Dhikr reads only the `dhikrs` table from supported hub backups (versions 1–5).
 Import replaces Dhikr's existing counts in one transaction and first saves a
-recovery copy. Settings → Restore previous data restores that copy. Malformed
+private recovery copy. Malformed
 or unsupported backups are rejected before writes. Exported Dhikr backups can
 be imported into Dhikr on another device.
 

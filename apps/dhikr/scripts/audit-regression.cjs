@@ -20,6 +20,7 @@ let rolloverWrites = 0;
 
 class FakeFile {
   constructor(...parts) { this.uri = parts.map(p => typeof p === 'string' ? p : p.uri).join('/'); }
+  get name() { return this.uri.split('/').pop(); }
   get exists() { return files.has(this.uri); }
   get size() { return Buffer.byteLength(files.get(this.uri) || ''); }
   write(text) {
@@ -61,7 +62,7 @@ const mocks = {
     assert.equal(name, 'dhikr_data');
     return nativeConnection;
   } },
-  'expo-file-system': { File: FakeFile, Paths: { document: 'document', cache: 'cache' } },
+  'expo-file-system': { File: FakeFile, Paths: { document: 'document', cache: { uri: 'cache', list: () => [...files.keys()].filter(key => key.startsWith('cache/')).map(key => new FakeFile(key)) } } },
   'react-native': { Platform: { OS: 'android' } },
   'expo-intent-launcher': {
     ResultCode: { Success: -1, Canceled: 0 },
@@ -226,7 +227,15 @@ async function main() {
   assert.equal(await backup.exportBackupToFile(), null);
   assert.equal(exportsShared, 2);
   documentPickerError = null;
+  files.set('cache/picked.json', 'picked document');
+  assert.equal(await backup.readBackupFile('cache/picked.json'), 'picked document');
+  assert.equal(files.has('cache/picked.json'), false);
   const exported = [...files.entries()].find(([name]) => name.startsWith('cache/dhikr-backup-'))[1];
+  assert.equal(exported, JSON.stringify(JSON.parse(exported)));
+  for (let i = 0; i < 4; i++) files.set('cache/dhikr-backup-2000-0' + i + '.json', '{}');
+  await backup.exportBackup();
+  assert.equal([...files.keys()].filter(key => key.startsWith('cache/dhikr-backup-')).length, 3);
+
   assert.equal(JSON.parse(exported).meta.format, 'dhikr.backup');
   assert.deepEqual(Object.keys(JSON.parse(exported).tables), ['dhikrs']);
   assert.deepEqual(backup.parseBackup(exported).map(row => row.id).sort(), before.map(row => row.id).sort());

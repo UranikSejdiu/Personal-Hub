@@ -227,6 +227,7 @@ function validateTaskTables(tables: Record<string, unknown>, version: number): s
     if (!isObject(row) || !isTaskInput(row) || (row.priority !== 0 && row.priority !== 1 && row.priority !== 2) || !isInteger(row.id) || row.id <= 0 || tasks.has(row.id) ||
         !isTaskTimestamp(row.created_at) || !isTaskTimestamp(row.updated_at) ||
         (row.completed_at !== null && !isTaskTimestamp(row.completed_at)) ||
+        (row.successor_due_date != null && !isTaskDate(row.successor_due_date)) ||
         (row.list_id !== null && (!isInteger(row.list_id) || !listIds.has(row.list_id))) ||
         (row.parent_id !== null && (!isInteger(row.parent_id) || row.parent_id <= 0)) ||
         ((row.repeat === "monthly" || row.repeat === "yearly") ? !isInteger(row.repeat_day) || row.repeat_day < 1 || row.repeat_day > 31 : row.repeat_day !== null)) return "Invalid task";

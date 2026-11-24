@@ -47,7 +47,7 @@ it does not merge later edits or sync with Hub.
 
 Check all records and tap Export to save a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
-packages. Restore previous data returns to the pre-import snapshot.
+packages.
 
 Exports use `uranik-tasks.backup` version 1 and contain only this app's
 records. Other standalone apps' backups are rejected. Applicable Hub backup

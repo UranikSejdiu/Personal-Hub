@@ -75,7 +75,7 @@ export function parseBackup(json: string): { envelope: BackupEnvelope; sequences
   return { envelope: checked.data, sequences, preferences: validateBackupPreferences(raw.preferences) };
 }
 
-async function snapshot(tx: db.DbExecutor): Promise<Envelope> {
+async function snapshot(tx: db.DbExecutor) {
   const tables: Envelope["tables"] = {};
   for (const [key, table] of TABLES) {
     const rows = await tx.query<Row>(`SELECT * FROM ${table}`);
@@ -87,22 +87,29 @@ async function snapshot(tx: db.DbExecutor): Promise<Envelope> {
   }
   const preferences = await readBackupPreferences();
   const envelope = { meta: { format: identity.backupFormat, version: 1, appVersion: getAppVersion(), exportedAt: new Date().toISOString(), platform: Platform.OS }, tables, sequences, preferences };
-  parseBackup(JSON.stringify(envelope)); // Never report a successful export that cannot be imported.
-  return envelope;
+  const json = JSON.stringify(envelope);
+  parseBackup(json);
+  return { envelope, json };
 }
 
-export function buildBackupEnvelope(): Promise<Envelope> { return db.withTransaction(snapshot); }
+export async function buildBackupEnvelope(): Promise<Envelope> {
+  return (await db.withTransaction(snapshot)).envelope;
+}
+
+async function backupJson(): Promise<string> {
+  return (await db.withTransaction(snapshot)).json;
+}
 
 export function hasSafetyBackup(): boolean { return new File(Paths.document, SAFETY).exists; }
 
 export async function exportBackupToFile(): Promise<string | null> {
-  return saveBackupFile(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2), exportBackup);
+  return saveBackupFile(`${identity.id}-backup`, backupJson, exportBackup);
 }
 
 export async function exportBackup(): Promise<string> {
-  const envelope = await buildBackupEnvelope();
+  const json = await backupJson();
   const file = new File(Paths.cache, `${identity.id}-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  file.write(JSON.stringify(envelope, null, 2));
+  file.write(json);
   try {
     const exports = Paths.cache.list().filter((entry): entry is File => entry instanceof File && entry.name.startsWith(`${identity.id}-backup-`) && entry.name.endsWith(".json")).sort((a, b) => b.name.localeCompare(a.name));
     for (const stale of exports) if (stale.uri !== file.uri) stale.delete();
@@ -114,9 +121,10 @@ export async function exportBackup(): Promise<string> {
 
 export async function readBackupFile(uri: string): Promise<string> {
   const file = new File(uri);
-  if (!file.exists || (file.size !== null && file.size > MAX_BACKUP_FILE_BYTES)) throw new Error("Backup is missing or exceeds 70 MB");
-  try { return await file.text(); }
-  finally {
+  try {
+    if (!file.exists || (file.size !== null && file.size > MAX_BACKUP_FILE_BYTES)) throw new Error("Backup is missing or exceeds 70 MB");
+    return await file.text();
+  } finally {
     if (file.uri.startsWith(`${Paths.cache.uri.replace(/\/$/, "")}/`)) {
       try { file.delete(); } catch { /* A provider may keep the picker copy locked. */ }
     }
@@ -139,7 +147,7 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
     await db.withTransaction(async tx => {
       if (!recovery) {
         const temp = new File(Paths.document, `${SAFETY}.tmp`);
-        temp.write(JSON.stringify(await snapshot(tx), null, 2));
+        temp.write((await snapshot(tx)).json);
         temp.move(new File(Paths.document, SAFETY), { overwrite: true });
       }
       // Children are removed first. The original Hub database is never opened.
