@@ -14,7 +14,7 @@ const themeModule = { exports: {} };
 vm.runInNewContext(compiled, { module: themeModule, exports: themeModule.exports }, { filename });
 const { getThemeColors, getThemeVariables } = themeModule.exports;
 
-// WCAG relative luminance; verify the actual tokens, including tinted selections.
+// WCAG relative luminance for the actual theme tokens.
 function rgb(color) {
   const match = /^hsl\((\d+),\s*([\d.]+)%,\s*([\d.]+)%\)$/.exec(color);
   assert.ok(match, `Invalid theme color: ${color}`);
@@ -43,7 +43,10 @@ function contrast(first, second) {
 let checked = 0;
 for (const theme of ["light", "dark"]) {
     const colors = getThemeColors(theme);
-    for (const value of Object.values(colors)) rgb(value);
+    for (const [key, value] of Object.entries(colors)) {
+      const [red, green, blue] = rgb(value);
+      assert.ok(red === green && green === blue, `${theme}: ${key} must be monochrome`);
+    }
     const pairs = [];
     for (const background of ["background", "card", "surface", "muted", "surfaceContainer", "surfaceContainerHigh"]) {
       for (const foreground of ["foreground", "mutedForeground", "primary", "success", "destructive"]) {
@@ -58,6 +61,7 @@ for (const theme of ["light", "dark"]) {
     }
     pairs.push(["primary container", rgb(colors.onPrimaryContainer), rgb(colors.primaryContainer)]);
     pairs.push(["secondary container", rgb(colors.onSecondaryContainer), rgb(colors.secondaryContainer)]);
+    assert.ok(contrast(rgb(colors.outline), rgb(colors.muted)) >= 3, `${theme}: inactive switch thumb contrast is below 3`);
     for (const surface of ["background", "card", "surfaceContainerHigh"]) {
       const ratio = contrast(rgb(colors.outline), rgb(colors[surface]));
       assert.ok(ratio >= 3, `${theme}: outline on ${surface} contrast ${ratio.toFixed(2)} is below 3`);

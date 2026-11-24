@@ -10,22 +10,11 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-const PALETTE = [
-  "#e4c477",
-  "#81dab8",
-  "#bfe6d1",
-  "#4ba581",
-  "#f7faf5",
-  "#f2db9e",
-  "#65b697",
-];
-
 interface Particle {
   id: number;
   dx: number;
   dy: number;
   size: number;
-  color: string;
 }
 
 function buildParticles(): Particle[] {
@@ -44,14 +33,17 @@ function buildParticles(): Particle[] {
         dx: Math.cos(angle) * distance,
         dy: Math.sin(angle) * distance,
         size: 6 + Math.random() * 5,
-        color: PALETTE[(id + b) % PALETTE.length],
       });
     }
   }
   return particles;
 }
 
-const Rocket = memo(function Rocket({ particle, progress }: { particle: Particle; progress: SharedValue<number> }) {
+const Rocket = memo(function Rocket({ particle, progress, color }: {
+  particle: Particle;
+  progress: SharedValue<number>;
+  color: string;
+}) {
   const style = useAnimatedStyle(() => {
     return {
       transform: [
@@ -71,7 +63,7 @@ const Rocket = memo(function Rocket({ particle, progress }: { particle: Particle
           width: particle.size,
           height: particle.size,
           borderRadius: particle.size / 2,
-          backgroundColor: particle.color,
+          backgroundColor: color,
         },
         style,
       ]}
@@ -80,8 +72,10 @@ const Rocket = memo(function Rocket({ particle, progress }: { particle: Particle
 });
 
 export default function Fireworks({
+  color,
   onComplete,
 }: {
+  color: string;
   onComplete: () => void;
 }) {
   const [particles] = useState(() => buildParticles());
@@ -121,7 +115,7 @@ export default function Fireworks({
     >
       <View style={styles.center}>
         {particles.map((p) => (
-          <Rocket key={p.id} particle={p} progress={progress} />
+          <Rocket key={p.id} particle={p} progress={progress} color={color} />
         ))}
       </View>
     </View>

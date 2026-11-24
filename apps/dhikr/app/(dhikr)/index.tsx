@@ -269,7 +269,7 @@ export default function CounterScreen() {
   return (
     <View className="relative flex-1 bg-background">
       {showFireworks && (
-        <Fireworks onComplete={stopFireworks} />
+        <Fireworks color={colors.foreground} onComplete={stopFireworks} />
       )}
       <ScrollView
         className="flex-1"
@@ -277,11 +277,11 @@ export default function CounterScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="w-full max-w-md flex-1 items-center self-center px-4 pt-2">
-          <View className="w-full flex-row items-center rounded-xl bg-surface-container">
+          <View className="w-full flex-row items-center border-b border-border">
             <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Previous"
@@ -299,7 +299,7 @@ export default function CounterScreen() {
             <Pressable
               onPress={handleNext}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Next"
@@ -325,11 +325,9 @@ export default function CounterScreen() {
               testID="dhikr-total-count"
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.3}
-              className={`w-full text-center font-extralight ${
-                limitReached ? "text-success" : "text-foreground"
-              }`}
-              style={{ fontSize: Math.min(80, width * 0.22), letterSpacing: -1 }}
+              minimumFontScale={0.18}
+              className="w-full text-center font-medium text-foreground"
+              style={{ fontSize: Math.min(132, width * 0.34), fontVariant: ["tabular-nums"], letterSpacing: -1 }}
             >
               {activeDhikr.total_count.toLocaleString("en")}
             </Text>
@@ -345,13 +343,13 @@ export default function CounterScreen() {
               }}
               disabled={isLoading || resetting}
               accessibilityState={{ disabled: isLoading || resetting, busy: resetting }}
-              className="min-h-[48px] flex-row items-center gap-2 rounded-full bg-secondary-container px-4 py-2.5 active:opacity-70"
+              className="min-h-[48px] flex-row items-center gap-2 rounded-full px-4 py-2.5 active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Reset"
             >
-              <RotateCcw size={18} color={colors.onSecondaryContainer} />
-              <Text className="text-label-large font-medium text-on-secondary-container">Reset counts</Text>
+              <RotateCcw size={18} color={colors.mutedForeground} />
+              <Text className="text-label-large font-medium text-muted-foreground">Reset counts</Text>
             </Pressable>
           </View>
         </View>

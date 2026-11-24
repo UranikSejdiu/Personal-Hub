@@ -124,20 +124,18 @@ export default function SettingsScreen() {
           {!section && <>
             <View className="gap-2">
               <Text accessibilityRole="header" className="px-1 text-sm font-semibold text-foreground">Appearance</Text>
-              <View className="rounded-xl border border-border/60 bg-card p-3">
-                <View className="flex-row rounded-full border border-outline" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
-                  {(["light", "dark"] as const).map(value => (
-                    <Pressable key={value} onPress={() => setTheme(value)}
-                      className={`min-h-[48px] min-w-0 flex-1 items-center justify-center px-2 py-1 ${value === "light" ? "rounded-l-full border-r border-outline" : "rounded-r-full"} ${theme === value ? "bg-secondary-container" : ""}`}
-                      android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                      accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
-                      accessibilityLabel={value === "light" ? "Light" : "Dark"}>
-                      <Text className={`text-label-large font-medium ${theme === value ? "text-on-secondary-container" : "text-muted-foreground"}`}>
-                        {value === "light" ? "Light" : "Dark"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+              <View className="flex-row overflow-hidden rounded-[24px] border border-outline" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
+                {(["light", "dark"] as const).map(value => (
+                  <Pressable key={value} onPress={() => setTheme(value)}
+                    className={`min-h-[48px] min-w-0 flex-1 items-center justify-center px-2 py-1 ${theme === value ? "bg-secondary-container" : ""}`}
+                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
+                    accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
+                    accessibilityLabel={value === "light" ? "Light" : "Dark"}>
+                    <Text className={`text-label-large ${theme === value ? "font-semibold text-on-secondary-container" : "font-medium text-muted-foreground"}`}>
+                      {value === "light" ? "Light" : "Dark"}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
             <View className="min-h-[52px] flex-row items-center justify-between gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
@@ -145,7 +143,7 @@ export default function SettingsScreen() {
               <Switch value={haptics} disabled={busy} accessibilityLabel="Vibration feedback"
                 accessibilityState={{ disabled: busy }}
                 trackColor={{ false: colors.muted, true: colors.primary }}
-                thumbColor={theme === "dark" ? colors.foreground : colors.card}
+                thumbColor={haptics ? colors.primaryForeground : colors.outline}
                 onValueChange={value => {
                   if (busyRef.current) return;
                   busyRef.current = true;

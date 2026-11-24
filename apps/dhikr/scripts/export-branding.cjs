@@ -25,7 +25,7 @@ function svg(art, background, tight = false) {
   for (const [name, art, background, size, tight] of [
     ['icon', mark(), emerald, 1024], ['store-icon', mark(), emerald, 512],
     ['adaptive-foreground', mark(), null, 1024], ['monochrome', mark('#ffffff'), null, 1024],
-    ['splash-light', mark(emerald), null, 512, true], ['splash-dark', mark('#81dab8'), null, 512, true],
+    ['splash-light', mark('#000000'), null, 512, true], ['splash-dark', mark('#ffffff'), null, 512, true],
   ]) {
     const source = svg(art, background, tight);
     await fs.writeFile(path.join(output, name + '.svg'), source);
@@ -34,7 +34,7 @@ function svg(art, background, tight = false) {
   const tiles = [];
   for (const [index, [name, background, label]] of [
     ['icon', '#f5f9f7', 'Dhikr'], ['adaptive-foreground', emerald, 'Adaptive icon'],
-    ['monochrome', '#526d60', 'Themed icon'], ['splash-dark', '#101916', 'Dark splash'],
+    ['monochrome', '#526d60', 'Themed icon'], ['splash-dark', '#000000', 'Dark splash'],
   ].entries()) {
     let graphic = await sharp(path.join(output, name + '.png')).resize(240, 240).toBuffer();
     if (index < 2) graphic = await sharp(graphic).composite([{ input: Buffer.from(`<svg width="240" height="240"><rect width="240" height="240" rx="${index === 0 ? 54 : 120}" fill="white"/></svg>`), blend: 'dest-in' }]).png().toBuffer();

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dhikr",
     "slug": "dhikr",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "orientation": "portrait",
     "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.dhiker.counter",
-      "versionCode": 12,
+      "versionCode": 13,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#1b6a50",
@@ -95,10 +95,10 @@
         {
           "image": "./assets/branding/splash-light.png",
           "imageWidth": 180,
-          "backgroundColor": "#f5f9f7",
+          "backgroundColor": "#ffffff",
           "dark": {
             "image": "./assets/branding/splash-dark.png",
-            "backgroundColor": "#101916"
+            "backgroundColor": "#000000"
           }
         }
       ],
