@@ -43,7 +43,7 @@ module.exports = async function verifyScreen(root, load) {
       loadTaskDayCounts: async () => ({}), loadTask: async id => task(id),
       completeTask() {}, deleteTask() {}, reopenTask() {}, saveTask() {}, TaskUndoError: class extends Error {},
     },
-    './TaskCard': { TaskCard: 'TaskCard' }, './TaskEditor': { TaskEditor: 'TaskEditor' }, './design': { useTaskDesign: () => ({}) },
+    './TaskCard': { TaskCard: 'TaskCard' }, './TaskEditor': { TaskEditor: 'TaskEditor' }, '../../lib/theme': { useThemeColors: () => ({}) },
     './TaskDashboard': Object.fromEntries(['AgendaHeading', 'TaskAddButton', 'TaskCalendar', 'TaskSummaryTiles'].map(key => [key, key])),
   };
   const module = { exports: {} };

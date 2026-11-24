@@ -22,24 +22,21 @@ npm start
 ## Transfer existing records
 
 Keep Personal Hub installed. Save its JSON backup to a folder. In this app,
-choose Settings → Import backup, select that file, review counts,
+choose Settings → Backup & restore → Import, select that file, review counts,
 and confirm. The same Hub file can be used for all three standalone apps.
 Only this app's tables are copied, preserving IDs, timestamps, ordering, and
 relationships. Import replaces current records after saving a recovery copy;
 it does not merge later edits or sync with Hub.
 
-Check all records and use Save to folder to export a new backup before
+Check all records and tap Export to save a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
 packages. Restore previous data returns to the pre-import snapshot.
 
-New folder/share exports are password-protected using AES-256-GCM with a fresh
-native-random salt/nonce and PBKDF2-HMAC-SHA256 (600,000 iterations). The password
-is never saved. Keep it separately: a lost password cannot be recovered. Older
-unencrypted MoneyPlan/Hub backups can still be imported after confirmation.
-Existing exported files are not retroactively encrypted. The internal recovery
-snapshot remains in the app's private storage.
+Export saves a plain JSON file. MoneyPlan asks for the original password when
+you import an older encrypted backup. The internal recovery snapshot stays
+in the app's private storage.
 
-The decrypted payload uses `uranik-budget.backup` version 1 and contains only
+The backup payload uses `uranik-budget.backup` version 1 and contains only
 this app's records. Other standalone apps' backups are rejected. Applicable Hub backup
 versions 1–7 are accepted. Standalone exports include the theme preference.
 Legacy Notes display and vibration fields are accepted but ignored.

@@ -1,9 +1,9 @@
 import { Text } from "./ui/Typography";
 import { useCallback, useEffect, useState, useRef } from "react";
-import { View, Pressable, Platform } from "react-native";
-import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
+import { View, Platform } from "react-native";
+import { Download, RefreshCw } from "./AppIcons";
+import { Button } from "./ui/Button";
 import { toast } from "sonner-native";
-import { useThemeColors } from "../lib/theme";
 import { useUpdate } from "../lib/UpdateContext";
 import { downloadApk, installApk, openInstallSettings } from "../lib/updater";
 import type { File } from "expo-file-system";
@@ -11,7 +11,6 @@ import type { File } from "expo-file-system";
 type UpdateState = "idle" | "downloading" | "ready";
 
 export function UpdateCard() {
-  const colors = useThemeColors();
   const { hasUpdate, latest, currentVersion, checking, result, refresh } = useUpdate();
   const [state, setState] = useState<UpdateState>("idle");
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
@@ -121,10 +120,10 @@ export function UpdateCard() {
   if (Platform.OS !== "android") return null;
 
   return (
-    <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-3">
-      <View className="flex-row items-center gap-2">
-        <Rocket size={16} color={colors.primary} />
-        <Text className="text-sm font-semibold text-foreground">Updates</Text>
+    <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+      <View className="flex-row flex-wrap items-center justify-between gap-2">
+        <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Updates</Text>
+        <Text className="text-label-medium text-muted-foreground">v{currentVersion}</Text>
       </View>
 
       {result?.status === "error" ? (
@@ -142,26 +141,10 @@ export function UpdateCard() {
         </Text>
       ) : null}
 
-      <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <View className="max-w-full flex-row flex-wrap items-center gap-2">
-          <Text className="text-xs text-muted-foreground">Current version</Text>
-          <View className="rounded-full bg-muted/60 px-2 py-0.5">
-            <Text className="text-[11px] font-semibold text-foreground">v{currentVersion}</Text>
-          </View>
-        </View>
-        {hasUpdate && latest ? (
-          <View className="max-w-full rounded-full bg-primary/15 px-2 py-0.5">
-            <Text className="text-[11px] font-semibold text-primary">
-              Update available v{latest.versionName}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
       {hasUpdate && latest ? (
         <View className="gap-3">
-          <Text className="text-xs text-muted-foreground">
-            {`New version ${latest.versionName} is ready to install.`}
+          <Text className="text-body-medium font-semibold text-foreground">
+            Update available · v{latest.versionName}
           </Text>
           {downloadError?.version === latest.versionName && (
             <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError.message}</Text>
@@ -182,27 +165,11 @@ export function UpdateCard() {
           ) : null}
 
           {state === "idle" && (
-            <Pressable
-              onPress={() => void handleInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
-              accessibilityRole="button"
-              accessibilityLabel={"Download & Install"}
-            >
-              <Download size={14} color={colors.primaryForeground} />
-              <Text className="shrink text-center text-sm font-medium text-primary-foreground">{"Download & Install"}</Text>
-            </Pressable>
+            <Button label="Download & Install" icon={Download} onPress={() => void handleInstall()} />
           )}
 
           {state === "ready" && (
-            <Pressable
-              onPress={() => void handleManualInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5"
-              accessibilityRole="button"
-              accessibilityLabel="Install now"
-            >
-              <Download size={14} color={colors.primaryForeground} />
-              <Text className="shrink text-center text-sm font-medium text-primary-foreground">Install now</Text>
-            </Pressable>
+            <Button label="Install now" icon={Download} onPress={() => void handleManualInstall()} />
           )}
 
           {installFailed && (
@@ -210,49 +177,18 @@ export function UpdateCard() {
               <Text className="text-center text-[11px] text-muted-foreground">
                 If Android blocked the installer, check the install permission for this app.
               </Text>
-              <Pressable
-                onPress={() => {
-                  void openInstallSettings();
-                }}
-                className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
-                accessibilityRole="button"
-                accessibilityLabel="Open install settings"
-              >
-                <Text className="shrink text-center text-sm font-medium text-foreground">Open install settings</Text>
-              </Pressable>
+              <Button label="Open install settings" variant="secondary" onPress={() => void openInstallSettings()} />
             </View>
           )}
 
           {installFailed && state === "ready" && (
-            <Pressable
-              onPress={() => void handleInstall()}
-              className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5"
-              accessibilityRole="button"
-              accessibilityLabel="Download again"
-            >
-              <Download size={14} color={colors.foreground} />
-              <Text className="shrink text-center text-sm font-medium text-foreground">Download again</Text>
-            </Pressable>
+            <Button label="Download again" variant="secondary" icon={Download} onPress={() => void handleInstall()} />
           )}
 
         </View>
       ) : null}
-        <Pressable
-          onPress={() => void handleCheck()}
-          disabled={checking || state === "downloading"}
-          className="flex-row items-center justify-center gap-2 rounded-lg border border-border bg-primary/10 p-3 disabled:opacity-50"
-          accessibilityRole="button"
-          accessibilityLabel="Check for updates"
-        >
-          {checking ? (
-            <Loader2 size={14} color={colors.primary} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} color={colors.primary} />
-          )}
-          <Text className="shrink text-center text-sm font-medium text-primary">
-            {checking ? "Checking for updates..." : "Check for updates"}
-          </Text>
-        </Pressable>
+      <Button label={checking ? "Checking for updates…" : "Check for updates"} accessibilityLabel="Check for updates"
+        variant="secondary" icon={RefreshCw} busy={checking} disabled={state === "downloading"} onPress={() => void handleCheck()} />
     </View>
   );
 }

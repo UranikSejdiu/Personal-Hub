@@ -57,16 +57,16 @@ export function ReminderSetup() {
     { kind: "alarms", label: "On-time reminders", enabled: status.access?.exactAlarms ?? false, available: status.access !== null && Number(Platform.Version) >= 31 },
     { kind: "battery", label: "Unrestricted battery", enabled: status.access?.batteryUnrestricted ?? false, available: status.access !== null },
   ] as const;
-  return <View className="gap-2 rounded-xl border border-border bg-card p-3">
-    <Text accessibilityRole="header" className="text-sm font-semibold text-foreground">Reminder delivery</Text>
+  return <View className="gap-2 rounded-[24px] border border-border bg-surface p-4">
+    <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Reminder delivery</Text>
     <View>
       {options.map((option, index) => <View key={option.kind} className={`min-h-[48px] flex-row items-center justify-between gap-3 ${index < options.length - 1 ? "border-b border-border/60" : ""}`}>
-        <Text className="flex-1 text-sm text-foreground">{option.label}</Text>
+        <Text className="flex-1 text-body-medium text-foreground">{option.label}</Text>
         <Switch value={option.enabled} disabled={busy || !option.available} hitSlop={9}
           onValueChange={enabled => { void change(option.kind, enabled); }}
           accessibilityLabel={option.label} accessibilityHint="Changes may open Android settings."
           accessibilityState={{ checked: option.enabled, disabled: busy || !option.available, busy }}
-          trackColor={{ false: colors.input, true: colors.primary }} thumbColor={option.enabled ? colors.primaryForeground : colors.mutedForeground} />
+          trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={option.enabled ? colors.primaryForeground : colors.outline} />
       </View>)}
     </View>
     {status.notifications !== null && Number(Platform.Version) >= 26 && (

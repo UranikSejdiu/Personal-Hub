@@ -43,7 +43,10 @@ function contrast(first, second) {
 let checked = 0;
 for (const theme of ["light", "dark"]) {
     const colors = getThemeColors(theme);
-    for (const value of Object.values(colors)) rgb(value);
+    for (const [key, value] of Object.entries(colors)) {
+      const [red, green, blue] = rgb(value);
+      assert.ok(red === green && green === blue, `${theme}: ${key} must be monochrome`);
+    }
     const pairs = [];
     for (const background of ["background", "card", "surface", "muted", "surfaceContainer", "surfaceContainerHigh"]) {
       for (const foreground of ["foreground", "mutedForeground", "primary", "success", "destructive"]) {

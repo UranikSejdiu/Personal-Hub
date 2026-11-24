@@ -1,17 +1,17 @@
 import { useCallback, useRef, useState } from "react";
-import { BackHandler, Image, Linking, Pressable, ScrollView, View } from "react-native";
+import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft } from "./AppIcons";
+import { ArrowLeft, ChevronRight, Settings } from "./AppIcons";
 import * as DocumentPicker from "expo-document-picker";
 import { toast } from "sonner-native";
 import { Text } from "./ui/Typography";
-import { Button } from "./ui/Button";
+import { Button, IconButton } from "./ui/Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
 import { useTheme, useThemeColors } from "../lib/theme";
 import { PreferenceChoices } from "./PreferenceChoices";
-import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
+import { buildBackupEnvelope, exportBackupToFile, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 
 export default function SettingsScreen(_props: { activeAppId?: string }) {
@@ -46,7 +46,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     } finally { setSafety(hasSafetyBackup()); locked.current = false; setBusy(false); }
   };
   const pick = () => run(async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/json", "text/plain"], copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
     if (result.canceled) return null;
     const json = await readBackupFile(result.assets[0].uri);
     setPending({ json, summary: previewBackup(json) });
@@ -62,30 +62,23 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
 
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
-      <View className="w-full max-w-md self-center gap-3 px-4 pt-1">
-        <View className="flex-row items-center gap-2">
-          <Pressable disabled={busy} onPress={() => { if (!locked.current) { if (router.canGoBack()) router.back(); else router.replace("/(notes)"); } }}
-            className="h-12 w-12 items-center justify-center rounded-full active:bg-secondary disabled:opacity-50"
-            accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: busy }}>
-            <ArrowLeft size={22} color={colors.foreground} />
-          </Pressable>
-          <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">Settings</Text>
+      <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
+        <View className="min-h-[48px] flex-row items-center gap-2">
+          <IconButton icon={ArrowLeft} disabled={busy} accessibilityLabel="Notes"
+            onPress={() => { if (!locked.current) { if (router.canGoBack()) router.back(); else router.replace("/(notes)"); } }} />
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">Settings</Text>
         </View>
-        <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
+        <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
           <PreferenceChoices label="Appearance" value={theme} options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
             disabled={busy} onChange={setTheme} />
         </View>
-        <Button label="Manage app permissions" variant="secondary" disabled={busy} onPress={() => {
-          if (locked.current) return;
-          void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
-        }} />
-        <View className="gap-2.5 rounded-xl bg-card p-3">
-          <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
-          <Text className="text-sm text-muted-foreground">Import replaces current data. A recovery copy is saved first.</Text>
-          <Button label="Save to folder" disabled={busy} onPress={() => void run(exportBackupToDirectory, "Backup saved to the selected folder.")} />
-          <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => void run(exportBackup, "Backup ready to share.")} />
-          <Button label="Import backup" variant="secondary" disabled={busy} onPress={() => void pick()} />
+        <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Backup &amp; restore</Text>
+          <View className="flex-row flex-wrap gap-2">
+            <Button className="min-w-[104px] flex-1" label="Export" disabled={busy} onPress={() => void run(exportBackupToFile, "Backup saved")} />
+            <Button className="min-w-[104px] flex-1" label="Import" variant="secondary" disabled={busy} onPress={() => void pick()} />
+          </View>
           {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}.</Text>}
           {actionError && !pending && !recover && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
           {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => {
@@ -93,16 +86,22 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
             setRecover(true);
           }} />}
         </View>
-        <UpdateCard />
-        <View className="gap-2.5 rounded-xl border border-border/60 bg-card p-3">
-          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
-          <View className="flex-row items-center gap-3">
-            <Image source={require("../../assets/developer-avatar.png")} accessibilityLabel="Uranik Sejdiu" style={{ width: 58, height: 58, borderRadius: 29 }} />
-            <View className="min-w-0 flex-1 gap-1">
-              <Text className="text-base font-semibold text-foreground">Uranik Sejdiu</Text>
-            </View>
+        <Pressable disabled={busy} accessibilityState={{ disabled: busy }}
+          className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-60"
+          accessible accessibilityRole="button" accessibilityLabel="Manage app permissions" onPress={() => {
+            if (locked.current) return;
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open your phone's Settings and select My Notes."));
+          }}>
+          <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
+            <Settings size={18} color={colors.foreground} />
           </View>
-
+          <Text className="min-w-0 flex-1 text-[15px] font-medium text-foreground">Manage app permissions</Text>
+          <ChevronRight size={18} color={colors.mutedForeground} />
+        </Pressable>
+        <UpdateCard />
+        <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
+          <Text className="text-body-medium text-foreground">Uranik Sejdiu</Text>
           <Button variant="secondary" label="GitHub · UranikSejdiu ↗" accessibilityRole="link" disabled={busy}
             onPress={() => { void Linking.openURL("https://github.com/UranikSejdiu").catch(() => toast.error("Could not open GitHub.")); }} />
         </View>

@@ -14,7 +14,7 @@ const themeModule = { exports: {} };
 vm.runInNewContext(compiled, { module: themeModule, exports: themeModule.exports }, { filename });
 const { getThemeColors, getThemeVariables } = themeModule.exports;
 
-// WCAG relative luminance; verify the actual tokens, including tinted selections.
+// WCAG relative luminance for the actual theme tokens.
 function rgb(color) {
   const match = /^hsl\((\d+),\s*([\d.]+)%,\s*([\d.]+)%\)$/.exec(color);
   assert.ok(match, `Invalid theme color: ${color}`);
@@ -43,7 +43,10 @@ function contrast(first, second) {
 let checked = 0;
 for (const theme of ["light", "dark"]) {
     const colors = getThemeColors(theme);
-    for (const value of Object.values(colors)) rgb(value);
+    for (const [key, value] of Object.entries(colors)) {
+      const [red, green, blue] = rgb(value);
+      assert.ok(red === green && green === blue, `${theme}: ${key} must be monochrome`);
+    }
     const pairs = [];
     for (const background of ["background", "card", "surface", "muted", "surfaceContainer", "surfaceContainerHigh"]) {
       for (const foreground of ["foreground", "mutedForeground", "primary", "success", "destructive"]) {

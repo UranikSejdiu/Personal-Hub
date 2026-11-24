@@ -1,6 +1,6 @@
 {
   "name": "notes",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -68,6 +68,13 @@
     "prebuild": "expo prebuild --no-clean --platform android --no-install",
     "postinstall": "patch-package --error-on-fail",
     "branding:export": "node scripts/export-branding.cjs"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": ["expo-intent-launcher"]
+      }
+    }
   },
   "overrides": {
     "react-native-enriched-html": {

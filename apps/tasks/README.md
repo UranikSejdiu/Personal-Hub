@@ -39,13 +39,13 @@ scheduler; switching screens does not change stored task data.
 ## Transfer existing records
 
 Keep Personal Hub installed. Save its JSON backup to a folder. In this app,
-choose Settings → Backup & restore → Import backup, select that file, review counts,
+choose Settings → Backup & restore → Import, select that file, review counts,
 and confirm. The same Hub file can be used for all three standalone apps.
 Only this app's tables are copied, preserving IDs, timestamps, ordering, and
 relationships. Import replaces current records after saving a recovery copy;
 it does not merge later edits or sync with Hub.
 
-Check all records and use Save to folder to export a new backup before
+Check all records and tap Export to save a new backup before
 uninstalling Hub. Hub is retired and is not needed after transfer. Android does not automatically move private data between
 packages. Restore previous data returns to the pre-import snapshot.
 

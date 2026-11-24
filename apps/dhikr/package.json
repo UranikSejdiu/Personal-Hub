@@ -1,6 +1,6 @@
 {
   "name": "dhikr",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -64,6 +64,13 @@
     "patch-package": "^8.0.1",
     "sharp": "^0.35.5",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": ["expo-intent-launcher"]
+      }
+    }
   },
   "overrides": {
     "glob": "14.0.3",

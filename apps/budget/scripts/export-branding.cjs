@@ -25,8 +25,8 @@ async function png(name,color,background,size=1024){const input=svg(color,backgr
   await png('monochrome','#ffffff',null);
   await png('logo-light',sage,null);
   await png('logo-dark',cream,null);
-  await png('splash-light',sage,null,512);
-  await png('splash-dark',cream,null,512);
+  await png('splash-light','#000000',null,512);
+  await png('splash-dark','#ffffff',null,512);
   for(const [name,color] of [['wordmark-light',sage],['wordmark-dark',cream]]){
     const source=svg(color,null,true);await fs.writeFile(path.join(out,name+'.svg'),source);await sharp(Buffer.from(source)).png().toFile(path.join(out,name+'.png'));
   }

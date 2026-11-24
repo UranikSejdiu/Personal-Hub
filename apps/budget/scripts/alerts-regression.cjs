@@ -344,30 +344,33 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     await find(h.render('default'),n=>n.type==='ConfirmDialog'&&n.props.title==='Delete').props.onConfirm();
     assert.ok(hasAlert(h,fail?'error':'success',fail?'Failed to delete budget.':'Budget deleted'));
   }
-  for(const outcome of ['success','cancel','error']){
-    const h=harness('src/components/SettingsScreen.tsx',{passwordAction:'folder'}, {'../lib/backup':{hasSafetyBackup:()=>false,exportBackupToDirectory:async password=>{assert.equal(password,'private backup password');if(outcome==='error')throw Error('No space left');return outcome==='cancel'?null:'backup.json';}}});
-    const action=find(h.render('default'),n=>n.type==='BackupPasswordDialog').props.onSubmit('private backup password');
-    if(outcome==='error') { await assert.rejects(action,/No space left/); assert.equal(h.state.busy,false); continue; }
-    await action;
-    if(outcome==='cancel')assert.equal(h.events.length,0);
-    else if(outcome==='success')assert.ok(hasAlert(h,'success','Backup saved'));
+  for (const outcome of ['success', 'cancel', 'error']) {
+    const h = harness('src/components/SettingsScreen.tsx', {}, { '../lib/backup': {
+      hasSafetyBackup: () => false,
+      exportBackupToFile: async (...args) => {
+        assert.equal(args.length, 0);
+        if (outcome === 'error') throw Error('No space left');
+        return outcome === 'cancel' ? null : 'backup.json';
+      },
+    } });
+    await click(h.render('default'), 'Export');
+    assert.equal(h.state.encryptedFile, null);
+    assert.equal(h.state.busy, false);
+    if (outcome === 'cancel') assert.equal(h.events.length, 0);
+    else if (outcome === 'success') assert.ok(hasAlert(h, 'success', 'Backup saved'));
+    else assert.ok(hasAlert(h, 'error', 'Could not save backup.'));
   }
   {
-    const h=harness('src/components/BackupPasswordDialog.tsx',{password:'private backup password',confirmation:'private backup password'});
-    const tree=h.render('BackupPasswordDialog',{creating:true,onClose(){},onSubmit:async()=>{throw Error('No space left');}});
-    await click(tree,'Continue');
-    assert.equal(h.state.error,'No space left'); assert.ok(hasAlert(h,'error','Could not save backup.')); assert.equal(h.state.busy,false);
-  }
-  for (const confirmation of ['short', 'different backup password']) {
-    let exports=0;
-    const h=harness('src/components/BackupPasswordDialog.tsx',{password:'private backup password',confirmation});
-    const tree=h.render('BackupPasswordDialog',{creating:true,onClose(){},onSubmit:async()=>{exports++;}});
-    assert.equal(find(tree,n=>n.props?.label==='Continue').props.disabled,true);
-    await click(tree,'Continue'); assert.equal(exports,0,'Mismatched passwords cannot create an unrecoverable backup');
+    const h = harness('src/components/BackupPasswordDialog.tsx', { password: 'legacy backup password' });
+    const tree = h.render('BackupPasswordDialog', { onClose() {}, onSubmit: async () => { throw Error('Wrong password'); } });
+    await click(tree, 'Unlock');
+    assert.equal(h.state.error, 'Wrong password');
+    assert.ok(hasAlert(h, 'error', 'Could not unlock backup.'));
+    assert.equal(h.state.busy, false);
   }
   {
     let imported=0;
-    const h=harness('src/components/SettingsScreen.tsx',{passwordAction:'unlock',encryptedFile:'protected'}, {'../lib/backup':{hasSafetyBackup:()=>false,previewBackup:()=> 'Verified',importBackup:async()=>{imported++;}},'../lib/backupCrypto':{decryptBackup:async()=>'{"meta":{}}'}});
+    const h=harness('src/components/SettingsScreen.tsx',{encryptedFile:'protected'}, {'../lib/backup':{hasSafetyBackup:()=>false,previewBackup:()=> 'Verified',importBackup:async()=>{imported++;}},'../lib/backupCrypto':{decryptBackup:async()=>'{"meta":{}}'}});
     await find(h.render('default'),n=>n.type==='BackupPasswordDialog').props.onSubmit('private backup password');
     assert.ok(h.state.pending,'Unlocked data still requires import confirmation'); assert.equal(imported,0); assert.equal(h.state.encryptedFile,null);
   }

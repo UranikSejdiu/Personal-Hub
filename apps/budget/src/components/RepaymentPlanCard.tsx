@@ -27,17 +27,27 @@ export function RepaymentPlanCard({ info, onEdit, onDelete }: Props) {
   const colors = useThemeColors();
   const Icon = info.kind === "loan" ? Landmark : CreditCard;
   const progress = info.term > 0 ? Math.min(100, Math.round((info.monthsPaid / info.term) * 100)) : 0;
-  return <View className="rounded-xl border border-border/60 bg-card px-3 py-2">
-    <View className="flex-row items-center gap-2">
-      <View className="h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-container"><Icon size={18} color={colors.onSecondaryContainer} /></View>
-      <View className="min-w-0 flex-1 gap-1"><Text className="text-sm font-semibold text-foreground" numberOfLines={2}>{info.name}</Text><Text className="text-xs text-muted-foreground">{info.kind === "loan" ? "Loan" : "Credit Card"} · {formatCurrency(info.payment)} / month</Text></View>
+  return <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+    <View className="flex-row items-center gap-3">
+      <View className="h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted"><Icon size={18} color={colors.foreground} /></View>
+      <View className="min-w-0 flex-1 gap-0.5">
+        <Text className="text-base font-semibold text-foreground" numberOfLines={2}>{info.name}</Text>
+        <Text className="text-label-medium text-muted-foreground">{info.kind === "loan" ? "Loan" : "Credit card"}</Text>
+      </View>
       {onEdit ? <IconButton icon={Pencil} onPress={onEdit} accessibilityLabel={`Edit ${info.name}`} /> : onDelete ? <IconButton icon={Trash2} onPress={onDelete} accessibilityLabel="Delete" /> : null}
     </View>
-    {info.term > 0 ? <>
-      <View className="mt-1.5 h-1 overflow-hidden rounded-full bg-secondary"><View className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} /></View>
-      <Text className="mt-2 text-xs text-muted-foreground">{`${info.monthsPaid} of ${info.term} paid`}</Text>
-    </> : <Text className="mt-2 text-xs text-muted-foreground">{`${info.monthsPaid} payments recorded`}</Text>}
-    {(info.startMonth || info.endMonth) && <Text className="mt-1 text-xs text-muted-foreground">First month: {info.startMonth ? monthLabel(info.startMonth) : "…"} · {info.endMonth ? `Last: ${monthLabel(info.endMonth)}` : "No end month"}</Text>}
-
+    <View className="flex-row flex-wrap items-baseline gap-x-2 border-t border-border pt-3">
+      <Text className="shrink text-xl font-semibold text-foreground" style={{ fontVariant: ["tabular-nums"] }}>{formatCurrency(info.payment)}</Text>
+      <Text className="text-label-medium text-muted-foreground">/ month</Text>
+    </View>
+    <View className="gap-1.5">
+      <Text className="text-label-medium text-muted-foreground">{info.term > 0 ? `${info.monthsPaid} of ${info.term} paid` : `${info.monthsPaid} payments recorded`}</Text>
+      {info.term > 0 && <View accessible accessibilityRole="progressbar" accessibilityLabel="Payments made"
+        accessibilityValue={{ min: 0, max: info.term, now: Math.min(info.monthsPaid, info.term) }}
+        className="h-1.5 overflow-hidden rounded-full bg-secondary-container">
+        <View className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+      </View>}
+      {(info.startMonth || info.endMonth) && <Text className="text-label-medium text-muted-foreground">First month: {info.startMonth ? monthLabel(info.startMonth) : "…"} · {info.endMonth ? `Last: ${monthLabel(info.endMonth)}` : "No end month"}</Text>}
+    </View>
   </View>;
 }

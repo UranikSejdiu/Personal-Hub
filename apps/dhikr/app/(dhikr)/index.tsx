@@ -2,7 +2,7 @@ import { Text } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, AppState, View, Pressable, ScrollView, useWindowDimensions } from "react-native";
 import { DhikrCounterTitle } from "../../src/components/DhikrCounterTitle";
-import { ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
+import { Check, ChevronLeft, ChevronRight, Sparkles, Star, RotateCcw } from "../../src/components/AppIcons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { toast } from "sonner-native";
 import { useHaptics } from "../../src/hooks/useHaptics";
@@ -239,32 +239,35 @@ export default function CounterScreen() {
 
   if (dhikrs.length === 0 || !activeDhikr) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-8">
-        <Star size={32} color={colors.mutedForeground} />
-        <Text className="mt-2 text-base font-semibold text-foreground">
-          No dhikr yet
-        </Text>
-        <Pressable
-          onPress={handleOpenList}
-          className="mt-3 min-h-[48px] flex-row items-center gap-2 rounded-full bg-primary-container px-4 py-2.5 active:opacity-70"
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="Add Dhikr"
-          android_ripple={{ color: withAlpha(colors.onPrimaryContainer, 0.12) }}
-        >
-          <Sparkles size={18} color={colors.onPrimaryContainer} />
-          <Text className="text-label-large font-medium text-on-primary-container">
-            Add Dhikr
+      <View className="flex-1 items-center justify-center bg-background px-5">
+        <View className="w-full max-w-md items-center rounded-[28px] border border-border bg-surface-container px-5 py-10">
+          <View className="h-14 w-14 items-center justify-center rounded-full bg-background">
+            <Star size={26} color={colors.foreground} />
+          </View>
+          <Text className="mt-4 text-title-large font-semibold text-foreground">
+            No dhikr yet
           </Text>
-        </Pressable>
+          <Pressable
+            onPress={handleOpenList}
+            className="mt-5 min-h-[48px] flex-row items-center gap-2 rounded-full bg-primary px-4 py-2.5 active:opacity-70"
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="Add Dhikr"
+            android_ripple={{ color: withAlpha(colors.primaryForeground, 0.12) }}
+          >
+            <Sparkles size={18} color={colors.primaryForeground} />
+            <Text className="text-label-large font-medium text-primary-foreground">
+              Add Dhikr
+            </Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
-  const limitReached =
-    activeDhikr.daily_limit != null &&
-    activeDhikr.daily_limit > 0 &&
-    activeDhikr.daily_count >= activeDhikr.daily_limit;
+  const formattedTotal = activeDhikr.total_count.toLocaleString("en");
+  const dailyLimit = activeDhikr.daily_limit;
+  const limitReached = dailyLimit != null && dailyLimit > 0 && activeDhikr.daily_count >= dailyLimit;
 
   return (
     <View className="relative flex-1 bg-background">
@@ -276,21 +279,21 @@ export default function CounterScreen() {
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="w-full max-w-md flex-1 items-center self-center px-4 pt-2">
-          <View className="w-full flex-row items-center border-b border-border">
+        <View className="w-full max-w-md flex-1 items-center justify-center gap-4 self-center px-5 pt-4">
+          <View className="w-full flex-row items-center gap-2">
             <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Previous"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
-              <ChevronLeft size={20} color={colors.primary} />
+              <ChevronLeft size={20} color={colors.mutedForeground} />
             </Pressable>
             <Pressable onPress={handleOpenList} disabled={resetting}
-              className="min-h-[48px] min-w-0 flex-1 items-center justify-center py-1 active:opacity-70"
+              className="min-h-[48px] min-w-0 flex-1 items-center justify-center gap-0.5 py-1 active:opacity-70"
               accessibilityRole="button" accessibilityLabel={`Choose a dhikr: ${activeDhikr.name}`}
               accessibilityState={{ disabled: resetting }}>
               <DhikrCounterTitle name={activeDhikr.name} />
@@ -299,13 +302,13 @@ export default function CounterScreen() {
             <Pressable
               onPress={handleNext}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Next"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
-              <ChevronRight size={20} color={colors.primary} />
+              <ChevronRight size={20} color={colors.mutedForeground} />
             </Pressable>
           </View>
 
@@ -315,11 +318,11 @@ export default function CounterScreen() {
             accessibilityState={{ disabled: isLoading || resetting }}
             unstable_pressDelay={0}
             android_disableSound={true}
-            className="min-h-[200px] w-full flex-1 items-center justify-center py-3 active:opacity-70"
+            className="min-h-[224px] max-h-[460px] w-full flex-1 items-center justify-center rounded-[32px] border border-border bg-surface-container px-4 py-5 active:bg-surface-container-high"
             accessible
             accessibilityRole="button"
             accessibilityLabel="Tap to count"
-            accessibilityValue={{ text: `Total recitations: ${activeDhikr.total_count.toLocaleString("en")}` }}
+            accessibilityValue={{ text: `Total recitations: ${formattedTotal}` }}
           >
             <Text
               testID="dhikr-total-count"
@@ -329,14 +332,18 @@ export default function CounterScreen() {
               className="w-full text-center font-medium text-foreground"
               style={{ fontSize: Math.min(132, width * 0.34), fontVariant: ["tabular-nums"], letterSpacing: -1 }}
             >
-              {activeDhikr.total_count.toLocaleString("en")}
+              {formattedTotal}
             </Text>
           </Pressable>
-          <View className="w-full items-center gap-1.5">
-            {(showLimitWarning || limitReached) && <Text accessibilityLiveRegion="polite"
-              className={`text-center text-body-medium font-medium ${showLimitWarning ? "text-destructive" : "text-success"}`}>
-              {showLimitWarning ? "Daily limit reached" : "Daily goal complete"}
-            </Text>}
+          <View className="w-full items-center gap-2 px-1">
+            {(showLimitWarning || limitReached) && (
+              <View className="flex-row items-center gap-1.5">
+                {limitReached && !showLimitWarning && <Check size={15} color={colors.success} />}
+                <Text accessibilityLiveRegion="polite" className={`shrink text-body-medium font-medium ${showLimitWarning ? "text-destructive" : "text-success"}`}>
+                  {showLimitWarning ? "Daily limit reached" : "Daily goal complete"}
+                </Text>
+              </View>
+            )}
             <Pressable
               onPress={() => {
                 if (interactiveRef.current && !resettingRef.current) setResetTarget({ id: activeDhikr.id, name: activeDhikr.name });

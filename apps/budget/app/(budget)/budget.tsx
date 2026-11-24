@@ -405,7 +405,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-6">
+        <View className="w-full max-w-md self-center gap-4 px-5 pt-4 pb-6">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -435,7 +435,7 @@ export default function BudgetScreen() {
   return (
     <><FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center px-4 max-[360px]:px-3 pt-2 pb-6"
+      contentContainerClassName="w-full max-w-md self-center px-5 pt-4 pb-6"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -446,31 +446,32 @@ export default function BudgetScreen() {
       windowSize={7}
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
-        <View className="border-x border-border/60 bg-card px-2">
+        <View className="border-x border-border bg-surface px-2">
           <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
         </View>
       )}
       ListHeaderComponent={
-        <View className="gap-3">
+        <View className="gap-4">
           <View className="flex-row items-center">
             <IconButton icon={ArrowLeft} accessibilityLabel="Back to months" onPress={() => router.replace("/(budget)")} />
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{monthLabel(month)}</Text>
+            <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-semibold text-foreground">{monthLabel(month)}</Text>
             <IconButton icon={ChevronLeft} accessibilityLabel="Previous month" onPress={() => router.setParams({ month: previousMonth })} />
             <IconButton icon={ChevronRight} accessibilityLabel="Next month" onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
-          <View className="gap-2 rounded-2xl bg-surface-container px-3 py-2">
+          <View className="gap-3 rounded-[28px] border border-border bg-surface-container p-5">
             <View className="flex-row items-center">
               <View className="min-w-0 flex-1">
                 <Text className="text-label-medium text-muted-foreground">Current remaining</Text>
-                <Text className={`text-[24px] font-semibold ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontVariant: ["tabular-nums"] }}
+                  className={`text-[34px] font-semibold ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
                   {formatCurrency(monthSummary.actualRemaining)}
                 </Text>
               </View>
               <IconButton icon={Pencil} accessibilityLabel="Edit income and savings target" onPress={() => setEditingMonth(true)} />
             </View>
-            {paymentCount > 0 && <View className="gap-1.5 pb-1">
+            {paymentCount > 0 && <View className="gap-1.5">
               <Text className="text-label-medium text-muted-foreground">{`${paidCount} of ${paymentCount} paid`}</Text>
-              <View className="h-1 overflow-hidden rounded-full bg-secondary" accessible accessibilityRole="progressbar" accessibilityLabel="Payments made"
+              <View className="h-1.5 overflow-hidden rounded-full bg-secondary-container" accessible accessibilityRole="progressbar" accessibilityLabel="Payments made"
                 accessibilityValue={{ min: 0, max: paymentCount, now: paidCount }}>
                 <View className="h-full rounded-full bg-primary" style={{ width: `${paidCount / paymentCount * 100}%` }} />
               </View>
@@ -480,13 +481,13 @@ export default function BudgetScreen() {
         </View>
       }
       ListFooterComponent={
-        <View className="gap-3">
-          <View className="rounded-b-xl border-x border-b border-border/60 bg-card px-2 pb-1">
+        <View className="gap-4">
+          <View className="rounded-b-[24px] border-x border-b border-border bg-surface px-2 pb-1">
             {hasPreviousBudget && <Button className="self-start" variant="text" icon={Copy} label="Copy from previous month" onPress={() => setConfirmCopy(true)} />}
           </View>
           {activePayments.length > 0 && <View className="gap-2.5">
-            <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">{"Loan & card payments"}</Text>
-            <View className="rounded-[14px] border border-border/60 bg-card px-3">
+            <Text accessibilityRole="header" className="text-base font-semibold text-foreground">{"Loan & card payments"}</Text>
+            <View className="rounded-[24px] border border-border bg-surface px-4">
               {activePayments.map((plan, index) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} last={index === activePayments.length - 1} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
             </View>
           </View>}

@@ -36,7 +36,7 @@ export const NoteCard = React.memo(function NoteCard({
   return (
     <Pressable
       onPress={() => onPress(note)}
-      className="mb-2 min-h-[56px] rounded-xl bg-card px-3 py-2.5 active:opacity-70"
+      className="mb-3 min-h-[64px] rounded-[24px] border border-border bg-surface p-4 active:opacity-70"
       accessible
       accessibilityRole="button"
       accessibilityLabel={title}
@@ -81,10 +81,10 @@ export const NoteCard = React.memo(function NoteCard({
               {`+${hiddenCount} more`}
             </Text>
           ) : null}
-          <View className="mt-1 h-1 overflow-hidden rounded-full bg-secondary" accessible={false}>
+          <View className="mt-1 h-1.5 overflow-hidden rounded-full bg-secondary-container" accessible={false}>
             <View className="h-full rounded-full bg-primary" style={{ width: `${totalCount > 0 ? Math.min(100, checkedCount / totalCount * 100) : 0}%` }} />
           </View>
-          <Text className="mt-1 text-[11px] leading-4 text-muted-foreground">
+          <Text className="mt-1 text-label-medium text-muted-foreground">
             {`${checkedCount} of ${totalCount} completed`}
           </Text>
         </View>

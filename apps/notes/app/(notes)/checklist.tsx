@@ -388,7 +388,7 @@ export default function ChecklistEditorScreen() {
         <Text className="text-sm text-muted-foreground">Failed to load data.</Text>
         <Pressable
           onPress={() => router.back()}
-          className="min-h-[44px] justify-center rounded-lg bg-primary px-4 max-[360px]:px-3 py-2 active:opacity-70"
+          className="min-h-[48px] justify-center rounded-full bg-primary px-4 py-2 active:opacity-70"
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >
@@ -403,7 +403,7 @@ export default function ChecklistEditorScreen() {
       {!isArchived && <Pressable
         onPress={handleAddItem}
         disabled={isBusy}
-        className="min-h-[44px] flex-row items-center gap-2 px-2 active:bg-muted"
+        className="min-h-[48px] flex-row items-center gap-2 rounded-full px-2 active:bg-muted"
         accessible
         accessibilityRole="button"
         accessibilityLabel="Add item"
@@ -417,7 +417,7 @@ export default function ChecklistEditorScreen() {
         <View className="mt-2">
           <Pressable
             onPress={() => setCheckedExpanded((previous) => !previous)}
-            className="min-h-[44px] flex-row items-center gap-2 px-2 active:bg-muted"
+            className="min-h-[48px] flex-row items-center gap-2 rounded-full px-2 active:bg-muted"
             accessible
             accessibilityRole="button"
             accessibilityState={{ expanded: checkedExpanded }}
@@ -447,7 +447,7 @@ export default function ChecklistEditorScreen() {
                   <Checkbox checked
                     onPress={() => handleToggle(item.key)}
                     disabled={isBusy}
-                    className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+                    className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
                     accessibilityLabel={item.text || "List item"}
                   />
                   <Text className="flex-1 py-2 text-base text-muted-foreground line-through">
@@ -456,7 +456,7 @@ export default function ChecklistEditorScreen() {
                   <Pressable
                     onPress={() => handleRemove(item.key)}
                     disabled={isBusy}
-                    className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+                    className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
                     accessible
                     accessibilityRole="button"
                     accessibilityLabel="Delete item"
@@ -469,7 +469,7 @@ export default function ChecklistEditorScreen() {
             : null}
         </View>
       ) : null}
-      <Text className="mt-2 px-2 text-xs text-muted-foreground">{`${checkedItems.length} of ${items.length} completed`}</Text>
+      {items.length > 0 && <Text className="mt-2 px-2 text-label-medium text-muted-foreground">{`${checkedItems.length} of ${items.length} completed`}</Text>}
     </View>
   );
 
@@ -477,10 +477,10 @@ export default function ChecklistEditorScreen() {
     <>
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pb-1 pt-1">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-5 pb-1 pt-2">
             <Pressable onPress={handleBack} disabled={isBusy} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isBusy }}>
-              <ArrowLeft size={22} color={colors.foreground} />
+              <ArrowLeft size={20} color={colors.foreground} />
             </Pressable>
             <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-1">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isBusy}
@@ -488,7 +488,7 @@ export default function ChecklistEditorScreen() {
             </View>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-5 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
 
           <DraggableFlatList
             className="w-full max-w-md self-center"
@@ -514,7 +514,7 @@ export default function ChecklistEditorScreen() {
                 accessibilityLabel="Title"
                 placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
-                className="mb-3 w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[26px] leading-8 font-semibold text-foreground"
+                className="mx-5 my-2 rounded-[24px] border border-border bg-surface px-4 py-3 text-2xl leading-8 font-semibold text-foreground"
                 multiline
               />
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isBusy} />
@@ -522,9 +522,9 @@ export default function ChecklistEditorScreen() {
             </View>}
             ListFooterComponent={listFooter}
           />
-          {!isArchived && <KeyboardStickyView className="w-full border-t border-border/60 bg-surface-container"
-            style={{ paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
-            <View className="w-full max-w-md flex-row items-center justify-between self-center px-3 py-1">
+          {!isArchived && <KeyboardStickyView className="w-full bg-background px-5"
+            style={{ paddingBottom: (keyboardVisible ? 0 : insets.bottom) + 8 }}>
+            <View className="w-full max-w-[408px] flex-row items-center justify-between self-center rounded-[30px] border border-border bg-surface p-1">
               <AttachmentToolbarButton disabled={isBusy} busy={attachmentState.busy}
                 onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
               {keyboardVisible && <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}

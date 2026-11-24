@@ -1,16 +1,15 @@
 import { useCallback, useRef, useState } from "react";
 import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
 import { useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { toast } from "sonner-native";
 import { Text } from "./ui/Typography";
 import { Button } from "./ui/Button";
-import { Check } from "./AppIcons";
+import { ChevronRight, Settings } from "./AppIcons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
 import { useTheme, useThemeColors } from "../lib/theme";
-import { buildBackupEnvelope, exportBackup, exportBackupToDirectory, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
+import { buildBackupEnvelope, exportBackupToFile, hasSafetyBackup, importBackup, previewBackup, readBackupFile, restoreSafetyBackup } from "../lib/backup";
 import identity from "../appIdentity.json";
 import { ReminderSetup } from "./tasks/ReminderSetup";
 
@@ -44,7 +43,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
     } finally { setSafety(hasSafetyBackup()); locked.current = false; setBusy(false); }
   };
   const pick = () => run(async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/json", "text/plain"], copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
     if (result.canceled) return null;
     const json = await readBackupFile(result.assets[0].uri);
     setPending({ json, summary: previewBackup(json) });
@@ -60,39 +59,42 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
 
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-6">
-      <View className="w-full max-w-md self-center gap-3 px-4 pt-2">
-        <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Settings</Text>
-        <ReminderSetup />
-        <View className="gap-2.5 rounded-xl border border-border bg-card p-3">
+      <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
+        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
+        <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
-          <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row rounded-full border border-outline">
+          <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" className="flex-row gap-1 rounded-[24px] border border-border bg-background p-1">
             {(["light", "dark"] as const).map(value => {
               const selected = theme === value;
-              const color = selected ? colors.onSecondaryContainer : colors.mutedForeground;
               return <Pressable key={value} disabled={busy} onPress={() => setTheme(value)}
                 accessibilityRole="radio" accessibilityLabel={value === "light" ? "Light" : "Dark"}
                 accessibilityState={{ checked: selected, disabled: busy }}
-                className={`min-h-[48px] min-w-0 flex-1 flex-row items-center justify-center gap-2 px-3 py-2 active:opacity-70 ${value === "light" ? "rounded-l-full border-r border-outline" : "rounded-r-full"} ${selected ? "bg-secondary-container" : ""} ${busy ? "opacity-60" : ""}`}>
-                <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" accessible={false}>
-                  {value === "light" ? <><Circle cx={12} cy={12} r={4} /><Path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></> : <Path d="M20.8 13a9 9 0 0 1-9.8-9.8A9 9 0 1 0 20.8 13Z" />}
-                </Svg>
-                <Text className={`shrink text-center text-label-large font-medium ${selected ? "text-on-secondary-container" : "text-muted-foreground"}`}>{value === "light" ? "Light" : "Dark"}</Text>
-                <View className="w-3">{selected && <Check size={12} color={color} />}</View>
+                className={`min-h-[48px] min-w-0 flex-1 items-center justify-center rounded-[20px] px-3 py-2 active:opacity-70 ${selected ? "bg-secondary-container" : ""} ${busy ? "opacity-60" : ""}`}>
+                <Text className={`text-center text-label-large ${selected ? "font-semibold text-on-secondary-container" : "font-medium text-muted-foreground"}`}>{value === "light" ? "Light" : "Dark"}</Text>
               </Pressable>;
             })}
           </View>
         </View>
-        <Button label="Manage app permissions" variant="secondary" disabled={busy} onPress={() => {
-          if (locked.current) return;
-          void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
-        }} />
-        <View className="gap-2.5 rounded-xl border border-border bg-card p-3">
-          <Text className="text-base font-semibold text-foreground">Backup & restore</Text>
-          <Text className="text-sm text-muted-foreground">Import replaces current tasks and saves a recovery copy.</Text>
-          <Button label="Save to folder" disabled={busy} onPress={() => void run(exportBackupToDirectory, "Backup saved to the selected folder.")} />
-          <Button label="Share backup" variant="secondary" disabled={busy} onPress={() => void run(exportBackup, "Backup ready to share.")} />
-          <Button label="Import backup" variant="secondary" disabled={busy} onPress={() => void pick()} />
-          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}. Export a backup above to keep a separate copy.</Text>}
+        <ReminderSetup />
+        <Pressable accessibilityRole="button" accessibilityLabel="Manage app permissions" accessibilityState={{ disabled: busy }}
+          disabled={busy} className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-70 disabled:opacity-60"
+          onPress={() => {
+            if (locked.current) return;
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
+          }}>
+          <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-container-high">
+            <Settings size={18} color={colors.foreground} />
+          </View>
+          <Text className="min-w-0 flex-1 text-base font-semibold text-foreground">Manage app permissions</Text>
+          <ChevronRight size={16} color={colors.mutedForeground} />
+        </Pressable>
+        <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+          <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Backup & restore</Text>
+          <View className="flex-row flex-wrap gap-2">
+            <Button className="min-w-[104px] flex-1" label="Export" disabled={busy} onPress={() => void run(exportBackupToFile, "Backup saved")} />
+            <Button className="min-w-[104px] flex-1" label="Import" variant="secondary" disabled={busy} onPress={() => void pick()} />
+          </View>
+          {receipt && <Text accessibilityRole="alert" className="text-sm text-foreground">Verified stored records: {receipt}.</Text>}
           {actionError && !pending && !recover && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
           {safety && <Button label="Restore previous data" variant="secondary" disabled={busy} onPress={() => {
             setActionError(null);

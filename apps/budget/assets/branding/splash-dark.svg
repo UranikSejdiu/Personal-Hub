@@ -8,4 +8,4 @@
 <path d="M366 426H404M620 426H658" stroke-linecap="round"/></g>
 <ellipse cx="512" cy="426" rx="75" ry="82" fill="black"/>
 <g fill="none" stroke="white" stroke-width="14" stroke-linecap="square"><path d="M538 388C490 358 464 458 514 465Q528 466 539 455"/><path d="M470 412H521M466 435H515"/></g>
-</mask></defs><g transform=""><rect width="1024" height="1024" fill="#f8f9f4" mask="url(#mark)"/></g></svg>
+</mask></defs><g transform=""><rect width="1024" height="1024" fill="#ffffff" mask="url(#mark)"/></g></svg>

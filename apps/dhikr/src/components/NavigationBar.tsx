@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Rect } from "react-native-svg";
 import type { AppIconProps } from "./AppIcons";
 import { Text } from "./ui/Typography";
 import { useThemeColors } from "../lib/theme";
@@ -30,16 +31,19 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
     <View
       style={{
         backgroundColor: colors.background,
-        borderTopColor: colors.border,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        paddingBottom: insets.bottom,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
+        paddingTop: 4,
+        paddingBottom: insets.bottom + 8,
+        paddingLeft: insets.left + 20,
+        paddingRight: insets.right + 20,
       }}
     >
-      <View accessibilityRole="tablist" className="min-h-[56px] w-full max-w-md flex-row self-center px-2">
+      <View
+        accessibilityRole="tablist"
+        style={[styles.track, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
         {tabs.map(({ id, label, icon: Icon }) => {
           const selected = id === activeTabId;
+          const color = selected ? colors.primaryForeground : colors.mutedForeground;
           return (
             <Pressable
               key={id}
@@ -47,17 +51,18 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
               accessibilityLabel={label}
               accessibilityState={{ selected }}
               onPress={() => onTabPress(id)}
-              className="min-w-0 flex-1 items-center justify-center gap-0.5 px-0.5 py-1.5 active:opacity-70"
+              className="active:opacity-70"
+              style={styles.tab}
             >
-              <View
-                style={[
-                  styles.tabIndicator,
-                  selected && { backgroundColor: colors.primary },
-                ]}
-              >
-                <Icon size={20} color={selected ? colors.primaryForeground : colors.mutedForeground} />
-              </View>
-              <Text className={cn("text-center text-label-medium", selected ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>
+              {selected && (
+                <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
+                  <Svg width="100%" height="100%">
+                    <Rect width="100%" height="100%" rx={28} ry={28} fill={colors.primary} />
+                  </Svg>
+                </View>
+              )}
+              <Icon size={20} color={color} />
+              <Text className={cn("text-center text-label-medium", selected ? "font-semibold" : "font-medium")} style={{ color }}>
                 {label}
               </Text>
             </Pressable>
@@ -69,12 +74,23 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
 }
 
 const styles = StyleSheet.create({
-  tabIndicator: {
-    width: 48,
-    maxWidth: "100%",
-    height: 26,
-    borderRadius: 13,
+  track: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 408,
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    borderWidth: 1,
+    borderRadius: 36,
+  },
+  tab: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 52,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 5,
   },
 });

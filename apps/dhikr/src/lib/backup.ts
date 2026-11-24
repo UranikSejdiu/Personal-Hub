@@ -4,7 +4,7 @@ import * as db from "./db";
 import { type Dhikr } from "../types/dhikr";
 import { clearSelectedDhikrIdIfMissing } from "./dhikrSelection";
 import { flushDhikrWrites } from "./dhikr";
-import { saveBackupToFolder } from "./saveBackupToFolder";
+import { saveBackupFile } from "./saveBackupFile";
 
 const FORMAT = "dhikr.backup";
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -66,8 +66,8 @@ export async function readBackupFile(uri: string): Promise<string> {
   return file.text();
 }
 
-export async function exportBackupToDirectory(): Promise<string | null> {
-  return saveBackupToFolder("dhikr-backup", async () => JSON.stringify(await envelope(), null, 2));
+export async function exportBackupToFile(): Promise<string | null> {
+  return saveBackupFile("dhikr-backup", async () => JSON.stringify(await envelope(), null, 2), exportBackup);
 }
 
 export async function exportBackup(): Promise<void> {

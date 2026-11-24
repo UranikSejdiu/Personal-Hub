@@ -346,11 +346,11 @@ export default function SavingsScreen() {
 
       const locked = entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description);
       const Icon = isDeposit ? ArrowDownLeft : ArrowUpRight;
-      return <View className="border-x border-border/60 bg-card px-3">
-        <View className={`min-h-[56px] flex-row items-center gap-2 py-1 ${isLast ? "" : "border-b border-border/60"}`}>
+      return <View className="border-x border-border bg-surface px-4">
+        <View className={`min-h-[62px] flex-row items-center gap-3 py-2 ${isLast ? "" : "border-b border-border"}`}>
           <View className={`h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isDeposit ? "bg-success/10" : "bg-secondary"}`}><Icon size={18} color={isDeposit ? colors.success : colors.mutedForeground} /></View>
           <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel="Edit Entry">
-            <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
+            <Text className="text-base font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
             <Text className="text-xs text-muted-foreground">{entry.date} · {badgeLabel}</Text>
             <Text className={`text-sm font-semibold ${amountColor}`}>{sign}{formatCurrency(entry.amount)}</Text>
           </Pressable>
@@ -363,9 +363,11 @@ export default function SavingsScreen() {
 
   const listHeader = useMemo(
     () => (
-    <View className="gap-2.5">
-      <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Savings</Text>
-      <SavingsGoalCard goalAmount={goalAmount} balance={summary.balance} />
+    <View className="gap-4">
+      <View className="min-h-[48px] justify-center">
+        <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Savings</Text>
+      </View>
+      <SavingsGoalCard goalAmount={goalAmount} {...summary} />
       <View className="flex-row gap-2">
         <Button className="flex-1" icon={ArrowDownLeft} label="Deposit" onPress={() => openCreateModal("deposit")} />
         <Button className="flex-1" variant="secondary" icon={ArrowUpRight} label="Withdraw" onPress={() => openCreateModal("purchase")} />
@@ -383,17 +385,19 @@ export default function SavingsScreen() {
           </Pressable>
         </View>
       </View>
-      <View className="rounded-t-[14px] border-x border-t border-border/60 bg-card px-3 pt-2">
-        {filteredEntries.length === 0 && (
-          <Text className="py-6 text-center text-sm text-muted-foreground">No entries yet.</Text>
-        )}
-      </View>
+      {filteredEntries.length === 0 ? (
+        <View className="rounded-[24px] border border-border bg-surface px-4 py-6">
+          <Text className="text-center text-sm text-muted-foreground">No entries yet.</Text>
+        </View>
+      ) : (
+        <View className="h-2 rounded-t-[24px] border-x border-t border-border bg-surface" />
+      )}
     </View>
     ),
     [
       colors,
       goalAmount,
-      summary.balance,
+      summary,
       filteredEntries.length,
       availableYears,
       selectedYear,
@@ -403,35 +407,13 @@ export default function SavingsScreen() {
     ]
   );
 
-  const listFooter = useMemo(
-    () => (
-    <View className="gap-3">
-      <View className="h-2 rounded-b-[14px] border-x border-b border-border/60 bg-card" />
-      <View className="rounded-[14px] border border-border/60 bg-card p-3 gap-1.5">
-        <View className="flex-row justify-between">
-          <Text className="text-sm text-muted-foreground">Total Saved</Text>
-          <Text className="text-sm font-semibold text-foreground">{formatCurrency(summary.totalSaved)}</Text>
-        </View>
-        <View className="flex-row justify-between">
-          <Text className="text-sm text-muted-foreground">Total Spent</Text>
-          <Text className="text-sm font-medium text-foreground">{formatCurrency(summary.totalSpent)}</Text>
-        </View>
-        <View className="h-px bg-border my-1" />
-        <View className="flex-row justify-between">
-          <Text className="text-sm font-semibold text-foreground">Balance</Text>
-          <Text className={`text-sm font-semibold ${summary.balance < 0 ? "text-destructive" : "text-success"}`}>{formatCurrency(summary.balance)}</Text>
-        </View>
-      </View>
-    </View>
-    ),
-    [summary.totalSaved, summary.totalSpent, summary.balance]
-  );
-
   return (
     <View className="flex-1 bg-background">
-      {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 p-4">
-        <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Savings</Text>
-        <View className="items-center gap-3 rounded-xl border border-border bg-card px-4 py-8">
+      {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
+        <View className="min-h-[48px] justify-center">
+          <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Savings</Text>
+        </View>
+        <View className="items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-8">
           {loadState === "loading" ? <><ActivityIndicator color={colors.primary} accessibilityLabel="Loading…" />
             <Text className="text-sm text-muted-foreground">Loading…</Text></>
             : <><Text accessibilityRole="alert" className="text-sm text-destructive">Failed to load data.</Text>
@@ -444,7 +426,7 @@ export default function SavingsScreen() {
         keyExtractor={(entry) => entry.id}
         renderItem={renderEntry}
         ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooter}
+        ListFooterComponent={filteredEntries.length > 0 ? <View className="h-2 rounded-b-[24px] border-x border-b border-border bg-surface" /> : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />}
@@ -559,5 +541,5 @@ export default function SavingsScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
+  listContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
 });

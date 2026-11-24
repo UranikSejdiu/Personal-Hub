@@ -5,10 +5,10 @@ import { Platform } from "react-native";
 import identity from "../appIdentity.json";
 import { getAppVersion } from "../constants/config";
 import { validateEnvelope, type BackupEnvelope } from "./hubBackupValidation";
-import { saveBackupToFolder } from "./saveBackupToFolder";
+import { saveBackupFile } from "./saveBackupFile";
 import { migrateLegacyRepayments } from "./repaymentMigration";
 import { applyBackupPreferences, readBackupPreferences, validateBackupPreferences, type BackupPreferences } from "./backupPreferences";
-import { encryptBackup, MAX_BACKUP_FILE_BYTES } from "./backupCrypto";
+import { MAX_BACKUP_FILE_BYTES } from "./backupCrypto";
 
 type Row = Record<string, unknown>;
 type Envelope = { meta: { format: string; version: number; appVersion: string; exportedAt: string; platform: string }; tables: Record<string, Row[] | Row | null>; sequences?: Record<string, number>; preferences?: BackupPreferences };
@@ -95,20 +95,19 @@ export function buildBackupEnvelope(): Promise<Envelope> { return db.withTransac
 
 export function hasSafetyBackup(): boolean { return new File(Paths.document, SAFETY).exists; }
 
-export async function exportBackupToDirectory(password: string): Promise<string | null> {
-  return saveBackupToFolder(`${identity.id}-backup`, async () => encryptBackup(JSON.stringify(await buildBackupEnvelope()), password));
+export async function exportBackupToFile(): Promise<string | null> {
+  return saveBackupFile(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2), exportBackup);
 }
 
-export async function exportBackup(password: string): Promise<string> {
+export async function exportBackup(): Promise<string> {
   const envelope = await buildBackupEnvelope();
-  const encrypted = await encryptBackup(JSON.stringify(envelope), password);
   const file = new File(Paths.cache, `${identity.id}-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  file.write(encrypted);
+  file.write(JSON.stringify(envelope, null, 2));
   try {
     const exports = Paths.cache.list().filter((entry): entry is File => entry instanceof File && entry.name.startsWith(`${identity.id}-backup-`) && entry.name.endsWith(".json")).sort((a, b) => b.name.localeCompare(a.name));
     for (const stale of exports) if (stale.uri !== file.uri) stale.delete();
   } catch { /* Cleanup must not invalidate a completed export. */ }
-  if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is unavailable; use Save to folder");
+  if (!await Sharing.isAvailableAsync()) throw new Error("File sharing is unavailable.");
   await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: `${identity.title} backup`, UTI: "public.json" });
   return file.uri;
 }

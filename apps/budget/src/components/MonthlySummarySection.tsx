@@ -56,16 +56,16 @@ export function MonthlySummarySection({
 
   return (
     <View className="gap-2.5">
-      <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Month summary</Text>
-      <View className="rounded-[14px] border border-border/60 bg-card p-3">
-        <View className="gap-[7px]">
+      <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Month summary</Text>
+      <View className="rounded-[24px] border border-border bg-surface p-4">
+        <View className="gap-2">
           {[
             { label: "Monthly Income (after tax)", value: budget.income },
             { label: "Outgoings", value: summary.outflow },
             { label: "Paid so far", value: summary.actualOutflow },
             { label: "Planned remaining", value: remaining },
           ].map(row =>
-            <View key={row.label} className="flex-row flex-wrap justify-between gap-2"><Text className="text-xs text-muted-foreground">{row.label}</Text><Text className={`text-xs font-semibold ${row.value < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(row.value)}</Text></View>)}
+            <View key={row.label} className="flex-row flex-wrap justify-between gap-2"><Text className="text-body-medium text-muted-foreground">{row.label}</Text><Text style={{ fontVariant: ["tabular-nums"] }} className={`text-body-medium font-semibold ${row.value < 0 ? "text-destructive" : "text-foreground"}`}>{formatCurrency(row.value)}</Text></View>)}
         </View>
         {hasData && <Pressable onPress={() => setExpanded(value => !value)} accessibilityRole="button" accessibilityLabel="Detailed breakdown" accessibilityState={{ expanded }} className="mt-2 min-h-[44px] flex-row items-center justify-between gap-2">
           <Text className="text-xs font-semibold text-primary">Detailed breakdown</Text><View style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}><ChevronDown size={16} color={colors.primary} /></View>

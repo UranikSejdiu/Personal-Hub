@@ -1,40 +1,17 @@
-import { useCallback, useRef, useState, type ComponentType } from "react";
-import { ScrollView, View, Switch, Pressable, Linking, Platform, BackHandler } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { ScrollView, View, Switch, Pressable, Linking, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as Application from "expo-application";
 import { toast } from "sonner-native";
 import { Text } from "../../src/components/ui/Typography";
 import { Button } from "../../src/components/ui/Button";
-import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
-import { ChevronLeft, ChevronRight, Settings, CircleHelp, Download, type AppIconProps } from "../../src/components/AppIcons";
+import { ChevronRight, Settings } from "../../src/components/AppIcons";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { UpdateCard } from "../../src/components/UpdateCard";
 import { useTheme, useThemeColors } from "../../src/lib/theme";
-import { withAlpha } from "../../src/lib/utils";
 import { getHapticsEnabled, setHapticsEnabled } from "../../src/hooks/useHaptics";
-import { exportBackup, exportBackupToDirectory, readBackupFile, parseBackup, importBackup, hasSafetyBackup, restoreSafetyBackup } from "../../src/lib/backup";
-
-type SettingsSection = "backup" | "about" | null;
-
-function SettingsRow({ icon: Icon, label, onPress, disabled = false }: {
-  icon: ComponentType<AppIconProps>;
-  label: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const colors = useThemeColors();
-  return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityState={{ disabled }}
-      className="min-h-[48px] flex-row items-center gap-2 rounded-lg px-1 py-2"
-      android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-      accessible accessibilityRole="button" accessibilityLabel={label}>
-      <Icon size={18} color={colors.mutedForeground} />
-      <Text className="min-w-0 flex-1 text-[15px] font-medium text-foreground">{label}</Text>
-      <ChevronRight size={18} color={colors.mutedForeground} />
-    </Pressable>
-  );
-}
+import { exportBackupToFile, readBackupFile, parseBackup, importBackup, hasSafetyBackup, restoreSafetyBackup } from "../../src/lib/backup";
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
@@ -46,17 +23,6 @@ export default function SettingsScreen() {
   const [pendingImport, setPendingImport] = useState<{ json: string; count: number } | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [section, setSection] = useState<SettingsSection>(null);
-  const { triggerRef, anchor, open: openExportMenu, close: closeExportMenu } = useAnchoredMenu();
-
-  useFocusEffect(useCallback(() => {
-    if (!section) return;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (!busyRef.current) setSection(null);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [section]));
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -92,7 +58,7 @@ export default function SettingsScreen() {
     setBusy(true);
     setActionError(null);
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/json"], copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true });
       if (result.canceled) return;
       const json = await readBackupFile(result.assets[0].uri);
       const rows = parseBackup(json);
@@ -107,38 +73,26 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <ScrollView key={section ?? "settings"} className="flex-1 bg-background">
-        <View className="w-full max-w-md self-center gap-3 px-4 pt-1 pb-4">
-          <View className="min-h-[48px] flex-row items-center gap-2">
-            {section && <Pressable disabled={busy} onPress={() => setSection(null)}
-              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
-              android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-              accessible accessibilityRole="button" accessibilityLabel="Back to Settings"
-              accessibilityState={{ disabled: busy }}>
-              <ChevronLeft size={20} color={colors.foreground} />
-            </Pressable>}
-            <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
-              {section === "backup" ? "Backup & restore" : section === "about" ? "About & updates" : "Settings"}
-            </Text>
+      <ScrollView className="flex-1 bg-background">
+        <View className="w-full max-w-md self-center gap-4 px-5 pb-4 pt-4">
+          <View className="min-h-[48px] justify-center">
+            <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
           </View>
-          {!section && <>
-            <View className="gap-2">
-              <Text accessibilityRole="header" className="px-1 text-sm font-semibold text-foreground">Appearance</Text>
-              <View className="flex-row overflow-hidden rounded-[24px] border border-outline" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
-                {(["light", "dark"] as const).map(value => (
-                  <Pressable key={value} onPress={() => setTheme(value)}
-                    className={`min-h-[48px] min-w-0 flex-1 items-center justify-center px-2 py-1 ${theme === value ? "bg-secondary-container" : ""}`}
-                    android_ripple={{ color: withAlpha(colors.primary, 0.125) }}
-                    accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
-                    accessibilityLabel={value === "light" ? "Light" : "Dark"}>
-                    <Text className={`text-label-large ${theme === value ? "font-semibold text-on-secondary-container" : "font-medium text-muted-foreground"}`}>
-                      {value === "light" ? "Light" : "Dark"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+          <View className="gap-3 rounded-[24px] border border-border bg-surface px-4 pt-4">
+            <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Appearance</Text>
+            <View className="flex-row gap-1 rounded-[24px] border border-border bg-background p-1" accessibilityRole="radiogroup" accessibilityLabel="Appearance">
+              {(["light", "dark"] as const).map(value => (
+                <Pressable key={value} onPress={() => setTheme(value)}
+                  className={`min-h-[48px] min-w-0 flex-1 items-center justify-center rounded-[20px] px-2 py-1 active:opacity-70 ${theme === value ? "bg-secondary-container" : ""}`}
+                  accessible accessibilityRole="radio" accessibilityState={{ checked: theme === value }}
+                  accessibilityLabel={value === "light" ? "Light" : "Dark"}>
+                  <Text className={`text-label-large ${theme === value ? "font-semibold text-on-secondary-container" : "font-medium text-muted-foreground"}`}>
+                    {value === "light" ? "Light" : "Dark"}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-            <View className="min-h-[52px] flex-row items-center justify-between gap-2 rounded-xl border border-border/60 bg-card px-3 py-2">
+            <View className="min-h-[56px] flex-row items-center justify-between gap-3 border-t border-border py-2">
               <Text className="flex-1 text-[15px] font-medium text-foreground">Vibration feedback</Text>
               <Switch value={haptics} disabled={busy} accessibilityLabel="Vibration feedback"
                 accessibilityState={{ disabled: busy }}
@@ -155,52 +109,48 @@ export default function SettingsScreen() {
                     });
                 }} />
             </View>
-            <View className="rounded-xl border border-border/60 bg-card px-3">
-              <SettingsRow icon={Download} label="Backup & restore" onPress={() => setSection("backup")} />
-              <SettingsRow icon={Settings} label="Manage app permissions" disabled={busy} onPress={() => {
-                if (busyRef.current) return;
-                void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr."));
-              }} />
-              <SettingsRow icon={CircleHelp} label="About & updates" onPress={() => setSection("about")} />
+          </View>
+          <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+            <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Backup &amp; restore</Text>
+            <View className="flex-row flex-wrap gap-2">
+              <Button className="min-w-[104px] flex-1" label="Export" disabled={busy}
+                onPress={() => { void run(exportBackupToFile, "Backup saved"); }} />
+              <Button className="min-w-[104px] flex-1" label="Import" variant="secondary" disabled={busy}
+                onPress={() => { void pickImport(); }} />
             </View>
-          </>}
-          {section === "backup" && <View className="gap-3">
-            <View className="gap-3 rounded-2xl border border-border/60 bg-card p-3">
-              <View ref={triggerRef} collapsable={false}>
-                <Button icon={Download} disabled={busy} accessibilityState={{ expanded: anchor !== null }}
-                  onPress={() => {
-                    if (busyRef.current) return;
-                    if (Platform.OS === "android") openExportMenu();
-                    else void run(exportBackup, "Data exported successfully");
-                  }} label="Export backup" />
-              </View>
-              <Button variant="secondary" disabled={busy} onPress={() => { void pickImport(); }} label="Import counts" />
-              {actionError && !pendingImport && !restoring && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
-              {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => {
-                setActionError(null);
-                setRestoring(true);
-              }} label="Restore previous data" />}
+            {actionError && !pendingImport && !restoring && <Text accessibilityRole="alert" className="text-sm text-destructive">{actionError}</Text>}
+            {safetyAvailable && <Button variant="secondary" disabled={busy} onPress={() => {
+              setActionError(null);
+              setRestoring(true);
+            }} label="Restore previous data" />}
+          </View>
+          <Pressable disabled={busy} accessibilityState={{ disabled: busy }}
+            className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-60"
+            accessible accessibilityRole="button" accessibilityLabel="Manage app permissions"
+            onPress={() => {
+              if (busyRef.current) return;
+              void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr."));
+            }}>
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
+              <Settings size={18} color={colors.foreground} />
             </View>
-          </View>}
-          {section === "about" && <>
+            <Text className="min-w-0 flex-1 text-[15px] font-medium text-foreground">Manage app permissions</Text>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Pressable>
+          {Platform.OS === "android" ? (
             <UpdateCard />
-            <View className="items-center gap-1 pt-2">
+          ) : (
+            <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
               <Text className="text-xs text-muted-foreground">Version: {Application.nativeApplicationVersion ?? require("../../package.json").version}</Text>
-              <Pressable accessibilityRole="link" accessibilityLabel="UIcons by Flaticon" className="min-h-[44px] justify-center rounded-lg px-3 active:opacity-70"
-                onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error("Unable to open the link.")); }}>
-                <Text className="text-xs text-muted-foreground underline">UIcons by Flaticon</Text>
-              </Pressable>
             </View>
-          </>}
+          )}
+          <Pressable accessibilityRole="link" accessibilityLabel="UIcons by Flaticon" className="min-h-[44px] justify-center self-center rounded-lg px-3 active:opacity-70"
+            onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error("Unable to open the link.")); }}>
+            <Text className="text-xs text-muted-foreground underline">UIcons by Flaticon</Text>
+          </Pressable>
         </View>
       </ScrollView>
-      <AnchoredMenu anchor={anchor} onClose={closeExportMenu} size="regular" align="start"
-        items={[
-          { key: "folder", label: "Save to folder", icon: Download,
-            onPress: () => { void run(exportBackupToDirectory, "Backup saved to the selected folder"); } },
-          { key: "share", label: "Share backup",
-            onPress: () => { void run(exportBackup, "Data exported successfully"); } },
-        ]} />
       <ConfirmDialog visible={pendingImport !== null} title="Import counts"
         message={`Import ${pendingImport?.count ?? 0} dhikrs? This replaces your current counts. A recovery copy of your current data will be saved first.`} destructive
         error={actionError}

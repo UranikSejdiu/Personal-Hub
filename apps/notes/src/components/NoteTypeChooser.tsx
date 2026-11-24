@@ -52,9 +52,9 @@ function NoteTypeOption({ option, visible, index, onSelect }: {
   return <Animated.View style={animatedStyle} className="max-w-full">
     <Pressable onPress={() => onSelect(option.kind)} disabled={!visible}
       accessibilityRole="button" accessibilityLabel={option.label} accessibilityHint={option.hint}
-      className="min-h-[48px] max-w-full flex-row items-center gap-3 rounded-full border border-border/60 bg-card px-5 py-3 shadow-md active:opacity-70">
+      className="min-h-[48px] max-w-full flex-row items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 active:opacity-70">
       <Icon size={20} color={colors.primary} />
-      <Text className="shrink text-sm font-semibold text-foreground">{option.label}</Text>
+      <Text className="shrink text-label-large font-medium text-foreground">{option.label}</Text>
     </Pressable>
   </Animated.View>;
 }

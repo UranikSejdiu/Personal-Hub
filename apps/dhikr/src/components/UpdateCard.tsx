@@ -1,7 +1,7 @@
 import { Text } from "./ui/Typography";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Pressable, Platform } from "react-native";
-import { Download, Loader2, RefreshCw, Rocket } from "./AppIcons";
+import { Download, Loader2, RefreshCw } from "./AppIcons";
 import { toast } from "sonner-native";
 import { useThemeColors } from "../lib/theme";
 import { useUpdate } from "../lib/UpdateContext";
@@ -121,11 +121,8 @@ export function UpdateCard() {
   if (Platform.OS !== "android") return null;
 
   return (
-    <View className="rounded-xl border border-border bg-card p-3 gap-3">
-      <View className="flex-row items-center gap-2">
-        <Rocket size={16} color={colors.primary} />
-        <Text className="text-sm font-semibold text-foreground">Updates</Text>
-      </View>
+    <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
+      <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About &amp; updates</Text>
 
       {result?.status === "error" ? (
         <Text accessibilityRole="alert" className="text-xs text-muted-foreground">

@@ -25,7 +25,7 @@ export function CustomExpensesHeader({ expenses, onAdd }: Pick<Props, "expenses"
       <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Expenses</Text>
       <Button icon={Plus} label="Add expense" onPress={onAdd} />
     </View>
-    <View className="rounded-t-xl border-x border-t border-border/60 bg-card px-2">
+    <View className="rounded-t-[24px] border-x border-t border-border bg-surface px-2">
       {expenses.length === 0 && <Text className="px-2 py-3 text-body-medium text-muted-foreground">No expenses</Text>}
     </View>
   </View>;

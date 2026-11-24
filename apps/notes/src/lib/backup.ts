@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import identity from "../appIdentity.json";
 import { getAppVersion } from "../constants/config";
 import { validateEnvelope, type BackupEnvelope } from "./notesBackupValidation";
-import { saveBackupToFolder } from "./saveBackupToFolder";
+import { saveBackupFile } from "./saveBackupFile";
 import { resetPlainTextBackfill } from "./notes";
 import { applyBackupPreferences, readBackupPreferences, validateBackupPreferences, type BackupPreferences } from "./backupPreferences";
 
@@ -93,8 +93,8 @@ export function buildBackupEnvelope(): Promise<Envelope> { return db.withTransac
 
 export function hasSafetyBackup(): boolean { return new File(Paths.document, SAFETY).exists; }
 
-export async function exportBackupToDirectory(): Promise<string | null> {
-  return saveBackupToFolder(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2));
+export async function exportBackupToFile(): Promise<string | null> {
+  return saveBackupFile(`${identity.id}-backup`, async () => JSON.stringify(await buildBackupEnvelope(), null, 2), exportBackup);
 }
 
 export async function exportBackup(): Promise<string> {
@@ -105,7 +105,7 @@ export async function exportBackup(): Promise<string> {
     const exports = Paths.cache.list().filter((entry): entry is File => entry instanceof File && entry.name.startsWith(`${identity.id}-backup-`) && entry.name.endsWith(".json")).sort((a, b) => b.name.localeCompare(a.name));
     for (const stale of exports.slice(3)) stale.delete();
   } catch { /* Cleanup must not invalidate a completed export. */ }
-  if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is unavailable; use Save to folder");
+  if (!await Sharing.isAvailableAsync()) throw new Error("File sharing is unavailable.");
   await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: `${identity.title} backup`, UTI: "public.json" });
   return file.uri;
 }

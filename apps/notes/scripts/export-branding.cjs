@@ -26,8 +26,8 @@ function svg(mark, background) {
     ['monochrome', monoMark('#ffffff'), null, 1024],
     ['logo-light', monoMark(graphite), null, 1024],
     ['logo-dark', monoMark(ivory), null, 1024],
-    ['splash-light', monoMark(graphite), null, 512],
-    ['splash-dark', monoMark(ivory), null, 512],
+    ['splash-light', monoMark('#000000'), null, 512],
+    ['splash-dark', monoMark('#ffffff'), null, 512],
   ];
   for (const [name, mark, background, size] of exports) {
     const source = svg(mark, background);

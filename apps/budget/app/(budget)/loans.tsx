@@ -113,14 +113,18 @@ export default function LoansScreen() {
       data={plans}
       keyExtractor={(item) => String(item.id)}
       keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-md self-center gap-3 px-4 max-[360px]:px-3 pt-2 pb-6"
-      ListHeaderComponent={<View className="gap-3">
-        <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">Payments</Text>
+      contentContainerClassName="w-full max-w-md self-center gap-4 px-5 pt-4 pb-6"
+      ListHeaderComponent={<View className="gap-4">
+        <View className="min-h-[48px] justify-center">
+          <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Payments</Text>
+        </View>
         <View className="flex-row flex-wrap gap-2">
           <Button className="min-w-[116px] flex-1" disabled={saving} label="Add loan" icon={Plus} onPress={() => start("loan")} />
           <Button className="min-w-[116px] flex-1" disabled={saving} label="Add card" icon={CreditCard} variant="secondary" onPress={() => start("card")} />
         </View>
-        {plans.length === 0 && !draft && <Text className="py-6 text-center text-sm text-muted-foreground">No loans or card payments yet.</Text>}
+        {plans.length === 0 && <View className="rounded-[24px] border border-border bg-surface px-4 py-6">
+          <Text className="text-center text-sm text-muted-foreground">No loans or card payments yet.</Text>
+        </View>}
       </View>}
       renderItem={({ item }) => {
         const info: RepaymentPlanCardInfo = { kind: item.kind, name: item.name, payment: repaymentForMonth(item, item.startMonth), monthsPaid: item.monthsPaid, term: item.term, startMonth: item.startMonth, endMonth: item.endMonth ?? (item.unbounded ? null : installmentEndMonth(item.startMonth, item.term)) };
@@ -137,7 +141,7 @@ export default function LoansScreen() {
             {draft.kind === "loan" && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Interest Rate (%/yr)</Text><NumberInput value={draft.apr} onValidityChange={(valid) => setFieldValidity("apr", valid)} onChange={(apr) => update({ apr })} decimals={2} min={0} max={MAX_LOAN_ANNUAL_RATE} placeholder="0" /></View>}
           </>}
           <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">{draft.unbounded ? "Payment limit (optional)" : "Number of monthly payments"}</Text><NumberInput value={draft.term} onValidityChange={(valid) => setFieldValidity("term", valid)} onChange={(term) => update(draft.unbounded ? { term, endMonth: term > 0 ? installmentEndMonth(draft.startMonth, term) : null } : { term })} min={draft.unbounded ? 0 : 1} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /></View>
-          {editingId === null && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Payments already made</Text><NumberInput value={draft.monthsPaid} onValidityChange={(valid) => setFieldValidity("monthsPaid", valid)} onChange={(monthsPaid) => update({ monthsPaid, ...(startMonthTouched ? {} : { startMonth: addMonths(currentMonth(), -monthsPaid) }) })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /><Text className="mt-1 text-xs text-muted-foreground">Count payments already made, including those before you started using the app.</Text></View>}
+          {editingId === null && <View><Text className="mb-[7px] text-[13px] font-semibold text-foreground">Payments already made</Text><NumberInput value={draft.monthsPaid} onValidityChange={(valid) => setFieldValidity("monthsPaid", valid)} onChange={(monthsPaid) => update({ monthsPaid, ...(startMonthTouched ? {} : { startMonth: addMonths(currentMonth(), -monthsPaid) }) })} min={0} max={MAX_LOAN_TERM_MONTHS} placeholder="0" /></View>}
           <Pressable onPress={() => setChoosingMonth(true)} accessible accessibilityRole="button" accessibilityLabel="First payment month" className="min-h-[48px] justify-center rounded-lg border border-outline px-3 active:opacity-70"><Text className="text-sm text-foreground">First payment month: {draft.startMonth}</Text></Pressable>
           {draftPayment > 0 && <View className="gap-1 rounded-lg bg-muted p-3">
             <Text className="text-sm font-semibold text-foreground">Monthly Payment: {formatCurrency(draftPayment)}</Text>

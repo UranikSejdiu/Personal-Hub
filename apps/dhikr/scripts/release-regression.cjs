@@ -45,7 +45,7 @@ module.exports = async function verifyRelease(root) {
   await unavailable.setSelectedDhikrId(4);
   assert.equal(await unavailable.getSelectedDhikrId(), 4, 'Storage failure must not make the counter open the wrong record');
 
-  let failed = true, imports = 0, restores = 0;
+  let failed = true, imports = 0, restores = 0, systemSettingsOpened = 0;
   const errors = [];
   const mockedBackup = {
     hasSafetyBackup: () => true,
@@ -54,24 +54,28 @@ module.exports = async function verifyRelease(root) {
     restoreSafetyBackup: async () => { restores++; if (failed) throw new Error('Write failed'); },
   };
   const screen = fixture(root, 'app/(dhikr)/settings.tsx', 'default', {
-    'react-native': new Proxy({ Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } }, { get: (obj, key) => key in obj ? obj[key] : key }),
+    'react-native': new Proxy({
+      Platform: { OS: 'android' },
+      Linking: { openSettings: async () => { systemSettingsOpened++; } },
+    }, { get: (obj, key) => key in obj ? obj[key] : key }),
     'expo-document-picker': { getDocumentAsync: async () => ({ canceled: false, assets: [{ uri: 'cache/backup.json' }] }) },
     'expo-application': {}, 'sonner-native': { toast: { error: message => errors.push(message), success() {} } },
     '../../src/components/ui/Typography': { Text: 'Text' }, '../../src/components/ui/Button': { Button: 'Button' },
-    '../../src/components/ui/AnchoredMenu': { AnchoredMenu: 'AnchoredMenu', useAnchoredMenu: () => ({ triggerRef: { current: null }, anchor: null, open() {}, close() {} }) },
     '../../src/components/AppIcons': new Proxy({}, { get: (_, key) => key }),
     '../../src/components/ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' }, '../../src/components/UpdateCard': { UpdateCard: 'UpdateCard' },
 
     '../../src/lib/theme': { useTheme: () => ({ theme: 'light', setTheme() {} }), useThemeColors: () => ({}) },
-    '../../src/lib/utils': { withAlpha: color => color },
     '../../src/hooks/useHaptics': { getHapticsEnabled: async () => true },
     '../../src/lib/backup': mockedBackup,
   }, { now: Date.now() });
   const settle = async () => { await flush(); screen.render(); };
   const node = (type, key, value) => screen.nodes(n => (n.type === type || n.type?.name === type) && n.props[key] === value)[0];
   screen.render(); await settle();
-  node('SettingsRow', 'label', 'Backup & restore').props.onPress(); screen.render();
-  node('Button', 'label', 'Import counts').props.onPress(); await settle();
+  assert.ok(node('Button', 'label', 'Export'), 'Backup actions are available directly in Settings');
+  assert.equal(screen.nodes(n => n.type === 'UpdateCard').length, 1, 'Updates are available directly in Settings');
+  node('Pressable', 'accessibilityLabel', 'Manage app permissions').props.onPress();
+  assert.equal(systemSettingsOpened, 1, 'Permission management opens system settings directly');
+  node('Button', 'label', 'Import').props.onPress(); await settle();
   const dialog = title => node('ConfirmDialog', 'title', title);
   assert.equal(dialog('Import counts').props.visible, true);
   await dialog('Import counts').props.onConfirm(); screen.render();

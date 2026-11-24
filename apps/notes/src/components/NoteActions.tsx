@@ -44,7 +44,7 @@ export function NoteActions({ isPinned, isArchived, canDelete, disabled = false,
               accessibilityLabel="More note actions"
               accessibilityState={{ expanded: anchor !== null, disabled }}
             >
-              <MoreHorizontal size={22} color={colors.foreground} />
+              <MoreHorizontal size={20} color={colors.foreground} />
             </Pressable>
           </View>
           <AnchoredMenu anchor={anchor} onClose={close} items={[
@@ -54,7 +54,7 @@ export function NoteActions({ isPinned, isArchived, canDelete, disabled = false,
         </>
       ) : null}
       {!isArchived && <Button label={saving ? "Saving…" : "Save"} accessibilityLabel="Save" accessibilityLiveRegion="polite"
-        className="min-h-[48px] rounded-full px-4" busy={saving} disabled={disabled} onPress={onSave} />}
+        busy={saving} disabled={disabled} onPress={onSave} />}
     </>
   );
 }

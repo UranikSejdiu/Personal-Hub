@@ -11,7 +11,8 @@ const identity = require('../src/appIdentity.json');
 const fixture = require('./fixtures/hub-v7.json');
 const sqlite = new DatabaseSync(':memory:');
 const files = new Map();
-let failSql = false, failDisk = false, folderCancelled = false, folderBroken = false;
+let failSql = false, failDisk = false, documentCancelled = false, documentWriteFailed = false;
+let documentPickerError = null;
 let shared = null;
 let openedName;
 let preferenceFailure = false;
@@ -26,15 +27,13 @@ class FakeFile {
   get name() { return this.uri.split('/').at(-1); }
   get exists() { return files.has(this.uri); }
   get size() { return Buffer.byteLength(files.get(this.uri) || ''); }
-  write(value) { if (failDisk || (folderBroken && this.uri.startsWith('content://'))) throw new Error('Injected disk failure'); files.set(this.uri, value); }
+  write(value) { if (failDisk || (documentWriteFailed && this.uri.startsWith('content://'))) throw new Error('Injected disk failure'); files.set(this.uri, value); }
   async text() { return files.get(this.uri); }
   move(target) { files.set(target.uri, files.get(this.uri)); files.delete(this.uri); }
   delete() { files.delete(this.uri); }
 }
 class FakeDirectory {
   constructor(uri) { this.uri = uri; }
-  static async pickDirectoryAsync() { if (folderCancelled) throw Object.assign(new Error('Cancelled'), { code: 'ERR_PICKER_CANCELLED' }); return new FakeDirectory('content://backups'); }
-  createFile(name, mime) { assert.equal(mime, 'application/json'); const file = new FakeFile(this, files.has(this.uri + "/" + name) ? "copy-" + files.size + "-" + name : name); files.set(file.uri, ''); return file; }
   list() { return [...files.keys()].filter(uri => uri.startsWith(this.uri + '/')).map(uri => new FakeFile(uri)); }
 }
 const connection = {
@@ -53,11 +52,29 @@ const native = {
   "expo-secure-store": { getItem: () => null },
   'expo-sqlite': { openDatabaseAsync: async name => { openedName = name; return connection; } },
   'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { cache: new FakeDirectory('cache'), document: new FakeDirectory('document') } },
+  'expo-intent-launcher': {
+    ResultCode: { Success: -1, Canceled: 0 },
+    startActivityAsync: async (action, options) => {
+      if (action !== 'android.intent.action.CREATE_DOCUMENT') {
+        settingsIntents.push({ action, options });
+        return;
+      }
+      assert.equal(action, 'android.intent.action.CREATE_DOCUMENT');
+      assert.equal(options.category, 'android.intent.category.OPENABLE');
+      assert.equal(options.type, 'application/json');
+      if (documentPickerError) throw documentPickerError;
+      if (documentCancelled) return { resultCode: 0 };
+      const name = options.extra['android.intent.extra.TITLE'];
+      const proposed = 'content://backups/' + name;
+      const uri = files.has(proposed) ? 'content://backups/copy-' + files.size + '-' + name : proposed;
+      files.set(uri, '');
+      return { resultCode: -1, data: uri };
+    },
+  },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared = uri; } },
   'expo-application': { nativeApplicationVersion: '1.0.0', applicationId: 'com.uranik.tasks' },
   'react-native': { Platform: { OS: 'android', Version: 37 } },
   'expo': { isRunningInExpoGo: () => false, requireOptionalNativeModule: name => name === 'ReminderAccess' ? { getStatus: () => ({ exactAlarms, batteryUnrestricted: false, backgroundRestricted }) } : {} },
-  'expo-intent-launcher': { startActivityAsync: async (action, options) => settingsIntents.push({ action, options }) },
   'expo-notifications': {
     AndroidImportance: { NONE: 0, DEFAULT: 3 }, IosAuthorizationStatus: { PROVISIONAL: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
     setNotificationHandler() {},
@@ -130,11 +147,16 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(uri, shared);
   assert.equal(JSON.parse(files.get(shared)).meta.format, identity.backupFormat);
   assert.deepEqual(plain(backup.parseBackup(files.get(shared)).envelope.tables), plain(backup.parseBackup(JSON.stringify(original)).envelope.tables));
-  const folder = await backup.exportBackupToDirectory();
+  const folder = await backup.exportBackupToFile();
   assert.ok(folder.startsWith('content://backups/' + identity.id + '-backup-'));
   assert.deepEqual(JSON.parse(files.get(folder)).tables, original.tables);
-  folderCancelled = true; assert.equal(await backup.exportBackupToDirectory(), null); folderCancelled = false;
-  folderBroken = true; await assert.rejects(backup.exportBackupToDirectory()); folderBroken = false;
+  documentCancelled = true; assert.equal(await backup.exportBackupToFile(), null); documentCancelled = false;
+  documentWriteFailed = true; await assert.rejects(backup.exportBackupToFile()); documentWriteFailed = false;
+  shared = null;
+  documentPickerError = new Error('android.content.ActivityNotFoundException: No Activity found');
+  assert.equal(await backup.exportBackupToFile(), null);
+  assert.ok(shared, 'Missing save picker falls back to sharing');
+  documentPickerError = null;
   assert.ok([...files.entries()].every(([uri, data]) => !uri.startsWith('content://') || data !== ''), 'Failed provider writes leave no incomplete export');
   const before = plain((await backup.buildBackupEnvelope()).tables);
   failDisk = true; await assert.rejects(backup.importBackup(json)); failDisk = false;
@@ -227,7 +249,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(backup.hasSafetyBackup(), true);
   await backup.restoreSafetyBackup();
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), before);
-  // Another device / fresh install reads the exact JSON saved through the folder provider.
+  // Another device / fresh install reads the exact JSON saved through the document provider.
   await backup.importBackup(files.get(folder));
   assert.deepEqual(plain((await backup.buildBackupEnvelope()).tables), before);
   const expected = `${identity.tagPrefix}${require('../package.json').version}`;
@@ -235,5 +257,5 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: expected }, encoding: 'utf8' }).status, 0);
   assert.notEqual(spawnSync(process.execPath, ['scripts/check-release-tag.cjs'], { cwd: root, env: { ...process.env, RELEASE_TAG: 'dhikr-v1.0.0' }, encoding: 'utf8' }).status, 0);
   await require('./updater-cache-regression.cjs')(root, { tagPrefix: identity.tagPrefix, apkPrefix: identity.title, packageId: identity.packageId });
-  console.log(`Passed ${identity.title}: isolated schema, mixed Hub migration, exact record round trips, folder/share exports, cancellation, disk/SQL rollback, recovery, wrong-file rejection, release tag and APK update isolation.`);
+  console.log(`Passed ${identity.title}: isolated schema, mixed Hub migration, exact record round trips, document/share exports, cancellation, disk/SQL rollback, recovery, wrong-file rejection, release tag and APK update isolation.`);
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => sqlite.close());

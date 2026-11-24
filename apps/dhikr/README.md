@@ -68,10 +68,9 @@ EAS requires linking this app to your own Expo project first.
 
 ## Save backups on Android
 
-Settings → Backup & restore → Export backup offers **Save to folder** and
-**Share backup** together. Save to folder opens Android's folder picker and
-saves the JSON backup directly in the folder you select. Share backup sends a
-copy to another app. Cancelling the picker does not save a file.
+In Settings → Backup & restore, tap **Export** to save a JSON backup with
+Android's file picker. Tap **Import** to select a backup and review it before
+restoring your counts.
 
 ## Android system backup and phone transfer
 

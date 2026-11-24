@@ -140,8 +140,8 @@ export default function DashboardScreen() {
         renderItem={renderMonth}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <View className="gap-3">
-            <View className="flex-row flex-wrap items-center justify-between gap-x-3">
+          <View className="gap-4">
+            <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <HubHeader />
               <Button
                 label="Add expense"
@@ -171,29 +171,33 @@ export default function DashboardScreen() {
                 onDelete={() => setMonthToDelete(currentSummary.month)}
               />
             ) : (
-              <Card className="gap-3">
-                <Text className="text-lg font-semibold text-foreground">{monthLabel(thisMonth, "short")}</Text>
+              <Card className="gap-4 rounded-[28px] bg-surface-container p-5">
+                <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">{monthLabel(thisMonth, "short")}</Text>
                 <Button
                   label={"Create budget"}
                   icon={Plus}
                   disabled={creatingMonth !== null}
 
                   onPress={() => { void handleCreateMonth(thisMonth); }}
-                  className="mt-1"
                 />
               </Card>
             )}
 
             {loadState === "ready" && savingsBalance !== null && (
-              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[56px] flex-row items-center gap-3 rounded-xl bg-secondary-container px-3 py-2 active:opacity-70">
-                <PiggyBank size={20} color={colors.onSecondaryContainer} />
-                <View className="min-w-0 flex-1 flex-row flex-wrap items-center justify-between gap-x-3"><Text className="text-body-medium text-on-secondary-container">Total savings</Text><Text className="text-body-medium font-semibold text-on-secondary-container">{formatCurrency(savingsBalance)}</Text></View>
-                <ChevronRight size={18} color={colors.onSecondaryContainer} />
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[60px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:bg-muted">
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
+                  <PiggyBank size={19} color={colors.foreground} />
+                </View>
+                <View className="min-w-0 flex-1 flex-row flex-wrap items-center justify-between gap-x-3">
+                  <Text className="text-label-large text-muted-foreground">Total savings</Text>
+                  <Text className="shrink text-base font-semibold text-foreground" style={styles.amount}>{formatCurrency(savingsBalance)}</Text>
+                </View>
+                <ChevronRight size={18} color={colors.mutedForeground} />
               </Pressable>
             )}
             {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label="Next month" onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
             {loadState === "ready" && otherMonths.length > 0 && (
-              <Text accessibilityRole="header" className="text-[15px] font-semibold text-foreground">Previous months</Text>
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Previous months</Text>
             )}
           </View>
         }
@@ -231,5 +235,6 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16, gap: 8 },
+  listContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 12 },
+  amount: { fontVariant: ["tabular-nums"] },
 });

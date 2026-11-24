@@ -1,6 +1,6 @@
 {
   "name": "budget",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "main": "expo-router/entry",
   "dependencies": {
     "@noble/ciphers": "2.4.0",
@@ -70,6 +70,13 @@
     "check:security": "node scripts/security-regression.cjs"
   },
   "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": ["expo-intent-launcher"]
+      }
+    }
+  },
   "overrides": {
     "glob": "14.0.3",
     "minimatch": "11.0.3"

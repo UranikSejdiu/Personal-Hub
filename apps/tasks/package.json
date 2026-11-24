@@ -1,6 +1,6 @@
 {
   "name": "tasks",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -66,6 +66,13 @@
     "branding:export": "node scripts/export-branding.cjs"
   },
   "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": ["expo-intent-launcher"]
+      }
+    }
+  },
   "overrides": {
     "glob": "14.0.3",
     "minimatch": "11.0.3"

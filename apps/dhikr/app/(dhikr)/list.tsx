@@ -53,8 +53,8 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
   const goalComplete = hasGoal && item.daily_count >= dailyLimit;
 
   return (
-    <View className={`border-x border-border/60 bg-card px-2.5 ${index === 0 ? "rounded-t-xl border-t" : ""} ${index === count - 1 ? "rounded-b-xl border-b" : ""}`}>
-      <View className={`py-1 ${index < count - 1 ? "border-b border-border/60" : ""}`}>
+    <View className={`border-x border-border bg-surface px-4 ${index === 0 ? "rounded-t-[24px] border-t" : ""} ${index === count - 1 ? "rounded-b-[24px] border-b" : ""}`}>
+      <View className={`py-1 ${index < count - 1 ? "border-b border-border" : ""}`}>
       <View className="flex-row items-center gap-2">
         {arranging && (
           <Text className="w-5 text-sm font-medium text-muted-foreground">{index + 1}</Text>
@@ -62,13 +62,13 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
         <Pressable
           onPress={() => onSelect(item)}
           disabled={arranging || saving}
-          className="min-h-[52px] min-w-0 flex-1 justify-center gap-0.5 rounded-lg py-1 active:opacity-70"
+          className="min-h-[62px] min-w-0 flex-1 justify-center gap-1 rounded-lg py-2 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel={`Open ${item.name}`}
           accessibilityState={{ disabled: arranging || saving }}
         >
-          <Text className="text-body-medium font-semibold text-foreground">{item.name}</Text>
+          <Text className="text-base font-semibold text-foreground">{item.name}</Text>
           <View className="flex-row flex-wrap items-center gap-x-3">
             <Text className="text-xs text-muted-foreground">Total: {item.total_count.toLocaleString("en")}</Text>
             <View className="max-w-full flex-row flex-wrap items-center gap-1">
@@ -280,9 +280,9 @@ export default function DhikrListScreen() {
   return (
     <>
       <View className="flex-1 bg-background">
-        <View className="w-full max-w-md flex-1 self-center px-4 pt-1">
-          <View className="mb-2 min-h-[48px] flex-row flex-wrap items-center justify-between gap-x-2">
-            <Text accessibilityRole="header" className="text-title-large font-medium text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
+        <View className="w-full max-w-md flex-1 self-center px-5 pt-4">
+          <View className="mb-4 min-h-[48px] flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">{arranging ? "Arrange" : "My Dhikrs"}</Text>
             {arranging ? (
               <View className="max-w-full flex-row flex-wrap items-center gap-x-1">
                 <Pressable onPress={cancelArrange} disabled={isSaving}

@@ -13,10 +13,9 @@ const stored = new Map();
 let failSql = null;
 let failFileWrite = false;
 let exportsShared = 0;
-let folderPickerError = null;
-let folderWriteError = null;
-let folderCreateError = null;
-let folderMimeType = null;
+let documentPickerError = null;
+let documentCancelled = false;
+let documentWriteError = null;
 let rolloverWrites = 0;
 
 class FakeFile {
@@ -24,9 +23,9 @@ class FakeFile {
   get exists() { return files.has(this.uri); }
   get size() { return Buffer.byteLength(files.get(this.uri) || ''); }
   write(text) {
-    if (this.uri.startsWith('content://') && folderWriteError) {
+    if (this.uri.startsWith('content://') && documentWriteError) {
       files.set(this.uri, 'partial');
-      throw folderWriteError;
+      throw documentWriteError;
     }
     if (failFileWrite) throw new Error('Injected disk failure');
     files.set(this.uri, text);
@@ -34,21 +33,6 @@ class FakeFile {
   async text() { return files.get(this.uri); }
   move(target) { files.set(target.uri, files.get(this.uri)); files.delete(this.uri); }
   delete() { files.delete(this.uri); }
-}
-
-class FakeDirectory {
-  constructor(uri) { this.uri = uri; }
-  static async pickDirectoryAsync() {
-    if (folderPickerError) throw folderPickerError;
-    return new FakeDirectory('content://backups');
-  }
-  createFile(name, mimeType) {
-    if (folderCreateError) throw folderCreateError;
-    folderMimeType = mimeType;
-    const file = new FakeFile(this, name);
-    files.set(file.uri, '');
-    return file;
-  }
 }
 
 const nativeConnection = {
@@ -77,7 +61,23 @@ const mocks = {
     assert.equal(name, 'dhikr_data');
     return nativeConnection;
   } },
-  'expo-file-system': { File: FakeFile, Directory: FakeDirectory, Paths: { document: 'document', cache: 'cache' } },
+  'expo-file-system': { File: FakeFile, Paths: { document: 'document', cache: 'cache' } },
+  'react-native': { Platform: { OS: 'android' } },
+  'expo-intent-launcher': {
+    ResultCode: { Success: -1, Canceled: 0 },
+    startActivityAsync: async (action, options) => {
+      assert.equal(action, 'android.intent.action.CREATE_DOCUMENT');
+      assert.equal(options.category, 'android.intent.category.OPENABLE');
+      assert.equal(options.type, 'application/json');
+      if (documentPickerError) throw documentPickerError;
+      if (documentCancelled) return { resultCode: 0 };
+      const name = options.extra['android.intent.extra.TITLE'];
+      const proposed = 'content://backups/' + name;
+      const uri = files.has(proposed) ? 'content://backups/copy-' + files.size + '-' + name : proposed;
+      files.set(uri, '');
+      return { resultCode: -1, data: uri };
+    },
+  },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async () => { exportsShared++; } },
   '@react-native-async-storage/async-storage': { __esModule: true, default: {
     getItem: async key => stored.get(key) ?? null,
@@ -152,31 +152,27 @@ async function main() {
   assert.equal((await dhikr.loadDhikrs()).find(row => row.id === first.id).total_count, 43);
 
   const before = await db.query('SELECT * FROM dhikrs ORDER BY id');
-  const folderUri = await backup.exportBackupToDirectory();
+  const folderUri = await backup.exportBackupToFile();
   assert.match(folderUri, /^content:\/\/backups\/dhikr-backup-.*\.json$/);
-  assert.equal(folderMimeType, 'application/json');
   assert.deepEqual(Object.keys(JSON.parse(files.get(folderUri)).tables), ['dhikrs']);
   assert.deepEqual(backup.parseBackup(files.get(folderUri)).map(row => row.id).sort(), before.map(row => row.id).sort());
   const folderFiles = [...files.entries()];
-  for (const code of ['ERR_PICKER_CANCELLED', 'ERR_PERMISSION_DENIED']) {
-    folderPickerError = Object.assign(new Error(code), { code });
-    if (code === 'ERR_PICKER_CANCELLED') assert.equal(await backup.exportBackupToDirectory(), null);
-    else await assert.rejects(backup.exportBackupToDirectory(), /ERR_PERMISSION_DENIED/);
-    assert.deepEqual([...files.entries()], folderFiles);
-  }
-  folderPickerError = null;
-  folderCreateError = new Error('Provider refused file creation');
-  await assert.rejects(backup.exportBackupToDirectory(), /Provider refused/);
+  documentCancelled = true;
+  assert.equal(await backup.exportBackupToFile(), null);
+  documentCancelled = false;
   assert.deepEqual([...files.entries()], folderFiles);
-  folderCreateError = null;
+  documentPickerError = new Error('Provider refused file creation');
+  await assert.rejects(backup.exportBackupToFile(), /Provider refused/);
+  assert.deepEqual([...files.entries()], folderFiles);
+  documentPickerError = null;
   // Keep an earlier export to ensure cleanup removes only the new partial file.
   files.set('content://backups/earlier.json', files.get(folderUri));
   files.delete(folderUri);
-  folderWriteError = new Error('Provider write failed');
-  await assert.rejects(backup.exportBackupToDirectory(), /Provider write failed/);
+  documentWriteError = new Error('Provider write failed');
+  await assert.rejects(backup.exportBackupToFile(), /Provider write failed/);
   assert.deepEqual([...files.keys()], ['content://backups/earlier.json']);
   assert.deepEqual(await db.query('SELECT * FROM dhikrs ORDER BY id'), before);
-  folderWriteError = null;
+  documentWriteError = null;
   const transfer = { meta: { format: 'personal-hub.backup', version: 5 }, tables: {
     dhikrs: [{ ...before[0], id: 77, name: 'Imported', total_count: 321 }],
     notes: [{ id: 1, title: 'Must not import' }], budgets: [{ month: '2026-10' }],
@@ -226,6 +222,10 @@ async function main() {
   assert.equal(stored.get('dhikr_selected_id'), String([...before].sort((a, b) => a.sort_order - b.sort_order)[0].id));
   await backup.exportBackup();
   assert.equal(exportsShared, 1);
+  documentPickerError = new Error('android.content.ActivityNotFoundException: No Activity found');
+  assert.equal(await backup.exportBackupToFile(), null);
+  assert.equal(exportsShared, 2);
+  documentPickerError = null;
   const exported = [...files.entries()].find(([name]) => name.startsWith('cache/dhikr-backup-'))[1];
   assert.equal(JSON.parse(exported).meta.format, 'dhikr.backup');
   assert.deepEqual(Object.keys(JSON.parse(exported).tables), ['dhikrs']);

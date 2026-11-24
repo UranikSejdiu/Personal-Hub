@@ -15,7 +15,7 @@ import type { Task, TaskInput } from "../../types/tasks";
 import { TaskCard } from "./TaskCard";
 import { TaskEditor } from "./TaskEditor";
 import { AgendaHeading, TaskAddButton, TaskCalendar, TaskSummaryTiles } from "./TaskDashboard";
-import { useTaskDesign } from "./design";
+import { useThemeColors } from "../../lib/theme";
 
 const EMPTY_COUNTS: TaskOverview = { today: 0, upcoming: 0, overdue: 0, completed: 0, open: 0 };
 const CONTENT_STYLE = { paddingBottom: 24 };
@@ -32,7 +32,7 @@ const keyForTask = (task: Task) => String(task.id);
 type Mode = "overview" | "calendar";
 
 export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
-  const colors = useTaskDesign();
+  const colors = useThemeColors();
   const router = useRouter();
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
@@ -203,42 +203,44 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     setMonth(`${next.slice(0, 7)}-01`); setSelectedDate(next);
   };
   const header = <View>
-    <View className="mb-1.5 min-h-[48px] flex-row items-center justify-between gap-1">
-      <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
+    <View className="mb-4 min-h-[48px] flex-row items-center justify-between gap-2">
+      <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">
         {mode === "calendar" ? "Calendar" : "Tasks"}
       </Text>
       {mode === "calendar" ? (
-        <IconButton icon={Bell} accessibilityLabel="Open reminder settings" onPress={() => router.navigate("/(tasks)/settings")} />
+        <IconButton className="bg-surface-container-high" icon={Bell} accessibilityLabel="Open reminder settings" onPress={() => router.navigate("/(tasks)/settings")} />
       ) : (
         <>
-          <IconButton icon={searchOpen ? X : Search} accessibilityLabel={searchOpen ? "Close search" : "Search tasks"}
+          <IconButton className="bg-surface-container-high" icon={searchOpen ? X : Search} accessibilityLabel={searchOpen ? "Close search" : "Search tasks"}
             accessibilityState={{ expanded: searchOpen }} onPress={() => { setSearchOpen(value => !value); setSearch(""); }} />
           <TaskAddButton onPress={() => setEditor({})} disabled={busy} />
         </>
       )}
     </View>
     {mode === "overview" && <>
-      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full bg-surface-container-high px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] min-w-0 flex-1 text-body-medium text-foreground" /></View>}
+      {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] min-w-0 flex-1 text-base text-foreground" /></View>}
       <TaskSummaryTiles counts={counts} filter={filter} onFilter={setFilter} />
-      <View className="flex-row items-center justify-between gap-2">
+      <View className="mb-2 min-h-[48px] flex-row items-center justify-between gap-2">
         <Text accessibilityRole="header" className="min-w-0 flex-1 text-base font-semibold text-foreground">{FILTER_TITLES[filter]}</Text>
         {filter !== "active" && <Pressable accessibilityRole="button" onPress={() => setFilter("active")} className="min-h-[48px] max-w-[45%] justify-center px-2">
-          <Text className="text-label-medium font-medium text-primary">All open</Text>
+          <Text className="text-label-large font-medium text-primary">All open</Text>
         </Pressable>}
       </View>
     </>}
     {mode === "calendar" && <><TaskCalendar days={days} month={month} selected={selectedDate} today={today} counts={dayCounts} week={week} onWeek={setWeek} onMove={move} onToday={() => { const date = taskDateKey(); setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} onSelect={date => { setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} />
       <AgendaHeading title={localTaskDate(selectedDate).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "short" })} onAdd={() => setEditor({})} disabled={busy} />
-      <Pressable accessibilityRole="button" accessibilityState={{ selected: showDone }} onPress={() => setShowDone(value => !value)} className="mb-2 min-h-[44px] justify-center"><Text className="text-xs text-muted-foreground">{showDone ? "Hide" : "Show"} completed tasks</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ selected: showDone }} onPress={() => setShowDone(value => !value)} className="mb-2 min-h-[48px] self-start justify-center rounded-full active:opacity-70"><Text className="text-label-large font-medium text-muted-foreground">{showDone ? "Hide" : "Show"} completed tasks</Text></Pressable>
     </>}
-    {reminder && <View className="mb-3 rounded-2xl border border-primary p-2"><View className="flex-row items-center justify-between"><Text className="text-xs font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
+    {reminder && <View className="mb-3 rounded-[24px] border border-outline bg-surface px-3"><View className="flex-row items-center justify-between"><Text className="text-label-large font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
   </View>;
   const empty = loading ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading tasks" className="my-8" />
     : failed ? <View className="items-center gap-3 py-8"><Text className="text-sm text-destructive">Could not load your tasks.</Text><Button label="Retry" onPress={() => void refresh()} /></View>
     : reminder && tasks.length > 0 ? undefined
-    : <Text className="py-8 text-center text-sm text-muted-foreground">{debouncedSearch ? "No matching tasks" : "No tasks"}</Text>;
+    : <View className="rounded-[24px] border border-border bg-surface px-4 py-8">
+      <Text className="text-center text-body-medium text-muted-foreground">{debouncedSearch ? "No matching tasks" : "No tasks"}</Text>
+    </View>;
   return <>
-    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-4 pt-1">
+    <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-5 pt-4">
       <FlatList ref={listRef} data={visible} keyExtractor={keyForTask} renderItem={renderTask} ListHeaderComponent={header} ListEmptyComponent={empty} initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7} keyboardShouldPersistTaps="handled" contentContainerStyle={CONTENT_STYLE} showsVerticalScrollIndicator={false}
           onEndReached={() => { if (!pagingFailed) void loadMore(); }} onEndReachedThreshold={0.3} ListFooterComponent={paging ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading more tasks" /> : pagingFailed ? <Button label="Retry loading more" onPress={() => void loadMore()} /> : undefined} />
     </View></View>

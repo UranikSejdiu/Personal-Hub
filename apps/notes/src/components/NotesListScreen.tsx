@@ -21,12 +21,13 @@ import { NoteCard } from "./NoteCard";
 import { NoteTypeChooser } from "./NoteTypeChooser";
 import { NotesDisplayOptions } from "./NotesDisplayOptions";
 import { FormDialog } from "./ui/FormDialog";
+import { Button, IconButton } from "./ui/Button";
 import { useThemeColors } from "../lib/theme";
 import type { NoteKind } from "../types/notes";
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 4 },
+  listContent: { paddingHorizontal: 20, paddingTop: 4 },
 });
 
 const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
@@ -257,7 +258,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         );
       }
       return (
-        <View className="flex-row items-start gap-2.5">
+        <View className="flex-row items-start gap-3">
           {item.notes.map((note, i) =>
             note ? (
               <View key={note.id} className="flex-1">
@@ -279,7 +280,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   const listEmpty = useMemo(
     () => (
-      <View className="items-center gap-2 py-10">
+      <View className="items-center gap-2.5 rounded-[24px] border border-border bg-surface px-4 py-8">
         {archived ? <Archive size={28} color={colors.mutedForeground} /> : <FileText size={28} color={colors.mutedForeground} />}
         <Text className="text-sm text-muted-foreground">
           {searchQuery || kindFilter ? "No notes found" : (archived ? "No archived notes" : "No notes yet")}
@@ -291,25 +292,19 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-2 px-4 pt-1 pb-1">
-        <View className="flex-row items-center justify-between">
-          <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">
+      <View className="w-full max-w-md self-center gap-3 px-5 pb-3 pt-4">
+        <View className="min-h-[48px] flex-row items-center gap-1">
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">
             {archived ? "Archive" : "My Notes"}
           </Text>
-          <Pressable onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
-            className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
-            accessibilityRole="button" accessibilityLabel="View options" accessibilityHint="Change layout and sort order"
-            accessibilityState={{ expanded: viewOptionsVisible }}>
-            <LayoutGrid size={20} color={colors.mutedForeground} />
-          </Pressable>
-          <Pressable onPress={() => { router.push("/(notes)/settings"); }}
-            className="h-12 w-12 items-center justify-center rounded-full active:bg-card"
-            accessibilityRole="button" accessibilityLabel="Settings">
-            <Settings size={20} color={colors.mutedForeground} />
-          </Pressable>
+          <IconButton icon={LayoutGrid} onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
+            className="border border-border bg-surface" accessibilityLabel="View options"
+            accessibilityHint="Change layout and sort order" accessibilityState={{ expanded: viewOptionsVisible }} />
+          <IconButton icon={Settings} onPress={() => { router.push("/(notes)/settings"); }}
+            className="border border-border bg-surface" accessibilityLabel="Settings" />
         </View>
 
-        <View className="min-h-[48px] flex-row items-center gap-2 rounded-full bg-surface-container-high px-3">
+        <View className="min-h-[48px] flex-row items-center gap-2 rounded-full border border-border bg-surface px-4">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
             value={searchQuery}
@@ -335,14 +330,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
             </Pressable>
           )}
         </View>
-        <View className="flex-row flex-wrap gap-x-2">
+        <View className="flex-row flex-wrap gap-2">
           {FILTERS.map(option => (
             <Pressable key={option.kind ?? "all"} onPress={() => handleFilter(option.kind)}
               accessibilityRole="button" accessibilityLabel={option.label} accessibilityState={{ selected: kindFilter === option.kind }}
-              className="min-h-[48px] max-w-full justify-center active:opacity-70">
-              <View className={`min-h-8 items-center justify-center rounded-lg border px-3 py-1 ${kindFilter === option.kind ? "border-transparent bg-secondary-container" : "border-outline"}`}>
-                <Text className={`text-label-medium font-medium ${kindFilter === option.kind ? "text-on-secondary-container" : "text-muted-foreground"}`}>{option.label}</Text>
-              </View>
+              className={`min-h-[48px] max-w-full justify-center rounded-full border px-3.5 py-2 active:opacity-70 ${kindFilter === option.kind ? "border-transparent bg-secondary-container" : "border-border bg-surface"}`}>
+              <Text className={`shrink text-center text-label-medium ${kindFilter === option.kind ? "font-semibold text-on-secondary-container" : "font-medium text-muted-foreground"}`}>{option.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -354,14 +347,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
         ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel="Loading…" /> : loadFailed ? (
-          <Pressable onPress={() => { void load(searchRef.current, sortRef.current); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel="Retry">
-            <Text className="text-foreground">Retry</Text>
-          </Pressable>
+          <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current); }} />
         ) : listEmpty}
         onEndReached={() => { if (!loadFailed) void load(searchRef.current, sortRef.current, true); }}
         onEndReachedThreshold={0.5}
         ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel="Loading…" /> : notes.length > 0 && loadFailed ? (
-          <Pressable onPress={() => { void load(searchRef.current, sortRef.current, true); }} className="min-h-[44px] items-center justify-center rounded-xl bg-muted p-4 active:opacity-70" accessible accessibilityRole="button" accessibilityLabel="Retry"><Text className="text-foreground">Retry</Text></Pressable>
+          <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current, true); }} />
         ) : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.listContent, { paddingBottom: archived ? 16 : 76 }]}
@@ -379,17 +370,17 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       {!archived && !keyboardVisible && chooserVisible && <Pressable
         onPress={closeChooser} accessible={false} style={StyleSheet.absoluteFill} />}
 
-      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute bottom-3 w-full max-w-md self-center px-4">
+      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute bottom-3 w-full max-w-md self-center px-5">
         <NoteTypeChooser
           visible={chooserVisible}
           onClose={closeChooser}
           onSelect={handleSelectType}
         />
-        <Pressable onPress={handleNew} className="h-14 w-14 self-end items-center justify-center rounded-2xl bg-primary-container shadow-md active:opacity-80"
+        <Pressable onPress={handleNew} className="h-14 w-14 self-end items-center justify-center rounded-full bg-primary active:opacity-80"
           accessibilityRole="button"
           accessibilityState={{ expanded: chooserVisible }} accessibilityLabel={chooserVisible ? "Cancel" : "New Note"}>
           <Animated.View style={creationIconStyle}>
-            <Plus size={24} color={colors.onPrimaryContainer} />
+            <Plus size={24} color={colors.primaryForeground} />
           </Animated.View>
         </Pressable>
       </View>}

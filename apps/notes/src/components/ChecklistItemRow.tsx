@@ -67,7 +67,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         onLongPress={drag}
         disabled={disabled && !isActive}
         delayLongPress={150}
-        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
         accessible
         accessibilityRole="button"
         accessibilityLabel="Drag to reorder"
@@ -79,7 +79,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
       <Checkbox checked={item.checked}
         onPress={() => onToggle(item.key)}
         disabled={disabled}
-        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
         accessibilityLabel={item.text || "List item"}
       />
 
@@ -92,13 +92,13 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         placeholderTextColor={colors.mutedForeground}
         multiline
         scrollEnabled={false}
-        className="min-h-[44px] min-w-0 flex-1 py-2 text-base text-foreground"
+        className="min-h-[48px] min-w-0 flex-1 py-2 text-base text-foreground"
       />
 
       <Pressable
         onPress={() => onRemove(item.key)}
         disabled={disabled}
-        className="h-11 w-11 items-center justify-center rounded-lg active:bg-muted"
+        className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
         accessible
         accessibilityRole="button"
         accessibilityLabel="Delete item"

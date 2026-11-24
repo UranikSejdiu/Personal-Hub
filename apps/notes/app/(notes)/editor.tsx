@@ -1,6 +1,6 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { View, Pressable, ScrollView, Keyboard } from "react-native";
+import { View, Pressable, ScrollView, Keyboard, Platform } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -217,9 +217,10 @@ export default function NotesEditorScreen() {
   );
 
   const toolbarStyle = useMemo(
-    () => ({ paddingBottom: keyboardVisible ? 0 : insets.bottom }),
+    () => ({ paddingBottom: (keyboardVisible ? 0 : insets.bottom) + 8 }),
     [keyboardVisible, insets.bottom]
   );
+  const selectionColor = Platform.OS === "ios" ? colors.primary : withAlpha(colors.primary, 0.24);
 
   useEffect(() => {
     if (loadTarget.kind !== "note") return;
@@ -549,7 +550,7 @@ export default function NotesEditorScreen() {
   }, [isArchived, isAddingItem]);
 
   const formatToolbar = (
-    <View className="w-full max-w-md flex-row items-center gap-0.5 self-center px-2 py-1">
+    <View className="w-full max-w-[408px] flex-row items-center gap-0.5 self-center rounded-[30px] border border-border bg-surface p-1">
       <AttachmentToolbarButton disabled={isSaving || isAddingItem} busy={attachmentState.busy}
         onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
       <ScrollView horizontal className="min-w-0 flex-1 overflow-hidden" showsHorizontalScrollIndicator={false}
@@ -615,7 +616,7 @@ export default function NotesEditorScreen() {
         <Text className="text-sm text-muted-foreground">Failed to load data.</Text>
         <Pressable
           onPress={() => router.back()}
-          className="rounded-lg bg-primary px-4 max-[360px]:px-3 py-2"
+          className="min-h-[48px] justify-center rounded-full bg-primary px-4 py-2"
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >
@@ -630,10 +631,10 @@ export default function NotesEditorScreen() {
       <View className="flex-1 bg-background">
         <View className="flex-1 flex-col bg-background">
           {/* Fixed header */}
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-4 pb-1 pt-1">
+          <View className="w-full max-w-md flex-row items-center justify-between self-center px-5 pb-1 pt-2">
             <Pressable onPress={handleBack} disabled={isSaving || isAddingItem} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isSaving || isAddingItem }}>
-              <ArrowLeft size={22} color={colors.foreground} />
+              <ArrowLeft size={20} color={colors.foreground} />
             </Pressable>
             <View className="min-w-0 flex-1 flex-row flex-wrap justify-end gap-1">
               <NoteActions isPinned={isPinned} isArchived={isArchived} canDelete={noteId !== null} disabled={isSaving || isAddingItem}
@@ -641,7 +642,7 @@ export default function NotesEditorScreen() {
             </View>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-4 max-[360px]:px-3 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
+          {isArchived && <Text className="w-full max-w-md self-center px-5 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
 
           {/* Fill the available writing area and keep growing for longer notes. */}
           <KeyboardAwareScrollView
@@ -650,10 +651,10 @@ export default function NotesEditorScreen() {
             keyboardShouldPersistTaps="handled"
             bottomOffset={toolbarHeight + 12}
             extraKeyboardSpace={toolbarHeight}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: isArchived ? insets.bottom + 16 : 16 }}
+            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: isArchived ? insets.bottom + 16 : 16 }}
             showsVerticalScrollIndicator={false}
           >
-            <View className="w-full max-w-md flex-grow self-center">
+            <View className="w-full max-w-[408px] flex-grow self-center rounded-[24px] border border-border bg-surface pb-3">
               <TextInput
                 value={title}
                 editable={!isArchived && !isSaving}
@@ -665,15 +666,15 @@ export default function NotesEditorScreen() {
                 accessibilityLabel="Title"
                 placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
-                className="w-full px-5 max-[360px]:px-4 pt-2 pb-1 text-[26px] leading-8 font-semibold text-foreground"
+                className="w-full px-4 pb-1 pt-4 text-2xl leading-8 font-semibold text-foreground"
                 multiline
               />
 
 
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isSaving || isAddingItem} />
-              <View className="mx-5 max-[360px]:mx-4 mt-1">
+              <View className="mx-4 mt-1">
                 {isArchived ? (
-                  <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={colors.primary}>
+                  <EnrichedText selectable htmlStyle={htmlStyle} style={editorStyle} selectionColor={selectionColor}>
                     {initialHtml}
                   </EnrichedText>
                 ) : <EnrichedTextInput
@@ -682,7 +683,7 @@ export default function NotesEditorScreen() {
                   defaultValue={initialHtml}
                   placeholder="Start writing…"
                   placeholderTextColor={colors.mutedForeground}
-                  selectionColor={colors.primary}
+                  selectionColor={selectionColor}
                   cursorColor={colors.primary}
                   htmlStyle={htmlStyle}
                   style={editorStyle}
@@ -706,7 +707,7 @@ export default function NotesEditorScreen() {
                     void handleAddListItem();
                   }}
                   disabled={isAddingItem}
-                  className="min-h-[44px] flex-row items-center gap-2 px-4 max-[360px]:px-3"
+                  className="min-h-[48px] flex-row items-center gap-2 px-4 active:opacity-70"
                   android_ripple={{ color: withAlpha(colors.foreground, 0.1) }}
                   accessibilityRole="button"
                   accessibilityLabel="Add item"
@@ -730,7 +731,7 @@ export default function NotesEditorScreen() {
 
           {/* Pinned toolbar — rides above the software keyboard. */}
           {!isArchived && <KeyboardStickyView
-            className="w-full border-t border-border/60 bg-surface-container"
+            className="w-full bg-background px-5"
             style={toolbarStyle}
             onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
           >

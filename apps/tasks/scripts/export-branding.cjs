@@ -26,8 +26,8 @@ function svg(mark, background) {
     ['adaptive-foreground', coloredMark(), null, 1024],
     ['monochrome', monoMark(paper), null, 1024],
     ['notification', monoMark(paper), null, 96],
-    ['splash-light', monoMark(purple), null, 512],
-    ['splash-dark', monoMark(lavender), null, 512],
+    ['splash-light', monoMark('#000000'), null, 512],
+    ['splash-dark', monoMark('#ffffff'), null, 512],
   ]) {
     // Small notification icons need a tighter crop than adaptive launchers.
     const source = name === 'notification'
@@ -39,7 +39,7 @@ function svg(mark, background) {
   const tiles = [];
   for (const [index, [name, background]] of [
     ['icon', '#f9f8fc'], ['adaptive-foreground', purple],
-    ['monochrome', '#6e6092'], ['splash-dark', '#191925'],
+    ['monochrome', '#6e6092'], ['splash-dark', '#000000'],
   ].entries()) {
     let graphic = await sharp(path.join(output, `${name}.png`)).resize(240, 240).toBuffer();
     if (index < 2) {
