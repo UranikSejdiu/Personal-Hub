@@ -95,6 +95,12 @@ module.exports = async function verifyUpdateUi(root) {
   const toast = Object.assign(() => {}, { success: message => successes.push(message), error: message => errors.push(message), info() {} });
   const gates = [];
   const requests = [];
+  let downloadGate = deferred();
+  let progress;
+  let downloadCalls = 0;
+  let installCalls = 0;
+  let installError;
+  let installedApk;
   let listener;
   let removed = false;
   const native = { Platform: { OS: 'android' }, AppState: {
@@ -104,6 +110,8 @@ module.exports = async function verifyUpdateUi(root) {
     'react-native': native, 'sonner-native': { toast }, './updater': {
       checkForUpdate: (...args) => { requests.push(args); const gate = deferred(); gates.push(gate); return gate.promise; },
       getCurrentVersion: async () => '1.0.0',
+      downloadApk: (_release, options) => { downloadCalls++; progress = options.onProgress; return downloadGate.promise; },
+      installApk: async apk => { installCalls++; installedApk = apk; if (installError) throw installError; },
     },
   }, clock);
   provider.render();
@@ -145,7 +153,6 @@ module.exports = async function verifyUpdateUi(root) {
   clock.now += 16 * 60 * 1000;
   listener?.('background'); listener?.('active');
   assert.equal(gates.length, 3, 'A failed check does not retry automatically on resume');
-  provider.dispose();
   assert.equal(listener, undefined, 'An active startup does not register a resume listener');
 
   const backgroundGates = [];
@@ -169,55 +176,81 @@ module.exports = async function verifyUpdateUi(root) {
   assert.equal(backgroundGates.length, 1, 'Failed startup checks do not repeat on later resumes');
   backgroundProvider.dispose();
 
-  let context = { ...value, checking: false, refresh: async () => cached };
-  let downloadGate = deferred();
-  let downloadCalls = 0;
-  let installCalls = 0;
-  const card = fixture(root, 'src/components/UpdateCard.tsx', 'UpdateCard', {
+  const renderCard = () => fixture(root, 'src/components/UpdateCard.tsx', 'UpdateCard', {
     'react-native': { Platform: { OS: 'android' }, View: 'View', Pressable: 'Pressable' },
-    'sonner-native': { toast }, '../lib/UpdateContext': { useUpdate: () => context },
-    '../lib/updater': {
-      downloadApk: () => { downloadCalls++; return downloadGate.promise; },
-      installApk: async () => { installCalls++; }, openInstallSettings: async () => {},
-    },
+    'sonner-native': { toast }, '../lib/UpdateContext': { useUpdate: () => provider.render().props.value },
+    '../lib/updater': { openInstallSettings: async () => {} },
+    './ui/Button': { Button: 'Button' },
   }, clock);
+  let card = renderCard();
   card.render();
-  const button = label => card.nodes(node => node.props.accessibilityLabel === label)[0];
+  const button = label => card.nodes(node => node.props.accessibilityLabel === label || node.props.label === label)[0];
   assert.ok(button('Check for updates'), 'A known update must not hide Check for updates');
   assert.equal(card.nodes(node => node.props.children === latest.body).length, 0, 'Cached release notes stay hidden');
   assert.ok(card.nodes(node => node.props.children === 'Could not check now. Showing the update found during the last successful check.').length);
   button('Check for updates').props.onPress();
+  gates[3].resolve(cached);
   await flush();
   assert.equal(errors.at(-1), 'Failed to check for updates');
-  const install = button('Download & Install');
-  install.props.onPress(); install.props.onPress();
-  assert.equal(downloadCalls, 1);
+
+  const download = button('Download update');
+  download.props.onPress(); download.props.onPress();
+  assert.equal(downloadCalls, 1, 'Rapid presses start one download');
   card.render();
   assert.equal(button('Check for updates').props.disabled, true);
-  downloadGate.resolve({ exists: true });
+  card.dispose();
+  progress(42);
+  card = renderCard();
+  card.render();
+  assert.ok(card.nodes(node => node.props.children === 'Downloading… 42%').length, 'A remounted card sees ongoing progress');
+  card.dispose();
+  const apk = { exists: true };
+  downloadGate.resolve(apk);
+  await flush();
+  assert.equal(installCalls, 0, 'Finishing off-screen must not open the Android installer');
+  card = renderCard();
+  card.render();
+  assert.ok(button('Install update'), 'Returning after completion sees the downloaded update');
+
+  installError = Error('Installer blocked');
+  const install = button('Install update');
+  install.props.onPress(); install.props.onPress();
   await flush();
   card.render();
   assert.equal(installCalls, 1);
-  assert.ok(button('Install now'));
-  context = { ...context, latest: { ...latest, versionName: '1.2.0' } };
-  card.render(); card.render();
-  assert.equal(button('Install now'), undefined, 'A newly detected version must not install the old pending APK');
-  downloadGate = deferred();
-  button('Download & Install').props.onPress();
-  const detail = 'Download failed after the connection closed. '.repeat(8).trim();
-  downloadGate.reject(Error(detail));
+  assert.equal(installedApk, apk);
+  assert.ok(button('Open install settings'));
+  installError = undefined;
+  button('Install update').props.onPress();
   await flush();
   card.render();
+  assert.equal(installCalls, 2, 'Installing can be retried without downloading again');
+  assert.equal(downloadCalls, 1);
+  assert.ok(button('Install update'), 'Keep the APK available after the Android installer closes');
+
+  const newer = { ...fresh, latest: { ...latest, versionName: '1.2.0' } };
+  const refreshed = provider.render().props.value.refresh();
+  gates[4].resolve(newer);
+  await refreshed;
+  card.render();
+  assert.equal(button('Install update'), undefined, 'A newer release must not install the old APK');
+
+  downloadGate = deferred();
+  button('Download update').props.onPress();
+  const detail = 'Download failed after the connection closed. '.repeat(8).trim();
+  card.dispose();
+  downloadGate.reject(Error(detail));
+  await flush();
+  card = renderCard();
+  card.render();
   const alert = card.nodes(node => node.props.accessibilityRole === 'alert' && node.props.children === detail)[0];
-  assert.ok(alert, 'The full download error stays on screen');
+  assert.ok(alert, 'The full download error stays visible after remounting');
   assert.equal(alert.props.numberOfLines, undefined);
   assert.equal(errors.at(-1), 'Download failed. Try again.');
-  downloadGate = deferred();
-  button('Download & Install').props.onPress();
+  assert.ok(button('Download update'), 'Failed downloads can be retried');
+  assert.equal(installCalls, 2);
   card.dispose();
-  downloadGate.resolve({ exists: true });
-  await flush();
-  assert.equal(installCalls, 1, 'Leaving the screen during download must not open the installer later');
-  return [{ name: 'Update provider checks at startup, deduplicates notifications, exposes cached failures; update card keeps checks visible and avoids stale/background installers', passed: true }];
+  provider.dispose();
+  return [{ name: 'Update checks, download across navigation, manual installer retry, stale APK protection, and download errors', passed: true }];
 };
 module.exports.fixture = fixture;

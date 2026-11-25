@@ -20,7 +20,6 @@ export default function NotesLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="editor" options={{ animation: detailAnimation }} />
         <Stack.Screen name="checklist" options={{ animation: detailAnimation }} />
-        <Stack.Screen name="settings" />
       </Stack>
     </View>
   );

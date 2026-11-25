@@ -1,44 +1,20 @@
 import { Text } from "./ui/Typography";
-import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Platform } from "react-native";
 import { Download, RefreshCw } from "./AppIcons";
 import { Button } from "./ui/Button";
 import { toast } from "sonner-native";
 import { useUpdate } from "../lib/UpdateContext";
-import { downloadApk, installApk, openInstallSettings } from "../lib/updater";
-import type { File } from "expo-file-system";
-
-type UpdateState = "idle" | "downloading" | "ready";
+import { openInstallSettings } from "../lib/updater";
 
 export function UpdateCard() {
-  const { hasUpdate, latest, currentVersion, checking, result, refresh } = useUpdate();
-  const [state, setState] = useState<UpdateState>("idle");
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
-  const [installFailed, setInstallFailed] = useState(false);
-  const [downloadError, setDownloadError] = useState<{ version: string; message: string } | null>(null);
-  const pendingApkRef = useRef<File | null>(null);
-  const pendingVersionRef = useRef<string | null>(null);
-  const mountedRef = useRef(true);
-  const installInFlightRef = useRef(false);
+  const {
+    hasUpdate, latest, currentVersion, checking, result, refresh,
+    transfer, transferring, downloadUpdate, installUpdate,
+  } = useUpdate();
+  const installFailed = transfer?.status === "ready" && transfer.installFailed;
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (pendingVersionRef.current && pendingVersionRef.current !== latest?.versionName && !installInFlightRef.current) {
-      pendingApkRef.current = null;
-      pendingVersionRef.current = null;
-      setState("idle");
-      setInstallFailed(false);
-    }
-  }, [latest?.versionName]);
-
-  const handleCheck = useCallback(async () => {
-    if (installInFlightRef.current) return;
+  const handleCheck = async () => {
+    if (checking || transferring) return;
     const result = await refresh();
     if (result.status === "up-to-date") {
       toast.success("You're up to date");
@@ -47,75 +23,7 @@ export function UpdateCard() {
     } else if (result.status === "error") {
       toast.error("Failed to check for updates");
     }
-  }, [refresh]);
-
-  const handleManualInstall = useCallback(async () => {
-    const apk = pendingApkRef.current;
-    if (!apk || installInFlightRef.current) return;
-    if (!latest || pendingVersionRef.current !== latest.versionName) {
-      pendingApkRef.current = null;
-      setState("idle");
-      return;
-    }
-    installInFlightRef.current = true;
-    try {
-      await installApk(apk);
-      if (!mountedRef.current) return;
-      setInstallFailed(false);
-      toast.success("Update installer opened");
-    } catch {
-      if (!mountedRef.current) return;
-      if (!apk.exists) {
-        pendingApkRef.current = null;
-        setState("idle");
-      }
-      setInstallFailed(true);
-      toast.error("Could not open the update installer.");
-    } finally {
-      installInFlightRef.current = false;
-    }
-  }, [latest]);
-
-  const handleInstall = useCallback(async () => {
-    if (!latest || installInFlightRef.current) return;
-    installInFlightRef.current = true;
-    setDownloadError(null);
-    setState("downloading");
-    setDownloadProgress(null);
-    setInstallFailed(false);
-    pendingApkRef.current = null;
-    try {
-      const apk = await downloadApk(latest, {
-        onProgress: (p) => { if (mountedRef.current) setDownloadProgress(p); },
-      });
-      if (!mountedRef.current) return;
-      pendingApkRef.current = apk;
-      pendingVersionRef.current = latest.versionName;
-      try {
-        await installApk(apk);
-        if (!mountedRef.current) return;
-        // Keep the APK around so the user can retry from the "ready" state if
-        // they cancel the system installer dialog.
-        setState("ready");
-        toast.success("Update installer opened");
-      } catch {
-        if (!mountedRef.current) return;
-        setInstallFailed(true);
-        setState(apk.exists ? "ready" : "idle");
-        if (!apk.exists) pendingApkRef.current = null;
-        toast.error("Could not open the update installer.");
-      }
-    } catch (error) {
-      if (!mountedRef.current) return;
-      const msg = error instanceof Error ? error.message : String(error);
-      setDownloadError({ version: latest.versionName, message: msg || "Download failed. Try again." });
-      toast.error("Download failed. Try again.");
-      setState("idle");
-    } finally {
-      installInFlightRef.current = false;
-      if (mountedRef.current) setDownloadProgress(null);
-    }
-  }, [latest]);
+  };
 
   if (Platform.OS !== "android") return null;
 
@@ -146,30 +54,30 @@ export function UpdateCard() {
           <Text className="text-body-medium font-semibold text-foreground">
             Update available · v{latest.versionName}
           </Text>
-          {downloadError?.version === latest.versionName && (
-            <Text accessibilityRole="alert" className="text-xs text-destructive">{downloadError.message}</Text>
+          {transfer?.status === "failed" && (
+            <Text accessibilityRole="alert" className="text-xs text-destructive">{transfer.message}</Text>
           )}
 
-          {state === "downloading" && downloadProgress !== null ? (
+          {transfer?.status === "downloading" && (
             <View className="gap-1.5">
-              <View className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                <View
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: `${downloadProgress}%` }}
-                />
-              </View>
+              {transfer.progress !== null && (
+                <View className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                  <View className="h-full rounded-full bg-primary" style={{ width: `${transfer.progress}%` }} />
+                </View>
+              )}
               <Text className="text-center text-[11px] text-muted-foreground">
-                {`Downloading... ${downloadProgress}%`}
+                {transfer.progress === null ? "Downloading…" : `Downloading… ${transfer.progress}%`}
               </Text>
             </View>
-          ) : null}
-
-          {state === "idle" && (
-            <Button label="Download & Install" icon={Download} onPress={() => void handleInstall()} />
           )}
 
-          {state === "ready" && (
-            <Button label="Install now" icon={Download} onPress={() => void handleManualInstall()} />
+          {(!transfer || transfer.status === "failed") && (
+            <Button label="Download update" icon={Download} disabled={checking || transferring} onPress={() => void downloadUpdate()} />
+          )}
+
+          {(transfer?.status === "ready" || transfer?.status === "installing") && (
+            <Button label={transfer.status === "installing" ? "Opening installer…" : "Install update"}
+              icon={Download} busy={transfer.status === "installing"} disabled={checking} onPress={() => void installUpdate()} />
           )}
 
           {installFailed && (
@@ -181,14 +89,14 @@ export function UpdateCard() {
             </View>
           )}
 
-          {installFailed && state === "ready" && (
-            <Button label="Download again" variant="secondary" icon={Download} onPress={() => void handleInstall()} />
+          {installFailed && (
+            <Button label="Download again" variant="secondary" icon={Download} disabled={checking || transferring} onPress={() => void downloadUpdate()} />
           )}
 
         </View>
       ) : null}
       <Button label={checking ? "Checking for updates…" : "Check for updates"} accessibilityLabel="Check for updates"
-        variant="secondary" icon={RefreshCw} busy={checking} disabled={state === "downloading"} onPress={() => void handleCheck()} />
+        variant="secondary" icon={RefreshCw} busy={checking} disabled={transferring} onPress={() => void handleCheck()} />
     </View>
   );
 }

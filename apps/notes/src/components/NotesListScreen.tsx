@@ -1,7 +1,7 @@
 import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { View, Pressable, FlatList, ActivityIndicator, Keyboard, StyleSheet, useWindowDimensions, type ListRenderItemInfo } from "react-native";
-import { Archive, FileText, LayoutGrid, Plus, Search, Settings, XCircle } from "./AppIcons";
+import { Archive, FileText, LayoutGrid, Plus, Search, XCircle } from "./AppIcons";
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -300,8 +300,6 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
           <IconButton icon={LayoutGrid} onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
             className="border border-border bg-surface" accessibilityLabel="View options"
             accessibilityHint="Change layout and sort order" accessibilityState={{ expanded: viewOptionsVisible }} />
-          <IconButton icon={Settings} onPress={() => { router.push("/(notes)/settings"); }}
-            className="border border-border bg-surface" accessibilityLabel="Settings" />
         </View>
 
         <View className="min-h-[48px] flex-row items-center gap-2 rounded-full border border-border bg-surface px-4">

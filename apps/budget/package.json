@@ -1,6 +1,6 @@
 {
   "name": "budget",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "main": "expo-router/entry",
   "dependencies": {
     "@noble/ciphers": "2.4.0",

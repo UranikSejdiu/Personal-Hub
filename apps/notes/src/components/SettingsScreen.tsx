@@ -1,12 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, ChevronRight, Settings } from "./AppIcons";
+import { useFocusEffect } from "expo-router";
+import { ChevronRight, Settings } from "./AppIcons";
 import * as DocumentPicker from "expo-document-picker";
 import { toast } from "sonner-native";
 import { Text } from "./ui/Typography";
-import { Button, IconButton } from "./ui/Button";
+import { Button } from "./ui/Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UpdateCard } from "./UpdateCard";
 import { useTheme, useThemeColors } from "../lib/theme";
@@ -14,11 +13,9 @@ import { PreferenceChoices } from "./PreferenceChoices";
 import { exportBackupToFile, importBackup, previewBackup, readBackupFile } from "../lib/backup";
 import identity from "../appIdentity.json";
 
-export default function SettingsScreen(_props: { activeAppId?: string }) {
+export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
-  const router = useRouter();
   const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
   const [pending, setPending] = useState<{ json: string; summary: string } | null>(null);
@@ -56,11 +53,9 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
   });
 
   return <>
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: 32 }}>
       <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
         <View className="min-h-[48px] flex-row items-center gap-2">
-          <IconButton icon={ArrowLeft} disabled={busy} accessibilityLabel="Notes"
-            onPress={() => { if (!locked.current) { if (router.canGoBack()) router.back(); else router.replace("/(notes)"); } }} />
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">Settings</Text>
         </View>
         <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">

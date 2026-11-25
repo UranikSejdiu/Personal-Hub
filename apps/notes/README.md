@@ -13,7 +13,7 @@ No Hub runtime imports or workspace dependencies. Use Node 24.
 
 The phone library uses rounded cards, a search field, All notes / Notes /
 Checklists filters, and a floating create button. Notes and Archive remain in
-the bottom navigation. The view button beside the gear controls grid/list
+the bottom navigation, alongside Settings. The view button controls grid/list
 layout and sorting. Settings includes theme, backup import/export, recovery,
 updates, and the developer's GitHub link.
 Settings returns to the originating library view with the back arrow.
