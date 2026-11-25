@@ -1,5 +1,5 @@
 import { Text } from "./ui/Typography";
-import { memo, useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { View, Pressable } from "react-native";
 import { ChevronDown, MoreHorizontal, CircleCheck } from "./AppIcons";
 import { monthLabel } from "../lib/monthLabel";
@@ -17,14 +17,20 @@ interface BudgetMonthCardProps {
   expanded?: boolean;
   onToggleExpand?: () => void;
   variant?: "compact" | "featured";
+  footer?: ReactNode;
 }
 
 export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, onDelete,
-  expanded, onToggleExpand, variant = "compact" }: BudgetMonthCardProps) {
+  expanded, onToggleExpand, variant = "compact", footer }: BudgetMonthCardProps) {
   const colors = useThemeColors();
   const monthName = monthLabel(summary.month);
   const featured = variant === "featured";
   const primaryAmount = featured ? summary.actualRemaining : summary.remaining;
+  const primaryBalance = formatCurrency(primaryAmount);
+  const plannedBalance = formatCurrency(summary.remaining);
+  const unpaid = Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow);
+  const showPlanned = primaryBalance !== plannedBalance;
+  const hasUnpaid = unpaid >= 0.005;
   const [menuOpen, setMenuOpen] = useState(false);
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
@@ -35,15 +41,19 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
     { label: "Paid so far", value: summary.actualOutflow },
     ...(!featured ? [{ label: "Current remaining", value: summary.actualRemaining }] : []),
   ];
-  return <Card className={cn("gap-3", featured && "rounded-[28px] bg-surface-container p-5")}>
-    <View className="flex-row items-start">
-      <Pressable onPress={onOpen} className="min-h-[48px] min-w-0 flex-1 justify-center active:opacity-70"
-        accessible accessibilityRole="button" accessibilityLabel={`Open budget for ${monthName}`}>
-        <Text className={cn("font-semibold text-foreground", featured ? "mb-2 text-xl" : "mb-1 text-base")}>{monthName}</Text>
-        <Text className="text-label-medium text-muted-foreground">{featured ? "Current remaining" : "Planned remaining"}</Text>
+  return <Card className={cn("gap-3", featured ? "rounded-[28px] bg-surface-container-high p-5" : "border-border/60 py-2 pl-4 pr-2")}>
+    <View className={cn("flex-row", featured ? "items-start" : "items-center")}>
+      <Pressable onPress={onOpen}
+        className={cn("min-h-[48px] min-w-0 flex-1 active:opacity-70", featured ? "justify-center" : "flex-row items-center justify-between gap-2")}
+        accessible accessibilityRole="button"
+        accessibilityLabel={featured
+          ? `Open budget for ${monthName}, current remaining ${primaryBalance}`
+          : `Open budget for ${monthName}, planned remaining ${primaryBalance}`}>
+        <Text className={cn("font-semibold text-foreground", featured ? "mb-2 text-xl" : "min-w-0 shrink text-base")}>{monthName}</Text>
+        {featured && <Text className="text-label-medium text-muted-foreground">Current remaining</Text>}
         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontVariant: ["tabular-nums"] }}
-          className={cn("font-semibold", featured ? "text-[34px]" : "text-xl", primaryAmount < 0 ? "text-destructive" : "text-foreground")}>
-          {formatCurrency(primaryAmount)}
+          className={cn("font-semibold", featured ? "text-[34px]" : "max-w-[55%] shrink text-right text-base", primaryAmount < 0 ? "text-destructive" : "text-foreground")}>
+          {primaryBalance}
         </Text>
       </Pressable>
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
@@ -54,16 +64,17 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
           accessibilityLabel={`Options for ${monthName}`} accessibilityState={{ expanded: menuOpen }} />
       </View>
     </View>
-    {featured && <View className="flex-row flex-wrap gap-3 border-t border-border pt-3">
-      <View className="min-w-[104px] flex-1 gap-0.5">
+    {featured && (showPlanned || hasUnpaid) && <View className="flex-row flex-wrap gap-3 border-t border-border/60 pt-3">
+      {showPlanned && <View className="min-w-[104px] flex-1 gap-0.5">
         <Text className="text-label-medium text-muted-foreground">Planned remaining</Text>
-        <Text style={{ fontVariant: ["tabular-nums"] }} className={cn("text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(summary.remaining)}</Text>
-      </View>
-      <View className="min-w-[104px] flex-1 gap-0.5">
-        <Text className="text-label-medium text-muted-foreground">Unpaid</Text>
-        <Text style={{ fontVariant: ["tabular-nums"] }} className="text-base font-semibold text-foreground">{formatCurrency(Math.max(0, summary.outflow - summary.savingsGoal - summary.actualOutflow))}</Text>
-      </View>
+        <Text style={{ fontVariant: ["tabular-nums"] }} className={cn("text-base font-semibold", summary.remaining < 0 ? "text-destructive" : "text-foreground")}>{plannedBalance}</Text>
+      </View>}
+      {hasUnpaid && <View className="min-w-[104px] flex-1 gap-0.5">
+        <Text className="text-label-medium text-muted-foreground">Unpaid bills</Text>
+        <Text style={{ fontVariant: ["tabular-nums"] }} className="text-base font-semibold text-foreground">{formatCurrency(unpaid)}</Text>
+      </View>}
     </View>}
+    {featured && !hasUnpaid && <Text className="text-label-medium text-muted-foreground">No unpaid bills</Text>}
     {(featured || isExpanded) && summary.savingsGoal > 0 && <View className="gap-1.5">
       <View className="flex-row flex-wrap items-center justify-between gap-2">
         <Text className="text-[11px] text-muted-foreground">{`Savings target · ${formatCurrency(summary.savingsGoal)}`}</Text>
@@ -80,6 +91,7 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
         <Text className={cn("text-xs font-semibold", detail.value < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(detail.value)}</Text>
       </View>)}
     </View>}
+    {footer}
     <ActionDialog visible={menuOpen} title={monthName} onClose={() => setMenuOpen(false)} actions={[
       { key: "open", label: "Open budget", primary: true, onPress: onOpen },
       { key: "delete", label: "Delete",  onPress: () => { onDelete(); } },

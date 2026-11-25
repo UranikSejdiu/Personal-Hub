@@ -130,6 +130,23 @@ export default function DashboardScreen() {
     [openBudgetMonth]
   );
 
+  const addExpense = (
+    <Button
+      label="Add expense"
+      className="self-start"
+      icon={Plus}
+      disabled={creatingMonth !== null}
+      onPress={() => {
+        if (currentSummary) {
+          router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`);
+        } else {
+          setQuickExpense(true);
+          handleCreateMonth(thisMonth);
+        }
+      }}
+    />
+  );
+
   return (
     <View className="flex-1 bg-background">
       <FlatList
@@ -141,17 +158,7 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View className="gap-4">
-            <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
-              <HubHeader />
-              <Button
-                label="Add expense"
-                className="max-w-[55%]"
-                icon={Plus}
-                disabled={loadState !== "ready" || creatingMonth !== null}
-
-                onPress={() => { if (currentSummary) router.push(`/(budget)/budget?month=${thisMonth}&addExpense=1`); else { setQuickExpense(true); handleCreateMonth(thisMonth); } }}
-              />
-            </View>
+            <HubHeader />
 
             {loadState === "loading" ? (
               <View className="flex-row items-center justify-center gap-3 py-10" accessibilityLiveRegion="polite">
@@ -169,22 +176,26 @@ export default function DashboardScreen() {
                 summary={currentSummary}
                 onOpen={() => openBudgetMonth(currentSummary.month)}
                 onDelete={() => setMonthToDelete(currentSummary.month)}
+                footer={addExpense}
               />
             ) : (
-              <Card className="gap-4 rounded-[28px] bg-surface-container p-5">
+              <Card className="gap-4 rounded-[28px] bg-surface-container-high p-5">
                 <Text accessibilityRole="header" className="text-xl font-semibold text-foreground">{monthLabel(thisMonth, "short")}</Text>
-                <Button
-                  label={"Create budget"}
-                  icon={Plus}
-                  disabled={creatingMonth !== null}
-
-                  onPress={() => { void handleCreateMonth(thisMonth); }}
-                />
+                <View className="flex-row flex-wrap gap-2">
+                  {addExpense}
+                  <Button
+                    label="Create budget"
+                    variant="secondary"
+                    icon={Plus}
+                    disabled={creatingMonth !== null}
+                    onPress={() => handleCreateMonth(thisMonth)}
+                  />
+                </View>
               </Card>
             )}
 
             {loadState === "ready" && savingsBalance !== null && (
-              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[60px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:bg-muted">
+              <Pressable onPress={() => router.push("/(budget)/savings")} accessibilityRole="button" accessibilityLabel={`Total savings, ${formatCurrency(savingsBalance)}`} className="min-h-[60px] flex-row items-center gap-3 rounded-[24px] border border-border/60 bg-surface px-4 py-2 active:bg-muted">
                 <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
                   <PiggyBank size={19} color={colors.foreground} />
                 </View>

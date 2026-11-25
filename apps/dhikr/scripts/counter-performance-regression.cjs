@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
-function counterFixture() {
+function counterFixture(recordCount = 3000) {
   const slots = [];
   let cursor = 0, focus, cleanup, focusedCallback, tree;
   let focused = true, day = '2026-10-10', selected = 1;
@@ -17,7 +17,7 @@ function counterFixture() {
   let failNext = false, rejectNext = false, failReset = false, resetGate = null, readGate = null;
   let writeQueue = Promise.resolve();
   const timers = new Map(), listeners = new Set(), errors = [], feedback = [];
-  const persisted = new Map(Array.from({length: 3000}, (_, index) => {
+  const persisted = new Map(Array.from({length: recordCount}, (_, index) => {
     const id = index + 1;
     return [id, { id, name: 'Dhikr ' + id, total_count: 0, daily_count: 0,
       daily_limit: id === 1 ? 10 : null, last_reset_date: day }];
@@ -223,6 +223,12 @@ async function main() {
   assert.equal(f.countProps().numberOfLines,1);
   f.blur();
   assert.equal(f.timers.size,0);
+  const single=counterFixture(1);
+  single.render();await flush();single.render();
+  assert.equal(single.button('Previous'),undefined);
+  assert.equal(single.button('Next'),undefined);
+  assert.ok(single.button('Choose a dhikr: Dhikr 1'),'A single counter still opens My Dhikrs');
+  single.blur();
   console.log('Passed: rapid counts, O(1) tap work across 3,000 records, single goal haptic, bounded warning timers, midnight, reset isolation, rollback, background cleanup, selection, and stale-read cancellation.');
 }
 module.exports = main;

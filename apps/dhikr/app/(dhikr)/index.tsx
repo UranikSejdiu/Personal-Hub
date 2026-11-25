@@ -266,6 +266,7 @@ export default function CounterScreen() {
   }
 
   const formattedTotal = activeDhikr.total_count.toLocaleString("en");
+  const canCycle = dhikrs.length > 1;
   const dailyLimit = activeDhikr.daily_limit;
   const limitReached = dailyLimit != null && dailyLimit > 0 && activeDhikr.daily_count >= dailyLimit;
 
@@ -281,35 +282,35 @@ export default function CounterScreen() {
       >
         <View className="w-full max-w-md flex-1 items-center justify-center gap-4 self-center px-5 pt-4">
           <View className="w-full flex-row items-center gap-2">
-            <Pressable
+            {canCycle && <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Previous"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
               <ChevronLeft size={20} color={colors.mutedForeground} />
-            </Pressable>
+            </Pressable>}
             <Pressable onPress={handleOpenList} disabled={resetting}
               className="min-h-[48px] min-w-0 flex-1 items-center justify-center gap-0.5 py-1 active:opacity-70"
               accessibilityRole="button" accessibilityLabel={`Choose a dhikr: ${activeDhikr.name}`}
               accessibilityState={{ disabled: resetting }}>
               <DhikrCounterTitle name={activeDhikr.name} />
-              {dhikrs.length > 1 && <Text className="text-label-medium text-muted-foreground">{`${activeIndex + 1} of ${dhikrs.length}`}</Text>}
+              {canCycle && <Text className="text-label-medium text-muted-foreground">{`${activeIndex + 1} of ${dhikrs.length}`}</Text>}
             </Pressable>
-            <Pressable
+            {canCycle && <Pressable
               onPress={handleNext}
               disabled={isLoading || resetting}
-              className="h-12 w-12 items-center justify-center rounded-full border border-border bg-surface active:bg-muted"
+              className="h-12 w-12 items-center justify-center rounded-full active:bg-muted"
               accessible
               accessibilityRole="button"
               accessibilityLabel="Next"
               accessibilityState={{ disabled: isLoading || resetting }}
             >
               <ChevronRight size={20} color={colors.mutedForeground} />
-            </Pressable>
+            </Pressable>}
           </View>
 
           <Pressable
@@ -318,7 +319,7 @@ export default function CounterScreen() {
             accessibilityState={{ disabled: isLoading || resetting }}
             unstable_pressDelay={0}
             android_disableSound={true}
-            className="min-h-[224px] max-h-[460px] w-full flex-1 items-center justify-center rounded-[32px] border border-border bg-surface-container px-4 py-5 active:bg-surface-container-high"
+            className="min-h-[224px] w-full flex-1 items-center justify-center rounded-[32px] border border-border bg-surface-container px-4 py-5 active:bg-surface-container-high"
             accessible
             accessibilityRole="button"
             accessibilityLabel="Tap to count"

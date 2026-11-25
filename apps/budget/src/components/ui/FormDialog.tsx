@@ -12,26 +12,29 @@ import Animated, { FadeInDown, ReduceMotion, useReducedMotion } from "react-nati
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /** Shared preview sheet, with native keyboard and safe-area handling. */
-export function FormDialog({ title, visible = true, busy = false, onClose, children }: {
-  title: string; visible?: boolean; busy?: boolean; onClose: () => void; children: ReactNode;
+export function FormDialog({ title, visible = true, busy = false, onClose, children, footer }: {
+  title: string; visible?: boolean; busy?: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode;
 }) {
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const close = () => { if (!busy) onClose(); };
+  const header = <View className="shrink-0 flex-row items-center justify-between gap-2 px-4 pt-1.5">
+    <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{title}</Text>
+    <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
+  </View>;
   return <Modal visible={visible} transparent animationType={reducedMotion ? "none" : "fade"} onRequestClose={close}>
     <KeyboardAvoidingView behavior="padding" automaticOffset className="flex-1" style={variables}>
       <Pressable onPress={close} accessible={false} className="flex-1 items-center justify-center bg-black/50"
         style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }}>
         <AnimatedPressable entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)} onPress={event => event.stopPropagation()} accessible={false} accessibilityViewIsModal
           className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high">
+          {footer && header}
           <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled">
-            <View className="flex-row items-center justify-between gap-2 px-4 pt-1.5">
-              <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-medium text-foreground">{title}</Text>
-              <IconButton icon={X} accessibilityLabel="Cancel" disabled={busy} onPress={close} />
-            </View>
+            {!footer && header}
             <View className="gap-3 px-4 pb-4">{children}</View>
           </ScrollView>
+          {footer && <View className="shrink-0 border-t border-outline px-4 py-3">{footer}</View>}
         </AnimatedPressable>
       </Pressable>
     </KeyboardAvoidingView>

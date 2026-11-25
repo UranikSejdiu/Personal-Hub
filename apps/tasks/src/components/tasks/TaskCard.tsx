@@ -32,6 +32,7 @@ export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue
   const reminder = upcomingTaskReminder(task, now);
   const reminderTime = reminder?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const dateLabel = reminderTime ? `${agenda || !date ? "" : `${date} · `}Reminder ${reminderTime}` : agenda ? null : date;
+  const dateOnRight = !agenda && !expanded && !reminderTime && task.repeat === "none" && Boolean(date);
   return <View className={cn(
     agenda ? "border-b border-border py-1" : "mb-2 rounded-[24px] border border-border px-1 py-1.5",
     !agenda && (overdue ? "bg-surface-container" : "bg-surface")
@@ -39,10 +40,15 @@ export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue
     <View className="min-h-[48px] flex-row items-center">
       <Checkbox checked={completed} disabled={busy} onPress={() => onToggle(task)} accessibilityLabel={completed ? `Reopen ${task.title}` : `Complete ${task.title}`} />
       <Pressable onPress={() => { if (!completed) onEdit(task); else setMenu(true); }} onLongPress={() => setMenu(true)} disabled={busy}
-        accessibilityRole="button" accessibilityLabel={completed ? `${task.title}, completed, task options` : `Edit ${task.title}`} className="min-h-[48px] min-w-0 flex-1 justify-center py-1 active:opacity-70">
-        <Text className={`text-base font-semibold ${completed ? "text-muted-foreground line-through" : "text-foreground"}`}>{task.title}</Text>
+        accessibilityRole="button" accessibilityLabel={completed ? `${task.title}, completed, task options` : `Edit ${task.title}`}
+        accessibilityHint={dateOnRight && date ? `${overdue ? "Overdue, " : "Due "}${date}` : undefined}
+        className="min-h-[48px] min-w-0 flex-1 justify-center py-1 active:opacity-70">
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className={`min-w-0 flex-1 text-base font-semibold ${completed ? "text-muted-foreground line-through" : "text-foreground"}`}>{task.title}</Text>
+          {dateOnRight && <Text className={cn("max-w-[45%] shrink text-right text-label-medium", overdue ? "text-destructive" : "text-muted-foreground")}>{overdue ? `Overdue · ${date}` : date}</Text>}
+        </View>
         {expanded && task.notes ? <Text className="mt-1 text-xs leading-[18px] text-muted-foreground">{task.notes}</Text> : null}
-        {(dateLabel || task.repeat !== "none") && <View className="mt-0.5 flex-row flex-wrap items-center gap-x-2">
+        {(!dateOnRight && (dateLabel || task.repeat !== "none")) && <View className="mt-0.5 flex-row flex-wrap items-center gap-x-2">
           {dateLabel && <View className="min-w-0 shrink flex-row items-center gap-1">
             {reminder ? <Bell size={12} color={colors.mutedForeground} /> : <CalendarDays size={12} color={overdue ? colors.destructive : colors.mutedForeground} />}
             <Text className={`shrink text-label-medium ${overdue ? "text-destructive" : "text-muted-foreground"}`}>{overdue ? "Overdue · " : ""}{dateLabel}</Text>

@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { Text } from "../ui/Typography";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, RotateCcw } from "../AppIcons";
+import { ChevronLeft, ChevronRight, Plus } from "../AppIcons";
 import { IconButton } from "../ui/Button";
 import type { TaskFilter, TaskOverview } from "../../lib/tasks";
 import { localTaskDate } from "../../lib/taskCalendar";
@@ -9,26 +9,27 @@ import { isTaskDate } from "../../lib/taskDates";
 import { useThemeColors } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
-const TILES = [{ id: "today", label: "Today", icon: CalendarDays }, { id: "upcoming", label: "Upcoming", icon: CalendarDays }, { id: "overdue", label: "Overdue", icon: RotateCcw }, { id: "completed", label: "Completed", icon: Check }] as const;
-export const TaskSummaryTiles = memo(function TaskSummaryTiles({ counts, filter, onFilter }: { counts: TaskOverview; filter: TaskFilter; onFilter: (filter: TaskFilter) => void }) {
-  const colors = useThemeColors();
-  return <View className="mb-4 flex-row flex-wrap justify-between gap-y-2.5">
-    {TILES.map(tile => {
-      const selected = filter === tile.id;
-      return <Pressable key={tile.id} accessibilityRole="button"
-        accessibilityLabel={`${tile.label}: ${counts[tile.id]}`} accessibilityState={{ selected }}
-        onPress={() => onFilter(tile.id)}
+export const TaskFilterBar = memo(function TaskFilterBar({ counts, filter, onFilter }: { counts: TaskOverview; filter: TaskFilter; onFilter: (filter: TaskFilter) => void }) {
+  const options: { id: TaskFilter; label: string; spokenLabel?: string; count?: number }[] = [
+    { id: "active", label: "All open" },
+    { id: "today", label: "Today", spokenLabel: "Due by today", count: counts.today + counts.overdue },
+    { id: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { id: "overdue", label: "Overdue", count: counts.overdue },
+    { id: "completed", label: "Completed" },
+  ];
+  return <View className="mb-3 flex-row flex-wrap gap-1 rounded-[24px] border border-border/60 bg-surface p-1.5">
+    {options.map(({ id, label, spokenLabel = label, count }) => {
+      const selected = filter === id;
+      return <Pressable key={id} accessibilityRole="button"
+        accessibilityLabel={count === undefined ? spokenLabel : `${spokenLabel}, ${count}`} accessibilityState={{ selected }}
+        onPress={() => onFilter(id)}
         className={cn(
-          "min-h-[84px] w-[48.6%] justify-center gap-1 rounded-[24px] border px-4 py-3 active:opacity-75",
-          selected ? "border-primary bg-secondary-container" : "border-border bg-surface"
+          "min-h-[48px] max-w-full justify-center rounded-full px-2 py-1.5 active:opacity-75",
+          selected && "bg-primary"
         )}>
-        <View className="flex-row items-center justify-between gap-2">
-          <Text className="text-2xl font-semibold tabular-nums text-foreground">{counts[tile.id]}</Text>
-          <View className="h-8 w-8 items-center justify-center rounded-full bg-surface-container-high">
-            <tile.icon size={16} color={colors.foreground} />
-          </View>
-        </View>
-        <Text className="text-label-large font-medium text-muted-foreground">{tile.label}</Text>
+        <Text className={selected ? "text-center text-label-medium font-semibold text-primary-foreground" : "text-center text-label-medium font-medium text-foreground"}>
+          {label}{count !== undefined && <Text className={selected ? "tabular-nums text-primary-foreground" : "tabular-nums text-muted-foreground"}>{` ${count}`}</Text>}
+        </Text>
       </Pressable>;
     })}
   </View>;

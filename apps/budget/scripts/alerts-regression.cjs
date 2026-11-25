@@ -165,6 +165,53 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     await find(tree, n => n.type === 'BudgetMonthEditor').props.onSave(month, 1000, 100);
     assert.deepEqual(opened, [`/(budget)/budget?month=${month}`, `/(budget)/budget?month=${month}`], 'Existing and newly saved plans open the selected month');
   }
+  for (const hasCurrentMonth of [true, false]) {
+    const month = '2026-11';
+    const opened = [];
+    const current = { month, savingsGoal: 0, goalProgress: 0, actualRemaining: 50, remaining: 50 };
+    const h = harness('app/(budget)/index.tsx', {
+      loadState: 'ready',
+      summaries: hasCurrentMonth ? [current, { month: '2026-10' }] : [{ month: '2026-10' }],
+    }, {
+      'expo-router': { useFocusEffect() {}, useRouter: () => ({ push: href => opened.push(href) }) },
+      budget: { createBudgetMonth: async () => ({ created: true }), loadLoans: async () => ({}), listMonthSummaries: async () => [] },
+      savings: { getSavingsSummary: async () => ({ balance: 0 }) },
+    });
+    const tree = h.render('default');
+    const header = find(tree, node => node.type === 'FlatList').props.ListHeaderComponent;
+    const monthCard = hasCurrentMonth
+      ? harness('src/components/BudgetMonthCard.tsx').render('BudgetMonthCard', find(header, node => node.type === 'BudgetMonthCard').props)
+      : find(header, node => node.type === 'Card');
+    assert.equal(find(header, node => node.props?.label === 'Next month').props.variant, 'secondary');
+    await click(monthCard, 'Add expense');
+    if (!hasCurrentMonth) {
+      assert.deepEqual(opened, [], 'Create the current budget before opening its expense editor');
+      const editor = find(h.render('default'), node => node.type === 'BudgetMonthEditor');
+      assert.equal(editor.props.initialMonth, month);
+      await editor.props.onSave(month, 1000, 100);
+    }
+    assert.deepEqual(opened, [`/(budget)/budget?month=${month}&addExpense=1`]);
+  }
+  {
+    const card = harness('src/components/BudgetMonthCard.tsx');
+    const paid = { month: '2026-11', income: 1000, outflow: 903.99, actualOutflow: 803.99,
+      remaining: 96.01, actualRemaining: 96.01, savingsGoal: 100, goalProgress: 100 };
+    const render = (props) => card.render('BudgetMonthCard', { summary: paid, ...props });
+    const hasText = (tree, text) => nodes(tree).some(node => node.props?.children === text);
+    const featured = render({ variant: 'featured' });
+    assert.ok(hasText(featured, 'No unpaid bills'));
+    assert.equal(nodes(featured).filter(node => node.props?.children === '€96.01').length, 1);
+    const withBills = render({ variant: 'featured', summary: { ...paid, remaining: 51.01, outflow: 948.99 } });
+    assert.ok(hasText(withBills, 'Planned remaining'));
+    assert.ok(hasText(withBills, '€51.01'));
+    assert.ok(hasText(withBills, 'Unpaid bills'));
+    assert.ok(!hasText(withBills, 'No unpaid bills'));
+    const compact = render({});
+    assert.ok(!hasText(compact, 'Current remaining'));
+    assert.ok(!hasText(compact, 'Planned remaining'));
+    find(compact, node => node.props?.accessibilityLabel === 'Expand').props.onPress();
+    assert.ok(hasText(render({}), 'Current remaining'));
+  }
   // Every native modal owns an alert host; a root-only host is hidden on Android.
   const componentRoot=path.join(root,'src/components');
   const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);
@@ -197,6 +244,14 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const h=harness('src/components/ui/FormDialog.tsx');const tree=h.render('FormDialog',{title:'Test',visible,onClose(){},children:null});
     assert.equal(nodes(tree).filter(n=>n.type==='AppAlerts').length,visible?1:0);
   }
+  const pinnedForm=harness('src/components/ui/FormDialog.tsx').render('FormDialog',{
+    title:'Add expense',onClose(){},children:null,footer:{type:'ExpenseActions',props:{}},
+  });
+  const formScroll=find(pinnedForm,n=>n.type==='ScrollView');
+  assert.ok(find(pinnedForm,n=>n.type==='ExpenseActions'));
+  assert.ok(find(pinnedForm,n=>n.props?.accessibilityLabel==='Cancel'));
+  assert.equal(nodes(formScroll).some(n=>n.type==='ExpenseActions' || n.props?.accessibilityLabel==='Cancel'),false,
+    'Expense actions and close stay outside the keyboard-constrained scroll area');
   const message = 'Review the details before removing this item. '.repeat(12).trim();
   const confirm=harness('src/components/ConfirmDialog.tsx');const confirmTree=confirm.render('ConfirmDialog',{visible:true,title:'Delete',message,onClose(){},onConfirm:async()=>{throw Error('write failed');}});
   const dialogScroll = find(confirmTree, n => n.type === 'ScrollView');

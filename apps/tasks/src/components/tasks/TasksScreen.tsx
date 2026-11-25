@@ -14,20 +14,11 @@ import { completeTask, deleteTask, loadTask, loadTaskDayCounts, loadTaskOverview
 import type { Task, TaskInput } from "../../types/tasks";
 import { TaskCard } from "./TaskCard";
 import { TaskEditor } from "./TaskEditor";
-import { AgendaHeading, TaskAddButton, TaskCalendar, TaskSummaryTiles } from "./TaskDashboard";
+import { AgendaHeading, TaskAddButton, TaskCalendar, TaskFilterBar } from "./TaskDashboard";
 import { useThemeColors } from "../../lib/theme";
 
 const EMPTY_COUNTS: TaskOverview = { today: 0, upcoming: 0, overdue: 0, completed: 0, open: 0 };
 const CONTENT_STYLE = { paddingBottom: 24 };
-const FILTER_TITLES: Record<TaskFilter, string> = {
-  all: "All tasks",
-  active: "Open tasks",
-  today: "Due by today",
-  overdue: "Overdue",
-  upcoming: "Upcoming",
-  completed: "Completed",
-  undated: "No due date",
-};
 const keyForTask = (task: Task) => String(task.id);
 type Mode = "overview" | "calendar";
 
@@ -219,13 +210,8 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     </View>
     {mode === "overview" && <>
       {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] min-w-0 flex-1 text-base text-foreground" /></View>}
-      <TaskSummaryTiles counts={counts} filter={filter} onFilter={setFilter} />
-      <View className="mb-2 min-h-[48px] flex-row items-center justify-between gap-2">
-        <Text accessibilityRole="header" className="min-w-0 flex-1 text-base font-semibold text-foreground">{FILTER_TITLES[filter]}</Text>
-        {filter !== "active" && <Pressable accessibilityRole="button" onPress={() => setFilter("active")} className="min-h-[48px] max-w-[45%] justify-center px-2">
-          <Text className="text-label-large font-medium text-primary">All open</Text>
-        </Pressable>}
-      </View>
+      <TaskFilterBar counts={counts} filter={filter} onFilter={setFilter} />
+      {filter === "undated" && <Text accessibilityRole="header" className="mb-2 text-base font-semibold text-foreground">No due date</Text>}
     </>}
     {mode === "calendar" && <><TaskCalendar days={days} month={month} selected={selectedDate} today={today} counts={dayCounts} week={week} onWeek={setWeek} onMove={move} onToday={() => { const date = taskDateKey(); setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} onSelect={date => { setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} />
       <AgendaHeading title={localTaskDate(selectedDate).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "short" })} onAdd={() => setEditor({})} disabled={busy} />

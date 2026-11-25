@@ -44,7 +44,7 @@ module.exports = async function verifyScreen(root, load) {
       completeTask() {}, deleteTask() {}, reopenTask() {}, saveTask() {}, TaskUndoError: class extends Error {},
     },
     './TaskCard': { TaskCard: 'TaskCard' }, './TaskEditor': { TaskEditor: 'TaskEditor' }, '../../lib/theme': { useThemeColors: () => ({}) },
-    './TaskDashboard': Object.fromEntries(['AgendaHeading', 'TaskAddButton', 'TaskCalendar', 'TaskSummaryTiles'].map(key => [key, key])),
+    './TaskDashboard': Object.fromEntries(['AgendaHeading', 'TaskAddButton', 'TaskCalendar', 'TaskFilterBar'].map(key => [key, key])),
   };
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync(path.join(root, 'src/components/tasks/TasksScreen.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -83,6 +83,12 @@ module.exports = async function verifyScreen(root, load) {
   requests.at(-1).resolve({ tasks: [task(4), { ...task(5), list_id: 81 }], nextOffset: 2, hasMore: false }); await flush(); render();
   assert.equal(nodes('FlatList')[0].props.data.length, 2, 'Former list tasks and unassigned tasks display together');
   assert.equal(nodes('TaskListChips').length, 0); assert.equal(nodes('TaskListTile').length, 0);
+  assert.equal(nodes('TaskFilterBar')[0].props.filter, 'active');
+  nodes('TaskFilterBar')[0].props.onFilter('upcoming'); render(); await flush();
+  assert.equal(requests.at(-1).options.filter, 'upcoming', 'Selecting a compact filter updates the task query');
+  assert.equal(nodes('TaskFilterBar')[0].props.filter, 'upcoming');
+  nodes('TaskFilterBar')[0].props.onFilter('active'); render(); await flush();
+  assert.equal(requests.at(-1).options.filter, 'active', 'All open restores the combined view');
   nodes('TaskAddButton')[0].props.onPress(); render();
   assert.equal(nodes('TaskEditor')[0].props.initialDate, load(path.join(root, 'src/lib/taskDates.ts')).taskDateKey(), 'The in-screen Add button creates a task for today');
   nodes('TaskEditor')[0].props.onClose(); render();

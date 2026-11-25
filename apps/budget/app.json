@@ -2,7 +2,7 @@
   "expo": {
     "name": "MoneyPlan",
     "slug": "budget",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "portrait",
     "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     "android": {
       "allowBackup": true,
       "package": "com.uranik.budget",
-      "versionCode": 15,
+      "versionCode": 16,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#3e5948",

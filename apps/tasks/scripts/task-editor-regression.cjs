@@ -88,11 +88,13 @@ module.exports = async function verifyEditor(root, load) {
   managed.input('Time (24-hour)').onChangeText('14:35');managed.render();managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
   assert.deepEqual(JSON.parse(JSON.stringify(inputs.at(-1))),{title:'Managed task',notes:'Keep these notes',due_date:'2099-05-04',repeat:'weekly',reminder_time:'14:35'});
   managed.button('No date').onPress();managed.render();
-  assert.equal(managed.field('Repeat').disabled,true);assert.equal(managed.nodes(node=>node.type==='Switch')[0].props.disabled,true);
+  assert.equal(managed.nodes(node => node.props.accessibilityLabel === 'Repeat' || node.props.accessibilityLabel === 'Reminder').length, 0,
+    'Undated tasks hide scheduling controls that need a date');
   managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
   assert.equal(inputs.at(-1).repeat,'none');assert.equal(inputs.at(-1).reminder_time,null);assert.equal(Object.hasOwn(inputs.at(-1),'list_id'),false);assert.equal(Object.hasOwn(inputs.at(-1),'priority'),false);
   managed.button('Tomorrow').onPress();managed.render();
   assert.equal(managed.button('Tomorrow').accessibilityState.selected,true);assert.equal(managed.field('Repeat').disabled,false);
+  assert.equal(managed.nodes(node => node.type === 'Switch')[0].props.value, false, 'Setting a new date does not restore a removed reminder');
   managed.button('Today').onPress();managed.render();managed.button('Save').onPress();await new Promise(setImmediate);
   assert.equal(inputs.at(-1).due_date,dates.taskDateKey(),'Today uses a local calendar date');
 

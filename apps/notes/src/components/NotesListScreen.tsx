@@ -38,7 +38,7 @@ const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
 
 type NotesListRow =
   | { type: "section"; key: string; label: string }
-  | { type: "notes"; key: string; notes: (Note | null)[] };
+  | { type: "notes"; key: string; notes: (Note | null)[]; first: boolean; last: boolean };
 
 export default function NotesListScreen({ archived = false }: { archived?: boolean }) {
   const router = useRouter();
@@ -229,7 +229,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       for (let i = 0; i < group.length; i += columns) {
         const first = group[i];
         const row = columns === 1 ? [first] : [first, group[i + 1] ?? null];
-        data.push({ type: "notes", key: String(first.id), notes: row });
+        data.push({ type: "notes", key: String(first.id), notes: row, first: i === 0, last: i + columns >= group.length });
       }
     };
     const pinned = archived ? [] : notes.filter(note => note.is_pinned);
@@ -265,6 +265,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
                 <NoteCard
                   note={note}
                   layout={layout}
+                  first={item.first}
+                  last={item.last}
                   onPress={handleNotePress}
                 />
               </View>

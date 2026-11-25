@@ -17,6 +17,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
   const [category, setCategory] = useState(expense?.category ?? "");
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const amountInput = useRef<TextInputInstance>(null);
+  const categoryInput = useRef<TextInputInstance>(null);
   const focusAfterSave = useRef(false);
   const [paid, setPaid] = useState(expense?.paid ?? false);
   const [recurring, setRecurring] = useState(expense?.is_recurring ?? false);
@@ -39,7 +40,8 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
     else onClose();
   };
   const value = parseNumberInput(amount, 2);
-  const valid = !!category.trim() && value !== null && value >= 0 && value <= Number.MAX_SAFE_INTEGER / 100;
+  const validAmount = value !== null && value >= 0 && value <= Number.MAX_SAFE_INTEGER / 100;
+  const valid = !!category.trim() && validAmount;
   const save = async (keepOpen = false) => {
     if (busyRef.current || !valid || value === null) return;
     busyRef.current = true; setBusy(true); setError(false);
@@ -56,13 +58,23 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
   };
   const inputClass = "min-h-[44px] rounded-[8px] border border-outline focus:border-primary px-3 py-2.5 text-base text-foreground";
   return <>
-    <FormDialog title={expense ? "Edit expense" : "Add expense"} busy={busy} onClose={close}>
+    <FormDialog title={expense ? "Edit expense" : "Add expense"} busy={busy} onClose={close} footer={
+      <View className="flex-row flex-wrap items-center justify-end gap-2">
+        {expense && onDelete && <Pressable onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Delete expense?" className="mr-auto min-h-[48px] justify-center rounded-full px-2 active:opacity-70 disabled:opacity-50">
+          <Text className="text-label-large font-semibold text-destructive">Delete</Text>
+        </Pressable>}
+        {!expense && <Button variant="secondary" label="Save & add another" disabled={!valid || busy} onPress={() => { void save(true); }} />}
+        <Button label="Save" disabled={!valid} busy={busy} onPress={() => { void save(); }} />
+      </View>
+    }>
       <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">Amount (€)</Text>
         <TextInput ref={amountInput} value={amount} onChangeText={setAmount} editable={!busy} keyboardType="decimal-pad" selectTextOnFocus autoFocus={!expense}
+          returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => categoryInput.current?.focus()}
           accessibilityLabel="Amount" placeholder="0.00" placeholderTextColor={colors.mutedForeground} className={inputClass} />
+        {!!amount.trim() && !validAmount && <Text accessibilityRole="alert" className="text-xs text-destructive">Enter a non-negative amount with up to two decimal places.</Text>}
       </View>
       <View className="gap-[7px]"><Text className="text-[13px] font-semibold text-foreground">Expense</Text>
-        <TextInput value={category} onChangeText={setCategory} editable={!busy} maxLength={100}
+        <TextInput ref={categoryInput} value={category} onChangeText={setCategory} editable={!busy} maxLength={100}
           accessibilityLabel="Expense" placeholderTextColor={colors.mutedForeground} className={inputClass} />
       </View>
       {!expense && <View className="flex-row flex-wrap gap-2">
@@ -74,14 +86,7 @@ export function ExpenseEditor({ expense, onSave, onClose, onDelete }: {
       <Checkbox checked={recurring} disabled={busy} onPress={() => setRecurring(value => !value)} accessibilityLabel="Recurring">
         <Text className="text-sm text-foreground">Recurring</Text>
       </Checkbox>
-      {!valid && <Text className="text-xs text-muted-foreground">Enter an expense name and a valid, non-negative amount.</Text>}
       {error && <Text accessibilityRole="alert" className="text-xs text-destructive">Failed to update expense.</Text>}
-      <View className="flex-row flex-wrap items-center justify-end gap-2">
-        {expense && onDelete && <Pressable onPress={onDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Delete expense?" className="mr-auto min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
-        <Button variant="text" label="Cancel" disabled={busy} onPress={close} />
-        {!expense && <Button variant="secondary" label={"Save & add another"} disabled={!valid || busy} onPress={() => { void save(true); }} />}
-        <Button label="Save" disabled={!valid} busy={busy} onPress={() => { void save(); }} />
-      </View>
     </FormDialog>
     <ConfirmDialog visible={discard} title="Discard changes?" message="Your changes to this expense have not been saved." confirmLabel="Discard changes" cancelLabel="Keep editing" onClose={() => setDiscard(false)} onConfirm={onClose} />
   </>;

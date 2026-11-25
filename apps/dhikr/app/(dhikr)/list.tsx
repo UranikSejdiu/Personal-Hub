@@ -2,7 +2,7 @@ import { Text } from "../../src/components/ui/Typography";
 import { memo, useState, useCallback, useMemo, useRef } from "react";
 import { ActivityIndicator, BackHandler, Pressable, View, type ListRenderItemInfo } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
-import { MoreHorizontal, ChevronDown, Pencil, Trash2, type AppIconProps } from "../../src/components/AppIcons";
+import { Check, MoreHorizontal, ChevronDown, Pencil, Trash2, type AppIconProps } from "../../src/components/AppIcons";
 import { Button, IconButton } from "../../src/components/ui/Button";
 import { Card } from "../../src/components/ui/Card";
 import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredMenu";
@@ -47,14 +47,17 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
   onSelect: (dhikr: Dhikr) => void;
 }) {
   const haptics = useHaptics();
+  const colors = useThemeColors();
   const { triggerRef, anchor, open, close } = useAnchoredMenu();
   const dailyLimit = item.daily_limit;
   const hasGoal = dailyLimit != null && dailyLimit > 0;
   const goalComplete = hasGoal && item.daily_count >= dailyLimit;
+  const dailyCount = item.daily_count.toLocaleString("en");
+  const total = item.total_count.toLocaleString("en");
 
   return (
-    <View className={`border-x border-border bg-surface px-4 ${index === 0 ? "rounded-t-[24px] border-t" : ""} ${index === count - 1 ? "rounded-b-[24px] border-b" : ""}`}>
-      <View className={`py-1 ${index < count - 1 ? "border-b border-border" : ""}`}>
+    <View className={`border-x border-border/60 bg-surface px-4 ${index === 0 ? "rounded-t-[24px] border-t" : ""} ${index === count - 1 ? "rounded-b-[24px] border-b" : ""}`}>
+      <View className={`py-1 ${index < count - 1 ? "border-b border-border/60" : ""}`}>
       <View className="flex-row items-center gap-2">
         {arranging && (
           <Text className="w-5 text-sm font-medium text-muted-foreground">{index + 1}</Text>
@@ -62,20 +65,24 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging,
         <Pressable
           onPress={() => onSelect(item)}
           disabled={arranging || saving}
-          className="min-h-[62px] min-w-0 flex-1 justify-center gap-1 rounded-lg py-2 active:opacity-70"
+          className="min-h-[56px] min-w-0 flex-1 flex-row items-center justify-between gap-2 rounded-lg py-2 active:opacity-70"
           accessible
           accessibilityRole="button"
           accessibilityLabel={`Open ${item.name}`}
+          accessibilityValue={{ text: `${dailyCount} today${hasGoal ? ` of ${dailyLimit.toLocaleString("en")}` : ""}${goalComplete ? ", goal met" : ""}, ${total} total` }}
           accessibilityState={{ disabled: arranging || saving }}
         >
-          <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-          <View className="flex-row flex-wrap items-center gap-x-3">
-            <Text className="text-xs text-muted-foreground">Total: {item.total_count.toLocaleString("en")}</Text>
-            <View className="max-w-full flex-row flex-wrap items-center gap-1">
-              <Text className="text-xs text-muted-foreground">Today</Text>
-              <Text className={goalComplete ? "shrink text-xs font-semibold text-success" : "shrink text-xs font-semibold text-primary"}>
-                {item.daily_count.toLocaleString("en")}{hasGoal ? ` / ${dailyLimit.toLocaleString("en")}` : ""}
-              </Text>
+          <View className="min-w-0 flex-1">
+            <Text className="text-base font-semibold text-foreground">{item.name}</Text>
+            <Text className="text-label-medium text-muted-foreground">{`${total} total`}</Text>
+          </View>
+          <View className="max-w-[55%] shrink items-end">
+            <Text className={`text-right text-base font-semibold tabular-nums ${goalComplete ? "text-success" : "text-foreground"}`}>
+              {dailyCount}{hasGoal ? ` / ${dailyLimit.toLocaleString("en")}` : ""}
+            </Text>
+            <View className="flex-row items-center gap-1">
+              {goalComplete && <Check size={12} color={colors.success} />}
+              <Text className="shrink text-right text-label-medium text-muted-foreground">Today</Text>
             </View>
           </View>
         </Pressable>

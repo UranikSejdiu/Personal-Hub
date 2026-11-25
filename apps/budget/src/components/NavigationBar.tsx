@@ -55,7 +55,7 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
               style={styles.tab}
             >
               {selected && (
-                <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
+                <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={styles.selectedPill}>
                   <Svg width="100%" height="100%">
                     <Rect width="100%" height="100%" rx={28} ry={28} fill={colors.primary} />
                   </Svg>
@@ -92,5 +92,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     paddingVertical: 5,
+  },
+  selectedPill: {
+    position: "absolute",
+    top: 3,
+    bottom: 3,
+    left: 4,
+    right: 4,
   },
 });

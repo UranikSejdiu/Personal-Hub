@@ -1,12 +1,14 @@
 import { Text, TextInput } from "../../src/components/ui/Typography";
-import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { View, Pressable, ScrollView, Keyboard, Platform } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ArrowLeft,
+  MoreHorizontal,
   Plus,
 } from "../../src/components/AppIcons";
+import { IconButton } from "../../src/components/ui/Button";
 import { FormattingIcon } from "../../src/components/FormattingIcon";
 import { toolbarFeedback } from "../../src/lib/toolbarFeedback";
 import { EnrichedText, EnrichedTextInput } from "react-native-enriched-html";
@@ -69,13 +71,22 @@ const TEXT_SHORTCUTS: TextShortcut[] = [
   { trigger: "[] ", style: "checkbox_list" },
 ];
 
-const FORMAT_BUTTONS: FormatButton[] = [
+const PRIMARY_FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "bold",
     label: "Bold",
     stateKey: "bold",
     toggle: (editor) => editor.toggleBold(),
   },
+  {
+    type: "checklist",
+    label: "Checklist",
+    stateKey: "checkboxList",
+    toggle: (editor) => editor.toggleCheckboxList(false),
+  },
+];
+
+const SECONDARY_FORMAT_BUTTONS: FormatButton[] = [
   {
     type: "italic",
     label: "Italic",
@@ -100,13 +111,8 @@ const FORMAT_BUTTONS: FormatButton[] = [
     stateKey: "orderedList",
     toggle: (editor) => editor.toggleOrderedList(),
   },
-  {
-    type: "checklist",
-    label: "Checklist",
-    stateKey: "checkboxList",
-    toggle: (editor) => editor.toggleCheckboxList(false),
-  },
 ];
+const FORMAT_BUTTONS = [...PRIMARY_FORMAT_BUTTONS, ...SECONDARY_FORMAT_BUTTONS];
 
 // The native editor emits onChangeState on every caret move and keystroke, and
 // the event object is always new. Keep the previous object when none of the
@@ -161,6 +167,7 @@ export default function NotesEditorScreen() {
   const removalAllowedRef = useRef(false);
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const [toolbarHeight, setToolbarHeight] = useState(57);
+  const [showMoreFormatting, setShowMoreFormatting] = useState(false);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const plainTextRef = useRef("");
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -549,56 +556,61 @@ export default function NotesEditorScreen() {
     setIsPinned(pinnedRef.current);
   }, [isArchived, isAddingItem]);
 
-  const formatToolbar = (
-    <View className="w-full max-w-[408px] flex-row items-center gap-0.5 self-center rounded-[30px] border border-border bg-surface p-1">
-      <AttachmentToolbarButton disabled={isSaving || isAddingItem} busy={attachmentState.busy}
-        onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
-      <ScrollView horizontal className="min-w-0 flex-1 overflow-hidden" showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="always" contentContainerStyle={{ alignItems: "center" }}>
-      <View className="flex-row items-center">
-        {FORMAT_BUTTONS.map((button) => {
-          const state = styleState?.[button.stateKey];
-          const active = state?.isActive ?? false;
-          const blocked = state?.isBlocking ?? false;
-          return (
-            <Fragment key={button.type}>
-              {button.type === "bullet" ? <View className="h-5 w-px bg-border" accessible={false} /> : null}
-              <Pressable
-                onPress={() => {
-                  const editor = editorRef.current;
-                  if (!editor || blocked || mutationInFlightRef.current) return;
-                  button.toggle(editor);
-                  toolbarFeedback();
-                }}
-                disabled={blocked || isSaving || isAddingItem}
-                className={`h-12 w-12 items-center justify-center rounded-full active:bg-secondary ${
-                  active ? "bg-secondary-container" : blocked ? "opacity-40" : ""
-                }`}
-                accessibilityRole="button"
-                accessibilityLabel={button.label}
-                accessibilityState={{ selected: active, disabled: blocked || isSaving || isAddingItem }}
-              >
-                <FormattingIcon name={button.type}
-                  size={19}
-                  color={active ? colors.onSecondaryContainer : colors.foreground}
-                />
-              </Pressable>
-            </Fragment>
-          );
-        })}
-      </View>
-      </ScrollView>
-      {keyboardVisible && <View className="shrink-0 border-l border-border/60 pl-1">
-      <Pressable onPress={() => {
+  const toolbarDisabled = isSaving || isAddingItem;
+  const renderFormatButton = (button: FormatButton) => {
+    const state = styleState?.[button.stateKey];
+    const active = state?.isActive ?? false;
+    const disabled = toolbarDisabled || (state?.isBlocking ?? false);
+    return <Pressable
+      key={button.type}
+      onPress={() => {
+        const editor = editorRef.current;
+        if (!editor || disabled || mutationInFlightRef.current) return;
+        button.toggle(editor);
         toolbarFeedback();
-        editorRef.current?.blur();
-        Keyboard.dismiss();
-      }} disabled={isSaving || isAddingItem}
-        accessibilityRole="button" accessibilityLabel="Dismiss keyboard"
-        className="h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container active:opacity-80 disabled:opacity-50">
-        <FormattingIcon name="done" size={18} color={colors.onSecondaryContainer} />
-      </Pressable>
-      </View>}
+      }}
+      disabled={disabled}
+      className={`h-12 w-12 items-center justify-center rounded-full active:bg-secondary ${active ? "bg-secondary-container" : ""} disabled:opacity-50`}
+      accessibilityRole="button"
+      accessibilityLabel={button.label}
+      accessibilityState={{ selected: active, disabled }}
+    >
+      <FormattingIcon name={button.type} size={19} color={active ? colors.onSecondaryContainer : colors.foreground} />
+    </Pressable>;
+  };
+
+  const formatToolbar = (
+    <View className="w-full max-w-[408px] self-center rounded-[30px] border border-border bg-surface p-1">
+      <View className="flex-row items-center">
+        <AttachmentToolbarButton disabled={toolbarDisabled} busy={attachmentState.busy}
+          onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
+        <ScrollView horizontal className="min-w-0 flex-1" showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="always" contentContainerClassName="grow items-center justify-center">
+          {PRIMARY_FORMAT_BUTTONS.map(renderFormatButton)}
+        </ScrollView>
+        <IconButton icon={MoreHorizontal} accessibilityLabel="More formatting" disabled={toolbarDisabled}
+          accessibilityState={{ expanded: showMoreFormatting }}
+          className={showMoreFormatting ? "bg-secondary-container" : undefined}
+          onPress={() => {
+            setShowMoreFormatting(value => !value);
+            toolbarFeedback();
+          }} />
+        {keyboardVisible && <View className="shrink-0 border-l border-border/60 pl-1">
+          <Pressable onPress={() => {
+            toolbarFeedback();
+            editorRef.current?.blur();
+            Keyboard.dismiss();
+          }} disabled={toolbarDisabled}
+            accessibilityRole="button" accessibilityLabel="Dismiss keyboard"
+            className="h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container active:opacity-80 disabled:opacity-50">
+            <FormattingIcon name="done" size={18} color={colors.onSecondaryContainer} />
+          </Pressable>
+        </View>}
+      </View>
+      {showMoreFormatting && <ScrollView horizontal className="border-t border-border/60" showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="always" contentContainerClassName="grow items-center justify-center">
+        {SECONDARY_FORMAT_BUTTONS.map(renderFormatButton)}
+      </ScrollView>}
     </View>
   );
 

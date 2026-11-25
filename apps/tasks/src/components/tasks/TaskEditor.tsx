@@ -140,20 +140,20 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               <Button className="min-w-[72px] flex-1" variant={dueDate === tomorrow ? "tonal" : "secondary"} label="Tomorrow" disabled={busy} accessibilityState={{ selected: dueDate === tomorrow }} onPress={() => changeDate(tomorrow)} />
               <Button className="min-w-[72px] flex-1" variant={dueDate === null ? "tonal" : "secondary"} label="No date" disabled={busy} accessibilityState={{ selected: dueDate === null }} onPress={() => changeDate(null)} />
             </View>
-            <View className="rounded-[20px] border border-border bg-background px-4">
-              <Pressable disabled={busy || !dueDate} onPress={() => setShowRepeat(true)} accessibilityRole="button"
-                accessibilityLabel="Repeat" accessibilityValue={{ text: selectedRepeat }} accessibilityState={{ expanded: showRepeat, disabled: busy || !dueDate }}
+            {dueDate !== null && <View className="rounded-[20px] border border-border bg-background px-4">
+              <Pressable disabled={busy} onPress={() => setShowRepeat(true)} accessibilityRole="button"
+                accessibilityLabel="Repeat" accessibilityValue={{ text: selectedRepeat }} accessibilityState={{ expanded: showRepeat, disabled: busy }}
                 className="min-h-[48px] flex-row items-center gap-2 py-2 active:opacity-70 disabled:opacity-50">
                 <Repeat size={19} color={colors.mutedForeground} /><Text className="flex-1 text-sm text-foreground">Repeat</Text>
                 <Text className="shrink text-sm font-semibold text-foreground">{selectedRepeat}</Text><ChevronDown size={16} color={colors.mutedForeground} />
               </Pressable>
               <View className="min-h-[48px] flex-row items-center gap-2 border-t border-border/60 py-1">
                 <Bell size={19} color={colors.mutedForeground} /><Text className="flex-1 text-sm text-foreground">Reminder</Text>
-                <Switch value={reminder} onValueChange={(enabled) => void toggleReminder(enabled)} disabled={busy || !dueDate} hitSlop={9}
-                  accessibilityLabel="Reminder" accessibilityState={{ checked: reminder, disabled: busy || !dueDate, busy }}
+                <Switch value={reminder} onValueChange={(enabled) => void toggleReminder(enabled)} disabled={busy} hitSlop={9}
+                  accessibilityLabel="Reminder" accessibilityState={{ checked: reminder, disabled: busy, busy }}
                   trackColor={{ false: colors.muted, true: colors.primary }} thumbColor={reminder ? colors.primaryForeground : colors.outline} />
               </View>
-              {reminder && dueDate ? <View className="gap-2 border-t border-border/60 py-3">
+              {reminder && <View className="gap-2 border-t border-border/60 py-3">
                 <View className="flex-row items-center justify-between gap-3"><Text className="text-sm text-foreground">Time</Text>
                   <TextInput value={time} onChangeText={setTime} editable={!busy} maxLength={5} autoCapitalize="none" autoCorrect={false} selectTextOnFocus
                     placeholder="09:00" placeholderTextColor={colors.mutedForeground} accessibilityLabel="Time (24-hour)" className={cn(inputClass, "w-[104px] text-center font-semibold")} />
@@ -163,9 +163,8 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
                   <Text className="text-xs font-medium text-primary">Delivery settings</Text><ChevronDown size={14} color={colors.primary} />
                 </Pressable>
                 {showSetup && <ReminderSetup />}
-              </View> : null}
-            </View>
-            {!dueDate && <Text className="text-xs text-muted-foreground">Add a date for repeats and reminders.</Text>}
+              </View>}
+            </View>}
           </View>
           <View className={sectionClass}><Text accessibilityRole="header" className={labelClass}>Notes (optional)</Text>
             <TextInput value={notes} onChangeText={setNotes} editable={!busy} multiline maxLength={10000}
