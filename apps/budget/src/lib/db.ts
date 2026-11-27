@@ -1,3 +1,4 @@
+import { repairLegacyJanuaryClosings } from "./savingsClosing";
 import * as SQLite from "expo-sqlite";
 import { DB_NAME } from "../constants/config";
 type BindValue = string | number | null | Uint8Array;
@@ -145,7 +146,6 @@ const ADDITIONAL_COLUMNS = [
     "definition": "INTEGER NOT NULL DEFAULT 0"
   }
 ];
-const INDEXES: string[] = [];
 export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
@@ -154,14 +154,17 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       await connection.execAsync("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
       await connection.withTransactionAsync(async () => {
         const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
-        if ((version?.user_version ?? 0) >= 1) return;
-        for (const sql of SCHEMA_STATEMENTS) await connection.execAsync(sql);
-        for (const { table, column, definition } of ADDITIONAL_COLUMNS) {
-          const columns = await connection.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
-          if (!columns.some(existing => existing.name === column)) await connection.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+        const currentVersion = version?.user_version ?? 0;
+        if (currentVersion >= 2) return;
+        if (currentVersion < 1) {
+          for (const sql of SCHEMA_STATEMENTS) await connection.execAsync(sql);
+          for (const { table, column, definition } of ADDITIONAL_COLUMNS) {
+            const columns = await connection.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+            if (!columns.some(existing => existing.name === column)) await connection.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+          }
         }
-        for (const sql of INDEXES) await connection.execAsync(sql);
-        await connection.execAsync("PRAGMA user_version = 1");
+        await repairLegacyJanuaryClosings(createExecutor(connection, false));
+        await connection.execAsync("PRAGMA user_version = 2");
       });
       db = connection;
       return connection;

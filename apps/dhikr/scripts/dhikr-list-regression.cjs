@@ -18,6 +18,9 @@ function fixture(root) {
   const initial = [1, 2, 3].map(id => ({
     id, name: `Dhikr ${id}`, total_count: 0, daily_count: 0, daily_limit: null,
   }));
+  let day = '2026-11-28', stateListener;
+  const appState = { currentState: 'active', addEventListener(_, fn) { stateListener = fn; return { remove() { stateListener = undefined; } }; } };
+  initial[0] = { ...initial[0], last_reset_date: day, daily_count: 3, daily_limit: 3, total_count: 12 };
   let persisted = initial;
   let read = async () => persisted;
   const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
@@ -51,7 +54,7 @@ function fixture(root) {
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': {
       FlatList: 'FlatList', View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator',
-      Alert: {}, BackHandler: { addEventListener: () => ({ remove() {} }) },
+      AppState: appState, Alert: {}, BackHandler: { addEventListener: () => ({ remove() {} }) },
     },
     'react-native-sortables': { default: { Grid: 'DragList', Handle: 'Handle' }, __esModule: true },
     'react-native-reanimated': {
@@ -78,6 +81,7 @@ function fixture(root) {
     '../../src/lib/dhikrSelection': { setSelectedDhikrId: async () => {}, clearSelectedDhikrIdIfMissing: async () => {} },
     '../../src/lib/dhikr': {
       flushDhikrWrites: async () => {},
+      todayDate: () => day,
       loadDhikrs: () => read(),
       deleteDhikr: async id => { persisted = persisted.filter(item => item.id !== id); },
       reorderDhikrs: order => new Promise((resolve, reject) => {
@@ -99,10 +103,10 @@ function fixture(root) {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const module = { exports: {} };
-  vm.runInThisContext(`(function(require,module,exports){${js}\n})`, { filename })(name => {
+  vm.runInThisContext(`(function(require,module,exports,setTimeout,clearTimeout){${js}\n})`, { filename })(name => {
     if (!(name in mocks)) throw new Error(`Unexpected dependency: ${name}`);
     return mocks[name];
-  }, module, module.exports);
+  }, module, module.exports, () => 1, () => {});
   const find = (node, predicate) => {
     if (!node || typeof node !== 'object') return undefined;
     if (Array.isArray(node)) return node.map(child => find(child, predicate)).find(Boolean);
@@ -124,6 +128,12 @@ function fixture(root) {
       }
     },
     list, button,
+    nextDay() { appState.currentState = 'background'; stateListener(); day = '2026-11-29'; appState.currentState = 'active'; stateListener(); },
+    rowValue(id) {
+      const item = list().data.find(value => value.id === id);
+      const row = list().renderItem({ item, index: list().data.indexOf(item) });
+      return find(row.type(row.props), node => node.type === 'Pressable' && node.props.accessibilityLabel === 'Open ' + item.name).props.accessibilityValue.text;
+    },
     rowText(id) {
       const item = list().data.find(value => value.id === id);
       const row = list().renderItem({ item, index: list().data.indexOf(item) });
@@ -165,6 +175,9 @@ module.exports = async function verifyDhikrList(root) {
   assert(screen.rowText(1), 'Today’s count stays visible for dhikrs without a daily limit');
 
   screen.button('Arrange').onPress(); screen.render();
+  assert.match(screen.rowValue(1), /3 today of 3, goal met, 12 total/);
+  screen.nextDay(); screen.render();
+  assert.equal(screen.rowValue(1), '0 today of 3, 12 total');
   const original = screen.list().data;
   screen.list().onDragStart(2); screen.render();
   screen.preview([1, 3, 2]); screen.render();

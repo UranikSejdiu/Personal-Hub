@@ -18,7 +18,6 @@ import {
   getSavingsSummary,
   closeYear,
   previewClosingBalance,
-  isClosingMarkerDescription,
   type SavingsTransaction,
   type SavingsSummary,
   type SavingsEntryType,
@@ -177,7 +176,7 @@ export default function SavingsScreen() {
       if (entry.kind === "auto" && entry.rawMonth) {
         openEditAutoModal(entry.rawMonth, entry.description, entry.amount);
       } else if (entry.kind === "tx" && entry.rawTx) {
-        if (isClosingMarkerDescription(entry.rawTx.description)) return;
+        if (entry.isClosing) return;
         openEditModal(entry.rawTx);
       }
     },
@@ -315,7 +314,7 @@ export default function SavingsScreen() {
       const sign = isDeposit ? "+" : "-";
       const isLast = index === entries.length - 1;
 
-      const locked = entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description);
+      const locked = entry.isClosing;
       const Icon = isDeposit ? ArrowDownLeft : ArrowUpRight;
       return <View className={`border-x border-border bg-surface px-4 ${index === 0 ? "rounded-t-[24px] border-t pt-1" : ""} ${isLast ? "rounded-b-[24px] border-b pb-1" : ""}`}>
         <View className={`min-h-[62px] flex-row items-center gap-3 py-2 ${isLast ? "" : "border-b border-border"}`}>

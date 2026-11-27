@@ -4,7 +4,7 @@ import { AppState, Image, Keyboard, Linking, Pressable, View } from "react-nativ
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as Sharing from "expo-sharing";
-import { File } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import { getRecordingPermissionsAsync, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from "expo-audio";
 import { toast } from "sonner-native";
 import { serializeAttachments, type NoteAttachment } from "../lib/attachmentData";
@@ -21,7 +21,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 const time = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 function AudioAttachment({ item, disabled, onError }: { item: NoteAttachment; disabled: boolean; onError: (error: unknown) => void }) {
   const colors = useThemeColors();
-  const player = useAudioPlayer(null);
+  const player = useAudioPlayer(null, { updateInterval: 1000 });
   const status = useAudioPlayerStatus(player);
   const ready = status.isLoaded;
   useEffect(() => {
@@ -84,8 +84,11 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       await recorder.stop();
       const uri = recorder.uri;
       if (uri) {
-        if (keep) append(await readAttachment(uri, `Voice ${new Date().toLocaleString("en").replace(/[/\\:]/g, "-")}.m4a`, "audio/mp4"));
-        try { new File(uri).delete(); } catch { /* Cache cleanup is best effort. */ }
+        try {
+          if (keep) append(await readAttachment(uri, `Voice ${new Date().toLocaleString("en").replace(/[/\\:]/g, "-")}.m4a`, "audio/mp4"));
+        } finally {
+          try { new File(uri).delete(); } catch { /* Cache cleanup is best effort. */ }
+        }
       }
     } catch (error) { report(error); }
     finally {
@@ -108,7 +111,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
     if (!recordingOpen) return;
     const timer = setInterval(() => {
       const elapsed = recorder.getStatus().durationMillis;
-      setDurationMillis(elapsed);
+      setDurationMillis(Math.floor(elapsed / 1000) * 1000);
       if (elapsed >= 120000) void finishRecording(true);
     }, 250);
     return () => clearInterval(timer);
@@ -145,8 +148,13 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
         const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
         if (result.canceled) return;
         const asset = result.assets[0];
-        append(await readAttachment(asset.uri, asset.name, asset.mimeType ?? "application/octet-stream"));
-        try { new File(asset.uri).delete(); } catch { /* Provider may keep its copy locked. */ }
+        try {
+          append(await readAttachment(asset.uri, asset.name, asset.mimeType ?? "application/octet-stream"));
+        } finally {
+          if (asset.uri.startsWith(Paths.cache.uri.replace(/\/?$/, "/"))) {
+            try { new File(asset.uri).delete(); } catch { /* Cache cleanup is best effort. */ }
+          }
+        }
       } else {
         if (kind === "camera") {
           if (!await ensurePermission("camera")) return;

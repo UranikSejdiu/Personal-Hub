@@ -10,10 +10,11 @@ module.exports = async function checkAttachmentPermissions(root) {
   const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  function harness(current, requested = current, { failRequest = false, failSettings = false, disabled = false, readOnly = false } = {}) {
+  function harness(current, requested = current, { failRequest = false, failSettings = false, disabled = false, readOnly = false, pickedUri = null } = {}) {
     const slots = []; let cursor = 0, tree;
     const calls = { checked: 0, requested: 0, camera: 0, recording: 0, settings: 0, library: 0, file: 0 };
     const errors = [];
+    const deletions = [];
     const state = { attachments: [], valueRef: { current: [] }, actionRef: { current: null }, busyRef: { current: false },
       setBusy(value) { this.busyRef.current = value; }, onChange() { throw Error('No fixture should attach media'); } };
     // The component destructures setBusy, so use a stable closure like the real hook.
@@ -27,16 +28,21 @@ module.exports = async function checkAttachmentPermissions(root) {
     };
     const jsx = (type, props) => ({ type, props });
     const mocks = {
+      'expo-file-system': { Paths: { cache: { uri: 'file:///cache/' } }, File: class {
+        constructor(uri) { this.uri = uri; }
+        delete() { deletions.push(this.uri); }
+      } },
+      '../lib/attachmentFiles': { async readAttachment() { throw Error('Attachment read failed'); } },
       react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx },
       'react-native': { View: 'View', Pressable: 'Pressable', Image: 'Image', Keyboard: { dismiss() {} },
         Linking: { openSettings: async () => { calls.settings++; if (failSettings) throw Error('Settings unavailable'); } } },
       'expo-audio': { RecordingPresets: { HIGH_QUALITY: {} }, getRecordingPermissionsAsync: check,
         requestRecordingPermissionsAsync: request, setAudioModeAsync: async () => {},
-        useAudioRecorder: () => ({ prepareToRecordAsync: async () => {}, record() { calls.recording++; } }) },
+        useAudioRecorder: () => ({ uri: 'file:///cache/voice.m4a', stop: async () => {}, prepareToRecordAsync: async () => {}, record() { calls.recording++; } }) },
       'expo-image-picker': { getCameraPermissionsAsync: check, requestCameraPermissionsAsync: request,
         launchCameraAsync: async () => { calls.camera++; return { canceled: true }; },
         launchImageLibraryAsync: async () => { calls.library++; return { canceled: true }; } },
-      'expo-document-picker': { getDocumentAsync: async () => { calls.file++; return { canceled: true }; } },
+      'expo-document-picker': { getDocumentAsync: async () => { calls.file++; return pickedUri ? { canceled: false, assets: [{ name: 'example.pdf', uri: pickedUri }] } : { canceled: true }; } },
       'sonner-native': { toast: { error: message => errors.push(message) } },
       '../lib/theme': { useThemeColors: () => ({}) },
       './ui/FormDialog': { FormDialog: 'FormDialog' }, './ConfirmDialog': { ConfirmDialog: 'ConfirmDialog' },
@@ -48,7 +54,11 @@ module.exports = async function checkAttachmentPermissions(root) {
     const dialog = () => tree.props.children.find(node => node?.type === 'ConfirmDialog').props;
     const errorText = () => tree.props.children.find(node => node?.props?.accessibilityRole === 'alert')?.props.children;
     render();
-    return { state, calls, errors, render, dialog, errorText, add: kind => state.actionRef.current.add(kind) };
+    const stopRecording = () => {
+      const form = tree.props.children.find(node => node?.props?.title === 'Recording voice');
+      form.props.children.find(node => node?.props?.label === 'Stop & attach').props.onPress();
+    };
+    return { state, calls, errors, deletions, stopRecording, render, dialog, errorText, add: kind => state.actionRef.current.add(kind) };
   }
   const granted = { granted: true, canAskAgain: true };
   const denied = { granted: false, canAskAgain: true };
@@ -98,5 +108,16 @@ module.exports = async function checkAttachmentPermissions(root) {
     assert.equal(h.calls[kind === 'image' ? 'library' : 'file'], 1);
     assert.equal(h.state.busyRef.current, false);
   }
+  for (const uri of ['file:///cache/example.pdf', 'file:///cache-other/example.pdf', 'content://provider/example']) {
+    const h = harness(granted, granted, { pickedUri: uri });
+    await h.add('file'); h.render();
+    assert.equal(h.errorText(), 'Attachment read failed');
+    assert.deepEqual(h.deletions, uri.startsWith('file:///cache/') ? [uri] : []);
+  }
+  const voice = harness(granted);
+  await voice.add('audio'); voice.render(); voice.stopRecording();
+  await new Promise(setImmediate); voice.render();
+  assert.equal(voice.errorText(), 'Attachment read failed');
+  assert.deepEqual(voice.deletions, ['file:///cache/voice.m4a']);
   console.log('Passed attachment permissions: contextual grants, denials, blocked prompts, settings recovery, cancellation, errors, and editor locks.');
 };

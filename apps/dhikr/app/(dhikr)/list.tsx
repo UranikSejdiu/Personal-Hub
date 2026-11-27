@@ -1,7 +1,7 @@
 import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { Text } from "../../src/components/ui/Typography";
 import { memo, useState, useCallback, useMemo, useRef } from "react";
-import { ActivityIndicator, BackHandler, FlatList, Pressable, View, type ListRenderItemInfo } from "react-native";
+import { ActivityIndicator, AppState, BackHandler, FlatList, Pressable, View, type ListRenderItemInfo } from "react-native";
 import Animated, { useAnimatedRef } from "react-native-reanimated";
 import Sortable, { type OrderChangeParams, type SortableGridRenderItemInfo, type SortableGridDragEndParams } from "react-native-sortables";
 import { Check, MoreHorizontal, GripVertical, Pencil, Trash2 } from "../../src/components/AppIcons";
@@ -11,7 +11,7 @@ import { AnchoredMenu, useAnchoredMenu } from "../../src/components/ui/AnchoredM
 import { useRouter, useFocusEffect } from "expo-router";
 import { toast } from "sonner-native";
 import { useHaptics } from "../../src/hooks/useHaptics";
-import { loadDhikrs, deleteDhikr, reorderDhikrs, flushDhikrWrites, type Dhikr } from "../../src/lib/dhikr";
+import { loadDhikrs, deleteDhikr, reorderDhikrs, flushDhikrWrites, todayDate, type Dhikr } from "../../src/lib/dhikr";
 import { setSelectedDhikrId, clearSelectedDhikrIdIfMissing } from "../../src/lib/dhikrSelection";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { DhikrModal } from "../../src/components/DhikrModal";
@@ -32,8 +32,9 @@ function applyOrder(items: Dhikr[], order: number[]): Dhikr[] {
   );
 }
 
-const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging = false, saving, onMove, onEdit, onDelete, onSelect }: {
+const DhikrListRow = memo(function DhikrListRow({ item, today, index, count, arranging = false, saving, onMove, onEdit, onDelete, onSelect }: {
   item: Dhikr;
+  today: string;
   index: number;
   count: number;
   arranging?: boolean;
@@ -48,8 +49,9 @@ const DhikrListRow = memo(function DhikrListRow({ item, index, count, arranging 
   const { triggerRef, anchor, open, close } = useAnchoredMenu();
   const dailyLimit = item.daily_limit;
   const hasGoal = dailyLimit != null && dailyLimit > 0;
-  const goalComplete = hasGoal && item.daily_count >= dailyLimit;
-  const dailyCount = item.daily_count.toLocaleString("en");
+  const countToday = item.last_reset_date < today ? 0 : item.daily_count;
+  const goalComplete = hasGoal && countToday >= dailyLimit;
+  const dailyCount = countToday.toLocaleString("en");
   const total = item.total_count.toLocaleString("en");
 
   return (
@@ -120,6 +122,7 @@ export default function DhikrListScreen() {
   const haptics = useHaptics();
   const colors = useThemeColors();
   const router = useRouter();
+  const [today, setToday] = useState(todayDate);
   const [dhikrs, setDhikrs] = useState<Dhikr[]>([]);
   const [modal, setModal] = useState<ModalState>({ visible: false });
   const [dhikrToDelete, setDhikrToDelete] = useState<Dhikr | null>(null);
@@ -156,6 +159,7 @@ export default function DhikrListScreen() {
     try {
       await pendingSaveRef.current;
       await flushDhikrWrites();
+      if (!focusedRef.current || sequence !== loadSequenceRef.current || operationRef.current !== "idle") return;
       const data = await loadDhikrs();
       if (!focusedRef.current || sequence !== loadSequenceRef.current || operationRef.current !== "idle") return;
       setDhikrs(data);
@@ -172,6 +176,17 @@ export default function DhikrListScreen() {
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     void refresh();
+    let midnight: ReturnType<typeof setTimeout>;
+    const syncDay = () => {
+      clearTimeout(midnight);
+      if (AppState.currentState != null && AppState.currentState !== "active") return;
+      setToday(todayDate());
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      midnight = setTimeout(syncDay, tomorrow.getTime() - now.getTime());
+    };
+    syncDay();
+    const state = AppState.addEventListener("change", syncDay);
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (operationRef.current === "saving") return true;
       if (operationRef.current !== "arranging") return false;
@@ -182,6 +197,8 @@ export default function DhikrListScreen() {
       focusedRef.current = false;
       ++loadSequenceRef.current;
       back.remove();
+      state.remove();
+      clearTimeout(midnight);
       // Leaving the list discards only the preview. A started save still finishes.
       draftOrderRef.current = null;
       setDraftOrder(null);
@@ -315,9 +332,9 @@ export default function DhikrListScreen() {
   }, [dhikrToDelete, dhikrs]);
 
   const renderRow = useCallback((item: Dhikr, index: number, arrangeRow = false) => (
-    <DhikrListRow item={item} index={index} count={displayedDhikrs.length} arranging={arrangeRow} saving={isSaving}
+    <DhikrListRow item={item} today={today} index={index} count={displayedDhikrs.length} arranging={arrangeRow} saving={isSaving}
       onMove={moveDhikr} onEdit={handleEdit} onDelete={handleDelete} onSelect={handleSelect} />
-  ), [displayedDhikrs.length, handleDelete, handleEdit, handleSelect, isSaving, moveDhikr]);
+  ), [displayedDhikrs.length, handleDelete, handleEdit, handleSelect, isSaving, moveDhikr, today]);
   const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Dhikr>) => renderRow(item, index), [renderRow]);
   const renderDragItem = useCallback(({ item, index }: SortableGridRenderItemInfo<Dhikr>) =>
     renderRow(item, positions?.[item.id] ?? index, true), [positions, renderRow]);

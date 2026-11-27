@@ -59,6 +59,7 @@ export default function CounterScreen() {
     let loaded = false;
     try {
       await flushDhikrWrites();
+      if (!focusedRef.current || sequence !== loadSequenceRef.current) return;
       const [rows, savedId] = await Promise.all([loadDhikrs(), getSelectedDhikrId()]);
       if (!focusedRef.current || sequence !== loadSequenceRef.current) return;
       recordsRef.current = new Map(rows.map(row => [row.id, row]));

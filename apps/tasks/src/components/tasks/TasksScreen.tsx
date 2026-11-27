@@ -56,6 +56,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
   }, []);
   const [reminder, setReminder] = useState<Task | null>(null);
   const [reminderIssue, setReminderIssue] = useState<TaskReminderIssue | null>(null);
+  const [remindersVisible, setRemindersVisible] = useState(false);
   const [reminderNow, setReminderNow] = useState(Date.now);
   const reminderId = useRef<number | null>(null);
   const [deletion, setDeletion] = useState<Task | null>(null);
@@ -82,8 +83,9 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     setLoading(true); setFailed(false); setTasks([]); setPaging(false); setPagingFailed(false);
     try {
       await pendingWrite.current;
+      if (!focused.current || request !== sequence.current) return;
       const actualToday = taskDateKey(), targetId = reminderId.current;
-      const eligibleDays = days.filter(isTaskDate);
+      const eligibleDays = mode === "calendar" ? days.filter(isTaskDate) : [];
       const [result, overview, calendarCounts, target] = await Promise.all([
         loadTasksPage({ ...query, today: actualToday }),
         mode === "overview" ? loadTaskOverview(actualToday) : EMPTY_COUNTS,
@@ -112,6 +114,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     const refreshDelivery = () => {
       if (AppState.currentState != null && AppState.currentState !== "active") return;
       const request = ++deliveryRequest;
+      setRemindersVisible(true);
       setReminderNow(Date.now());
       void getTaskReminderIssue().catch(() => null).then(issue => {
         if (request === deliveryRequest) setReminderIssue(issue);
@@ -126,9 +129,9 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
       const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       midnight = setTimeout(() => { void refreshRef.current(); schedule(); }, next.getTime() - now.getTime());
     };
-    const listener = AppState.addEventListener("change", state => { if (state === "active") { void refreshRef.current(); refreshDelivery(); schedule(); } else { ++sequence.current; ++deliveryRequest; stop(); } });
+    const listener = AppState.addEventListener("change", state => { if (state === "active") { void refreshRef.current(); refreshDelivery(); schedule(); } else { setRemindersVisible(false); ++sequence.current; ++deliveryRequest; stop(); } });
     schedule();
-    return () => { focused.current = false; ++sequence.current; ++deliveryRequest; unsubscribe(); listener.remove(); stop(); setEditor(null); setDeletion(null); };
+    return () => { setRemindersVisible(false); focused.current = false; ++sequence.current; ++deliveryRequest; unsubscribe(); listener.remove(); stop(); setEditor(null); setDeletion(null); };
   }, [setEditor]));
 
   useEffect(() => {
@@ -148,6 +151,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
   }, [taskId, router]);
   useEffect(() => { if (reminder) listRef.current?.scrollToOffset({ offset: 0, animated: true }); }, [reminder]);
   useEffect(() => {
+    if (!remindersVisible) return;
     let next = reminder ? upcomingTaskReminder(reminder, reminderNow)?.getTime() ?? Infinity : Infinity;
     for (const task of tasks) {
       next = Math.min(next, upcomingTaskReminder(task, reminderNow)?.getTime() ?? Infinity);
@@ -156,7 +160,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     // One timer for the list, so a reminder stops looking upcoming once its time passes.
     const timer = setTimeout(() => setReminderNow(Date.now()), Math.max(1, Math.min(next - Date.now(), 2_147_483_647)));
     return () => clearTimeout(timer);
-  }, [tasks, reminder, reminderNow]);
+  }, [tasks, reminder, reminderNow, remindersVisible]);
 
   const perform = useCallback(async (operation: () => Promise<void>, committed?: () => void) => {
     if (writing.current) return;

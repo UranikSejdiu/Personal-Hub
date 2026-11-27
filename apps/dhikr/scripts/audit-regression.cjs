@@ -127,12 +127,14 @@ async function main() {
   await assert.rejects(dhikr.updateDhikr(first.id, { total_count: -1 }), RangeError);
   assert.equal((await dhikr.loadDhikrs())[0].total_count, 42);
   const second = await dhikr.addDhikr('Second', null);
-  await dhikr.reorderDhikrs([second.id, first.id]);
+  const unchanged = await dhikr.addDhikr('Unmoved', null);
+  const beforeMove = sqlite.prepare('SELECT total_changes() AS n').get().n;
+  await dhikr.reorderDhikrs([second.id, first.id, unchanged.id]);
+  await dhikr.reorderDhikrs([second.id, first.id, unchanged.id]);
+  assert.equal(sqlite.prepare('SELECT total_changes() AS n').get().n - beforeMove, 2, 'Only the two moved rows are written across both saves');
+  await dhikr.deleteDhikr(unchanged.id);
   assert.deepEqual((await dhikr.loadDhikrs()).map(row => row.id), [second.id, first.id]);
 
-  await dhikr.incrementDhikr(first.id);
-  assert.equal(await dhikr.undoDhikrTap(first.id, dhikr.todayDate()), true);
-  assert.equal((await dhikr.loadDhikrs()).find(row => row.id === first.id).daily_count, 1);
   // Imported/edited maximum counts must remain safe and exportable after taps.
   await dhikr.updateDhikr(second.id, { total_count: Number.MAX_SAFE_INTEGER - 1 });
   assert.equal(await dhikr.incrementDhikr(second.id), true);

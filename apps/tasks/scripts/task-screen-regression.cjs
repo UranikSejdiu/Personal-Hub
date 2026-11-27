@@ -72,6 +72,7 @@ module.exports = async function verifyScreen(root, load) {
   nodes('AgendaHeading')[0].props.onAdd(); render();
   assert.equal(nodes('TaskEditor')[0].props.initialDate, tomorrow, 'Calendar add uses the selected date');
   nodes('TaskEditor')[0].props.onClose(); render();
+  changeListener(); // Also suspend a refresh queued just before backgrounding.
   app.currentState = 'background'; appListener('background');
   nodes('FlatList')[0].props.onEndReached(); changeListener(); await flush();
   assert.equal(requests.length, 2, 'Background screens do not query or page');

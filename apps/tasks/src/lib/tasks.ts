@@ -13,13 +13,6 @@ export interface TaskPageOptions {
   date?: string;
 }
 
-export async function loadTaskCounts(): Promise<{ open: number; total: number }> {
-  const counts = await db.get<{ open: number; total: number }>(
-    "SELECT COUNT(*) AS total, COUNT(CASE WHEN completed_at IS NULL THEN 1 END) AS open FROM tasks"
-  );
-  return counts ?? { open: 0, total: 0 };
-}
-
 export async function loadTask(id: number): Promise<Task | undefined> {
   return db.get<Task>("SELECT * FROM tasks WHERE id = ?", [id]);
 }
@@ -72,10 +65,6 @@ export async function loadReminderTasks(now = new Date()): Promise<Task[]> {
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   return db.query<Task>(`SELECT * FROM tasks WHERE completed_at IS NULL AND reminder_time IS NOT NULL
     AND (due_date > ? OR (due_date = ? AND reminder_time > ?)) ORDER BY due_date, reminder_time, id`, [today, today, time]);
-}
-
-export async function loadTasks(): Promise<Task[]> {
-  return db.query<Task>("SELECT * FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC");
 }
 
 function inputValues(input: TaskInput): (string | number | null)[] {

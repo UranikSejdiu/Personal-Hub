@@ -80,13 +80,6 @@ function counterFixture(recordCount = 3000) {
         row.total_count++; row.daily_count=daily+1; row.last_reset_date=tapDay;
         return true;
       },
-      async undoDhikrTap(id, tapDay) {
-        const row=persisted.get(id);
-        if (!row.total_count) return false;
-        row.total_count--;
-        if (row.last_reset_date===tapDay) row.daily_count--;
-        return true;
-      },
       async resetDhikr(id) {
         if(failReset) { failReset=false; throw new Error('Reset failed'); }
         if(resetGate) await resetGate.promise;

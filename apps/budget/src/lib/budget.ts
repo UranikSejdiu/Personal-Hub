@@ -1,6 +1,6 @@
 import * as db from "./db";
 import { syncMonthlyAutoDeposit } from "./savings";
-import { creditCardDetails, creditCardFields, creditCardPaymentForMonth, creditCardScheduledMonths, isCreditCardActive, isCreditCardMonth, isCreditCardScheduleValid, isCreditCardValid, type CreditCardSlot } from "./creditCards";
+import { creditCardDetails, creditCardPaymentForMonth, creditCardScheduledMonths, isCreditCardMonth, isCreditCardScheduleValid, isCreditCardValid } from "./creditCards";
 import { MAX_LOAN_AMOUNT, MAX_LOAN_ANNUAL_RATE, MAX_LOAN_TERM_MONTHS, pmt } from "./calculations";
 import { allPaidRepayments, clearRepaymentsForMonth, listRepaymentPlans, repaymentForMonth, type RepaymentPlan } from "./repaymentPlans";
 import {
@@ -181,17 +181,6 @@ export async function saveLoans(
   );
 }
 
-/** Update a single name without committing any other unsaved form fields. */
-export async function saveDebtName(slot: "loan" | CreditCardSlot, name: string): Promise<void> {
-  const cleanName = name.trim();
-  if (cleanName.length > 100) throw new Error("Name is too long");
-  const column = slot === "loan" ? "loan_name" : slot === 1 ? "cc_name" : "cc2_name";
-  await db.execute(
-    `INSERT INTO loans (id, ${column}) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET ${column} = excluded.${column}, updated_at = datetime('now')`,
-    [cleanName]
-  );
-}
-
 /**
  * Flip this month's "loan payment" flag and the matching months counter in a
  * single transaction so the pair can never drift apart if the app is
@@ -240,31 +229,6 @@ export async function applyLoanPaidToggle(
     await saveBudget(month, budget.income, newLoanPaid, budget.cc_paid, tx);
     await tx.execute("UPDATE budgets SET loan_counter_incremented = ? WHERE id = ?", [counted, budget.id]);
     return { loans: updatedLoans, budget };
-  });
-}
-
-/** Same as {@link applyLoanPaidToggle} for the credit-card payment flag. */
-export async function applyCcPaidToggle(
-  month: string,
-  newCcPaid: boolean,
-  slot: CreditCardSlot = 1
-): Promise<{ loans: Loans; budget: Budget }> {
-  return db.withTransaction(async (tx) => {
-    const loans = await loadLoans(tx);
-    const budget = await loadBudget(month, tx);
-    if (!budget) throw new Error("Budget not found for month.");
-    const paidKey = slot === 1 ? "cc_paid" : "cc2_paid";
-    if (budget[paidKey] === newCcPaid) return { loans, budget };
-    const card = creditCardDetails(loans, slot);
-    if (newCcPaid && (!isCreditCardActive(card, month) || creditCardPaymentForMonth(card, month) <= 0)) {
-      throw new Error("No credit card payment scheduled for this month");
-    }
-    const monthsPaid = Math.max(0, card.monthsPaid + (newCcPaid ? 1 : -1));
-    const updatedLoans = { ...loans, ...creditCardFields(slot, { ...card, monthsPaid }) };
-    await saveLoans(updatedLoans, tx);
-
-    await tx.execute(`UPDATE budgets SET ${paidKey} = ?, updated_at = datetime('now') WHERE id = ?`, [newCcPaid ? 1 : 0, budget.id]);
-    return { loans: updatedLoans, budget: { ...budget, [paidKey]: newCcPaid } };
   });
 }
 
@@ -323,17 +287,6 @@ function validateMonthPreferences(month: string, income: number, goalAmount: num
 // ---------------------------------------------------------------------------
 // Recurring expenses (templates)
 // ---------------------------------------------------------------------------
-
-export async function listRecurringExpenses(): Promise<RecurringExpense[]> {
-  const rows = await db.query<Record<string, unknown>>(
-    "SELECT * FROM recurring_expenses ORDER BY id"
-  );
-  return rows.map((row) => ({
-    id: Number(row.id),
-    category: String(row.category),
-    amount: Number(row.amount) || 0,
-  }));
-}
 
 export async function setExpenseRecurring(
   expenseId: number,

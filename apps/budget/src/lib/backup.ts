@@ -1,3 +1,4 @@
+import { repairLegacyJanuaryClosings } from "./savingsClosing";
 import * as db from "./db";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -173,6 +174,7 @@ async function replace(json: string, recovery: boolean): Promise<{ preferencesRe
         else await tx.execute("INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)", [table, sequence]);
       }
       await migrateLegacyRepayments(tx);
+      await repairLegacyJanuaryClosings(tx);
       // Validate the records actually written before committing the replacement.
       await snapshot(tx);
     });
