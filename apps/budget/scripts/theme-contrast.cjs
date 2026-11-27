@@ -45,9 +45,15 @@ for (const theme of ["light", "dark"]) {
     const colors = getThemeColors(theme);
     for (const [key, value] of Object.entries(colors)) {
       const [red, green, blue] = rgb(value);
+      if (["deposit", "depositContainer", "withdraw", "withdrawContainer"].includes(key)) continue;
       assert.ok(red === green && green === blue, `${theme}: ${key} must be monochrome`);
     }
     const pairs = [];
+    for (const type of ["deposit", "withdraw"]) {
+      for (const background of ["surface", "surfaceContainerHigh", type + "Container"]) {
+        pairs.push([type + " on " + background, rgb(colors[type]), rgb(colors[background])]);
+      }
+    }
     for (const background of ["background", "card", "surface", "muted", "surfaceContainer", "surfaceContainerHigh"]) {
       for (const foreground of ["foreground", "mutedForeground", "primary", "success", "destructive"]) {
         pairs.push([`${foreground} on ${background}`, rgb(colors[foreground]), rgb(colors[background])]);

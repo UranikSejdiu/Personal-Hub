@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { Text } from "../../src/components/ui/Typography";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, ScrollView, Keyboard, Pressable, FlatList, type ScrollViewProps } from "react-native";
@@ -32,8 +33,8 @@ import { CustomExpensesHeader, CustomExpenseRow } from "../../src/components/Cus
 import { MonthlySummarySection } from "../../src/components/MonthlySummarySection";
 import { ExpenseEditor } from "../../src/components/ExpenseEditor";
 import { BudgetMonthEditor } from "../../src/components/BudgetMonthEditor";
-import { Button, IconButton } from "../../src/components/ui/Button";
-import { ArrowLeft, Pencil, ChevronLeft, ChevronRight, Copy } from "../../src/components/AppIcons";
+import { IconButton } from "../../src/components/ui/Button";
+import { ArrowLeft, Pencil } from "../../src/components/AppIcons";
 import { ConfirmDialog } from "../../src/components/ConfirmDialog";
 import { formatCurrency } from "../../src/lib/utils";
 
@@ -92,7 +93,7 @@ export default function BudgetScreen() {
       } catch {
         // Keep optimistic values when reload also fails; user sees the toast.
       }
-      toast.error("Failed to update expense.");
+      toast.error("Failed to update expense.", actionErrorOptions);
     }
   }, []);
 
@@ -222,7 +223,7 @@ export default function BudgetScreen() {
       });
       toast.success(nextPaid ? "Marked paid" : "Marked unpaid");
     } catch {
-      toast.error("Failed to update loan.");
+      toast.error("Failed to update loan.", actionErrorOptions);
     } finally {
       toggleInFlightRef.current = false;
     }
@@ -267,7 +268,7 @@ export default function BudgetScreen() {
               )
             );
           }
-          toast.error("Failed to update expense.");
+          toast.error("Failed to update expense.", actionErrorOptions);
         }
       }
     },
@@ -292,7 +293,7 @@ export default function BudgetScreen() {
             prev.map((e) => (e.id === expense.id ? prevExpense : e))
           );
         }
-        toast.error("Failed to update expense.");
+        toast.error("Failed to update expense.", actionErrorOptions);
       }
     },
     [flushAllExpenseUpdates]
@@ -312,7 +313,7 @@ export default function BudgetScreen() {
             restored = true;
             if (budgetIdRef.current === expense.budget_id) setExpenses(current => [...current.filter(item => item.id !== expense.id), expense].sort((a, b) => a.id - b.id));
             toast.success("Expense restored");
-          }).catch(() => toast.error("Could not restore expense. Try again.")).finally(() => { restoring = false; });
+          }).catch(() => toast.error("Could not restore expense. Try again.", actionErrorOptions)).finally(() => { restoring = false; });
         } } });
         cancelExpenseUpdate(id);
         setExpenses((curr) => curr.filter((e) => e.id !== id));
@@ -320,7 +321,7 @@ export default function BudgetScreen() {
         setExpenseEditor(current => current?.expense?.id === id ? null : current);
 
       } catch {
-        toast.error("Failed to remove expense.");
+        toast.error("Failed to remove expense.", actionErrorOptions);
       }
     },
     [cancelExpenseUpdate, flushAllExpenseUpdates]
@@ -345,7 +346,7 @@ export default function BudgetScreen() {
         `Copied data from ${previousMonthLabel}`
       );
     } catch {
-      toast.error("No previous budget found");
+      toast.error("No previous budget found", actionErrorOptions);
     }
   }, [month, previousMonth, previousMonthLabel, loading, flushAllExpenseUpdates]);
 
@@ -370,16 +371,18 @@ export default function BudgetScreen() {
 
   // Keep checkboxes in place while marking several payments. Sorting by paid
   // state moves a different record into the position the user just tapped.
-  const activePayments = useMemo(() => repayments.filter(plan => repaymentForMonth(plan, month) > 0), [repayments, month]);
+  const activePayments = useMemo(() => repayments.map(plan => ({ plan, amount: repaymentForMonth(plan, month) }))
+    .filter(({ amount }) => amount > 0), [repayments, month]);
+  const unpaidPayments = activePayments.reduce((sum, { plan, amount }) => paidRepayments.has(plan.id) ? sum : sum + amount, 0);
   const editExpense = useCallback((expense: Expense) => setExpenseEditor({ expense }), []);
   const paymentCount = expenses.length + activePayments.length;
-  const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(plan => paidRepayments.has(plan.id)).length;
+  const paidCount = expenses.filter(expense => expense.paid).length + activePayments.filter(({ plan }) => paidRepayments.has(plan.id)).length;
 
   if (loadError || loading || !loans || !budget || !monthSummary) {
     if (loadError) {
       return (
         <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-          <View className="w-full max-w-md self-center items-center gap-4 p-4 pb-6 pt-20">
+          <View className="w-full items-center gap-4 px-page pb-6 pt-20">
             <Text className="text-center text-sm text-destructive">{loadError}</Text>
             <Pressable
               onPress={() => {
@@ -405,7 +408,7 @@ export default function BudgetScreen() {
     }
     return (
       <ScrollView className="flex-1 bg-background" keyboardDismissMode="on-drag" onTouchStart={() => Keyboard.dismiss()}>
-        <View className="w-full max-w-md self-center gap-4 px-5 pt-4 pb-6">
+        <View className="w-full gap-4 px-page pt-4 pb-6">
           <View className="flex-row items-center justify-between">
             <View className="h-8 w-48 animate-pulse rounded bg-muted" />
             <View className="h-9 w-40 animate-pulse rounded bg-muted" />
@@ -435,7 +438,7 @@ export default function BudgetScreen() {
   return (
     <><FlatList
       className="flex-1 bg-background"
-      contentContainerClassName="w-full max-w-md self-center px-5 pt-4 pb-6"
+      contentContainerClassName="w-full px-page pt-4 pb-6"
       data={expenses}
       keyExtractor={(expense) => String(expense.id)}
       renderScrollComponent={renderBudgetScroll}
@@ -446,17 +449,15 @@ export default function BudgetScreen() {
       windowSize={7}
       removeClippedSubviews={false}
       renderItem={({ item, index }) => (
-        <View className="border-x border-border bg-surface px-2">
+        <View className={`border-x border-border bg-surface px-2 ${index === 0 ? "mt-2.5 rounded-t-[24px] border-t" : ""} ${index === expenses.length - 1 ? "rounded-b-[24px] border-b" : ""}`}>
           <CustomExpenseRow expense={item} isLast={index === expenses.length - 1} onUpdate={handleUpdateExpense} onRemove={askRemoveExpense} onToggleRecurring={handleToggleRecurring} onEdit={editExpense} />
         </View>
       )}
       ListHeaderComponent={
         <View className="gap-4">
-          <View className="flex-row items-center">
-            <IconButton icon={ArrowLeft} accessibilityLabel="Back to months" onPress={() => router.replace("/(budget)")} />
+          <View className="flex-row items-center gap-1.5">
+            <IconButton className="bg-secondary-container" icon={ArrowLeft} accessibilityLabel="Back to months" onPress={() => router.replace("/(budget)")} />
             <Text accessibilityRole="header" className="min-w-0 flex-1 text-title-large font-semibold text-foreground">{monthLabel(month)}</Text>
-            <IconButton icon={ChevronLeft} accessibilityLabel="Previous month" onPress={() => router.setParams({ month: previousMonth })} />
-            <IconButton icon={ChevronRight} accessibilityLabel="Next month" onPress={() => router.setParams({ month: addMonths(month, 1) })} />
           </View>
           <View className="gap-3 rounded-[28px] border border-border bg-surface-container p-5">
             <View className="flex-row items-center">
@@ -465,6 +466,9 @@ export default function BudgetScreen() {
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontVariant: ["tabular-nums"] }}
                   className={`text-[34px] font-semibold ${monthSummary.actualRemaining < 0 ? "text-destructive" : "text-foreground"}`}>
                   {formatCurrency(monthSummary.actualRemaining)}
+                </Text>
+                <Text className={`mt-1 text-sm ${monthSummary.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                  {`${formatCurrency(Math.abs(monthSummary.remaining))} ${monthSummary.remaining < 0 ? "short" : "left"} after bills`}
                 </Text>
               </View>
               <IconButton icon={Pencil} accessibilityLabel="Edit income and savings target" onPress={() => setEditingMonth(true)} />
@@ -477,18 +481,18 @@ export default function BudgetScreen() {
               </View>
             </View>}
           </View>
-          <CustomExpensesHeader expenses={expenses} onAdd={() => { setExpenseEditor({}); }} />
+          <CustomExpensesHeader expenses={expenses} onAdd={() => setExpenseEditor({})} onCopy={hasPreviousBudget ? () => setConfirmCopy(true) : undefined} />
         </View>
       }
       ListFooterComponent={
-        <View className="gap-4">
-          <View className="rounded-b-[24px] border-x border-b border-border bg-surface px-2 pb-1">
-            {hasPreviousBudget && <Button className="self-start" variant="text" icon={Copy} label="Copy from previous month" onPress={() => setConfirmCopy(true)} />}
-          </View>
+        <View className="mt-4 gap-4">
           {activePayments.length > 0 && <View className="gap-2.5">
-            <Text accessibilityRole="header" className="text-base font-semibold text-foreground">{"Loan & card payments"}</Text>
-            <View className="rounded-[24px] border border-border bg-surface px-4">
-              {activePayments.map((plan, index) => <RepaymentPaymentSection key={plan.id} plan={plan} month={budget.month} paid={paidRepayments.has(plan.id)} last={index === activePayments.length - 1} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
+            <View className="flex-row flex-wrap items-baseline gap-x-2">
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">{"Loan & card payments"}</Text>
+              <Text className="text-label-medium text-muted-foreground">{`${formatCurrency(unpaidPayments)} unpaid`}</Text>
+            </View>
+            <View className="rounded-[24px] border border-border bg-surface px-2">
+              {activePayments.map(({ plan, amount }, index) => <RepaymentPaymentSection key={plan.id} plan={plan} payment={amount} paid={paidRepayments.has(plan.id)} last={index === activePayments.length - 1} onToggle={() => { void handleRepaymentToggle(plan.id); }} />)}
             </View>
           </View>}
           <MonthlySummarySection budget={budget} expenses={expenses} loans={loans}

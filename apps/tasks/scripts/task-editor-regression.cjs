@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 module.exports = async function verifyEditor(root, load) {
+  let pickedTime = null;
   let settingsOpened = 0;
   let settingsFailure = false;
   const dates = load(path.join(root, 'src/lib/taskDates.ts'));
@@ -27,6 +28,10 @@ module.exports = async function verifyEditor(root, load) {
 
       '../../lib/theme': { useThemeColors: () => ({}), useThemeVariables: () => ({}) },
       '../../lib/taskDates': dates,
+      '../../lib/reminderAccess': {
+        reminderClock: () => ({ pickTime: async () => pickedTime }),
+        formatReminderTime: time => time,
+      },
       '../../lib/taskReminders': { taskReminderDate: reminders.taskReminderDate, requestTaskReminderPermission: permission },
       '../DatePicker': { DatePicker: 'DatePicker' },
       '../AppIcons': { X: 'X', ChevronDown: 'ChevronDown', CalendarDays: 'CalendarDays', List: 'List', Repeat: 'Repeat', Bell: 'Bell' },
@@ -61,6 +66,10 @@ module.exports = async function verifyEditor(root, load) {
   const task = { id: 7, title: 'Existing', notes: 'Keep notes', list_id: 9, priority: 2, due_date: '2020-01-31', repeat: 'monthly', reminder_time: '08:30', completed_at: null };
   const saved = []; let closed = 0;
   const view = editor({ task, onSave: async (...args) => saved.push(args), onClose: () => closed++ });
+  view.field('Date (optional)').onPress(); view.render();
+  const datePicker = view.nodes(node => node.type === 'DatePicker')[0].props;
+  assert.equal(datePicker.minimumDate, dates.taskDateKey(), 'The date picker starts scheduling from local today');
+  datePicker.onChange('2020-01-30'); datePicker.onClose(); view.render();
   view.input('Task name').onChangeText('Renamed'); view.render();
   view.button('Save').onPress(); await new Promise(setImmediate); view.render();
   assert.equal(saved.length, 1);
@@ -85,7 +94,9 @@ module.exports = async function verifyEditor(root, load) {
   managed.input('Task name').onChangeText('Managed task');managed.input('Notes (optional)').onChangeText('Keep these notes');managed.render();
   managed.field('Repeat').onPress();managed.render();managed.picker().actions.find(action=>action.key==='weekly').onPress();managed.render();
   managed.nodes(node=>node.type==='Switch')[0].props.onValueChange(true);await new Promise(setImmediate);managed.render();
-  managed.input('Time (24-hour)').onChangeText('14:35');managed.render();managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
+  managed.button('09:00').onPress();await new Promise(setImmediate);managed.render();
+  assert.ok(managed.button('09:00'), 'Cancelling the picker preserves the value');
+  pickedTime='14:35';managed.button('09:00').onPress();await new Promise(setImmediate);managed.render();managed.button('Save').onPress();await new Promise(setImmediate);managed.render();
   assert.deepEqual(JSON.parse(JSON.stringify(inputs.at(-1))),{title:'Managed task',notes:'Keep these notes',due_date:'2099-05-04',repeat:'weekly',reminder_time:'14:35'});
   managed.button('No date').onPress();managed.render();
   assert.equal(managed.nodes(node => node.props.accessibilityLabel === 'Repeat' || node.props.accessibilityLabel === 'Reminder').length, 0,

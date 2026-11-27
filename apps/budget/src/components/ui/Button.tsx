@@ -7,6 +7,8 @@ import { cn } from "../../lib/utils";
 import { Text } from "./Typography";
 
 const VARIANTS = {
+  deposit: { container: "bg-deposit-container", label: "text-deposit", color: "deposit" },
+  withdraw: { container: "bg-withdraw-container", label: "text-withdraw", color: "withdraw" },
   primary: { container: "bg-primary", label: "text-primary-foreground", color: "primaryForeground" },
   secondary: { container: "border border-outline", label: "text-primary", color: "primary" },
   tonal: { container: "bg-secondary-container", label: "text-on-secondary-container", color: "onSecondaryContainer" },

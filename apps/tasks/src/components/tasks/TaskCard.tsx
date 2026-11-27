@@ -1,11 +1,13 @@
-import { memo, useState } from "react";
+import { actionErrorOptions } from "../../lib/actionErrorOptions";
+import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { toast } from "sonner-native";
 import { Text } from "../ui/Typography";
-import { Bell, CalendarDays, ChevronRight, MoreHorizontal, Repeat } from "../AppIcons";
+import { Bell, CalendarDays, ChevronRight, MoreHorizontal, Repeat, Check, RotateCcw, Trash2, Pencil } from "../AppIcons";
 import { Checkbox } from "../ui/Checkbox";
 import { IconButton } from "../ui/Button";
-import { ActionDialog } from "../ui/ActionDialog";
+import { AnchoredMenu, useAnchoredMenu } from "../ui/AnchoredMenu";
+import { formatReminderTime } from "../../lib/reminderAccess";
 import { localTaskDate } from "../../lib/taskCalendar";
 import { openTaskReminderIssueSettings, upcomingTaskReminder, type TaskReminderIssue } from "../../lib/taskReminders";
 import { useThemeColors } from "../../lib/theme";
@@ -19,18 +21,19 @@ const REMINDER_ISSUES: Record<TaskReminderIssue, string> = {
   alarms: "Exact alarms are off · Reminder may be late",
 };
 
-export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue, busy, onToggle, onEdit, onDelete, expanded = false, agenda = false }: {
+export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue, busy, onToggle, onEdit, onDelete, onMove, expanded = false, agenda = false }: {
   task: Task; today: string; busy: boolean; expanded?: boolean; agenda?: boolean;
   now: number; reminderIssue: TaskReminderIssue | null;
+  onMove: (task: Task) => void;
   onToggle: (task: Task) => void; onEdit: (task: Task) => void; onDelete: (task: Task) => void;
 }) {
   const colors = useThemeColors();
-  const [menu, setMenu] = useState(false);
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
   const completed = task.completed_at !== null;
   const overdue = !completed && task.due_date !== null && task.due_date < today;
   const date = task.due_date ? task.due_date === today ? "Today" : localTaskDate(task.due_date).toLocaleDateString("en", { month: "short", day: "numeric" }) : null;
   const reminder = upcomingTaskReminder(task, now);
-  const reminderTime = reminder?.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const reminderTime = reminder && task.reminder_time ? formatReminderTime(task.reminder_time) : null;
   const dateLabel = reminderTime ? `${agenda || !date ? "" : `${date} · `}Reminder ${reminderTime}` : agenda ? null : date;
   const dateOnRight = !agenda && !expanded && !reminderTime && task.repeat === "none" && Boolean(date);
   return <View className={cn(
@@ -39,7 +42,7 @@ export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue
   )}>
     <View className="min-h-[48px] flex-row items-center">
       <Checkbox checked={completed} disabled={busy} onPress={() => onToggle(task)} accessibilityLabel={completed ? `Reopen ${task.title}` : `Complete ${task.title}`} />
-      <Pressable onPress={() => { if (!completed) onEdit(task); else setMenu(true); }} onLongPress={() => setMenu(true)} disabled={busy}
+      <Pressable onPress={() => { if (!completed) onEdit(task); else open(); }} onLongPress={open} disabled={busy}
         accessibilityRole="button" accessibilityLabel={completed ? `${task.title}, completed, task options` : `Edit ${task.title}`}
         accessibilityHint={dateOnRight && date ? `${overdue ? "Overdue, " : "Due "}${date}` : undefined}
         className="min-h-[48px] min-w-0 flex-1 justify-center py-1 active:opacity-70">
@@ -59,20 +62,23 @@ export const TaskCard = memo(function TaskCard({ task, today, now, reminderIssue
           </View>}
         </View>}
       </Pressable>
-      <IconButton icon={MoreHorizontal} disabled={busy} onPress={() => setMenu(true)} accessibilityLabel={`Actions for ${task.title}`} />
+      <View ref={triggerRef} collapsable={false}>
+        <IconButton icon={MoreHorizontal} disabled={busy} onPress={open} accessibilityLabel={`Actions for ${task.title}`} />
+      </View>
     </View>
     {reminder && reminderIssue && (
       <Pressable accessibilityRole="button" accessibilityHint="Opens Android settings" disabled={busy}
-        onPress={() => { void openTaskReminderIssueSettings(reminderIssue).catch(() => toast.error("Couldn’t open reminder settings.")); }}
+        onPress={() => { void openTaskReminderIssueSettings(reminderIssue).catch(() => toast.error("Couldn’t open reminder settings.", actionErrorOptions)); }}
         className="mx-2 min-h-[48px] flex-row items-center gap-2 border-t border-border/60 py-2 active:opacity-70 disabled:opacity-50">
         <Text className="min-w-0 flex-1 text-xs font-medium text-primary">{REMINDER_ISSUES[reminderIssue]}</Text>
         <ChevronRight size={14} color={colors.primary} />
       </Pressable>
     )}
-    <ActionDialog visible={menu} title={task.title} onClose={() => setMenu(false)} actions={[
-      ...(!completed ? [{ key: "edit", label: "Edit task", primary: true, onPress: () => onEdit(task) }] : []),
-      { key: "toggle", label: completed ? `Reopen ${task.title}` : `Complete ${task.title}`, onPress: () => onToggle(task) },
-      { key: "delete", label: "Delete", onPress: () => onDelete(task) },
+    <AnchoredMenu anchor={anchor} onClose={close} items={[
+      ...(!completed ? [{ key: "edit", label: "Edit task", icon: Pencil, onPress: () => onEdit(task) }] : []),
+      { key: "toggle", label: completed ? "Reopen" : "Mark complete", icon: completed ? RotateCcw : Check, onPress: () => onToggle(task) },
+      ...(!completed ? [{ key: "tomorrow", label: "Move to tomorrow", icon: CalendarDays, onPress: () => onMove(task) }] : []),
+      { key: "delete", label: "Delete", icon: Trash2, destructive: true, onPress: () => onDelete(task) },
     ]} />
   </View>;
 });

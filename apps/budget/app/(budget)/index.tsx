@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { Text } from "../../src/components/ui/Typography";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, View, FlatList, Pressable, StyleSheet } from "react-native";
@@ -41,7 +42,10 @@ export default function DashboardScreen() {
   const colors = useThemeColors();
   const thisMonth = currentMonth();
   const currentSummary = summaries.find((summary) => summary.month === thisMonth);
-  const otherMonths = summaries.filter((summary) => summary.month !== thisMonth);
+  const upcoming = summaries.filter(summary => summary.month > thisMonth).reverse();
+  const previous = summaries.filter(summary => summary.month < thisMonth);
+  const firstUpcoming = upcoming[0]?.month;
+  const firstPrevious = previous[0]?.month;
 
   const refresh = useCallback(async () => {
     const request = ++refreshRequest.current;
@@ -110,7 +114,7 @@ export default function DashboardScreen() {
       await refresh();
 
     } catch {
-      toast.error("Failed to delete budget.");
+      toast.error("Failed to delete budget.", actionErrorOptions);
     }
   }, [monthToDelete, refresh]);
 
@@ -119,15 +123,19 @@ export default function DashboardScreen() {
     else setCreatingMonth(month);
   }, [summaries, openBudgetMonth]);
 
-  const renderMonth = useCallback(
-    ({ item }: { item: MonthSummary }) => (
+  const renderMonth = ({ item }: { item: MonthSummary }) => (
+    <View className="gap-3">
+      {(item.month === firstUpcoming || item.month === firstPrevious) && (
+        <Text accessibilityRole="header" className="text-base font-semibold text-foreground">
+          {item.month === firstUpcoming ? "Upcoming" : "Previous months"}
+        </Text>
+      )}
       <BudgetMonthCard
         summary={item}
         onOpen={() => openBudgetMonth(item.month)}
         onDelete={() => setMonthToDelete(item.month)}
       />
-    ),
-    [openBudgetMonth]
+    </View>
   );
 
   const addExpense = (
@@ -150,15 +158,17 @@ export default function DashboardScreen() {
   return (
     <View className="flex-1 bg-background">
       <FlatList
-        className="w-full max-w-md self-center"
+        className="w-full"
         style={styles.list}
-        data={loadState === "ready" ? otherMonths : []}
+        data={loadState === "ready" ? [...upcoming, ...previous] : []}
         keyExtractor={(item) => item.month}
         renderItem={renderMonth}
+        contentContainerClassName="px-page"
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View className="gap-4">
             <HubHeader />
+            {loadState === "ready" && currentSummary && <Text accessibilityRole="header" className="text-base font-semibold text-foreground">This month</Text>}
 
             {loadState === "loading" ? (
               <View className="flex-row items-center justify-center gap-3 py-10" accessibilityLiveRegion="polite">
@@ -207,9 +217,6 @@ export default function DashboardScreen() {
               </Pressable>
             )}
             {loadState === "ready" && <Button className="self-start" variant="secondary" icon={Plus} label="Next month" onPress={() => { setQuickExpense(false); handleCreateMonth(addMonths(thisMonth, 1)); }} />}
-            {loadState === "ready" && otherMonths.length > 0 && (
-              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Previous months</Text>
-            )}
           </View>
         }
       />
@@ -246,6 +253,6 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 12 },
+  listContent: { paddingTop: 16, paddingBottom: 16, gap: 12 },
   amount: { fontVariant: ["tabular-nums"] },
 });

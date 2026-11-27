@@ -237,6 +237,36 @@ const plain = value => JSON.parse(JSON.stringify(value));
       await require('./attachment-permissions-regression.cjs')(root);
     const notes = load(path.join(root, 'src/lib/notes.ts'));
     await require('./attachments-regression.cjs')(notes, db, backup);
+    const { draftSession, listDrafts } = load(path.join(root, 'src/lib/noteDrafts.ts'));
+    const media = [{ id: 'draft-file', name: 'hello.txt', mimeType: 'text/plain', kind: 'file', base64: 'aGk=' }];
+    for (const kind of ['text', 'checklist']) {
+      const key = kind + ':new-123';
+      const draft = draftSession(kind, null, key);
+      const body = kind === 'text' ? '<p><b>Remember this</b></p>' : JSON.stringify([{text:'Last',checked:false},{text:'First',checked:true}]);
+      const snapshot = { title: 'Latest', pinned: true, body, attachments: media };
+      await Promise.all([draft.write({...snapshot, title: 'First edit'}), draft.write(snapshot)]);
+      const resumed = draftSession(kind, null, key);
+      assert.deepEqual(await resumed.read(), snapshot);
+      assert.equal((await listDrafts()).find(d => d.draft_key === key).title, 'Latest');
+      await assert.rejects(() => resumed.finish(async tx => {
+        await notes.createNote({title:'Rolled back', content:body, is_pinned:false},tx);
+        throw Error('Save interrupted');
+      }));
+      assert.deepEqual(await resumed.read(), snapshot, 'A failed save preserves all recovery data');
+      const final = {...snapshot, title:'Explicit save'};
+      const writing = resumed.write(final);
+      await resumed.finish(tx => kind === 'text'
+        ? notes.createNote({title:final.title, content:body, is_pinned:true, attachments:media},tx)
+        : notes.createChecklistNote({title:final.title, is_pinned:true, attachments:media},JSON.parse(body),tx));
+      await writing;
+      assert.equal(await resumed.read(), undefined, 'Pending edits cannot resurrect a committed draft');
+    }
+    const existingDraft = draftSession('text', literal.id);
+    await existingDraft.write({title:'Unsaved replacement', pinned:false, body:'private draft', attachments:media});
+    assert.notEqual((await notes.getNote(literal.id)).title, 'Unsaved replacement');
+    assert.ok(!JSON.stringify(await backup.buildBackupEnvelope()).includes('private draft'));
+    await backup.importBackup(json);
+    assert.equal(await existingDraft.read(), undefined, 'Restoring a backup cannot attach an old draft to a reused note ID');
     await require('./notes-filter-regression.cjs')(notes, db);
     await backup.importBackup(json);
   }

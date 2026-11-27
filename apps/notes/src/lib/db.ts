@@ -103,6 +103,22 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
         }
         await connection.execAsync("PRAGMA user_version = 4");
       });
+      await connection.withTransactionAsync(async () => {
+        const version = await connection.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+        if ((version?.user_version ?? 0) >= 5) return;
+        await connection.execAsync(`CREATE TABLE IF NOT EXISTS note_drafts (
+          draft_key TEXT PRIMARY KEY, kind TEXT NOT NULL, note_id INTEGER, title TEXT NOT NULL,
+          pinned INTEGER NOT NULL, body TEXT NOT NULL, updated INTEGER NOT NULL
+        )`);
+        await connection.execAsync(`CREATE TABLE IF NOT EXISTS note_draft_media (
+          draft_key TEXT PRIMARY KEY, attachments TEXT NOT NULL
+        )`);
+        await connection.execAsync(`CREATE TRIGGER IF NOT EXISTS note_drafts_delete_media AFTER DELETE ON note_drafts
+          BEGIN DELETE FROM note_draft_media WHERE draft_key = old.draft_key; END`);
+        await connection.execAsync(`CREATE TRIGGER IF NOT EXISTS notes_discard_draft AFTER DELETE ON notes
+          BEGIN DELETE FROM note_drafts WHERE note_id = old.id; END`);
+        await connection.execAsync("PRAGMA user_version = 5");
+      });
       notesFtsEnabled = Boolean(await connection.getFirstAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts'"));
       db = connection;
       return connection;

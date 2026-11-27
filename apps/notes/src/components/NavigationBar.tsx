@@ -6,6 +6,7 @@ import Svg, { Rect } from "react-native-svg";
 import type { AppIconProps } from "./AppIcons";
 import { Text } from "./ui/Typography";
 import { useThemeColors } from "../lib/theme";
+import { usePageMargins } from "../lib/usePageMargins";
 import { cn } from "../lib/utils";
 
 export interface NavigationDestination {
@@ -23,6 +24,7 @@ interface NavigationBarProps {
 export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+  const pageMargins = usePageMargins();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
 
   if (keyboardVisible) return null;
@@ -33,13 +35,11 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
         backgroundColor: colors.background,
         paddingTop: 4,
         paddingBottom: insets.bottom + 8,
-        paddingLeft: insets.left + 20,
-        paddingRight: insets.right + 20,
       }}
     >
       <View
         accessibilityRole="tablist"
-        style={[styles.track, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[styles.track, pageMargins, { backgroundColor: colors.surface, borderColor: colors.border }]}
       >
         {tabs.map(({ id, label, icon: Icon }) => {
           const selected = id === activeTabId;
@@ -75,9 +75,6 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
 
 const styles = StyleSheet.create({
   track: {
-    alignSelf: "center",
-    width: "100%",
-    maxWidth: 408,
     flexDirection: "row",
     gap: 4,
     padding: 4,

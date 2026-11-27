@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { useCallback, useRef, useState } from "react";
 import { ScrollView, View, Switch, Pressable, Linking, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -25,7 +26,7 @@ export default function SettingsScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     void getHapticsEnabled().then(value => { if (active) setHaptics(value); })
-      .catch(() => toast.error("Failed to load data."));
+      .catch(() => toast.error("Failed to load data.", actionErrorOptions));
     return () => { active = false; };
   }, []));
 
@@ -98,7 +99,7 @@ export default function SettingsScreen() {
                   busyRef.current = true;
                   setBusy(true);
                   void setHapticsEnabled(value).then(() => setHaptics(value))
-                    .catch(() => toast.error("Failed to save.")).finally(() => {
+                    .catch(() => toast.error("Failed to save.", actionErrorOptions)).finally(() => {
                       busyRef.current = false;
                       setBusy(false);
                     });
@@ -120,7 +121,7 @@ export default function SettingsScreen() {
             accessible accessibilityRole="button" accessibilityLabel="Manage app permissions"
             onPress={() => {
               if (busyRef.current) return;
-              void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr."));
+              void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Dhikr.", actionErrorOptions));
             }}>
             <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
               <Settings size={18} color={colors.foreground} />
@@ -137,7 +138,7 @@ export default function SettingsScreen() {
             </View>
           )}
           <Pressable accessibilityRole="link" accessibilityLabel="UIcons by Flaticon" className="min-h-[44px] justify-center self-center rounded-lg px-3 active:opacity-70"
-            onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error("Unable to open the link.")); }}>
+            onPress={() => { void Linking.openURL("https://www.flaticon.com/uicons").catch(() => toast.error("Unable to open the link.", actionErrorOptions)); }}>
             <Text className="text-xs text-muted-foreground underline">UIcons by Flaticon</Text>
           </Pressable>
         </View>

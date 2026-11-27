@@ -8,7 +8,12 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
      extend: {
+      spacing: { page: "17px" },
       colors: {
+        deposit: "hsl(var(--deposit))",
+        "deposit-container": "hsl(var(--deposit-container))",
+        withdraw: "hsl(var(--withdraw))",
+        "withdraw-container": "hsl(var(--withdraw-container))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

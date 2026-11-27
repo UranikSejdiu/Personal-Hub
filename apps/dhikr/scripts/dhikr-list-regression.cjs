@@ -1,4 +1,4 @@
-// Exercise the screen's Arrange/Done/Cancel callbacks with delayed and failed SQLite writes.
+// Exercise Arrange, Save order and Cancel with delayed and failed SQLite writes.
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -45,16 +45,19 @@ function fixture(root) {
   const element = (type, props) => ({ type, props });
 
   const mocks = {
+    '../../src/lib/actionErrorOptions': { actionErrorOptions: { duration: Infinity } },
     '../../src/components/ui/Typography': { Text: 'Text', TextInput: 'TextInput' },
     react: hooks,
     'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'react-native': {
-      View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator',
+      FlatList: 'FlatList', View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'ActivityIndicator',
       Alert: {}, BackHandler: { addEventListener: () => ({ remove() {} }) },
     },
+    'react-native-sortables': { default: { Grid: 'DragList', Handle: 'Handle' }, __esModule: true },
     'react-native-reanimated': {
       __esModule: true,
-      default: { FlatList: 'FlatList' },
+      default: { ScrollView: 'ScrollView' },
+      useAnimatedRef: () => hooks.useRef(null),
       LinearTransition: { duration: () => ({}) },
     },
     'expo-router': { useRouter: () => ({ push() {} }), useFocusEffect: fn => { focus = fn; } },
@@ -105,7 +108,7 @@ function fixture(root) {
     if (Array.isArray(node)) return node.map(child => find(child, predicate)).find(Boolean);
     return predicate(node) ? node : find(node.props?.children, predicate);
   };
-  const list = () => find(tree, node => node.type === 'FlatList').props;
+  const list = () => find(tree, node => ['FlatList','DragList'].includes(node.type)).props;
   const button = label => find(tree, node =>
     (node.type === 'Button' && node.props.label === label) ||
     (node.type === 'Pressable' && node.props.accessibilityLabel === label)
@@ -136,7 +139,15 @@ function fixture(root) {
       assert.ok(deleteAction, 'The actions menu must offer delete');
       deleteAction.onPress();
     },
-    order: () => list().data.map(item => item.id),
+    order: () => list().data.map((item, index) => ({
+      id: item.id, position: list().renderItem({ item, index }).props.index
+    })).sort((a, b) => a.position - b.position).map(item => item.id),
+    preview(ids) {
+      list().onOrderChange({ keyToIndex: Object.fromEntries(ids.map((id, index) => [id, index])) });
+    },
+    drop(ids) { list().onDragEnd({ indexToKey: ids.map(String) }); },
+    positions: () => list().data.map((item, index) =>
+      list().renderItem({ item, index }).props.index + 1),
     move(id, direction) {
       const item = list().data.find(value => value.id === id);
       list().renderItem({ item, index: list().data.indexOf(item) }).props.onMove(id, direction);
@@ -154,6 +165,18 @@ module.exports = async function verifyDhikrList(root) {
   assert(screen.rowText(1), 'Today’s count stays visible for dhikrs without a daily limit');
 
   screen.button('Arrange').onPress(); screen.render();
+  const original = screen.list().data;
+  screen.list().onDragStart(2); screen.render();
+  screen.preview([1, 3, 2]); screen.render();
+  assert.deepEqual(screen.positions(), [1, 3, 2]);
+  screen.preview([3, 1, 2]); screen.render();
+  assert.deepEqual(screen.positions(), [2, 3, 1]);
+  assert.equal(screen.list().data, original, 'Preview numbering keeps drag data stable');
+  screen.drop([3, 1, 2]); screen.render();
+  assert.deepEqual(screen.positions(), [2, 3, 1]);
+  assert.equal(screen.list().data, original, 'Dropping keeps the mounted grid in place');
+  assert.deepEqual(screen.order(), [3, 1, 2], 'A drag can cross multiple rows');
+  screen.preview([1, 2, 3]); screen.drop([1, 2, 3]); screen.render();
   screen.move(2, -1); screen.render();
   assert.deepEqual(screen.order(), [2, 1, 3]);
   assert.equal(screen.writes.length, 0, 'Preview moves must not write');
@@ -164,31 +187,46 @@ module.exports = async function verifyDhikrList(root) {
   assert.equal(screen.writes.length, 0);
 
   screen.button('Arrange').onPress(); screen.render();
-  screen.move(2, -1); screen.render();
-  const done = screen.button('Done').onPress(); screen.render();
+  screen.list().onDragStart(0); screen.render();
+  screen.preview([2, 3, 1]); screen.drop([2, 3, 1]); screen.render();
+  assert.deepEqual(screen.order(), [2, 3, 1], 'Dropping keeps the proposed order for another drag');
+  screen.refocus(); await flush(); screen.render();
+  assert.deepEqual(screen.order(), [1, 2, 3], 'Leaving Arrange discards the unsaved drop');
+  assert.equal(screen.writes.length, 0);
+
+  screen.button('Arrange').onPress(); screen.render();
+  screen.list().onDragStart(1); screen.render();
+  screen.preview([1, 3, 2]); screen.render();
+  assert.deepEqual(screen.positions(), [1, 3, 2]);
+  screen.preview([2, 1, 3]); screen.render();
+  assert.deepEqual(screen.positions(), [2, 1, 3], 'Reversing a drag restores crossed rows immediately');
+  await screen.button('Save order').onPress();
+  await screen.button('Save order').onPress();
+  assert.equal(screen.writes.length, 0, 'Saving during a drop waits for its final order');
+  screen.drop([2, 1, 3]); screen.render();
   assert.deepEqual(screen.writes.map(write => write.order), [[2, 1, 3]]);
   screen.move(2, 1);
   screen.button('Cancel').onPress();
   screen.button('Saving…').onPress();
   assert.equal(screen.writes.length, 1, 'Saving must lock additional moves and duplicate writes');
   screen.writes[0].finish();
-  await done; screen.render();
+  await flush(); screen.render();
   assert.deepEqual(screen.order(), [2, 1, 3]);
 
   screen.button('Arrange').onPress(); screen.render();
   screen.move(1, -1); screen.render();
-  const failed = screen.button('Done').onPress(); screen.render();
+  const failed = screen.button('Save order').onPress(); screen.render();
   screen.writes[1].finish(new Error('SQLite write failed'));
   await failed; screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3], 'A failed save keeps its draft visible');
   assert.deepEqual(screen.errors, ['Failed to reorder.']);
-  const retry = screen.button('Done').onPress();
+  const retry = screen.button('Save order').onPress();
   screen.writes[2].finish();
   await retry; screen.render();
   assert.deepEqual(screen.order(), [1, 2, 3]);
   screen.button('Arrange').onPress(); screen.render();
-  await screen.button('Done').onPress(); screen.render();
-  assert.equal(screen.writes.length, 3, 'Done without changes must not write');
+  await screen.button('Save order').onPress(); screen.render();
+  assert.equal(screen.writes.length, 3, 'Saving without changes must not write');
 
   let finishRead;
   screen.setRead(() => new Promise(resolve => { finishRead = resolve; }));

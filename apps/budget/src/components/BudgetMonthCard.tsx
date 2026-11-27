@@ -51,10 +51,13 @@ export const BudgetMonthCard = memo(function BudgetMonthCard({ summary, onOpen, 
           : `Open budget for ${monthName}, planned remaining ${primaryBalance}`}>
         <Text className={cn("font-semibold text-foreground", featured ? "mb-2 text-xl" : "min-w-0 shrink text-base")}>{monthName}</Text>
         {featured && <Text className="text-label-medium text-muted-foreground">Current remaining</Text>}
-        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontVariant: ["tabular-nums"] }}
-          className={cn("font-semibold", featured ? "text-[34px]" : "max-w-[55%] shrink text-right text-base", primaryAmount < 0 ? "text-destructive" : "text-foreground")}>
-          {primaryBalance}
-        </Text>
+        <View className={featured ? "" : "max-w-[55%] shrink items-end"}>
+          {!featured && <Text className="text-label-medium text-muted-foreground">Planned remaining</Text>}
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontVariant: ["tabular-nums"] }}
+            className={cn("font-semibold", featured ? "text-[34px]" : "text-right text-base", primaryAmount < 0 ? "text-destructive" : "text-foreground")}>
+            {primaryBalance}
+          </Text>
+        </View>
       </Pressable>
       <IconButton icon={ChevronDown} className={isExpanded ? "rotate-180" : "rotate-0"}
         onPress={() => { handleToggle(); }}

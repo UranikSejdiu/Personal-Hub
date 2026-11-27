@@ -1,7 +1,7 @@
 import { AppAlerts } from "../AppAlerts";
 import { Text } from "./Typography";
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ComponentType } from "react";
-import { Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useThemeColors, useThemeVariables } from "../../lib/theme";
@@ -32,7 +32,7 @@ interface AnchoredMenuProps {
 }
 
 const EDGE = 8;
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 48;
 const MENU_PADDING = 16;
 
 export function useAnchoredMenu() {
@@ -53,6 +53,7 @@ export function useAnchoredMenu() {
 }
 
 export function AnchoredMenu({ anchor, onClose, items, size = "compact", align = "end" }: AnchoredMenuProps) {
+  const pendingAction = useRef<(() => void) | null>(null);
   const colors = useThemeColors();
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
@@ -73,14 +74,18 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
       : Math.max(topLimit, Math.min(below, bottomLimit - height));
 
   return (
-    <Modal visible={anchor !== null} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={anchor !== null} transparent animationType="fade" onRequestClose={onClose} onDismiss={() => {
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      action?.();
+    }}>
+      <View className="flex-1" style={variables}>
       <Pressable
-        className="flex-1 bg-black/30"
-        style={variables}
+        className="absolute inset-0 bg-black/30"
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Cancel"
-      >
+      />
         {anchor ? (
           <View
             className="absolute rounded-[8px] bg-surface-container-high p-2 shadow-md"
@@ -96,8 +101,9 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
                   key={item.key}
                   onPress={(event) => {
                     event.stopPropagation();
+                    if (Platform.OS === "ios") pendingAction.current = item.onPress;
                     onClose();
-                    item.onPress();
+                    if (Platform.OS !== "ios") item.onPress();
                   }}
                   className={cn(
                     "min-h-[48px] flex-row items-center rounded-[6px] active:bg-secondary",
@@ -122,7 +128,7 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
             </ScrollView>
           </View>
         ) : null}
-      </Pressable>
+      </View>
       {anchor !== null && <AppAlerts />}
     </Modal>
   );

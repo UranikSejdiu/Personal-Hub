@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, type AppIconProps } from "../AppIcons";
 import { useThemeColors, useThemeVariables } from "../../lib/theme";
 import { cn } from "../../lib/utils";
+import { usePageMargins } from "../../lib/usePageMargins";
 
 export interface MenuAnchor {
   x: number;
@@ -55,11 +56,12 @@ export function AnchoredMenu({ anchor, onClose, items, size = "compact", align =
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const width = Math.min(size === "regular" ? 240 : 200, screenWidth - EDGE * 2);
+  const { marginLeft, marginRight } = usePageMargins();
+  const width = Math.min(size === "regular" ? 240 : 200, screenWidth - marginLeft - marginRight);
   const maxHeight = Math.max(ROW_HEIGHT, screenHeight - insets.top - insets.bottom - EDGE * 2);
   const height = Math.min(items.length * ROW_HEIGHT + MENU_PADDING, maxHeight);
   const preferredLeft = anchor ? (align === "end" ? anchor.x + anchor.width - width : anchor.x) : EDGE;
-  const left = Math.max(EDGE, Math.min(preferredLeft, screenWidth - width - EDGE));
+  const left = Math.max(marginLeft, Math.min(preferredLeft, screenWidth - width - marginRight));
   const bottomLimit = screenHeight - insets.bottom - EDGE;
   const topLimit = insets.top + EDGE;
   const below = anchor ? anchor.y + anchor.height + 4 : topLimit;

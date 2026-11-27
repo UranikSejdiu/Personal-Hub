@@ -47,6 +47,7 @@ function fixture(root, file, name, mocks, clock) {
   };
 
   const base = {
+    "../../src/lib/actionErrorOptions": { actionErrorOptions: { duration: Infinity } },
     react: hooks,
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     'expo-router': { useFocusEffect: fn => hooks.useEffect(fn, [fn]) },

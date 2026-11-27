@@ -22,6 +22,7 @@ module.exports = async function verifyReminderSetup(root) {
     };
 
     const mocks = {
+    '../../lib/actionErrorOptions': { actionErrorOptions: { duration: Infinity } },
       react,
       'react/jsx-runtime': {jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},
       'react-native': { View:'View',Switch:'Switch',Platform:{OS:'android',Version:env.version},AppState:{addEventListener:(_name,fn)=>{listener=fn;return {remove(){listener=null;}};}} },

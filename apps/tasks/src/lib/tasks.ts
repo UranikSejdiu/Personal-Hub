@@ -104,6 +104,15 @@ export async function saveTask(input: TaskInput, id?: number): Promise<number> {
   return savedId;
 }
 
+export async function moveTaskToTomorrow(id: number, now = new Date()) {
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const result = await db.execute(`UPDATE tasks SET due_date = ?, updated_at = datetime('now')
+    WHERE id = ? AND completed_at IS NULL`,
+    [taskDateKey(tomorrow), id]);
+  if (!result.changes) throw new Error("This task is no longer open.");
+  notifyTaskChanges();
+}
+
 /** Completion and creation of the next occurrence commit together. */
 export async function completeTask(id: number): Promise<void> {
   await db.withTransaction(async (tx) => {

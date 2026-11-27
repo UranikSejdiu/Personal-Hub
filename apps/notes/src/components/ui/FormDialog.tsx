@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeVariables } from "../../lib/theme";
+import { usePageMargins } from "../../lib/usePageMargins";
 import { X } from "../AppIcons";
 import { IconButton } from "./Button";
 import { Text } from "./Typography";
@@ -14,7 +15,7 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
 }) {
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
-  const sidePadding = placement === "bottom" ? 0 : 16;
+  const { marginLeft, marginRight } = usePageMargins();
   const close = () => { if (!busy) onClose(); };
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
     <KeyboardAvoidingView behavior="padding" automaticOffset className="flex-1" style={variables}>
@@ -22,11 +23,11 @@ export function FormDialog({ title, visible = true, busy = false, onClose, child
         style={{
           paddingTop: insets.top + 16,
           paddingBottom: placement === "bottom" ? 0 : insets.bottom + 16,
-          paddingLeft: insets.left + sidePadding,
-          paddingRight: insets.right + sidePadding,
+          paddingLeft: marginLeft,
+          paddingRight: marginRight,
         }}>
         <Pressable onPress={event => event.stopPropagation()} accessible={false} accessibilityViewIsModal
-          className={`max-h-full w-full max-w-md overflow-hidden bg-surface-container-high ${placement === "bottom" ? "rounded-t-[28px]" : "rounded-[28px]"}`}
+          className={`max-h-full w-full overflow-hidden bg-surface-container-high ${placement === "bottom" ? "rounded-t-[28px]" : "rounded-[28px]"}`}
           style={placement === "bottom" ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}>
           <ScrollView className="min-h-0 grow-0 shrink" keyboardShouldPersistTaps="handled">
             <View className="flex-row items-center justify-between gap-2 px-[18px] pt-2.5">

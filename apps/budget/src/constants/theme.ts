@@ -3,6 +3,10 @@ export type ThemeName = "light" | "dark";
 /** Shared by NativeWind variables, icons, inputs, and native controls. */
 export const COLORS = {
   light: {
+    deposit: "hsl(170, 72%, 23%)",
+    depositContainer: "hsl(163, 52%, 91%)",
+    withdraw: "hsl(30, 88%, 27%)",
+    withdrawContainer: "hsl(39, 92%, 91%)",
     surfaceContainer: "hsl(0, 0%, 96%)",
     surfaceContainerHigh: "hsl(0, 0%, 93%)",
     primaryContainer: "hsl(0, 0%, 90%)",
@@ -36,6 +40,10 @@ export const COLORS = {
     primaryForeground: "hsl(0, 0%, 100%)",
   },
   dark: {
+    deposit: "hsl(166, 62%, 75%)",
+    depositContainer: "hsl(170, 48%, 15%)",
+    withdraw: "hsl(39, 88%, 75%)",
+    withdrawContainer: "hsl(30, 48%, 17%)",
     surfaceContainer: "hsl(0, 0%, 11%)",
     surfaceContainerHigh: "hsl(0, 0%, 15%)",
     primaryContainer: "hsl(0, 0%, 19%)",

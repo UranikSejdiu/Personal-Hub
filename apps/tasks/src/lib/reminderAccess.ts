@@ -32,3 +32,22 @@ export async function openReminderSettings(kind: "alarms" | "notifications" | "b
     await Linking.openSettings();
   }
 }
+
+interface ReminderClock {
+  uses24HourClock(): boolean;
+  pickTime(hour: number, minute: number): Promise<string | null>;
+}
+
+export function reminderClock() {
+  if (Platform.OS !== "android" || isRunningInExpoGo()) return null;
+  const module = requireOptionalNativeModule<ReminderClock>("ReminderAccess");
+  return typeof module?.pickTime === "function" ? module : null;
+}
+
+export function formatReminderTime(time: string): string {
+  const [hour, minute] = time.split(":").map(Number);
+  const clock = reminderClock();
+  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, {
+    hour: "numeric", minute: "2-digit", hour12: clock ? !clock.uses24HourClock() : undefined,
+  });
+}

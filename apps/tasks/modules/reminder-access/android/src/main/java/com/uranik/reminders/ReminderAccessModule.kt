@@ -1,5 +1,9 @@
 package com.uranik.reminders
 
+import android.app.TimePickerDialog
+import android.text.format.DateFormat
+import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import android.app.AlarmManager
 import android.app.ActivityManager
 import android.content.Context
@@ -9,8 +13,34 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class ReminderAccessModule : Module() {
+  private var picker: TimePickerDialog? = null
+
   override fun definition() = ModuleDefinition {
     Name("ReminderAccess")
+
+    Function("uses24HourClock") {
+      DateFormat.is24HourFormat(requireNotNull(appContext.reactContext))
+    }
+
+    AsyncFunction("pickTime") { hour: Int, minute: Int, promise: Promise ->
+      val activity = appContext.currentActivity
+      if (activity == null || activity.isFinishing || picker != null) {
+        promise.resolve(null)
+        return@AsyncFunction
+      }
+      var selected: String? = null
+      val dialog = TimePickerDialog(activity, { _, h, m ->
+        selected = "%02d:%02d".format(java.util.Locale.ROOT, h, m)
+      }, hour, minute, DateFormat.is24HourFormat(activity))
+      dialog.setOnDismissListener {
+        picker = null
+        promise.resolve(selected)
+      }
+      dialog.show()
+      picker = dialog
+    }.runOnQueue(Queues.MAIN)
+
+    OnActivityDestroys { picker?.dismiss() }
 
     Function("getStatus") {
       val context = requireNotNull(appContext.reactContext)

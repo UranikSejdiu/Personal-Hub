@@ -132,6 +132,13 @@ export async function incrementDhikr(id: number, today = todayDate()): Promise<b
   return result.changes > 0;
 }
 
+export async function undoDhikrTap(id: number, day: string): Promise<boolean> {
+  const result = await db.execute(`UPDATE dhikrs SET total_count = total_count - 1,
+    daily_count = CASE WHEN last_reset_date = ? THEN daily_count - 1 ELSE daily_count END
+    WHERE id = ? AND total_count > 0 AND (last_reset_date <> ? OR daily_count > 0)`, [day, id, day]);
+  return result.changes === 1;
+}
+
 export async function resetDhikr(id: number): Promise<void> {
   await db.execute(
     "UPDATE dhikrs SET total_count = 0, daily_count = 0, last_reset_date = ? WHERE id = ?",

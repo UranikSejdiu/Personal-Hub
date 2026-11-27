@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useCallback, useRef, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
@@ -32,6 +33,7 @@ export default function LoansScreen() {
   const [saving, setSaving] = useState(false);
   const [invalidFields, setInvalidFields] = useState<ReadonlySet<string>>(new Set());
   const [discard, setDiscard] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const initialDraft = useRef("");
   const operationRef = useRef(false);
   const readRequestRef = useRef(0);
@@ -40,14 +42,14 @@ export default function LoansScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     const request = ++readRequestRef.current;
-    listRepaymentPlans().then((loadedPlans) => { if (active && request === readRequestRef.current) setPlans(loadedPlans); }).catch(() => { if (active && request === readRequestRef.current) toast.error("Failed to load data."); });
+    listRepaymentPlans().then((loadedPlans) => { if (active && request === readRequestRef.current) setPlans(loadedPlans); }).catch(() => { if (active && request === readRequestRef.current) toast.error("Failed to load data.", actionErrorOptions); });
     return () => { active = false; };
   }, []));
 
-  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setInvalidFields(new Set()); setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); };
+  const start = (kind: RepaymentKind) => { if (operationRef.current) return; setSaveError(""); setInvalidFields(new Set()); setEditingId(null); setStartMonthTouched(false); const input = emptyPlan(kind); initialDraft.current = JSON.stringify(input); setDraft(input); listRef.current?.scrollToOffset({ offset: 0, animated: true }); };
   const edit = (plan: RepaymentPlan) => {
     if (operationRef.current) return;
-    setInvalidFields(new Set());
+    setSaveError(""); setInvalidFields(new Set());
     const { id, ...input } = plan;
     setEditingId(id);
     setStartMonthTouched(true);
@@ -67,7 +69,7 @@ export default function LoansScreen() {
   });
   const save = async () => {
     if (!draft || operationRef.current) return;
-    if (invalidFields.size > 0 || !isValidRepaymentInput(draft)) { toast.error("Enter a name and a valid payment schedule."); return; }
+    if (invalidFields.size > 0 || !isValidRepaymentInput(draft)) { setSaveError("Enter a name and a valid payment schedule."); toast.error("Enter a name and a valid payment schedule."); return; }
     operationRef.current = true;
     readRequestRef.current++;
     setSaving(true);
@@ -79,7 +81,7 @@ export default function LoansScreen() {
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
       toast.success("Payment plan saved");
     } catch {
-      toast.error("Could not save the payment plan.");
+      setSaveError("Could not save the payment plan."); toast.error("Could not save the payment plan.");
     } finally { operationRef.current = false; setSaving(false); }
   };
   const remove = async () => {
@@ -93,7 +95,7 @@ export default function LoansScreen() {
       if (editingId === deletingId) { setDraft(null); setEditingId(null); }
       setDeletingId(null);
       toast.success("Payment plan deleted");
-    } catch { toast.error("Could not delete the payment plan."); }
+    } catch { toast.error("Could not delete the payment plan.", actionErrorOptions); }
     finally { operationRef.current = false; setSaving(false); }
   };
 
@@ -113,7 +115,7 @@ export default function LoansScreen() {
       data={plans}
       keyExtractor={(item) => String(item.id)}
       keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-md self-center gap-4 px-5 pt-4 pb-6"
+      contentContainerClassName="w-full gap-4 px-page pt-4 pb-6"
       ListHeaderComponent={<View className="gap-4">
         <View className="min-h-[48px] justify-center">
           <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Payments</Text>
@@ -149,6 +151,7 @@ export default function LoansScreen() {
             <Text className="text-xs text-muted-foreground">Last payment month: {draft.endMonth ?? (draft.unbounded ? "No end month" : draftEndMonth)}</Text>
           </View>}
           {editingId !== null && <Pressable onPress={() => setDeletingId(editingId)} disabled={saving} accessibilityRole="button" accessibilityLabel="Delete payment plan?" className="min-h-[44px] justify-center"><Text className="text-xs font-semibold text-destructive">Delete</Text></Pressable>}
+          {saveError && <Text accessibilityRole="alert" className="text-sm text-destructive">{saveError}</Text>}
           <View className="flex-row gap-2"><Button className="flex-1" label="Cancel" disabled={saving} variant="text" onPress={closeDraft} /><Button className="flex-1" label="Save" disabled={invalidFields.size > 0} busy={saving} onPress={() => { void save(); }} /></View>
       </View>
     </FormDialog>}

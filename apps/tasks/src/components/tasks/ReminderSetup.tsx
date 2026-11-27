@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../lib/actionErrorOptions";
 import { useCallback, useRef, useState } from "react";
 import { AppState, Platform, Switch, View } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -45,7 +46,7 @@ export function ReminderSetup() {
         await syncTaskReminders("Task reminders");
       } else await openReminderSettings(kind);
     } catch {
-      if (focused.current) toast.error("Couldn’t update reminder settings.");
+      if (focused.current) toast.error("Couldn’t update reminder settings.", actionErrorOptions);
     } finally {
       await refresh();
       operation.current = false;

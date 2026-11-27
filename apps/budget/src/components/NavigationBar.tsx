@@ -29,12 +29,11 @@ export function NavigationBar({ tabs, activeTabId, onTabPress }: NavigationBarPr
 
   return (
     <View
+      className="px-page"
       style={{
         backgroundColor: colors.background,
         paddingTop: 4,
         paddingBottom: insets.bottom + 8,
-        paddingLeft: insets.left + 20,
-        paddingRight: insets.right + 20,
       }}
     >
       <View
@@ -77,7 +76,6 @@ const styles = StyleSheet.create({
   track: {
     alignSelf: "center",
     width: "100%",
-    maxWidth: 408,
     flexDirection: "row",
     gap: 4,
     padding: 4,

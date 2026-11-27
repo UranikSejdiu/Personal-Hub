@@ -25,6 +25,7 @@ module.exports = async function verifyScreen(root, load) {
   const counts = { today: 2, upcoming: 0, overdue: 0, completed: 0, open: 2 };
   let reminderIssue = 'notifications';
   const mocks = {
+    '../../lib/actionErrorOptions': { actionErrorOptions: { duration: Infinity } },
     react: hooks, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     'react-native': { ActivityIndicator: 'ActivityIndicator', AppState: app, FlatList: 'FlatList', Pressable: 'Pressable', View: 'View' },
     'expo-router': { useFocusEffect: fn => hooks.useEffect(fn, [fn]), useLocalSearchParams: () => params, useRouter: () => activeRouter },
@@ -58,14 +59,18 @@ module.exports = async function verifyScreen(root, load) {
   };
   render(); await flush(); render();
   assert.equal(requests.length, 1);
-  nodes('TaskCalendar')[0].props.onSelect('2026-11-05'); render(); await flush();
-  assert.equal(requests.length, 2); assert.equal(requests[1].options.date, '2026-11-05');
+  const next = new Date(); next.setDate(next.getDate() + 1);
+  const tomorrow = mocks['../../lib/taskDates'].taskDateKey(next);
+  nodes('TaskCalendar')[0].props.onSelect('2000-01-01'); render(); await flush();
+  assert.equal(requests.length, 1, 'A past day cannot become the agenda date');
+  nodes('TaskCalendar')[0].props.onSelect(tomorrow); render(); await flush();
+  assert.equal(requests.length, 2); assert.equal(requests[1].options.date, tomorrow);
   requests[1].resolve({ tasks: [task(2)], nextOffset: 1, hasMore: true }); await flush(); render();
   assert.equal(nodes('FlatList')[0].props.renderItem({ item: task(2) }).props.reminderIssue, 'notifications');
   requests[0].resolve({ tasks: [task(1)], nextOffset: 1, hasMore: true }); await flush(); render();
   assert.equal(nodes('FlatList')[0].props.data[0].id, 2, 'An old calendar response cannot overwrite the selected day');
   nodes('AgendaHeading')[0].props.onAdd(); render();
-  assert.equal(nodes('TaskEditor')[0].props.initialDate, '2026-11-05', 'Calendar add uses the selected date');
+  assert.equal(nodes('TaskEditor')[0].props.initialDate, tomorrow, 'Calendar add uses the selected date');
   nodes('TaskEditor')[0].props.onClose(); render();
   app.currentState = 'background'; appListener('background');
   nodes('FlatList')[0].props.onEndReached(); changeListener(); await flush();
@@ -89,6 +94,13 @@ module.exports = async function verifyScreen(root, load) {
   assert.equal(nodes('TaskFilterBar')[0].props.filter, 'upcoming');
   nodes('TaskFilterBar')[0].props.onFilter('active'); render(); await flush();
   assert.equal(requests.at(-1).options.filter, 'active', 'All open restores the combined view');
+  Object.assign(counts, { today: 0, upcoming: 1, open: 1 });
+  nodes('TaskFilterBar')[0].props.onFilter('today'); render(); await flush();
+  requests.at(-1).resolve({ tasks: [], nextOffset: 0, hasMore: false }); await flush(); render();
+  const upcomingShortcut = nodes('Button').find(node => node.props.label === 'View 1 upcoming task');
+  assert.ok(upcomingShortcut, 'An empty Today view links directly to the upcoming task');
+  upcomingShortcut.props.onPress(); render(); await flush();
+  assert.equal(requests.at(-1).options.filter, 'upcoming');
   nodes('TaskAddButton')[0].props.onPress(); render();
   assert.equal(nodes('TaskEditor')[0].props.initialDate, load(path.join(root, 'src/lib/taskDates.ts')).taskDateKey(), 'The in-screen Add button creates a task for today');
   nodes('TaskEditor')[0].props.onClose(); render();

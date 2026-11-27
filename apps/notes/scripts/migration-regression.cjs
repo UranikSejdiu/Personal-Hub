@@ -40,7 +40,8 @@ module.exports = async function checkMigration(root, load) {
       assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM notes WHERE plain_text='Index me'").get().n, 69);
       assert.equal(sqlite.prepare('SELECT plain_text FROM notes WHERE id=169').get().plain_text, '');
       delete actual.attachment_count; assert.deepEqual(actual, original, 'Upgrade preserves all existing note fields');
-      assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version, 4);
+      assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version, 5);
+      assert.deepEqual(sqlite.prepare('SELECT * FROM note_drafts').all(), []);
       sqlite.exec("UPDATE notes SET attachments = '[]' WHERE id = 42");
       assert.equal(sqlite.prepare('SELECT attachment_count FROM notes WHERE id = 42').get().attachment_count, 0);
       if (fts) {
@@ -50,5 +51,5 @@ module.exports = async function checkMigration(root, load) {
       }
     } finally { sqlite.close(); }
   }
-  console.log('Passed v2 → v4 upgrades: existing media preserved, derived counts updated, idempotent startup and FTS/fallback integrity.');
+  console.log('Passed v2 → v5 upgrades: existing media preserved, derived counts updated, idempotent startup and FTS/fallback integrity.');
 };

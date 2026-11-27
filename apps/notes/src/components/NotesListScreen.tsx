@@ -1,7 +1,8 @@
 import { Text, TextInput } from "./ui/Typography";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Pressable, FlatList, ActivityIndicator, Keyboard, StyleSheet, useWindowDimensions, type ListRenderItemInfo } from "react-native";
-import { Archive, FileText, LayoutGrid, Plus, Search, XCircle } from "./AppIcons";
+import { View, Pressable, ActivityIndicator, Keyboard, StyleSheet, useWindowDimensions } from "react-native";
+import { FlashList, type ListRenderItemInfo } from "@shopify/flash-list";
+import { Archive, FileText, LayoutGrid, Plus, Search, X, XCircle } from "./AppIcons";
 import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -17,17 +18,21 @@ import {
   type NotesPreferences,
   type NoteViewMode,
 } from "../lib/notesPreferences";
+import { listDrafts, discardDraft, type DraftSummary } from "../lib/noteDrafts";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { NoteCard } from "./NoteCard";
 import { NoteTypeChooser } from "./NoteTypeChooser";
 import { NotesDisplayOptions } from "./NotesDisplayOptions";
 import { FormDialog } from "./ui/FormDialog";
 import { Button, IconButton } from "./ui/Button";
 import { useThemeColors } from "../lib/theme";
+import { usePageMargins } from "../lib/usePageMargins";
 import type { NoteKind } from "../types/notes";
 
 const styles = StyleSheet.create({
-  list: { flex: 1 },
-  listContent: { paddingHorizontal: 20, paddingTop: 4 },
+  listContent: { paddingTop: 4 },
+  gridList: { marginHorizontal: -4 },
+  gridInset: { paddingHorizontal: 4 },
 });
 
 const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
@@ -38,14 +43,40 @@ const FILTERS: { kind: NoteKind | undefined; label: string }[] = [
 
 type NotesListRow =
   | { type: "section"; key: string; label: string }
-  | { type: "notes"; key: string; notes: (Note | null)[]; first: boolean; last: boolean };
+  | { type: "note"; key: string; note: Note; first: boolean; last: boolean };
 
 export default function NotesListScreen({ archived = false }: { archived?: boolean }) {
   const router = useRouter();
   const colors = useThemeColors();
   const { width, fontScale } = useWindowDimensions();
+  const pageMargins = usePageMargins();
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [discarding, setDiscarding] = useState<DraftSummary | null>(null);
+  const [draftError, setDraftError] = useState("");
+  const draftRequest = useRef(0);
+  const refreshDrafts = useCallback(async () => {
+    const request = ++draftRequest.current;
+    try {
+      const rows = await listDrafts();
+      if (draftRequest.current === request) { setDrafts(rows); setDraftError(""); }
+    } catch {
+      if (draftRequest.current === request) setDraftError("Could not load recovery drafts.");
+    }
+  }, []);
+  useFocusEffect(useCallback(() => {
+    if (!archived) void refreshDrafts();
+    return () => { ++draftRequest.current; };
+  }, [archived, refreshDrafts]));
+  const discard = async () => {
+    if (!discarding) return;
+    ++draftRequest.current;
+    await discardDraft(discarding.draft_key);
+    setDrafts(current => current.filter(row => row.draft_key !== discarding.draft_key));
+    setDiscarding(null);
+  };
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
   const [viewMode, setViewMode] = useState<NoteViewMode>("grid");
   const [sort, setSort] = useState<NoteSort>("updated");
   const [viewOptionsVisible, setViewOptionsVisible] = useState(false);
@@ -193,7 +224,8 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
   const handleSelectType = useCallback(
     (kind: NoteKind) => {
       setChooserVisible(false);
-      router.push(kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor");
+      router.push({ pathname: kind === "checklist" ? "/(notes)/checklist" : "/(notes)/editor",
+        params: { draftKey: `${kind}:new-${Date.now()}` } });
     },
     [router]
   );
@@ -221,29 +253,28 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
   );
 
   // Keep a readable column width as the device or its text size changes.
-  const layout = viewMode === "grid" && Math.min(width, 448) / fontScale >= 360 ? "grid" : "list";
+  const layout = viewMode === "grid" && (width - pageMargins.marginLeft - pageMargins.marginRight) / fontScale >= 336 ? "grid" : "list";
+  const gridInset = layout === "grid" ? styles.gridInset : undefined;
   const listData = useMemo<NotesListRow[]>(() => {
     const data: NotesListRow[] = [];
-    const columns = layout === "grid" ? 2 : 1;
     const appendRows = (group: Note[]) => {
-      for (let i = 0; i < group.length; i += columns) {
-        const first = group[i];
-        const row = columns === 1 ? [first] : [first, group[i + 1] ?? null];
-        data.push({ type: "notes", key: String(first.id), notes: row, first: i === 0, last: i + columns >= group.length });
-      }
+      group.forEach((note, i) => data.push({
+        type: "note", key: String(note.id), note, first: i === 0, last: i === group.length - 1,
+      }));
     };
     const pinned = archived ? [] : notes.filter(note => note.is_pinned);
     if (pinned.length) {
       data.push({ type: "section", key: "section-pinned", label: "Pinned" });
       appendRows(pinned);
       if (pinned.length < notes.length) {
+        data.push({ type: "section", key: "section-other", label: "Other notes" });
         appendRows(notes.filter(note => !note.is_pinned));
       }
     } else {
       appendRows(notes);
     }
     return data;
-  }, [archived, notes, layout]);
+  }, [archived, notes]);
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<NotesListRow>) => {
@@ -251,6 +282,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         return (
           <Text
             accessibilityRole="header"
+            style={gridInset}
             className="mb-2 text-label-medium font-semibold text-muted-foreground"
           >
             {item.label}
@@ -258,26 +290,12 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         );
       }
       return (
-        <View className="flex-row items-start gap-3">
-          {item.notes.map((note, i) =>
-            note ? (
-              <View key={note.id} className="flex-1">
-                <NoteCard
-                  note={note}
-                  layout={layout}
-                  first={item.first}
-                  last={item.last}
-                  onPress={handleNotePress}
-                />
-              </View>
-            ) : (
-              <View key={`empty-${i}`} className="flex-1" />
-            )
-          )}
+        <View style={gridInset}>
+          <NoteCard note={item.note} layout={layout} first={item.first} last={item.last} onPress={handleNotePress} />
         </View>
       );
     },
-    [handleNotePress, layout]
+    [handleNotePress, layout, gridInset]
   );
 
   const listEmpty = useMemo(
@@ -293,20 +311,29 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
   );
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset>
-      <View className="w-full max-w-md self-center gap-3 px-5 pb-3 pt-4">
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior="padding" automaticOffset style={pageMargins}>
+      <View className="gap-3 pb-3 pt-4">
         <View className="min-h-[48px] flex-row items-center gap-1">
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">
             {archived ? "Archive" : "My Notes"}
           </Text>
+          <IconButton icon={searchVisible ? X : Search} selected={searchVisible}
+            accessibilityLabel={searchVisible ? "Close search" : archived ? "Search archive" : "Search notes"}
+            accessibilityState={{ expanded: searchVisible }} className="border border-border bg-surface"
+            onPress={() => {
+              setChooserVisible(false);
+              if (searchVisible) { Keyboard.dismiss(); clearSearch(); }
+              setSearchVisible(!searchVisible);
+            }} />
           <IconButton icon={LayoutGrid} onPress={() => { Keyboard.dismiss(); setChooserVisible(false); setViewOptionsVisible(true); }}
             className="border border-border bg-surface" accessibilityLabel="View options"
             accessibilityHint="Change layout and sort order" accessibilityState={{ expanded: viewOptionsVisible }} />
         </View>
 
-        <View className="min-h-[48px] flex-row items-center gap-2 rounded-full border border-border bg-surface px-4">
+        {searchVisible && <View className="min-h-[48px] flex-row items-center gap-2 rounded-full border border-border bg-surface px-4">
           <Search size={18} color={colors.mutedForeground} />
           <TextInput
+            autoFocus
             value={searchQuery}
             onChangeText={(v) => {
               setSearchQuery(v);
@@ -329,7 +356,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
               <XCircle size={16} color={colors.mutedForeground} />
             </Pressable>
           )}
-        </View>
+        </View>}
         <View className="flex-row flex-wrap gap-2">
           {FILTERS.map(option => (
             <Pressable key={option.kind ?? "all"} onPress={() => handleFilter(option.kind)}
@@ -341,26 +368,49 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
         </View>
       </View>
 
-      <FlatList
-        className="w-full max-w-md self-center"
-        data={listData}
-        keyExtractor={(item) => item.key}
-        renderItem={renderItem}
-        ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel="Loading…" /> : loadFailed ? (
-          <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current); }} />
-        ) : listEmpty}
-        onEndReached={() => { if (!loadFailed) void load(searchRef.current, sortRef.current, true); }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel="Loading…" /> : notes.length > 0 && loadFailed ? (
-          <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current, true); }} />
-        ) : undefined}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.listContent, { paddingBottom: archived ? 16 : 76 }]}
-        style={styles.list}
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-      />
+      <View className="flex-1" style={layout === "grid" ? styles.gridList : undefined}>
+        <FlashList
+          key={layout}
+          masonry={layout === "grid"}
+          numColumns={layout === "grid" ? 2 : 1}
+          optimizeItemArrangement
+          overrideItemLayout={(cell, item, _index, columns) => { cell.span = item.type === "section" ? columns : 1; }}
+          getItemType={item => item.type}
+          data={listData}
+          keyExtractor={(item) => item.key}
+          renderItem={renderItem}
+          ListHeaderComponentStyle={gridInset}
+          ListFooterComponentStyle={gridInset}
+          ListHeaderComponent={archived ? undefined : <>
+            {draftError && <Button variant="secondary" label={draftError + " Retry"} onPress={() => { void refreshDrafts(); }} />}
+            {drafts.map(row => <View key={row.draft_key} className="mb-3 gap-2 rounded-[24px] border border-border bg-surface p-4">
+              <Text accessibilityRole="header" className="text-base font-semibold text-foreground">
+                {row.title || (row.kind === "text" ? "Untitled note" : "Untitled checklist")}
+              </Text>
+              <Text className="text-sm text-muted-foreground">Unsaved draft</Text>
+              <View className="flex-row flex-wrap gap-2">
+                <Button label="Resume draft" onPress={() => router.push({ pathname: row.kind === "text" ? "/(notes)/editor" : "/(notes)/checklist",
+                  params: row.note_id ? { id: String(row.note_id) } : { draftKey: row.draft_key } })} />
+                <Button label="Discard" variant="text" onPress={() => setDiscarding(row)} />
+              </View>
+            </View>)}
+          </>}
+          ListEmptyComponent={loading ? <ActivityIndicator className="py-12" color={colors.primary} accessibilityLabel="Loading…" /> : loadFailed ? (
+            <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current); }} />
+          ) : <View style={gridInset}>{listEmpty}</View>}
+          onEndReached={() => { if (!loadFailed) void load(searchRef.current, sortRef.current, true); }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={notes.length > 0 && loading ? <ActivityIndicator className="py-4" color={colors.primary} accessibilityLabel="Loading…" /> : notes.length > 0 && loadFailed ? (
+            <Button label="Retry" variant="secondary" onPress={() => { void load(searchRef.current, sortRef.current, true); }} />
+          ) : undefined}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.listContent, { paddingBottom: archived ? 16 : 76 }]}
+        />
+      </View>
+
+      <ConfirmDialog visible={discarding !== null} destructive title="Discard draft?"
+        message={discarding?.note_id ? "Discard these edits and keep the saved note?" : "Discard this unsaved draft and its attachments?"}
+        confirmLabel="Discard" cancelLabel="Keep draft" onConfirm={discard} onClose={() => setDiscarding(null)} />
 
       <FormDialog visible={viewOptionsVisible} title="View options" onClose={() => setViewOptionsVisible(false)}>
         <NotesDisplayOptions preferences={{ viewMode, sort }} disabled={!displayReady || savingDisplay}
@@ -370,7 +420,7 @@ export default function NotesListScreen({ archived = false }: { archived?: boole
       {!archived && !keyboardVisible && chooserVisible && <Pressable
         onPress={closeChooser} accessible={false} style={StyleSheet.absoluteFill} />}
 
-      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute bottom-3 w-full max-w-md self-center px-5">
+      {!archived && !keyboardVisible && <View pointerEvents="box-none" className="absolute inset-x-0 bottom-3">
         <NoteTypeChooser
           visible={chooserVisible}
           onClose={closeChooser}

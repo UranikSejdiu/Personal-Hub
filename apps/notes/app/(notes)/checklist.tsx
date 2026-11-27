@@ -1,3 +1,4 @@
+import { draftSession } from "../../src/lib/noteDrafts";
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { Keyboard, Pressable, View, type TextInputInstance as TextInputType } from "react-native";
@@ -5,6 +6,7 @@ import { KeyboardAwareScrollView, KeyboardStickyView, useKeyboardState } from "r
 import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePageMargins } from "../../src/lib/usePageMargins";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -57,13 +59,18 @@ function serialize(title: string, pinned: boolean, items: ChecklistEntry[]): str
 }
 
 export default function ChecklistEditorScreen() {
+  const { id, draftKey } = useLocalSearchParams<{ id?: string; draftKey?: string }>();
+  return <ChecklistEditor key={id ?? draftKey ?? "new"} id={id} draftKey={draftKey} />;
+}
+
+function ChecklistEditor({ id, draftKey }: { id?: string; draftKey?: string }) {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+  const pageMargins = usePageMargins();
   const keyboardVisible = useKeyboardState(state => state.isVisible);
   const attachmentState = useNoteAttachments();
-  const { initialize: initializeAttachments, hasChanges: attachmentsChanged, valueRef: attachmentsRef, busyRef: attachmentsBusyRef } = attachmentState;
+  const { initialize: initializeAttachments, onChange: changeAttachments, hasChanges: attachmentsChanged, valueRef: attachmentsRef, busyRef: attachmentsBusyRef } = attachmentState;
 
   const loadTarget = useMemo<LoadTarget>(() => {
     if (id == null || id === "") return { kind: "new" };
@@ -80,9 +87,14 @@ export default function ChecklistEditorScreen() {
   const [isArchived, setIsArchived] = useState(false);
   const [items, setItems] = useState<ChecklistEntry[]>([]);
   const [checkedExpanded, setCheckedExpanded] = useState(false);
-  const [loading, setLoading] = useState(() => loadTarget.kind === "note");
+  const [loading, setLoading] = useState(loadTarget.kind !== "invalid");
   const [asyncLoadFailed, setAsyncLoadFailed] = useState(false);
   const loadFailed = loadTarget.kind === "invalid" || asyncLoadFailed;
+  const draft = useMemo(() => draftSession("checklist", loadTarget.kind === "note" ? loadTarget.id : null, draftKey), [loadTarget, draftKey]);
+  const [saveError, setSaveError] = useState("");
+  const [draftError, setDraftError] = useState("");
+  const [draftRetry, setDraftRetry] = useState(0);
+  const hadDraft = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   // A ref closes the interval before React commits the disabled controls.
@@ -114,35 +126,29 @@ export default function ChecklistEditorScreen() {
   }, [loadTarget]);
 
   useEffect(() => {
-    if (loadTarget.kind !== "note") return;
+    if (loadTarget.kind === "invalid") return;
     let cancelled = false;
-    snapshotRef.current = null;
-    Promise.all([getNote(loadTarget.id), getChecklistItems(loadTarget.id)])
-      .then(([note, noteItems]) => {
+    const existingId = loadTarget.kind === "note" ? loadTarget.id : null;
+    Promise.all([existingId ? getNote(existingId) : undefined, draft.read(), existingId ? getChecklistItems(existingId) : []])
+      .then(([note, recovery, noteItems]) => {
         if (cancelled) return;
-        if (!note) {
-          setAsyncLoadFailed(true);
-          setLoading(false);
-          return;
-        }
-        if (note.kind !== "checklist") {
-          // A text note can only reach this route through a stale link; send
-          // it to the editor that actually owns its content.
+        if (existingId && !note) { setAsyncLoadFailed(true); setLoading(false); return; }
+        if (note && note.kind !== "checklist") {
           router.replace({ pathname: "/(notes)/editor", params: { id: String(note.id) } });
           return;
         }
-        const entries = noteItems.map<ChecklistEntry>((item) => ({
-          key: `item-${item.id}`,
-          text: item.text,
-          checked: item.checked,
-        }));
-        setNoteId(note.id);
-        setTitle(note.title);
-        setIsPinned(note.is_pinned);
-        setIsArchived(note.is_archived);
-        initializeAttachments(note.attachments ?? []);
-        setItems(entries);
-        snapshotRef.current = serialize(note.title, note.is_pinned, entries);
+        const restored = note?.is_archived ? undefined : recovery;
+        hadDraft.current = Boolean(restored);
+        setNoteId(existingId);
+        setTitle(restored?.title ?? note?.title ?? "");
+        setIsPinned(restored?.pinned ?? note?.is_pinned ?? false);
+        setIsArchived(note?.is_archived ?? false);
+        initializeAttachments(note?.attachments ?? []);
+        if (restored) changeAttachments(restored.attachments);
+        const original = noteItems.map(item => ({ key: `item-${item.id}`, text: item.text, checked: item.checked }));
+        snapshotRef.current = serialize(note?.title ?? "", note?.is_pinned ?? false, original);
+        const recovered: NewChecklistItem[] | undefined = restored && JSON.parse(restored.body);
+        setItems(recovered?.map((item, index) => ({ ...item, key: `restored-${index}` })) ?? original);
         setLoading(false);
       })
       .catch(() => {
@@ -154,7 +160,7 @@ export default function ChecklistEditorScreen() {
     return () => {
       cancelled = true;
     };
-  }, [loadTarget, router, initializeAttachments]);
+  }, [draft, loadTarget, router, initializeAttachments, changeAttachments]);
 
   const activeItems = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checkedItems = useMemo(() => items.filter((item) => item.checked), [items]);
@@ -238,6 +244,18 @@ export default function ChecklistEditorScreen() {
     return serialize(titleRef.current, pinnedRef.current, itemsRef.current) !== snapshotRef.current;
   }, [isArchived, attachmentsChanged]);
 
+  useEffect(() => {
+    if (loading || loadFailed || isArchived) return;
+    const dirty = serialize(title, isPinned, items) !== snapshotRef.current || attachmentsChanged();
+    if (!dirty && !hadDraft.current) return;
+    hadDraft.current = dirty;
+    let active = true;
+    void draft.write(dirty ? { title, pinned: isPinned, body: JSON.stringify(items.map(({ text, checked }) => ({ text, checked }))), attachments: attachmentState.attachments } : null)
+      .then(() => { if (active) setDraftError(""); })
+      .catch(() => { if (active) { hadDraft.current = true; setDraftError("Draft recovery could not be updated."); } });
+    return () => { active = false; };
+  }, [draft, draftRetry, loading, loadFailed, isArchived, title, isPinned, attachmentState.attachments, attachmentsChanged, items]);
+
   const pendingRemoveActionRef = useRef<(() => void) | null>(null);
   const checkingRemoveRef = useRef(false);
   const disableRemovalPrevention = usePreventRemove(!removalAllowed, ({ repeat }) => {
@@ -262,8 +280,10 @@ export default function ChecklistEditorScreen() {
     disableRemovalPrevention();
   }, [disableRemovalPrevention]);
 
-  const handleConfirmDiscard = useCallback(() => {
+  const handleConfirmDiscard = useCallback(async () => {
     if (operationRef.current !== "idle") return;
+    try { await draft.finish(async () => {}); }
+    catch { setSaveError("Could not discard the draft. Try again."); setConfirmState(null); return; }
     const pending = pendingRemoveActionRef.current;
     pendingRemoveActionRef.current = null;
     setConfirmState(null);
@@ -273,7 +293,7 @@ export default function ChecklistEditorScreen() {
       allowRemoval();
       router.back();
     }
-  }, [allowRemoval, router]);
+  }, [allowRemoval, router, draft]);
 
   const persistNote = useCallback(async (archived?: boolean) => {
     if (isArchived || operationRef.current !== "idle" || loading || loadFailed || attachmentsBusyRef.current) return;
@@ -284,25 +304,26 @@ export default function ChecklistEditorScreen() {
     const savedPinned = pinnedRef.current;
     try {
       const payload: NewChecklistItem[] = savedItems.map(({ text, checked }) => ({ text, checked }));
-      if (noteId) {
-        await saveChecklistNote(noteId, { title: savedTitle, is_pinned: savedPinned, is_archived: archived,
-          attachments: attachmentsChanged() ? attachmentsRef.current : undefined }, payload);
-      } else {
-        const created = await createChecklistNote({ title: savedTitle, is_pinned: savedPinned, attachments: attachmentsRef.current }, payload);
-        setNoteId(created.id);
-      }
+      await draft.finish(async tx => {
+        if (noteId) {
+          await saveChecklistNote(noteId, { title: savedTitle, is_pinned: savedPinned, is_archived: archived,
+            attachments: attachmentsChanged() ? attachmentsRef.current : undefined }, payload, tx);
+        } else {
+          await createChecklistNote({ title: savedTitle, is_pinned: savedPinned, attachments: attachmentsRef.current }, payload, tx);
+        }
+      });
       snapshotRef.current = serialize(savedTitle, savedPinned, savedItems);
       allowRemoval();
 
       toast.success(archived === undefined ? "Saved successfully" : archived ? "Note archived" : "Note restored to Notes");
       router.back();
     } catch {
-      toast.error(archived === undefined ? "Failed to save." : "Could not save and move the note. Please try again.");
+      setSaveError(archived === undefined ? "Could not save your changes. Tap Save to retry." : "Could not archive this note. Try Archive again.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [allowRemoval, isArchived, loading, loadFailed, noteId, router, attachmentsRef, attachmentsBusyRef, attachmentsChanged]);
+  }, [allowRemoval, isArchived, loading, loadFailed, noteId, router, attachmentsRef, attachmentsBusyRef, attachmentsChanged, draft]);
 
   const handleSave = useCallback(() => persistNote(), [persistNote]);
   const handleToggleArchive = useCallback(async () => {
@@ -317,7 +338,7 @@ export default function ChecklistEditorScreen() {
       toast.success("Note restored to Notes");
       router.back();
     } catch {
-      toast.error("Could not restore the note. Please try again.");
+      setSaveError("Could not restore the note. Please try again.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
@@ -335,17 +356,17 @@ export default function ChecklistEditorScreen() {
     setIsSaving(true);
     setConfirmState(null);
     try {
-      await deleteNote(noteId);
+      await draft.finish(tx => deleteNote(noteId, tx));
 
       allowRemoval();
       router.back();
     } catch {
-      toast.error("Failed to delete.");
+      setSaveError("Failed to delete.");
     } finally {
       operationRef.current = "idle";
       setIsSaving(false);
     }
-  }, [allowRemoval, noteId, router]);
+  }, [allowRemoval, draft, noteId, router]);
 
   const handleTogglePin = useCallback(() => {
     if (isArchived || operationRef.current !== "idle") return;
@@ -399,7 +420,7 @@ export default function ChecklistEditorScreen() {
   }
 
   const listFooter = (
-    <View className="mx-5 max-[360px]:mx-4 px-2 pb-3">
+    <View className="pb-3">
       {!isArchived && <Pressable
         onPress={handleAddItem}
         disabled={isBusy}
@@ -476,9 +497,9 @@ export default function ChecklistEditorScreen() {
   return (
     <>
       <View className="flex-1 bg-background">
-        <View className="flex-1 flex-col bg-background">
-          <View className="w-full max-w-md flex-row items-center justify-between self-center px-5 pb-1 pt-2">
-            <Pressable onPress={handleBack} disabled={isBusy} className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-container-high disabled:opacity-50"
+        <View className="flex-1 flex-col bg-background" style={pageMargins}>
+          <View className="flex-row items-center justify-between pb-1 pt-2">
+            <Pressable onPress={handleBack} disabled={isBusy} className="h-12 w-12 items-center justify-center rounded-full bg-secondary-container active:opacity-70 disabled:opacity-50"
               accessibilityRole="button" accessibilityLabel="Notes" accessibilityState={{ disabled: isBusy }}>
               <ArrowLeft size={20} color={colors.foreground} />
             </Pressable>
@@ -488,10 +509,14 @@ export default function ChecklistEditorScreen() {
             </View>
           </View>
 
-          {isArchived && <Text className="w-full max-w-md self-center px-5 py-2 text-sm text-muted-foreground">Archived · read only</Text>}
+          {saveError && <Text accessibilityRole="alert" className="py-2 text-sm text-destructive">{saveError}</Text>}
+          {draftError && <Pressable accessibilityRole="button" onPress={() => setDraftRetry(n => n + 1)} className="min-h-[48px] justify-center">
+            <Text className="text-sm text-destructive">{draftError} Retry</Text>
+          </Pressable>}
+          {isArchived && <Text className="py-2 text-sm text-muted-foreground">Archived · read only</Text>}
 
           <DraggableFlatList
-            className="w-full max-w-md self-center"
+            className="w-full"
             data={activeItems}
             keyExtractor={(item) => item.key}
             renderItem={renderItem}
@@ -514,17 +539,17 @@ export default function ChecklistEditorScreen() {
                 accessibilityLabel="Title"
                 placeholder="Title"
                 placeholderTextColor={colors.mutedForeground}
-                className="mx-5 my-2 rounded-[24px] border border-border bg-surface px-4 py-3 text-2xl leading-8 font-semibold text-foreground"
+                className="my-2 rounded-[24px] border border-border bg-surface px-4 py-3 text-2xl leading-8 font-semibold text-foreground"
                 multiline
               />
               <NoteAttachments state={attachmentState} readOnly={isArchived} disabled={isBusy} />
-              <View className="mx-5 max-[360px]:mx-4 h-2" />
+              <View className="h-2" />
             </View>}
             ListFooterComponent={listFooter}
           />
-          {!isArchived && <KeyboardStickyView className="w-full bg-background px-5"
+          {!isArchived && <KeyboardStickyView className="w-full bg-background"
             style={{ paddingBottom: (keyboardVisible ? 0 : insets.bottom) + 8 }}>
-            <View className="w-full max-w-[408px] flex-row items-center justify-between self-center rounded-[30px] border border-border bg-surface p-1">
+            <View className="flex-row items-center justify-between rounded-[30px] border border-border bg-surface p-1">
               <AttachmentToolbarButton disabled={isBusy} busy={attachmentState.busy}
                 onSelect={kind => { void attachmentState.actionRef.current?.add(kind); }} />
               {keyboardVisible && <Pressable onPress={() => { toolbarFeedback(); Keyboard.dismiss(); }} disabled={isBusy}

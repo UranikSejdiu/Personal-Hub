@@ -13,6 +13,7 @@ import { Button, IconButton } from "../ui/Button";
 import { cn } from "../../lib/utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ActionDialog } from "../ui/ActionDialog";
+import { reminderClock, formatReminderTime } from "../../lib/reminderAccess";
 import { ReminderSetup } from "./ReminderSetup";
 import { AppAlerts } from "../AppAlerts";
 
@@ -77,7 +78,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
   };
 
   const changeDate = (date: string | null) => {
-    if (busyRef.current) return;
+    if (busyRef.current || (date !== null && date < taskDateKey())) return;
     setDueDate(date);
     if (date === null) { setRepeat("none"); setReminder(false); }
   };
@@ -104,6 +105,10 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
     if (!isTaskInput(input)) { setError({ message: "Enter a task name and check the date, repeat, and reminder settings." }); return; }
     const reminderDate = taskReminderDate(input);
     if (reminderDate && reminderDate.getTime() <= Date.now() && !(task && task.due_date === dueDate && task.reminder_time === input.reminder_time)) { setError({ message: "Choose a future date and time for the reminder." }); return; }
+    if (dueDate && dueDate < taskDateKey() && dueDate !== task?.due_date) {
+      setError({ message: "Choose today or a future due date." });
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -119,6 +124,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
   const tomorrowDate = new Date(`${today}T12:00:00`);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrow = taskDateKey(tomorrowDate);
+  const clock = reminderClock();
   const selectedRepeat = REPEATS.find(option => option.value === repeat)!.label;
   return (
     <><TaskFormDialog title={task ? "Edit task" : "Add task"} busy={busy} onClose={close}>
@@ -130,10 +136,12 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
           <View className={cn(sectionClass, "gap-3")}>
             <Text accessibilityRole="header" className="text-label-large font-semibold text-foreground">Schedule</Text>
             <Pressable disabled={busy} onPress={() => setShowDate(true)} accessibilityRole="button"
-              accessibilityLabel="Date (optional)" accessibilityValue={{ text: dueDate ? formatTaskDate(dueDate) : "No date" }} accessibilityState={{ disabled: busy }}
-              className="min-h-[48px] flex-row items-center gap-2 rounded-full border border-outline bg-background px-4 py-2 active:opacity-70 disabled:opacity-50">
-              <CalendarDays size={19} color={colors.primary} /><Text className="text-sm text-muted-foreground">Date</Text>
-              <Text numberOfLines={1} className="min-w-0 flex-1 text-right text-sm font-semibold text-foreground">{dueDate ? formatTaskDate(dueDate) : "No date"}</Text><ChevronDown size={16} color={colors.mutedForeground} />
+              accessibilityLabel="Date (optional)" accessibilityValue={{ text: dueDate ? formatTaskDate(dueDate) : "No due date" }} accessibilityState={{ disabled: busy }}
+              className="min-h-[48px] flex-row items-center gap-3 rounded-[20px] border border-border bg-background px-4 py-2 active:opacity-70 disabled:opacity-50">
+              <CalendarDays size={19} color={colors.mutedForeground} />
+              <View className="min-w-0 flex-1"><Text className="text-label-medium text-muted-foreground">Date</Text>
+              <Text className="text-base font-semibold text-foreground">{dueDate ? formatTaskDate(dueDate) : "No due date"}</Text></View>
+              <ChevronDown size={16} color={colors.mutedForeground} />
             </Pressable>
             <View className="flex-row flex-wrap gap-2">
               <Button className="min-w-[72px] flex-1" variant={dueDate === today ? "tonal" : "secondary"} label="Today" disabled={busy} accessibilityState={{ selected: dueDate === today }} onPress={() => changeDate(today)} />
@@ -155,8 +163,14 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
               </View>
               {reminder && <View className="gap-2 border-t border-border/60 py-3">
                 <View className="flex-row items-center justify-between gap-3"><Text className="text-sm text-foreground">Time</Text>
-                  <TextInput value={time} onChangeText={setTime} editable={!busy} maxLength={5} autoCapitalize="none" autoCorrect={false} selectTextOnFocus
-                    placeholder="09:00" placeholderTextColor={colors.mutedForeground} accessibilityLabel="Time (24-hour)" className={cn(inputClass, "w-[104px] text-center font-semibold")} />
+                  {clock ? <Button variant="secondary" label={formatReminderTime(time)} accessibilityLabel={`Reminder time, ${formatReminderTime(time)}`} disabled={busy}
+                    onPress={() => {
+                      const [hour, minute] = time.split(":").map(Number);
+                      void clock.pickTime(hour, minute).then(value => {
+                        if (value !== null && mountedRef.current) setTime(value);
+                      }).catch(() => { if (mountedRef.current) setError({ message: "Could not open the time picker. Tap the time to retry." }); });
+                    }} /> : <TextInput value={time} onChangeText={setTime} editable={!busy} maxLength={5} autoCapitalize="none" autoCorrect={false} selectTextOnFocus
+                    placeholder="09:00" placeholderTextColor={colors.mutedForeground} accessibilityLabel="Time (24-hour)" className={cn(inputClass, "w-[104px] text-center font-semibold")} />}
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel="Delivery settings" accessibilityState={{ expanded: showSetup, disabled: busy }} disabled={busy}
                   onPress={() => setShowSetup(value => !value)} className="min-h-[48px] flex-row items-center justify-between gap-3 active:opacity-70">
@@ -185,7 +199,7 @@ export function TaskEditor({ task, initialDate = null, onSave, onClose, onDelete
         </View>
       <ActionDialog visible={showRepeat} title="Repeat" layout="list" onClose={() => setShowRepeat(false)}
         actions={REPEATS.map(option => ({ key: option.value, label: option.label, selected: repeat === option.value, disabled: busy, onPress: () => { setRepeat(option.value); setShowRepeat(false); } }))} />
-      {showDate ? <DatePicker value={dueDate} onChange={changeDate} onClose={() => setShowDate(false)} /> : null}
+      {showDate ? <DatePicker minimumDate={today} value={dueDate} onChange={changeDate} onClose={() => setShowDate(false)} /> : null}
     </TaskFormDialog>
     <ConfirmDialog visible={discard} destructive title="Discard task changes?" message="Your unsaved changes will be lost."
       confirmLabel="Discard changes" cancelLabel="Keep editing" onConfirm={discardChanges} onClose={() => setDiscard(false)} /></>

@@ -40,7 +40,10 @@ export default function CounterScreen() {
   const stopFireworks = useCallback(() => setShowFireworks(false), []);
   const activeIndex = useMemo(() => dhikrs.findIndex(row => row.id === activeDhikr?.id), [dhikrs, activeDhikr?.id]);
 
+  const [countError, setCountError] = useState("");
+
   const clearFeedback = useCallback(() => {
+    setCountError("");
     if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
     limitTimerRef.current = null;
     setShowFireworks(false);
@@ -81,10 +84,21 @@ export default function CounterScreen() {
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     void refresh();
+    let midnight: ReturnType<typeof setTimeout> | undefined;
+    const scheduleMidnight = () => {
+      clearTimeout(midnight);
+      if (AppState.currentState != null && AppState.currentState !== "active") return;
+      const now = new Date();
+      const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      midnight = setTimeout(() => { void refresh(); scheduleMidnight(); }, nextDay.getTime() - now.getTime());
+    };
+    scheduleMidnight();
     const subscription = AppState.addEventListener("change", next => {
       if (next === "active") {
+        scheduleMidnight();
         void refresh();
       } else {
+        clearTimeout(midnight);
         interactiveRef.current = false;
         ++loadSequenceRef.current;
         clearFeedback();
@@ -96,6 +110,7 @@ export default function CounterScreen() {
       interactiveRef.current = false;
       ++loadSequenceRef.current;
       clearFeedback();
+      clearTimeout(midnight);
       subscription.remove();
       void flushDhikrWrites();
     };
@@ -137,9 +152,10 @@ export default function CounterScreen() {
     const stored = activeDhikrRef.current;
     if (!stored) return;
     const day = todayDate();
-    // No midnight polling timer: reset lazily on the first tap or app resume.
+    // A tap can arrive before the midnight refresh or a resumed read completes.
     const dhikr = stored.last_reset_date < day ? { ...stored, daily_count: 0, last_reset_date: day } : stored;
     if (dhikr.total_count >= Number.MAX_SAFE_INTEGER || dhikr.daily_count >= Number.MAX_SAFE_INTEGER) {
+      setCountError("Maximum count reached. Edit or reset this counter to continue.");
       toast.error("Maximum count reached. Edit or reset this counter to continue.");
       return;
     }
@@ -148,6 +164,7 @@ export default function CounterScreen() {
       showWarning();
       return;
     }
+    setCountError("");
     const willHitLimit = limit != null && limit > 0 && dhikr.daily_count + 1 >= limit;
     updateRecord(dhikr.id, () => ({
       ...dhikr, daily_count: dhikr.daily_count + 1, total_count: dhikr.total_count + 1,
@@ -180,6 +197,7 @@ export default function CounterScreen() {
         rollback();
         if (focusedRef.current) {
           stopFireworks();
+          setCountError("Tap could not be saved. Tap the counter to try again.");
           toast.error("Failed to save data.");
         }
       }
@@ -191,7 +209,6 @@ export default function CounterScreen() {
     if (!row || !interactiveRef.current || resettingRef.current) return;
     resettingRef.current = true;
     setResetting(true);
-    clearFeedback();
     try {
       await queueDhikrWrite(async () => {
         await resetDhikr(row.id);
@@ -199,9 +216,10 @@ export default function CounterScreen() {
           ...current, daily_count: 0, total_count: 0, last_reset_date: todayDate(),
         }));
       });
+      clearFeedback();
       setResetTarget(null);
     } catch {
-      if (focusedRef.current) toast.error("Failed to reset dhikr.");
+      if (focusedRef.current) { setCountError("Failed to reset dhikr."); toast.error("Failed to reset dhikr."); }
     } finally {
       resettingRef.current = false;
       setResetting(false);
@@ -268,7 +286,8 @@ export default function CounterScreen() {
   const formattedTotal = activeDhikr.total_count.toLocaleString("en");
   const canCycle = dhikrs.length > 1;
   const dailyLimit = activeDhikr.daily_limit;
-  const limitReached = dailyLimit != null && dailyLimit > 0 && activeDhikr.daily_count >= dailyLimit;
+  const todayCount = activeDhikr.last_reset_date < todayDate() ? 0 : activeDhikr.daily_count;
+  const limitReached = dailyLimit != null && dailyLimit > 0 && todayCount >= dailyLimit;
 
   return (
     <View className="relative flex-1 bg-background">
@@ -280,8 +299,8 @@ export default function CounterScreen() {
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="w-full max-w-md flex-1 items-center justify-center gap-4 self-center px-5 pt-4">
-          <View className="w-full flex-row items-center gap-2">
+        <View className="w-full max-w-md grow items-center gap-4 self-center px-5 pt-4">
+          <View className="w-full flex-row items-start gap-2">
             {canCycle && <Pressable
               onPress={handlePrev}
               disabled={isLoading || resetting}
@@ -337,6 +356,7 @@ export default function CounterScreen() {
             </Text>
           </Pressable>
           <View className="w-full items-center gap-2 px-1">
+            {countError && <Text accessibilityRole="alert" className="text-sm text-destructive">{countError}</Text>}
             {(showLimitWarning || limitReached) && (
               <View className="flex-row items-center gap-1.5">
                 {limitReached && !showLimitWarning && <Check size={15} color={colors.success} />}
@@ -364,7 +384,7 @@ export default function CounterScreen() {
       </ScrollView>
       <ConfirmDialog visible={resetTarget !== null} title="Reset counts?"
         message={`Reset today’s count and the total count for "${resetTarget?.name ?? ""}" to zero? This cannot be undone.`}
-        confirmLabel="Reset" destructive
+        error={countError} confirmLabel="Reset" destructive
         onClose={() => { if (!resettingRef.current) setResetTarget(null); }} onConfirm={handleReset} />
 
     </View>

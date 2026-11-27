@@ -102,7 +102,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
           accessibilityViewIsModal
         >
           <View className="flex-row items-center justify-between">
-            <IconButton icon={ChevronLeft}
+            <IconButton className="bg-secondary-container" icon={ChevronLeft}
               onPress={() =>
                 setDisplay(
                   new Date(
@@ -117,7 +117,7 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
             <Text className="text-base font-semibold text-foreground">
               {mode === "month" ? display.getFullYear() : monthLabel}
             </Text>
-            <IconButton icon={ChevronRight}
+            <IconButton className="bg-secondary-container" icon={ChevronRight}
               onPress={() =>
                 setDisplay(
                   new Date(

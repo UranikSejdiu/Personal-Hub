@@ -49,7 +49,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
 
   if (readOnly) {
     return (
-      <View className={cn("min-h-[64px] flex-row items-start gap-3 px-4 py-2", grouped && "mx-5 border-b border-border/60")}
+      <View className={cn("min-h-[64px] flex-row items-start gap-3 px-4 py-2", grouped && "border-b border-border/60")}
         accessible accessibilityRole="checkbox"
         accessibilityLabel={item.text || "List item"}
         accessibilityState={{ checked: item.checked, disabled: true }}>
@@ -62,7 +62,7 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
   }
 
   return (
-    <View className={cn("min-h-[64px] flex-row items-start gap-1 px-2 py-2", grouped && "mx-5 border-b border-border/60", isActive && "bg-muted/40")}>
+    <View className={cn("min-h-[64px] flex-row items-start gap-1 px-2 py-2", grouped && "border-b border-border/60", isActive && "bg-muted/40")}>
       <Pressable
         onLongPress={drag}
         disabled={disabled && !isActive}

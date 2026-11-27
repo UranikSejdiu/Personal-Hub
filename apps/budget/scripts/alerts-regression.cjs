@@ -160,7 +160,11 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     });
     const tree = h.render('default');
     const list = find(tree, n => n.type === 'FlatList');
-    const card = month === '2026-11' ? find(tree, n => n.type === 'BudgetMonthCard') : list.props.renderItem({ item: { month } });
+    const card = month === '2026-11' ? find(tree, n => n.type === 'BudgetMonthCard') : find(list.props.renderItem({ item: { month } }), n => n.type === 'BudgetMonthCard');
+    if (month !== '2026-11') {
+      const heading = month < '2026-11' ? 'Previous months' : 'Upcoming';
+      find(list.props.renderItem({ item: { month } }), n => n.props.children === heading);
+    }
     card.props.onOpen();
     await find(tree, n => n.type === 'BudgetMonthEditor').props.onSave(month, 1000, 100);
     assert.deepEqual(opened, [`/(budget)/budget?month=${month}`, `/(budget)/budget?month=${month}`], 'Existing and newly saved plans open the selected month');
@@ -208,7 +212,7 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     assert.ok(!hasText(withBills, 'No unpaid bills'));
     const compact = render({});
     assert.ok(!hasText(compact, 'Current remaining'));
-    assert.ok(!hasText(compact, 'Planned remaining'));
+    assert.ok(hasText(compact, 'Planned remaining'));
     find(compact, node => node.props?.accessibilityLabel === 'Expand').props.onPress();
     assert.ok(hasText(render({}), 'Current remaining'));
   }
@@ -307,7 +311,36 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const editor=find(h.render('default'),n=>n.type==='ExpenseEditor');const save=editor.props.onSave({category:'Groceries',amount:25,paid:false,is_recurring:false});
     if(fail){await assert.rejects(save);assert.equal(h.events.length,0);}else{await save;assert.ok(hasAlert(h,'success','Expense added'));}
   }
+  {
+    const budget = {id:1, month:'2026-11', income:2400, savings_goal:300};
+    for (const hasPreviousBudget of [false, true]) {
+      const screen = harness('app/(budget)/budget.tsx', {budget, loans:{}, loading:false, hasPreviousBudget});
+      const list = find(screen.render('default'), node => node.type === 'FlatList');
+      const props = find(list.props.ListHeaderComponent, node => node.type === 'CustomExpensesHeader').props;
+      let opened = false;
+      const header = harness('src/components/CustomExpensesSection.tsx', {}, {
+        './ui/AnchoredMenu': {AnchoredMenu:'AnchoredMenu', useAnchoredMenu:() => ({open:() => { opened = true; }})},
+      }).render('CustomExpensesHeader', props);
+      await click(header, 'Add expense');
+      assert.equal(opened, hasPreviousBudget);
+      if (hasPreviousBudget) {
+        const menu = find(header, node => node.type === 'AnchoredMenu');
+        menu.props.items.find(item => item.key === 'copy').onPress();
+        assert.equal(screen.state.confirmCopy, true);
+        menu.props.items.find(item => item.key === 'new').onPress();
+      }
+      assert.deepEqual(screen.state.expenseEditor, {});
+    }
+  }
   // Expense paid/recurring toggles and month edits use actual persisted outcomes.
+  for (const [remaining, label] of [[320, '€320 left after bills'], [-25, '€25 short after bills'], [0, '€0 left after bills']]) {
+    const h = harness('app/(budget)/budget.tsx', {budget:{id:1,month:'2026-11'},loans:{},loading:false}, {
+      budget:{computeMonthSummary:() => ({actualRemaining:500, remaining})},
+    });
+    const header = find(h.render('default'), node => node.type === 'FlatList').props.ListHeaderComponent;
+    assert.ok(nodes(header).some(node => node.props?.children === label));
+    assert.ok(nodes(header).some(node => node.props?.children === '€500'));
+  }
   const sample={id:1,budget_id:1,category:'Groceries',amount:25,paid:false,is_recurring:false};
   // Completing a row must never move another checkbox under the user's finger.
   // Exercise the actual screen and rerender after each persisted toggle.
@@ -317,10 +350,13 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const writes = [], paymentWrites = [];
     const h = harness('app/(budget)/budget.tsx', {budget:{id:1,month:'2026-11'},loans:{},loading:false,expenses:bills,repayments:plans}, {
       budget:{updateExpense:async(id,fields)=>writes.push({id,...fields})},
-      repayments:{repaymentForMonth:()=>25,setRepaymentPaid:async(id,month,paid)=>{paymentWrites.push({id,month,paid});return plans.find(plan=>plan.id===id);}},
+      repayments:{repaymentForMonth:plan=>plan.payment,setRepaymentPaid:async(id,month,paid)=>{paymentWrites.push({id,month,paid});return plans.find(plan=>plan.id===id);}},
     });
     const list = () => find(h.render('default'),n=>n.type==='FlatList');
     const rows = () => nodes(h.render('default')).filter(n=>n.type==='RepaymentPaymentSection');
+    const expensesHeader = harness('src/components/CustomExpensesSection.tsx', {}, {
+      './ui/AnchoredMenu': {useAnchoredMenu:() => ({})},
+    });
     const expectedPaid = new Map(bills.map(expense=>[expense.id,false]));
     const expectedPlans = new Set();
     for (const id of [1,2,1,3,2]) {
@@ -332,6 +368,9 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       assert.deepEqual(list().props.data.map(expense=>expense.id),[1,2,3],'Expense positions stay fixed after paid/unpaid toggles');
       assert.equal(writes.at(-1).id,id,'Only the tapped expense is persisted');
       assert.deepEqual(h.state.expenses.map(expense=>[expense.id,expense.paid]),[...expectedPaid],'Other expense paid flags remain unchanged');
+      const props = find(list().props.ListHeaderComponent, node => node.type === 'CustomExpensesHeader').props;
+      const unpaid = bills.reduce((sum, bill) => expectedPaid.get(bill.id) ? sum : sum + bill.amount, 0);
+      assert.ok(nodes(expensesHeader.render('CustomExpensesHeader', props)).some(node => node.props?.children === `€${unpaid} unpaid`));
     }
     for (const id of [9,7,9]) {
       rows().find(row=>row.props.plan.id===id).props.onToggle(); await settle();
@@ -339,6 +378,8 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
       assert.deepEqual(rows().map(row=>row.props.plan.id),[9,7],'Loan/card positions stay fixed after paid/unpaid toggles');
       assert.deepEqual(paymentWrites.at(-1),{id,month:'2026-11',paid:expectedPlans.has(id)});
       assert.deepEqual([...h.state.paidRepayments],[...expectedPlans],'Other loan/card paid flags remain unchanged');
+      const unpaid = plans.reduce((sum, plan) => expectedPlans.has(plan.id) ? sum : sum + plan.payment, 0);
+      assert.ok(nodes(list().props.ListFooterComponent).some(node => node.props?.children === `€${unpaid} unpaid`));
     }
     assert.deepEqual(
       find(list().props.ListHeaderComponent, n => n.type === 'CustomExpensesHeader').props.expenses.map(expense => expense.id),
@@ -347,9 +388,8 @@ async function click(tree,label){find(tree,n=>n.props?.label===label).props.onPr
     const header = nodes(list().props.ListHeaderComponent);
     assert.equal(header.filter(node => node.props?.children === 'Current remaining').length, 1);
     assert.equal(header.some(node => node.props?.children === 'Planned remaining'), false);
-    for (const label of ['Back to months', 'Previous month', 'Next month']) {
-      assert.equal(find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === label).type, 'IconButton');
-    }
+    assert.equal(find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === 'Back to months').type, 'IconButton');
+    assert.ok(!header.some(node => ['Previous month', 'Next month'].includes(node.props?.accessibilityLabel)));
     find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === 'Edit income and savings target').props.onPress();
     assert.equal(h.state.editingMonth, true);
     assert.equal(find(list().props.ListHeaderComponent, node => node.props?.accessibilityLabel === 'Payments made').props.accessibilityValue.max, 5);

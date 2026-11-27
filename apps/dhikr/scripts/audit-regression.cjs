@@ -130,6 +130,9 @@ async function main() {
   await dhikr.reorderDhikrs([second.id, first.id]);
   assert.deepEqual((await dhikr.loadDhikrs()).map(row => row.id), [second.id, first.id]);
 
+  await dhikr.incrementDhikr(first.id);
+  assert.equal(await dhikr.undoDhikrTap(first.id, dhikr.todayDate()), true);
+  assert.equal((await dhikr.loadDhikrs()).find(row => row.id === first.id).daily_count, 1);
   // Imported/edited maximum counts must remain safe and exportable after taps.
   await dhikr.updateDhikr(second.id, { total_count: Number.MAX_SAFE_INTEGER - 1 });
   assert.equal(await dhikr.incrementDhikr(second.id), true);

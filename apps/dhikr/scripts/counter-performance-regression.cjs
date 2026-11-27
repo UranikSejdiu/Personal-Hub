@@ -80,6 +80,13 @@ function counterFixture(recordCount = 3000) {
         row.total_count++; row.daily_count=daily+1; row.last_reset_date=tapDay;
         return true;
       },
+      async undoDhikrTap(id, tapDay) {
+        const row=persisted.get(id);
+        if (!row.total_count) return false;
+        row.total_count--;
+        if (row.last_reset_date===tapDay) row.daily_count--;
+        return true;
+      },
       async resetDhikr(id) {
         if(failReset) { failReset=false; throw new Error('Reset failed'); }
         if(resetGate) await resetGate.promise;
@@ -149,7 +156,7 @@ async function main() {
   assert.equal(f.feedback.filter(x=>x==='success').length,1,'Goal completion uses one haptic effect');
   assert.equal(f.feedback.filter(x=>x==='warning').length,1);
   assert.equal(f.visits,0,'Taps must not walk the other 2,999 records');
-  assert.equal(f.timers.size,1,'Repeated limit warnings share one timer');
+  assert.equal(f.timers.size,2,'One midnight refresh and one limit warning timer');
 
   // Midnight while the counter remains visible must allow the new day's taps.
   f.setDay('2026-10-11');
@@ -228,6 +235,16 @@ async function main() {
   assert.equal(single.button('Previous'),undefined);
   assert.equal(single.button('Next'),undefined);
   assert.ok(single.button('Choose a dhikr: Dhikr 1'),'A single counter still opens My Dhikrs');
+  single.button('Tap to count').onPress();await single.drain();single.render();
+  single.setDay('2026-10-11');
+  const [midnight] = single.timers.values();
+  midnight();await flush();single.render();
+  assert.equal(single.persisted.get(1).daily_count,0,'An open counter rolls over without a tap');
+  assert.equal(single.count(),'1','The main counter keeps the lifetime total across midnight');
+  assert.equal(single.button('Undo last tap'),undefined);
+  assert.equal(single.button('Tap to count').accessibilityValue.text,'Total recitations: 1');
+  single.fail();single.button('Tap to count').onPress();await single.drain();single.render();
+  assert.equal(single.count(),'1','A failed write rolls back only its own tap');
   single.blur();
   console.log('Passed: rapid counts, O(1) tap work across 3,000 records, single goal haptic, bounded warning timers, midnight, reset isolation, rollback, background cleanup, selection, and stale-read cancellation.');
 }

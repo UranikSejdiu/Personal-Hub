@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../lib/actionErrorOptions";
 import { useCallback, useRef, useState } from "react";
 import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -75,7 +76,7 @@ export default function SettingsScreen(_props: { activeAppId?: string }) {
           disabled={busy} className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-70 disabled:opacity-60"
           onPress={() => {
             if (locked.current) return;
-            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks."));
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select Tasks.", actionErrorOptions));
           }}>
           <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-container-high">
             <Settings size={18} color={colors.foreground} />

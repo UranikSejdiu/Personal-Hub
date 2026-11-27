@@ -3,12 +3,13 @@ import { Toaster } from "sonner-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FadeInUp, FadeOutUp, ReduceMotion } from "react-native-reanimated";
 import { useTheme, useThemeColors } from "../lib/theme";
+import { usePageMargins } from "../lib/usePageMargins";
 import { CircleCheck, XCircle, Info, CircleHelp } from "./AppIcons";
 
 /** Same alert store and styling in the app and every native modal window. */
 function AlertSurface({ toastId: _toastId, style, ...props }: ViewProps & { toastId: string | number }) {
   // Sonner positions its toast absolutely, so the wrapper needs its own width.
-  return <View {...props} style={[{ width: "100%", maxWidth: 360 }, style]}
+  return <View {...props} style={[{ width: "100%" }, style]}
     accessibilityRole="alert" accessibilityLiveRegion="polite" />;
 }
 
@@ -16,13 +17,14 @@ export function AppAlerts() {
   const { resolvedTheme } = useTheme();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+  const { marginLeft, marginRight } = usePageMargins();
   return (
       <Toaster
         fullWindowOverlay={false}
         ToastWrapper={AlertSurface}
         position="top-center"
         offset={insets.top + 8}
-        positionerStyle={{ width: "auto", left: insets.left + 16, right: insets.right + 16 }}
+        positionerStyle={{ width: "auto", left: marginLeft, right: marginRight }}
         theme={resolvedTheme}
         visibleToasts={1}
         duration={1000}

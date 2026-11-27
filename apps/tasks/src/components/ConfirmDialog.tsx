@@ -33,6 +33,8 @@ export function ConfirmDialog({
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
   const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
+  if (!visible && confirmError) setConfirmError("");
   const confirmingRef = useRef(false);
 
   const handleClose = () => {
@@ -49,7 +51,9 @@ export function ConfirmDialog({
     try {
 
       await onConfirm();
+      setConfirmError("");
     } catch {
+      setConfirmError("The action failed. Try again.");
       toast.error("Failed to save.");
     } finally {
       confirmingRef.current = false;
@@ -82,7 +86,7 @@ export function ConfirmDialog({
             </Text>
             <Text className="mt-3 text-body-medium text-muted-foreground">{message}</Text>
 
-            {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="mt-2 text-sm text-destructive">{error}</Text>}
+            {(error || confirmError) && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="mt-2 text-sm text-destructive">{error || confirmError}</Text>}
 
             <View className="mt-5 flex-row flex-wrap items-center justify-end gap-2">
               <Button className="max-w-full shrink" label={resolvedCancelLabel} variant="text" disabled={isConfirming} onPress={handleClose} />

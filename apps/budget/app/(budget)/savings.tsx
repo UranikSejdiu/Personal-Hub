@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { Text, TextInput } from "../../src/components/ui/Typography";
 import { useState, useCallback, useMemo, useRef } from "react";
 import { View, Pressable, StyleSheet, FlatList, ActivityIndicator, type ListRenderItemInfo } from "react-native";
@@ -100,7 +101,7 @@ export default function SavingsScreen() {
     } catch {
       if (focused.current && request === loadSequence.current) {
         setLoadState("failed");
-        toast.error("Failed to load data.");
+        toast.error("Failed to load data.", actionErrorOptions);
       }
     }
   }, [selectedYear]);
@@ -117,7 +118,7 @@ export default function SavingsScreen() {
       cursor.offset += next.entries.length;
       cursor.hasMore = next.hasMore;
     } catch {
-      if (focused.current && request === loadSequence.current) toast.error("Failed to load more entries.");
+      if (focused.current && request === loadSequence.current) toast.error("Failed to load more entries.", actionErrorOptions);
     } finally {
       cursor.loading = false;
     }
@@ -216,14 +217,14 @@ export default function SavingsScreen() {
 
                   toast.success("Year closed");
                 } catch {
-                  toast.error("Failed to add entry.");
+                  toast.error("Failed to add entry.", actionErrorOptions);
                   setConfirmAction(null);
                 }
               })();
             },
           });
         } catch {
-          toast.error("Failed to load data.");
+          toast.error("Failed to load data.", actionErrorOptions);
         }
       })();
     },
@@ -267,7 +268,9 @@ export default function SavingsScreen() {
       await loadData();
 
     } catch {
-      toast.error(editingId === null ? "Failed to add entry." : "Failed to update entry.");
+      const message = editingId === null ? "Failed to add entry." : "Failed to update entry.";
+      setModalError(message);
+      toast.error(message);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
@@ -295,7 +298,7 @@ export default function SavingsScreen() {
             await loadData();
             setConfirmAction(null);
           } catch {
-            toast.error("Failed to delete entry.");
+            toast.error("Failed to delete entry.", actionErrorOptions);
             setConfirmAction(null);
           }
         })();
@@ -308,15 +311,15 @@ export default function SavingsScreen() {
       const isAuto = entry.kind === "auto";
       const isDeposit = entry.type === "deposit";
       const badgeLabel = isAuto ? "Auto" : isDeposit ? "Deposit" : "Withdraw";
-      const amountColor = isDeposit ? "text-success" : "text-destructive";
+      const amountColor = isDeposit ? "text-deposit" : "text-withdraw";
       const sign = isDeposit ? "+" : "-";
       const isLast = index === entries.length - 1;
 
       const locked = entry.kind === "tx" && entry.rawTx && isClosingMarkerDescription(entry.rawTx.description);
       const Icon = isDeposit ? ArrowDownLeft : ArrowUpRight;
-      return <View className="border-x border-border bg-surface px-4">
+      return <View className={`border-x border-border bg-surface px-4 ${index === 0 ? "rounded-t-[24px] border-t pt-1" : ""} ${isLast ? "rounded-b-[24px] border-b pb-1" : ""}`}>
         <View className={`min-h-[62px] flex-row items-center gap-3 py-2 ${isLast ? "" : "border-b border-border"}`}>
-          <View className={`h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isDeposit ? "bg-success/10" : "bg-secondary"}`}><Icon size={18} color={isDeposit ? colors.success : colors.mutedForeground} /></View>
+          <View className={`h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isDeposit ? "bg-deposit-container" : "bg-withdraw-container"}`}><Icon size={18} color={isDeposit ? colors.deposit : colors.withdraw} /></View>
           <Pressable disabled={!!locked} onPress={() => handleTapEntry(entry)} className="min-h-[44px] min-w-0 flex-1 justify-center gap-1" accessibilityRole="button" accessibilityLabel="Edit Entry">
             <Text className="text-base font-semibold text-foreground" numberOfLines={1}>{entry.description}</Text>
             <Text className="text-xs text-muted-foreground">{entry.date} · {badgeLabel}</Text>
@@ -326,19 +329,19 @@ export default function SavingsScreen() {
         </View>
       </View>;
     },
-    [entries.length, handleTapEntry, colors.mutedForeground, colors.success]
+    [entries.length, handleTapEntry, colors.mutedForeground, colors.deposit, colors.withdraw]
   );
 
   const listHeader = useMemo(
     () => (
-    <View className="gap-4">
+    <View className={entries.length ? "mb-3 gap-4" : "gap-4"}>
       <View className="min-h-[48px] justify-center">
         <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Savings</Text>
       </View>
       <SavingsGoalCard goalAmount={goalAmount} {...summary} />
       <View className="flex-row gap-2">
-        <Button className="flex-1" icon={ArrowDownLeft} label="Deposit" onPress={() => openCreateModal("deposit")} />
-        <Button className="flex-1" variant="secondary" icon={ArrowUpRight} label="Withdraw" onPress={() => openCreateModal("purchase")} />
+        <Button className="flex-1 rounded-[16px]" variant="deposit" icon={ArrowDownLeft} label="Deposit" onPress={() => openCreateModal("deposit")} />
+        <Button className="flex-1 rounded-[16px]" variant="withdraw" icon={ArrowUpRight} label="Withdraw" onPress={() => openCreateModal("purchase")} />
       </View>
       {availableYears.some(year => year < currentYear) && <Button className="self-start" variant="text" icon={Archive} label="Close prior year" onPress={() => { setClosingYear(availableYears.find(year => year < currentYear) ?? null); setCloseYearOpen(true); }} />}
       <View className="flex-row flex-wrap items-center justify-between gap-x-3">
@@ -357,9 +360,7 @@ export default function SavingsScreen() {
         <View className="rounded-[24px] border border-border bg-surface px-4 py-6">
           <Text className="text-center text-sm text-muted-foreground">No entries yet.</Text>
         </View>
-      ) : (
-        <View className="h-2 rounded-t-[24px] border-x border-t border-border bg-surface" />
-      )}
+      ) : null}
     </View>
     ),
     [
@@ -377,7 +378,7 @@ export default function SavingsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {loadState !== "ready" ? <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
+      {loadState !== "ready" ? <View className="w-full gap-4 px-page pt-4">
         <View className="min-h-[48px] justify-center">
           <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Savings</Text>
         </View>
@@ -388,7 +389,7 @@ export default function SavingsScreen() {
               <Button label="Retry" onPress={() => void loadData()} /></>}
         </View>
       </View> : <FlatList
-        className="w-full max-w-md self-center"
+        className="w-full"
         style={styles.list}
         data={entries}
         onEndReached={() => void loadMore()}
@@ -396,8 +397,8 @@ export default function SavingsScreen() {
         keyExtractor={(entry) => entry.id}
         renderItem={renderEntry}
         ListHeaderComponent={listHeader}
-        ListFooterComponent={entries.length > 0 ? <View className="h-2 rounded-b-[24px] border-x border-b border-border bg-surface" /> : undefined}
         showsVerticalScrollIndicator={false}
+        contentContainerClassName="px-page"
         contentContainerStyle={styles.listContent}
       />}
 
@@ -430,8 +431,8 @@ export default function SavingsScreen() {
                           onPress={() => setFormType(typeOption)}
                           className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-3 py-2.5 ${active ? "border-primary bg-muted" : "border-border"}`}
                         >
-                          <Icon size={16} color={typeOption === "deposit" ? colors.success : colors.destructive} />
-                          <Text className={typeOption === "deposit" ? "text-success" : "text-destructive"}>
+                          <Icon size={16} color={typeOption === "deposit" ? colors.deposit : colors.withdraw} />
+                          <Text className={typeOption === "deposit" ? "text-deposit" : "text-withdraw"}>
                             {typeOption === "deposit" ? "Deposit" : "Withdraw"}
                           </Text>
                         </Pressable>
@@ -511,5 +512,5 @@ export default function SavingsScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  listContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
+  listContent: { paddingTop: 16, paddingBottom: 16 },
 });

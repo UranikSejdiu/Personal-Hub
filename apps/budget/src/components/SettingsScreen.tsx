@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../lib/actionErrorOptions";
 import { useCallback, useRef, useState } from "react";
 import { BackHandler, Linking, Pressable, ScrollView, View } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -70,7 +71,7 @@ export default function SettingsScreen() {
 
   return <>
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-6">
-      <View className="w-full max-w-md self-center gap-4 px-5 pt-4">
+      <View className="w-full gap-4 px-page pt-4">
         <View className="min-h-[48px] justify-center">
           <Text accessibilityRole="header" className="text-2xl font-semibold text-foreground">Settings</Text>
         </View>
@@ -100,7 +101,7 @@ export default function SettingsScreen() {
           className="min-h-[56px] flex-row items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-2 active:opacity-60"
           accessible accessibilityRole="button" accessibilityLabel="Manage app permissions" onPress={() => {
             if (locked.current) return;
-            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select MoneyPlan."));
+            void Linking.openSettings().catch(() => toast.error("Could not open app settings. Open system Settings and select MoneyPlan.", actionErrorOptions));
           }}>
           <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
             <Settings size={18} color={colors.foreground} />
@@ -112,7 +113,7 @@ export default function SettingsScreen() {
         <View className="gap-3 rounded-[24px] border border-border bg-surface p-4">
           <Text accessibilityRole="header" className="text-base font-semibold text-foreground">About</Text>
           <Text className="text-body-medium text-foreground">Uranik Sejdiu</Text>
-          <Button variant="secondary" label="GitHub · UranikSejdiu ↗" accessibilityRole="link" onPress={() => { void Linking.openURL("https://github.com/UranikSejdiu").catch(() => toast.error("Could not open GitHub.")); }} />
+          <Button variant="secondary" label="GitHub · UranikSejdiu ↗" accessibilityRole="link" onPress={() => { void Linking.openURL("https://github.com/UranikSejdiu").catch(() => toast.error("Could not open GitHub.", actionErrorOptions)); }} />
         </View>
       </View>
     </ScrollView>

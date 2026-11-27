@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { Text } from "../ui/Typography";
-import { ChevronLeft, ChevronRight, Plus } from "../AppIcons";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "../AppIcons";
+import { AnchoredMenu, useAnchoredMenu } from "../ui/AnchoredMenu";
 import { IconButton } from "../ui/Button";
 import type { TaskFilter, TaskOverview } from "../../lib/tasks";
 import { localTaskDate } from "../../lib/taskCalendar";
@@ -10,29 +11,33 @@ import { useThemeColors } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
 export const TaskFilterBar = memo(function TaskFilterBar({ counts, filter, onFilter }: { counts: TaskOverview; filter: TaskFilter; onFilter: (filter: TaskFilter) => void }) {
-  const options: { id: TaskFilter; label: string; spokenLabel?: string; count?: number }[] = [
-    { id: "active", label: "All open" },
-    { id: "today", label: "Today", spokenLabel: "Due by today", count: counts.today + counts.overdue },
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
+  const colors = useThemeColors();
+  const options: { id: TaskFilter; label: string; count: number }[] = [
+    { id: "today", label: "Today", count: counts.today + counts.overdue },
     { id: "upcoming", label: "Upcoming", count: counts.upcoming },
     { id: "overdue", label: "Overdue", count: counts.overdue },
-    { id: "completed", label: "Completed" },
+    { id: "undated", label: "No due date", count: counts.open - counts.today - counts.overdue - counts.upcoming },
+    { id: "active", label: "All open", count: counts.open },
+    { id: "completed", label: "Completed", count: counts.completed },
   ];
-  return <View className="mb-3 flex-row flex-wrap gap-1 rounded-[24px] border border-border/60 bg-surface p-1.5">
-    {options.map(({ id, label, spokenLabel = label, count }) => {
-      const selected = filter === id;
-      return <Pressable key={id} accessibilityRole="button"
-        accessibilityLabel={count === undefined ? spokenLabel : `${spokenLabel}, ${count}`} accessibilityState={{ selected }}
-        onPress={() => onFilter(id)}
-        className={cn(
-          "min-h-[48px] max-w-full justify-center rounded-full px-2 py-1.5 active:opacity-75",
-          selected && "bg-primary"
-        )}>
-        <Text className={selected ? "text-center text-label-medium font-semibold text-primary-foreground" : "text-center text-label-medium font-medium text-foreground"}>
-          {label}{count !== undefined && <Text className={selected ? "tabular-nums text-primary-foreground" : "tabular-nums text-muted-foreground"}>{` ${count}`}</Text>}
-        </Text>
-      </Pressable>;
-    })}
-  </View>;
+  const current = options.find(option => option.id === filter) ?? options[0];
+  return <>
+    <View ref={triggerRef} collapsable={false} className="mb-3 self-start">
+      <Pressable onPress={open} accessibilityRole="button"
+        accessibilityLabel={`Task view, ${current.label}`} accessibilityHint="Choose which tasks to show"
+        accessibilityState={{ expanded: anchor !== null }}
+        className="min-h-[48px] flex-row items-center gap-2 rounded-[20px] border border-border bg-surface px-4 py-2 active:bg-surface-container-high">
+        <Text className="shrink text-base font-semibold text-foreground">{current.label}</Text>
+        <ChevronDown size={18} color={colors.mutedForeground} />
+      </Pressable>
+    </View>
+    <AnchoredMenu anchor={anchor} onClose={close} align="start"
+      items={options.map(option => ({
+        key: option.id, label: option.count > 0 ? `${option.label} (${option.count})` : option.label, selected: option.id === filter,
+        onPress: () => onFilter(option.id),
+      }))} />
+  </>;
 });
 
 export const TaskCalendar = memo(function TaskCalendar({ days, month, selected, today, counts, week, onSelect, onMove, onWeek, onToday }: {
@@ -46,7 +51,7 @@ export const TaskCalendar = memo(function TaskCalendar({ days, month, selected, 
         <Text className="text-xl font-semibold text-foreground">{localTaskDate(month).toLocaleDateString("en", { month: "long" })}</Text>
         <Text className="text-label-medium text-muted-foreground">{month.slice(0, 4)}</Text>
       </View>
-      <IconButton className="bg-surface-container-high" icon={ChevronLeft} accessibilityLabel={`Previous ${week ? "week" : "month"}`} onPress={() => onMove(-1)} />
+      <IconButton className="bg-surface-container-high" icon={ChevronLeft} disabled={week ? days[0] <= today : month.slice(0, 7) <= today.slice(0, 7)} accessibilityLabel={`Previous ${week ? "week" : "month"}`} onPress={() => onMove(-1)} />
       <IconButton className="bg-surface-container-high" icon={ChevronRight} accessibilityLabel={`Next ${week ? "week" : "month"}`} onPress={() => onMove(1)} />
     </View>
     <View className="flex-row flex-wrap items-center justify-between gap-2">
@@ -70,16 +75,16 @@ export const TaskCalendar = memo(function TaskCalendar({ days, month, selected, 
         </View>)}
       </View>
       <View className="flex-row flex-wrap">{days.map(day => {
-        const width = `${100 / 7}%` as const;
+        const width = "14.28%" as const;
         if (!isTaskDate(day)) return <View key={day} style={{ width }} className="min-h-[48px]" />;
         const active = day === selected;
         const currentDay = day === today;
         return <Pressable key={day} accessibilityRole="button"
           accessibilityLabel={`${localTaskDate(day).toLocaleDateString("en", { dateStyle: "full" })}, ${counts[day] ?? 0} open tasks`}
-          accessibilityState={{ selected: active }} onPress={() => onSelect(day)} style={{ width }}
-          className="min-h-[48px] items-center justify-center active:opacity-70">
-          <View className={cn("min-h-[34px] min-w-[34px] items-center justify-center rounded-full px-1",
-            active ? "bg-primary" : currentDay && "bg-secondary-container")}>
+          disabled={day < today} accessibilityState={{ selected: active, disabled: day < today }} onPress={() => onSelect(day)} style={{ width }}
+          className="min-h-[48px] items-center justify-center active:opacity-70 disabled:opacity-40">
+          <View className="items-center justify-center" style={{ width: 34, height: 34, borderRadius: 17, overflow: "hidden",
+            backgroundColor: active ? colors.primary : currentDay ? colors.secondaryContainer : "transparent" }}>
             <Text className="text-label-medium font-semibold" style={{
               color: active ? colors.primaryForeground
                 : currentDay ? colors.onSecondaryContainer

@@ -5,10 +5,12 @@ import { Modal, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, ChevronRight } from "./AppIcons";
 import { useThemeColors, useThemeVariables } from "../lib/theme";
+import { taskDateKey } from "../lib/taskDates";
 import { cn } from "../lib/utils";
 
 export interface DatePickerProps {
   mode?: "date" | "month";
+  minimumDate?: string;
   initialDisplay?: "selected" | "current";
   value: string | null;
   onChange: (value: string | null) => void;
@@ -22,13 +24,16 @@ function parseValue(v: string | null): Date | null {
   return new Date(y, m - 1, d);
 }
 
-export function DatePicker({ value, onChange, onClose, mode = "date", initialDisplay = "selected" }: DatePickerProps) {
+export function DatePicker({ minimumDate, value, onChange, onClose, mode = "date", initialDisplay = "selected" }: DatePickerProps) {
   const colors = useThemeColors();
   const variables = useThemeVariables();
   const insets = useSafeAreaInsets();
-  const today = useMemo(() => new Date(), []);
+  const today = new Date();
 
-  const [display, setDisplay] = useState<Date>(initialDisplay === "current" ? today : parseValue(value) ?? today);
+  const [page, setDisplay] = useState(() => initialDisplay === "current" ? today : parseValue(value) ?? today);
+  const display = useMemo(() => minimumDate && taskDateKey(page).slice(0, 7) < minimumDate.slice(0, 7)
+    ? parseValue(minimumDate)! : page, [page, minimumDate]);
+  const atMinimum = mode === "date" && !!minimumDate && taskDateKey(display).slice(0, 7) === minimumDate.slice(0, 7);
 
   const locale = "en-US";
 
@@ -61,9 +66,9 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
   const selectDay = (d: number) => {
     const y = display.getFullYear();
     const m = display.getMonth();
-    onChange(
-      `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
-    );
+    const key = taskDateKey(new Date(y, m, d));
+    if (minimumDate && key < minimumDate) return;
+    onChange(key);
     onClose();
   };
 
@@ -115,6 +120,9 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
               className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg active:bg-muted"
               accessible
               accessibilityRole="button"
+              disabled={atMinimum}
+              style={{ opacity: atMinimum ? 0.35 : 1 }}
+              accessibilityState={{ disabled: atMinimum }}
               accessibilityLabel={mode === "month" ? "Previous year" : "Previous month"}
             >
               <ChevronLeft size={20} color={colors.mutedForeground} />
@@ -174,19 +182,20 @@ export function DatePicker({ value, onChange, onClose, mode = "date", initialDis
           <View className="flex-row flex-wrap">
             {days.map((d, i) => {
               const blank = d == null;
-              const selected = !blank && isSelected(d);
+              const past = !blank && !!minimumDate && taskDateKey(new Date(display.getFullYear(), display.getMonth(), d)) < minimumDate;
+              const selected = !blank && !past && isSelected(d);
               const todayFlag = !blank && isToday(d);
               return (
                 <Pressable
                   key={i}
                   onPress={blank ? undefined : () => selectDay(d as number)}
-                  disabled={blank}
+                  disabled={blank || past}
                   className="min-h-[44px] w-[14.28%] items-center justify-center rounded-lg active:bg-muted"
                   accessible={!blank}
                   accessibilityRole="button"
                   accessibilityLabel={blank ? undefined : new Date(display.getFullYear(), display.getMonth(), d).toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-                  accessibilityState={{ selected, disabled: blank }}
-                  style={blank ? { opacity: 0 } : undefined}
+                  accessibilityState={{ selected, disabled: blank || past }}
+                  style={{ opacity: blank ? 0 : past ? 0.4 : 1 }}
                 >
                   {!blank && (
                     <View

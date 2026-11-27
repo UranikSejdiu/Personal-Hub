@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../src/lib/actionErrorOptions";
 import { useEffect } from "react";
 import { Easing, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,12 +26,12 @@ export default function BudgetLayout() {
         }
       })
       .catch(() => {
-        toast.error("Failed to load data.");
+        toast.error("Failed to load data.", actionErrorOptions);
       });
   }, []);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
       <Tabs
         screenOptions={() => ({
           headerShown: false,

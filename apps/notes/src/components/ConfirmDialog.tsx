@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "sonner-native";
 import { useThemeVariables } from "../lib/theme";
+import { usePageMargins } from "../lib/usePageMargins";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -32,7 +33,10 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const themeVariables = useThemeVariables();
   const insets = useSafeAreaInsets();
+  const { marginLeft, marginRight } = usePageMargins();
   const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
+  if (!visible && confirmError) setConfirmError("");
   const confirmingRef = useRef(false);
 
   const handleClose = () => {
@@ -49,7 +53,9 @@ export function ConfirmDialog({
     try {
 
       await onConfirm();
+      setConfirmError("");
     } catch {
+      setConfirmError("The action failed. Try again.");
       toast.error("Failed to save.");
     } finally {
       confirmingRef.current = false;
@@ -66,13 +72,13 @@ export function ConfirmDialog({
     >
       <Pressable
         className="flex-1 items-center justify-center bg-black/50"
-        style={[themeVariables, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}
+        style={[themeVariables, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, paddingLeft: marginLeft, paddingRight: marginRight }]}
         onPress={handleClose}
         accessible={false}
       >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="max-h-full w-full max-w-md overflow-hidden rounded-[28px] bg-surface-container-high"
+          className="max-h-full w-full overflow-hidden rounded-[28px] bg-surface-container-high"
           accessible={false}
           accessibilityViewIsModal
         >
@@ -82,7 +88,7 @@ export function ConfirmDialog({
             </Text>
             <Text className="mt-3 text-body-medium text-muted-foreground">{message}</Text>
 
-            {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="mt-2 text-sm text-destructive">{error}</Text>}
+            {(error || confirmError) && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="mt-2 text-sm text-destructive">{error || confirmError}</Text>}
 
             <View className="mt-5 flex-row flex-wrap items-center justify-end gap-2">
               <Button className="max-w-full shrink" label={resolvedCancelLabel} variant="text" disabled={isConfirming} onPress={handleClose} />

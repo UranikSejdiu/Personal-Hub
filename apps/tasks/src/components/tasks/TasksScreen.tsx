@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../../lib/actionErrorOptions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, FlatList, Pressable, View, type ListRenderItemInfo } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -5,12 +6,12 @@ import { toast } from "sonner-native";
 import { Text, TextInput } from "../ui/Typography";
 import { Button, IconButton } from "../ui/Button";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { Bell, Search, X } from "../AppIcons";
+import { Search, X } from "../AppIcons";
 import { calendarDays, localTaskDate, moveCalendarDate } from "../../lib/taskCalendar";
 import { isTaskDate, taskDateKey } from "../../lib/taskDates";
 import { subscribeTaskChanges } from "../../lib/taskEvents";
 import { getTaskReminderIssue, upcomingTaskReminder, type TaskReminderIssue } from "../../lib/taskReminders";
-import { completeTask, deleteTask, loadTask, loadTaskDayCounts, loadTaskOverview, loadTasksPage, reopenTask, saveTask, TaskUndoError, type TaskFilter, type TaskOverview, type TaskPageOptions } from "../../lib/tasks";
+import { moveTaskToTomorrow, completeTask, deleteTask, loadTask, loadTaskDayCounts, loadTaskOverview, loadTasksPage, reopenTask, saveTask, TaskUndoError, type TaskFilter, type TaskOverview, type TaskPageOptions } from "../../lib/tasks";
 import type { Task, TaskInput } from "../../types/tasks";
 import { TaskCard } from "./TaskCard";
 import { TaskEditor } from "./TaskEditor";
@@ -90,6 +91,10 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
         targetId === null ? Promise.resolve(undefined) : loadTask(targetId),
       ]);
       if (!focused.current || request !== sequence.current) return;
+      if (mode === "calendar" && query.date && query.date < actualToday) {
+        setSelectedDate(actualToday);
+        setMonth(`${actualToday.slice(0, 7)}-01`);
+      }
       setToday(actualToday); setTasks(result.tasks); setCounts(overview); setDayCounts(calendarCounts);
       page.current = { offset: result.nextOffset, hasMore: result.hasMore, loading: false };
       if (targetId !== null && targetId === reminderId.current) setReminder(target ?? null);
@@ -135,7 +140,7 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
         const target = Number.isSafeInteger(id) && id > 0 ? await loadTask(id) : undefined;
         if (!active) return;
         reminderId.current = target?.id ?? null; setReminder(target ?? null);
-        if (!target) toast.error("This task no longer exists.");
+        if (!target) toast.error("This task no longer exists.", actionErrorOptions);
         router.setParams({ taskId: undefined });
       } catch { if (active) toast.error("Failed to load data."); }
     })();
@@ -161,15 +166,22 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     try { await promise; if (focused.current) committed?.(); }
     finally { writing.current = false; pendingWrite.current = null; if (focused.current) { setBusy(false); await refreshRef.current(); } }
   }, []);
+  const [actionError, setActionError] = useState("");
+  const moveTask = useCallback((task: Task) => {
+    void perform(() => moveTaskToTomorrow(task.id), () => {
+      setActionError("");
+      toast.success("Task moved to tomorrow");
+    }).catch(() => setActionError(`Could not move "${task.title}". Check its date and try again.`));
+  }, [perform]);
   const toggleTask = useCallback((task: Task) => {
     if (writing.current) return;
     const operation = task.completed_at ? () => reopenTask(task.id) : () => completeTask(task.id);
     void perform(operation, () => {
       if (task.completed_at) { toast.success("Task reopened"); return; }
       toast.success(task.repeat === "none" ? "Task completed" : "Done. Next occurrence added.", { duration: 8000, action: { label: "Undo", onClick: () => {
-        void perform(() => reopenTask(task.id)).catch(error => toast.error(error instanceof TaskUndoError ? "The next occurrence has changed. Reopen or edit that task instead." : "Failed to save data."));
+        void perform(() => reopenTask(task.id)).catch(error => toast.error(error instanceof TaskUndoError ? "The next occurrence has changed. Reopen or edit that task instead." : "Failed to save data.", actionErrorOptions));
       } } });
-    }).catch(error => toast.error(error instanceof TaskUndoError ? "The next occurrence has changed. Reopen or edit that task instead." : "Failed to save data."));
+    }).catch(error => toast.error(error instanceof TaskUndoError ? "The next occurrence has changed. Reopen or edit that task instead." : "Failed to save data.", actionErrorOptions));
   }, [perform]);
   const editTask = useCallback((task: Task) => setEditor({ task }), [setEditor]);
   const askDelete = useCallback((task: Task) => setDeletion(task), []);
@@ -187,20 +199,25 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     finally { if (focused.current && request === sequence.current) { page.current.loading = false; setPaging(false); } }
   }, [query]);
   const visible = useMemo(() => failed ? [] : tasks.filter(task => task.id !== reminder?.id), [failed, tasks, reminder]);
-  const renderTask = useCallback(({ item }: ListRenderItemInfo<Task>) => <TaskCard task={item} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} agenda={mode === "calendar"} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />,
-    [today, reminderNow, reminderIssue, busy, loading, mode, toggleTask, editTask, askDelete]);
+  const renderTask = useCallback(({ item }: ListRenderItemInfo<Task>) => <TaskCard task={item} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} agenda={mode === "calendar"} onMove={moveTask} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} />,
+    [today, reminderNow, reminderIssue, busy, loading, mode, moveTask, toggleTask, editTask, askDelete]);
+  const selectDay = (date: string) => {
+    if (date < taskDateKey()) return;
+    setSelectedDate(date);
+    setMonth(`${date.slice(0, 7)}-01`);
+  };
   const move = (direction: number) => {
     const next = moveCalendarDate(week ? selectedDate : month, direction, week);
-    setMonth(`${next.slice(0, 7)}-01`); setSelectedDate(next);
+    const earliest = taskDateKey();
+    selectDay(next < earliest ? earliest : next);
   };
   const header = <View>
+    {actionError && <Text accessibilityRole="alert" className="py-2 text-sm text-destructive">{actionError}</Text>}
     <View className="mb-4 min-h-[48px] flex-row items-center justify-between gap-2">
       <Text accessibilityRole="header" className="min-w-0 flex-1 text-2xl font-semibold text-foreground">
         {mode === "calendar" ? "Calendar" : "Tasks"}
       </Text>
-      {mode === "calendar" ? (
-        <IconButton className="bg-surface-container-high" icon={Bell} accessibilityLabel="Open reminder settings" onPress={() => router.navigate("/(tasks)/settings")} />
-      ) : (
+      {mode === "overview" && (
         <>
           <IconButton className="bg-surface-container-high" icon={searchOpen ? X : Search} accessibilityLabel={searchOpen ? "Close search" : "Search tasks"}
             accessibilityState={{ expanded: searchOpen }} onPress={() => { setSearchOpen(value => !value); setSearch(""); }} />
@@ -211,19 +228,22 @@ export function TasksScreen({ mode = "overview" }: { mode?: Mode }) {
     {mode === "overview" && <>
       {searchOpen && <View className="mb-3 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4"><Search size={16} color={colors.mutedForeground} /><TextInput autoFocus value={search} onChangeText={setSearch} placeholder="Search tasks" accessibilityLabel="Search tasks" placeholderTextColor={colors.mutedForeground} className="min-h-[48px] min-w-0 flex-1 text-base text-foreground" /></View>}
       <TaskFilterBar counts={counts} filter={filter} onFilter={setFilter} />
-      {filter === "undated" && <Text accessibilityRole="header" className="mb-2 text-base font-semibold text-foreground">No due date</Text>}
     </>}
-    {mode === "calendar" && <><TaskCalendar days={days} month={month} selected={selectedDate} today={today} counts={dayCounts} week={week} onWeek={setWeek} onMove={move} onToday={() => { const date = taskDateKey(); setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} onSelect={date => { setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }} />
+    {mode === "calendar" && <><TaskCalendar days={days} month={month} selected={selectedDate} today={today} counts={dayCounts} week={week} onWeek={setWeek} onMove={move} onToday={() => selectDay(taskDateKey())} onSelect={selectDay} />
       <AgendaHeading title={localTaskDate(selectedDate).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "short" })} onAdd={() => setEditor({})} disabled={busy} />
       <Pressable accessibilityRole="button" accessibilityState={{ selected: showDone }} onPress={() => setShowDone(value => !value)} className="mb-2 min-h-[48px] self-start justify-center rounded-full active:opacity-70"><Text className="text-label-large font-medium text-muted-foreground">{showDone ? "Hide" : "Show"} completed tasks</Text></Pressable>
     </>}
-    {reminder && <View className="mb-3 rounded-[24px] border border-outline bg-surface px-3"><View className="flex-row items-center justify-between"><Text className="text-label-large font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} expanded onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
+    {reminder && <View className="mb-3 rounded-[24px] border border-outline bg-surface px-3"><View className="flex-row items-center justify-between"><Text className="text-label-large font-semibold text-primary">Task from reminder</Text><IconButton icon={X} accessibilityLabel="Dismiss task from reminder" onPress={() => { reminderId.current = null; setReminder(null); }} /></View><TaskCard task={reminder} today={today} now={reminderNow} reminderIssue={reminderIssue} busy={busy || loading} expanded onMove={moveTask} onToggle={toggleTask} onEdit={editTask} onDelete={askDelete} /></View>}
   </View>;
+  const emptyToday = mode === "overview" && filter === "today" && !search.trim() && !debouncedSearch.trim();
   const empty = loading ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading tasks" className="my-8" />
     : failed ? <View className="items-center gap-3 py-8"><Text className="text-sm text-destructive">Could not load your tasks.</Text><Button label="Retry" onPress={() => void refresh()} /></View>
     : reminder && tasks.length > 0 ? undefined
-    : <View className="rounded-[24px] border border-border bg-surface px-4 py-8">
-      <Text className="text-center text-body-medium text-muted-foreground">{debouncedSearch ? "No matching tasks" : "No tasks"}</Text>
+    : <View className="items-center gap-3 rounded-[24px] border border-border bg-surface px-4 py-8">
+      <Text className="text-center text-body-medium text-muted-foreground">{debouncedSearch.trim() ? "No matching tasks" : emptyToday ? "No tasks due today" : "No tasks"}</Text>
+      {emptyToday && counts.upcoming > 0 && <Button variant="secondary"
+        label={`View ${counts.upcoming} upcoming ${counts.upcoming === 1 ? "task" : "tasks"}`}
+        onPress={() => setFilter("upcoming")} />}
     </View>;
   return <>
     <View className="flex-1 bg-background"><View className="w-full max-w-md flex-1 self-center px-5 pt-4">

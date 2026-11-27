@@ -1,7 +1,7 @@
 import { Text, TextInput } from "./ui/Typography";
 import { memo, useState } from "react";
 import { View, Pressable } from "react-native";
-import { Plus, Trash2, Repeat, MoreHorizontal } from "./AppIcons";
+import { Plus, Trash2, Repeat, MoreHorizontal, Copy } from "./AppIcons";
 import { useThemeColors } from "../lib/theme";
 import { type Expense } from "../lib/budget";
 import { formatCurrency, withAlpha } from "../lib/utils";
@@ -19,15 +19,27 @@ interface Props {
   onToggleRecurring?: (expense: Expense, next: boolean) => void;
 }
 
-export function CustomExpensesHeader({ expenses, onAdd }: Pick<Props, "expenses" | "onAdd">) {
+export function CustomExpensesHeader({ expenses, onAdd, onCopy }: Pick<Props, "expenses" | "onAdd"> & { onCopy?: () => void }) {
+  const { triggerRef, anchor, open, close } = useAnchoredMenu();
+  const unpaid = expenses.reduce((sum, expense) => expense.paid ? sum : sum + expense.amount, 0);
   return <View className="gap-2.5">
     <View className="flex-row flex-wrap items-center justify-between gap-x-2">
-      <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Expenses</Text>
-      <Button icon={Plus} label="Add expense" onPress={onAdd} />
+      <View className="min-w-0 flex-1 flex-row flex-wrap items-baseline gap-x-2">
+        <Text accessibilityRole="header" className="text-base font-semibold text-foreground">Expenses</Text>
+        {expenses.length > 0 && <Text className="text-label-medium text-muted-foreground">{`${formatCurrency(unpaid)} unpaid`}</Text>}
+      </View>
+      <View ref={triggerRef} collapsable={false}>
+        <Button icon={Plus} label="Add expense" onPress={onCopy ? open : onAdd}
+          accessibilityState={onCopy ? { expanded: anchor !== null } : undefined} />
+      </View>
     </View>
-    <View className="rounded-t-[24px] border-x border-t border-border bg-surface px-2">
-      {expenses.length === 0 && <Text className="px-2 py-3 text-body-medium text-muted-foreground">No expenses</Text>}
-    </View>
+    {expenses.length === 0 && <View className="rounded-[24px] border border-border bg-surface px-4 py-3">
+      <Text className="text-body-medium text-muted-foreground">No expenses</Text>
+    </View>}
+    {onCopy && <AnchoredMenu anchor={anchor} onClose={close} size="regular" items={[
+      { key: "new", label: "New expense", icon: Plus, onPress: onAdd },
+      { key: "copy", label: "Copy from previous month", icon: Copy, onPress: onCopy },
+    ]} />}
   </View>;
 }
 
@@ -85,7 +97,7 @@ export const CustomExpenseRow = memo(function CustomExpenseRow({ expense, isLast
           <Pressable onPress={() => { close(); setEditing("amount"); }}
             className="min-h-[44px] w-[84px] max-[360px]:w-[72px] shrink-0 items-end justify-center rounded-lg active:bg-muted"
             accessible accessibilityRole="button" accessibilityLabel={`Edit amount for ${expense.category || "Category"}`}>
-            <Text className={`text-right text-body-medium font-semibold ${expense.paid ? "text-muted-foreground" : "text-foreground"}`}>{formatCurrency(expense.amount)}</Text>
+            <Text className={`text-right text-body-medium ${expense.paid ? "text-muted-foreground" : "font-semibold text-foreground"}`}>{formatCurrency(expense.amount)}</Text>
           </Pressable>}
         <View ref={triggerRef} collapsable={false}>
           <IconButton

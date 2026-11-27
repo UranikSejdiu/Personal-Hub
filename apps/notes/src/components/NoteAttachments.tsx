@@ -1,3 +1,4 @@
+import { actionErrorOptions } from "../lib/actionErrorOptions";
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AppState, Image, Keyboard, Linking, Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -120,7 +121,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
     }
     if (permission.granted) return true;
     if (!permission.canAskAgain) setPermissionNeeded(kind);
-    else toast.error(kind === "audio" ? "Microphone access was not allowed. Tap Record voice to try again when ready." : "Camera access was not allowed. Tap Take photo to try again when ready.");
+    else toast.error(kind === "audio" ? "Microphone access was not allowed. Tap Record voice to try again when ready." : "Camera access was not allowed. Tap Take photo to try again when ready.", actionErrorOptions);
     return false;
   };
 
@@ -176,7 +177,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
   };
 
   const errorAlert = attachmentError && <Text accessibilityRole="alert" className="text-sm text-destructive">{attachmentError}</Text>;
-  return <View className={state.attachments.length > 0 || attachmentError ? "gap-3 px-5 pb-4" : undefined}>
+  return <View className={state.attachments.length > 0 || attachmentError ? "gap-3 pb-4" : undefined}>
     {!preview && errorAlert}
     {state.attachments.map(item => <View key={item.id} className="overflow-hidden rounded-[18px] border border-border/60 bg-card">
       {item.kind === "image" && <Pressable onPress={() => { Keyboard.dismiss(); setAttachmentError(null); setPreview(item); }} accessibilityRole="button" accessibilityLabel={`View ${item.name}`}>
@@ -217,7 +218,7 @@ export function NoteAttachments({ state, readOnly = false, disabled = false }: {
       confirmLabel="Open app settings" cancelLabel="Not now" onClose={() => setPermissionNeeded(null)}
       onConfirm={async () => {
         try { await Linking.openSettings(); setPermissionNeeded(null); }
-        catch { toast.error("Could not open app settings. Open system Settings and select My Notes."); }
+        catch { toast.error("Could not open app settings. Open system Settings and select My Notes.", actionErrorOptions); }
       }} />
   </View>;
 }

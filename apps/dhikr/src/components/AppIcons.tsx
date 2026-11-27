@@ -1,4 +1,5 @@
 import { Text, type TextStyle } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { UICON_GLYPHS, type UiconName } from "../constants/uicons";
 
 export interface AppIconProps {
@@ -30,6 +31,12 @@ export const Sparkles = createIcon("Sparkles");
 export const Star = createIcon("Star");
 export const RotateCcw = createIcon("RotateCcw");
 export const Pencil = createIcon("Pencil");
+export function GripVertical({ size = 24, color = "#000000" }: AppIconProps) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false}>
+    <Path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"
+      stroke={color} strokeWidth={3.5} strokeLinecap="round" />
+  </Svg>;
+}
 export const ListOrdered = createIcon("ListOrdered");
 export const X = createIcon("X");
 export const Check = createIcon("Check");

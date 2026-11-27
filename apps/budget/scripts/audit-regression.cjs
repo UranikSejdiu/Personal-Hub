@@ -126,6 +126,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
     assert.equal(withTarget.goalMet, true, 'Savings progress uses the balance before reserving the target');
     assert.equal(withTarget.goalProgress, 100);
     const allPaid = budget.computeMonthSummary({ ...monthTotals, paidExpenses: monthTotals.totalExpenses }, budget.EMPTY_LOANS, 100);
+    assert.equal(allPaid.remaining, withTarget.remaining, 'Marking bills paid keeps the after-bills projection unchanged');
     assert.equal(allPaid.actualRemaining.toFixed(2), allPaid.remaining.toFixed(2), 'Current and planned agree once all bills are paid');
     const noTarget = budget.computeMonthSummary(monthTotals, budget.EMPTY_LOANS, 0);
     assert.equal(noTarget.actualRemaining.toFixed(2), '196.01');
